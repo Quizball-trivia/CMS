@@ -3,15 +3,17 @@
 import { useMemo } from 'react';
 import { useCategories } from '@/hooks';
 import type { Category } from '@/types';
-import { CategoryCard } from './category-card';
+import { DraggableCategoryCard } from './draggable-category-card';
+import { RepositoryDropZone } from './repository-drop-zone';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 
 interface CategoryListProps {
   parentId?: string | null;
   onEditCategory?: (category: Category) => void;
+  featuredCategoryIds?: Set<string>;
 }
 
-export function CategoryList({ parentId, onEditCategory }: CategoryListProps) {
+export function CategoryList({ parentId, onEditCategory, featuredCategoryIds = new Set() }: CategoryListProps) {
   const { data: categories, isLoading, error } = useCategories();
 
   // Group categories by parent
@@ -53,7 +55,7 @@ export function CategoryList({ parentId, onEditCategory }: CategoryListProps) {
         {[...Array(8)].map((_, i) => (
           <div
             key={i}
-            className="h-[220px] w-full bg-card/20 rounded-[2rem] animate-pulse border border-white/5"
+            className="h-[240px] w-full bg-card/20 rounded-[2rem] animate-pulse border border-white/5"
           />
         ))}
       </div>
@@ -77,15 +79,17 @@ export function CategoryList({ parentId, onEditCategory }: CategoryListProps) {
   }
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 max-w-full mx-auto">
-      {rootCategories.map((category) => (
-        <CategoryCard
-          key={category.id}
-          category={category}
-          childCount={childCounts[category.id] || 0}
-          onEdit={onEditCategory}
-        />
-      ))}
-    </div>
+    <RepositoryDropZone>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 max-w-full mx-auto">
+        {rootCategories.map((category) => (
+          <DraggableCategoryCard
+            key={category.id}
+            category={category}
+            isAlreadyFeatured={featuredCategoryIds.has(category.id)}
+            onEdit={onEditCategory}
+          />
+        ))}
+      </div>
+    </RepositoryDropZone>
   );
 }

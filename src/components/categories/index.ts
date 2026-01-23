@@ -1,4 +1,9 @@
-export { CategoryCard } from './category-card';
 export { CategoryList } from './category-list';
 export { CategoryForm } from './category-form';
 export { FeaturedList } from './featured-list';
+export { UnifiedCategoryCard } from './unified-category-card';
+export { CategoriesDndContext } from './categories-dnd-context';
+export { FeaturedDropZone } from './featured-drop-zone';
+export { RepositoryDropZone } from './repository-drop-zone';
+export { DraggableCategoryCard } from './draggable-category-card';
+export { SortableFeaturedCard } from './sortable-featured-card';

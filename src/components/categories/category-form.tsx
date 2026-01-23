@@ -183,7 +183,7 @@ export function CategoryForm({ category, onSuccess }: CategoryFormProps) {
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-        <div className="relative group overflow-hidden rounded-[2rem] border border-white/10 aspect-[21/9] w-full shadow-2xl">
+        <div className="relative group overflow-hidden rounded-[2rem] border border-white/10 min-h-[240px] w-full shadow-2xl">
           {/* Background Layer */}
           <div className="absolute inset-0 bg-[#0a0a0a]">
             {imageUrl ? (
