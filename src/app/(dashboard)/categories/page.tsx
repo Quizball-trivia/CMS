@@ -198,7 +198,7 @@ export default function CategoriesPage() {
                 <div className="p-2 bg-primary/5 rounded-xl backdrop-blur-md border border-primary/10 shadow-sm">
                   <List className="w-5 h-5" />
                 </div>
-                <h2 className="text-[10px] font-black uppercase tracking-[0.3em]">Repository</h2>
+                <h2 className="text-[10px] font-black uppercase tracking-[0.3em]">All Categories</h2>
               </div>
             </div>
             <CategoryList

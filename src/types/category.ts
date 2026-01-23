@@ -48,11 +48,14 @@ export interface FeaturedCategory {
   category: {
     id: string;
     slug: string;
+    parent_id: string | null;
     name: I18nField;
     description: I18nField | null;
     icon: string | null;
     image_url: string | null;
     is_active: boolean;
+    created_at: string;
+    updated_at: string;
   };
 }
 

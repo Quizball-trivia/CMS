@@ -6,56 +6,55 @@ import type { Category } from '@/types';
 import { DraggableCategoryCard } from './draggable-category-card';
 import { RepositoryDropZone } from './repository-drop-zone';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { DEFAULT_LANGUAGE } from '@/lib/constants';
 
 interface CategoryListProps {
-  parentId?: string | null;
   onEditCategory?: (category: Category) => void;
   featuredCategoryIds?: Set<string>;
 }
 
-export function CategoryList({ parentId, onEditCategory, featuredCategoryIds = new Set() }: CategoryListProps) {
+export function CategoryList({ onEditCategory, featuredCategoryIds = new Set() }: CategoryListProps) {
   const { data: categories, isLoading, error } = useCategories();
 
-  // Group categories by parent
-  const { rootCategories, childCounts } = useMemo(() => {
-    if (!categories) return { rootCategories: [], childCounts: {} };
+  // Build parent name map and sort categories (parents first, then children)
+  const { sortedCategories, parentNames } = useMemo(() => {
+    if (!categories) return { sortedCategories: [], parentNames: {} };
 
-    const counts: Record<string, number> = {};
-    const roots: Category[] = [];
-
+    // Build a map of category ID to name for parent lookups
+    const nameMap: Record<string, string> = {};
     categories.forEach((cat) => {
-      if (cat.parent_id) {
-        counts[cat.parent_id] = (counts[cat.parent_id] || 0) + 1;
-      }
-
-      if (parentId === undefined) {
-        // Show all root categories
-        if (!cat.parent_id) {
-          roots.push(cat);
-        }
-      } else if (parentId === null) {
-        // Show root categories only
-        if (!cat.parent_id) {
-          roots.push(cat);
-        }
-      } else {
-        // Show children of specific parent
-        if (cat.parent_id === parentId) {
-          roots.push(cat);
-        }
-      }
+      nameMap[cat.id] = cat.name[DEFAULT_LANGUAGE] || cat.slug;
     });
 
-    return { rootCategories: roots, childCounts: counts };
-  }, [categories, parentId]);
+    // Sort: root categories first, then children grouped by parent
+    const sorted = [...categories].sort((a, b) => {
+      // Root categories come first
+      if (!a.parent_id && b.parent_id) return -1;
+      if (a.parent_id && !b.parent_id) return 1;
+
+      // Among roots or among children with same parent, sort by name
+      if (a.parent_id === b.parent_id) {
+        const nameA = a.name[DEFAULT_LANGUAGE] || a.slug;
+        const nameB = b.name[DEFAULT_LANGUAGE] || b.slug;
+        return nameA.localeCompare(nameB);
+      }
+
+      // Group children under their parent
+      const parentNameA = a.parent_id ? nameMap[a.parent_id] || '' : '';
+      const parentNameB = b.parent_id ? nameMap[b.parent_id] || '' : '';
+      return parentNameA.localeCompare(parentNameB);
+    });
+
+    return { sortedCategories: sorted, parentNames: nameMap };
+  }, [categories]);
 
   if (isLoading) {
     return (
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 max-w-full mx-auto">
-        {[...Array(8)].map((_, i) => (
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-3">
+        {[...Array(12)].map((_, i) => (
           <div
             key={i}
-            className="h-[240px] w-full bg-card/20 rounded-[2rem] animate-pulse border border-white/5"
+            className="h-[170px] w-full bg-card/20 rounded-2xl animate-pulse border border-white/5"
           />
         ))}
       </div>
@@ -70,23 +69,24 @@ export function CategoryList({ parentId, onEditCategory, featuredCategoryIds = n
     );
   }
 
-  if (rootCategories.length === 0) {
+  if (sortedCategories.length === 0) {
     return (
       <div className="text-center py-20 max-w-full mx-auto bg-card/20 backdrop-blur-md rounded-2xl border border-white/5">
-        <p className="text-muted-foreground font-medium italic">No categories available in the repository.</p>
+        <p className="text-muted-foreground font-medium italic">No categories available.</p>
       </div>
     );
   }
 
   return (
     <RepositoryDropZone>
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 max-w-full mx-auto">
-        {rootCategories.map((category) => (
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-3">
+        {sortedCategories.map((category) => (
           <DraggableCategoryCard
             key={category.id}
             category={category}
             isAlreadyFeatured={featuredCategoryIds.has(category.id)}
             onEdit={onEditCategory}
+            parentName={category.parent_id ? parentNames[category.parent_id] : undefined}
           />
         ))}
       </div>

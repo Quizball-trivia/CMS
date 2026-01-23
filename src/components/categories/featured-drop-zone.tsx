@@ -23,7 +23,7 @@ export function FeaturedDropZone({ children, itemIds }: FeaturedDropZoneProps) {
       <div
         ref={setNodeRef}
         className={cn(
-          "flex gap-3 overflow-x-auto pb-2 min-h-[260px] transition-all duration-200 rounded-2xl",
+          "flex gap-3 pb-2 min-h-[200px] transition-all duration-200 rounded-2xl",
           isOver && "bg-primary/10 ring-2 ring-primary/30 ring-inset"
         )}
       >
@@ -31,7 +31,7 @@ export function FeaturedDropZone({ children, itemIds }: FeaturedDropZoneProps) {
         {/* Drop indicator when empty or dragging over */}
         {itemIds.length === 0 && (
           <div className={cn(
-            "flex-1 flex items-center justify-center text-muted-foreground text-sm border-2 border-dashed rounded-2xl min-h-[240px]",
+            "flex-1 flex items-center justify-center text-muted-foreground text-sm border-2 border-dashed rounded-2xl min-h-[180px]",
             isOver ? "border-primary bg-primary/5" : "border-white/10"
           )}>
             {isOver ? 'Drop to add to featured' : 'Drag categories here to feature them'}

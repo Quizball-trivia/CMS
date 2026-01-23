@@ -21,14 +21,14 @@ export function SortableFeaturedCard({
   const category: Category = {
     id: featured.category.id,
     slug: featured.category.slug,
-    parent_id: null,
+    parent_id: featured.category.parent_id,
     name: featured.category.name,
     description: featured.category.description,
     icon: featured.category.icon,
     image_url: featured.category.image_url,
     is_active: featured.category.is_active,
-    created_at: featured.created_at,
-    updated_at: featured.created_at,
+    created_at: featured.category.created_at,
+    updated_at: featured.category.updated_at,
   };
 
   const dragData: DragData = {
