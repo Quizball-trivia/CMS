@@ -7,9 +7,21 @@ import type {
   CategoryDependencies,
 } from '@/types';
 
+interface PaginatedResponse<T> {
+  data: T[];
+  total: number;
+  page: number;
+  limit: number;
+  total_pages: number;
+}
+
 export const categoriesService = {
   async list(params?: ListCategoriesParams): Promise<Category[]> {
-    return apiClient.get<Category[]>('/categories', params as Record<string, string | number | boolean | undefined>);
+    const response = await apiClient.get<PaginatedResponse<Category>>(
+      '/categories',
+      params as Record<string, string | number | boolean | undefined>
+    );
+    return response.data;
   },
 
   async getById(id: string): Promise<Category> {

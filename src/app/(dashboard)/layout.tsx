@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/providers';
 import { Sidebar, Header } from '@/components/layout';
@@ -13,27 +13,12 @@ export default function DashboardLayout({
 }) {
   const { isAuthenticated, isLoading } = useAuth();
   const router = useRouter();
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
       router.push('/login');
     }
   }, [isAuthenticated, isLoading, router]);
-
-  // Load sidebar state from localStorage
-  useEffect(() => {
-    const saved = localStorage.getItem('sidebar-collapsed');
-    if (saved !== null) {
-      setSidebarCollapsed(saved === 'true');
-    }
-  }, []);
-
-  const handleSidebarToggle = () => {
-    const newState = !sidebarCollapsed;
-    setSidebarCollapsed(newState);
-    localStorage.setItem('sidebar-collapsed', String(newState));
-  };
 
   if (isLoading) {
     return (
@@ -57,7 +42,7 @@ export default function DashboardLayout({
         <div className="absolute bottom-[-5%] left-[20%] w-[35%] h-[35%] bg-purple-400/10 rounded-full blur-[110px] animate-pulse delay-1000" />
       </div>
 
-      <Sidebar collapsed={sidebarCollapsed} onToggle={handleSidebarToggle} />
+      <Sidebar />
       <div className="flex-1 flex flex-col min-w-0 transition-all duration-300 ease-in-out">
         <Header />
         <main className="flex-1 p-6 overflow-y-auto animate-in fade-in duration-500">

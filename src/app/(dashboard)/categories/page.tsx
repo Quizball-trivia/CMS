@@ -10,8 +10,7 @@ import {
   useReorderFeaturedCategories,
 } from '@/hooks';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
-import { Plus, LayoutGrid, List, Edit2 } from 'lucide-react';
+import { Plus, X } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -107,6 +106,8 @@ export default function CategoriesPage() {
 
   const isEditing = !!editingCategory;
 
+  const [searchTerm, setSearchTerm] = useState('');
+
   return (
     <CategoriesDndContext
       featuredItems={featuredItems}
@@ -115,96 +116,104 @@ export default function CategoriesPage() {
       onReorderFeatured={handleReorderFeatured}
       onFeaturedItemsChange={handleFeaturedItemsChange}
     >
-      <div className="space-y-10 animate-in fade-in duration-700">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-          <div className="space-y-1.5">
-            <h1 className="text-4xl font-black tracking-tight bg-clip-text text-transparent bg-gradient-to-br from-foreground to-foreground/60">
+      <div className="min-h-screen bg-[#f8f9fb] text-foreground py-10">
+        <div className="max-w-[1280px] mx-auto px-8 space-y-10">
+          {/* Page Header */}
+          <header className="space-y-1">
+            <h1 className="text-4xl font-black tracking-tight text-gray-900">
               Categories
             </h1>
-           
+            <p className="text-gray-500 font-medium text-base">
+              Manage and explore different football categories.
+            </p>
+          </header>
+
+          {/* Control Row */}
+          <div className="flex items-center justify-between gap-4">
+            <div className="relative w-72 group">
+              <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
+                <Plus className="h-4 w-4 text-gray-400 rotate-45 group-focus-within:text-primary transition-colors" />
+              </div>
+              <input
+                type="text"
+                placeholder="Search categories..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="block w-full pl-10 pr-10 py-2.5 bg-gray-200/30 border-transparent rounded-xl text-sm focus:ring-2 focus:ring-primary/10 focus:bg-white focus:border-gray-200 transition-all placeholder:text-gray-400 font-medium"
+              />
+              {searchTerm && (
+                <button
+                  onClick={() => setSearchTerm('')}
+                  className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600 transition-colors"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              )}
+            </div>
+
+            <Button
+              onClick={handleOpenCreate}
+              className="bg-gray-900 hover:bg-gray-800 text-white px-6 h-11 rounded-xl font-bold text-sm transition-all shadow-lg shadow-gray-200 active:scale-95 flex items-center gap-2"
+            >
+              <Plus className="w-4 h-4" />
+              New Category
+            </Button>
           </div>
 
-          <Button
-            size="lg"
-            onClick={handleOpenCreate}
-            className="shadow-2xl shadow-primary/20 transition-all active:scale-[0.98] bg-primary hover:bg-primary/90 border border-white/10 h-12 px-6 rounded-xl font-bold tracking-tight"
-          >
-            <Plus className="w-5 h-5 mr-2" />
-            New Category
-          </Button>
-
-          <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-            <DialogContent className="sm:max-w-[720px] max-h-[90vh] overflow-hidden bg-background/60 backdrop-blur-3xl border border-white/10 shadow-[0_30px_120px_-40px_rgba(0,0,0,0.9)] p-0 rounded-[2.5rem]">
-              <div className="absolute inset-0 bg-gradient-to-br from-white/10 via-transparent to-transparent pointer-events-none" />
-              <div className="relative flex flex-col h-full max-h-[90vh]">
-                <DialogHeader className="p-8 pb-6 border-b border-white/10 shrink-0">
-                  <div className="flex items-center gap-5">
-                    <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 border border-primary/20 shadow-inner">
-                      {isEditing ? (
-                        <Edit2 className="w-6 h-6 text-primary" />
-                      ) : (
-                        <Plus className="w-6 h-6 text-primary" />
-                      )}
-                    </div>
-                    <div className="space-y-0.5">
-                      <DialogTitle className="text-2xl font-bold tracking-tight">
-                        {isEditing ? 'Edit Category' : 'Create Category'}
-                      </DialogTitle>
-                      <DialogDescription className="text-muted-foreground text-sm font-medium">
-                        {isEditing
-                          ? 'Update the category details below.'
-                          : 'Define a new content bucket for your questions.'}
-                      </DialogDescription>
-                    </div>
-                  </div>
-                </DialogHeader>
-                <div className="flex-1 overflow-y-auto p-8 pt-6">
-                  <CategoryForm
-                    category={editingCategory}
-                    onSuccess={handleClose}
-                  />
-                </div>
+          <div className="space-y-16 pt-4">
+            {/* Featured Section */}
+            <section className="space-y-6">
+              <div className="flex items-center gap-3 px-1">
+                <h2 className="text-[11px] font-bold uppercase tracking-[0.2em] text-gray-400">
+                  Featured Collections
+                </h2>
               </div>
-            </DialogContent>
-          </Dialog>
+              <FeaturedList
+                items={featuredItems}
+                isLoading={featuredLoading}
+                error={featuredError}
+                onEditCategory={handleOpenEdit}
+                onRemoveFromFeatured={handleRemoveFromFeatured}
+              />
+            </section>
+
+            {/* All Categories Section */}
+            <section className="space-y-6">
+              <div className="flex items-center gap-3 px-1">
+                <h2 className="text-[11px] font-bold uppercase tracking-[0.2em] text-gray-400">
+                  All Categories
+                </h2>
+              </div>
+              <CategoryList
+                onEditCategory={handleOpenEdit}
+                featuredCategoryIds={featuredCategoryIds}
+                searchTerm={searchTerm}
+              />
+            </section>
+          </div>
         </div>
 
-        <div className="grid gap-12 max-w-[1400px] mx-auto px-4">
-          <section className="space-y-6">
-            <div className="flex items-center gap-3 text-primary/60 px-1">
-              <div className="p-2 bg-primary/5 rounded-xl backdrop-blur-md border border-primary/10 shadow-sm">
-                <LayoutGrid className="w-5 h-5" />
-              </div>
-              <h2 className="text-[10px] font-black uppercase tracking-[0.3em]">Featured Collections</h2>
+        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+          <DialogContent className="sm:max-w-[600px] p-0 overflow-hidden border-none shadow-2xl rounded-[2rem]">
+            <DialogHeader className="p-8 pb-4">
+              <DialogTitle className="text-2xl font-bold tracking-tight">
+                {isEditing ? 'Edit Category' : 'Create Category'}
+              </DialogTitle>
+              <DialogDescription className="text-gray-500 font-medium">
+                {isEditing
+                  ? 'Update the category details below.'
+                  : 'Define a new content bucket for your questions.'}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="px-8 pb-8">
+              <CategoryForm
+                key={editingCategory?.id ?? 'new'}
+                category={editingCategory}
+                onSuccess={handleClose}
+              />
             </div>
-            <Card className="border-white/10 shadow-2xl bg-card/20 backdrop-blur-xl rounded-[2.5rem] overflow-hidden border">
-              <CardContent className="p-10">
-                <FeaturedList
-                  items={featuredItems}
-                  isLoading={featuredLoading}
-                  error={featuredError}
-                  onEditCategory={handleOpenEdit}
-                  onRemoveFromFeatured={handleRemoveFromFeatured}
-                />
-              </CardContent>
-            </Card>
-          </section>
-
-          <section className="space-y-6">
-            <div className="flex items-center justify-between px-1">
-              <div className="flex items-center gap-3 text-primary/60">
-                <div className="p-2 bg-primary/5 rounded-xl backdrop-blur-md border border-primary/10 shadow-sm">
-                  <List className="w-5 h-5" />
-                </div>
-                <h2 className="text-[10px] font-black uppercase tracking-[0.3em]">All Categories</h2>
-              </div>
-            </div>
-            <CategoryList
-              onEditCategory={handleOpenEdit}
-              featuredCategoryIds={featuredCategoryIds}
-            />
-          </section>
-        </div>
+          </DialogContent>
+        </Dialog>
       </div>
     </CategoriesDndContext>
   );

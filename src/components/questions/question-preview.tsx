@@ -13,7 +13,6 @@ interface QuestionPreviewProps {
   mcqOptions: McqOption[];
   acceptedAnswers: AnswerWithId[];
   previewLang: 'en' | 'ka';
-  onLanguageChange: (lang: 'en' | 'ka') => void;
 }
 
 export function QuestionPreview({
@@ -24,54 +23,32 @@ export function QuestionPreview({
   mcqOptions,
   acceptedAnswers,
   previewLang,
-  onLanguageChange,
 }: QuestionPreviewProps) {
   return (
-    <div className="mb-8">
-      <div className="flex items-center justify-between mb-3">
-        <h3 className="text-sm font-semibold tracking-tight">Live Preview</h3>
-        <div className="flex gap-1 bg-muted/50 p-1 rounded-lg">
-          <Button
-            type="button"
-            size="sm"
-            variant={previewLang === 'en' ? 'default' : 'ghost'}
-            className="h-7 px-3"
-            onClick={() => onLanguageChange('en')}
-          >
-            EN
-          </Button>
-          <Button
-            type="button"
-            size="sm"
-            variant={previewLang === 'ka' ? 'default' : 'ghost'}
-            className="h-7 px-3"
-            onClick={() => onLanguageChange('ka')}
-          >
-            KA
-          </Button>
-        </div>
-      </div>
-
-      <div className="rounded-2xl bg-[#0a0a0a] p-6 text-white min-h-[280px]">
+    <div className="w-full">
+      <div className="rounded-2xl bg-[#0a0a0a] p-6 text-white min-h-[340px] flex flex-col shadow-2xl">
         {/* Progress bar */}
         <div className="h-1 bg-white/20 rounded-full mb-6">
           <div className="h-full w-1/3 bg-[#22c55e] rounded-full" />
         </div>
 
         {/* Category/difficulty badge */}
-        <span
-          className={cn(
-            'inline-block px-3 py-1 rounded-lg text-xs font-bold mb-4',
-            difficulty === 'easy' && 'bg-emerald-500/20 text-emerald-400',
-            difficulty === 'medium' && 'bg-amber-500/20 text-amber-400',
-            difficulty === 'hard' && 'bg-rose-500/20 text-rose-400'
-          )}
-        >
-          {categoryName || 'Category'}
-        </span>
+        <div className="mb-6">
+          <span
+            className={cn(
+              'inline-block px-3 py-1 rounded-lg text-xs font-bold',
+              difficulty === 'easy' && 'bg-emerald-500/20 text-emerald-400',
+              difficulty === 'medium' && 'bg-amber-500/20 text-amber-400',
+              difficulty === 'hard' && 'bg-rose-500/20 text-rose-400',
+              !difficulty && 'bg-white/10 text-white/60'
+            )}
+          >
+            {categoryName || 'Category'}
+          </span>
+        </div>
 
         {/* Question prompt */}
-        <p className="text-lg font-medium mb-6">
+        <p className="text-xl font-medium mb-8 leading-relaxed">
           {prompt || 'Your question will appear here...'}
         </p>
 

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useForm, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -9,6 +9,7 @@ import { useCreateQuestion, useUpdateQuestion, useCategories } from '@/hooks';
 import type { Question, McqOption } from '@/types';
 import type { AnswerWithId } from './text-input-editor';
 import { useRouter } from 'next/navigation';
+import { logger } from '@/lib/logger';
 import { Button } from '@/components/ui/button';
 import {
   Form,
@@ -69,12 +70,43 @@ export function QuestionForm({ question, onSuccess }: QuestionFormProps) {
 
   const isEditing = !!question;
 
-  // MCQ state
-  const [mcqOptions, setMcqOptions] = useState<McqOption[]>([]);
+  // Track if we've logged the mount (only log once per component instance)
+  const hasLoggedMount = useRef(false);
+  useEffect(() => {
+    if (!hasLoggedMount.current) {
+      hasLoggedMount.current = true;
+      logger.debug('questions', 'QuestionForm mounted', {
+        isEditing,
+        questionId: question?.id,
+        questionType: question?.type,
+      });
+    }
+  }, [isEditing, question?.id, question?.type]);
+
+  // MCQ state - initialize from question if editing
+  const [mcqOptions, setMcqOptions] = useState<McqOption[]>(() => {
+    if (question?.payload?.type === 'mcq_single') {
+      return question.payload.options;
+    }
+    return [];
+  });
 
   // Text input state - using AnswerWithId for stable React keys
-  const [acceptedAnswers, setAcceptedAnswers] = useState<AnswerWithId[]>([]);
-  const [caseSensitive, setCaseSensitive] = useState(false);
+  const [acceptedAnswers, setAcceptedAnswers] = useState<AnswerWithId[]>(() => {
+    if (question?.payload?.type === 'input_text') {
+      return question.payload.accepted_answers.map((a) => ({
+        ...a,
+        id: crypto.randomUUID(),
+      }));
+    }
+    return [];
+  });
+  const [caseSensitive, setCaseSensitive] = useState(() => {
+    if (question?.payload?.type === 'input_text') {
+      return question.payload.case_sensitive;
+    }
+    return false;
+  });
 
   // Preview state
   const [previewLang, setPreviewLang] = useState<'en' | 'ka'>('en');
@@ -82,28 +114,23 @@ export function QuestionForm({ question, onSuccess }: QuestionFormProps) {
   const form = useForm<QuestionFormData>({
     resolver: zodResolver(questionSchema),
     defaultValues: {
-      category_id: '',
-      type: 'mcq_single',
-      difficulty: 'medium',
-      status: 'draft',
-      prompt_en: '',
-      prompt_ka: '',
-      explanation_en: '',
-      explanation_ka: '',
+      category_id: question?.category_id ?? '',
+      type: question?.type ?? 'mcq_single',
+      difficulty: question?.difficulty ?? 'medium',
+      status: question?.status ?? 'draft',
+      prompt_en: question?.prompt.en ?? '',
+      prompt_ka: question?.prompt.ka ?? '',
+      explanation_en: question?.explanation?.en ?? '',
+      explanation_ka: question?.explanation?.ka ?? '',
     },
   });
 
-  const questionType = form.watch('type');
-
-  // Watch all fields for live preview
-  const watched = useWatch({ control: form.control });
-  const {
-    category_id: categoryId,
-    type,
-    difficulty,
-    prompt_en: promptEn,
-    prompt_ka: promptKa,
-  } = watched;
+  // Watch only the specific fields needed for preview (more efficient than watching all)
+  const questionType = useWatch({ control: form.control, name: 'type' });
+  const categoryId = useWatch({ control: form.control, name: 'category_id' });
+  const difficulty = useWatch({ control: form.control, name: 'difficulty' });
+  const promptEn = useWatch({ control: form.control, name: 'prompt_en' });
+  const promptKa = useWatch({ control: form.control, name: 'prompt_ka' });
 
   // Compute preview values
   const previewPrompt = previewLang === 'ka' ? promptKa : promptEn;
@@ -112,37 +139,18 @@ export function QuestionForm({ question, onSuccess }: QuestionFormProps) {
     ? (previewCategory.name[previewLang] || previewCategory.name.en || '')
     : '';
 
-  // Populate form when editing
+  // Log when form is populated (state is now initialized via defaultValues and useState initializers)
   useEffect(() => {
     if (question) {
-      form.reset({
-        category_id: question.category_id,
+      logger.info('questions', 'Form initialized with question', {
+        id: question.id,
         type: question.type,
-        difficulty: question.difficulty,
-        status: question.status,
-        prompt_en: question.prompt.en || '',
-        prompt_ka: question.prompt.ka || '',
-        explanation_en: question.explanation?.en || '',
-        explanation_ka: question.explanation?.ka || '',
+        category_id: question.category_id,
+        formCategoryId: form.getValues('category_id'),
       });
-
-      // Load payload
-      if (question.payload) {
-        if (question.payload.type === 'mcq_single') {
-          setMcqOptions(question.payload.options);
-        } else if (question.payload.type === 'input_text') {
-          // Add IDs to existing answers for stable React keys
-          setAcceptedAnswers(
-            question.payload.accepted_answers.map((a) => ({
-              ...a,
-              id: crypto.randomUUID(),
-            }))
-          );
-          setCaseSensitive(question.payload.case_sensitive);
-        }
-      }
     }
-  }, [question, form]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Reset payload when type changes
   useEffect(() => {
@@ -157,18 +165,23 @@ export function QuestionForm({ question, onSuccess }: QuestionFormProps) {
   }, [questionType, isEditing]);
 
   async function onSubmit(data: QuestionFormData) {
+    logger.info('questions', 'Form submitted', { formData: data, mcqOptions, acceptedAnswers, caseSensitive });
+
     // Validate payload
     if (data.type === 'mcq_single') {
       if (mcqOptions.length < 2) {
+        logger.warn('questions', 'MCQ validation failed: not enough options', { count: mcqOptions.length });
         toast.error('MCQ questions need at least 2 options');
         return;
       }
       if (!mcqOptions.some((o) => o.is_correct)) {
+        logger.warn('questions', 'MCQ validation failed: no correct option');
         toast.error('Please mark one option as correct');
         return;
       }
     } else {
       if (acceptedAnswers.length === 0) {
+        logger.warn('questions', 'Text input validation failed: no answers');
         toast.error('Text input questions need at least 1 accepted answer');
         return;
       }
@@ -176,7 +189,7 @@ export function QuestionForm({ question, onSuccess }: QuestionFormProps) {
 
     try {
       // Strip IDs from answers before sending to API
-    const payload =
+      const payload =
         data.type === 'mcq_single'
           ? { type: 'mcq_single' as const, options: mcqOptions }
           : {
@@ -204,357 +217,140 @@ export function QuestionForm({ question, onSuccess }: QuestionFormProps) {
         payload,
       };
 
+      logger.info('questions', 'Sending question to API', { questionData, isEditing });
+
       if (isEditing) {
-        await updateQuestion.mutateAsync({ id: question.id, data: questionData });
+        const result = await updateQuestion.mutateAsync({ id: question.id, data: questionData });
+        logger.info('questions', 'Question updated successfully', { result });
         toast.success('Question updated successfully');
       } else {
-        await createQuestion.mutateAsync(questionData);
+        const result = await createQuestion.mutateAsync(questionData);
+        logger.info('questions', 'Question created successfully', { result });
         toast.success('Question created successfully');
       }
 
       onSuccess?.();
-    } catch {
+    } catch (error) {
+      logger.error('questions', 'Failed to save question', { error: error instanceof Error ? error.message : error });
       toast.error(isEditing ? 'Failed to update question' : 'Failed to create question');
     }
   }
 
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="max-w-[1200px] mx-auto space-y-6 pb-20">
-        {/* Header Section */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 sticky top-0 z-30 bg-background/80 backdrop-blur-xl p-4 -mx-4 border-b border-white/5 shadow-sm rounded-b-3xl">
-          <div className="flex items-center gap-3">
-            <div className="h-10 w-10 flex items-center justify-center rounded-xl bg-primary/10 border border-primary/20 shadow-inner">
-              {isEditing ? <Settings2 className="w-5 h-5 text-primary" /> : <Plus className="w-5 h-5 text-primary" />}
+      <form onSubmit={form.handleSubmit(onSubmit)} className="max-w-[1200px] mx-auto space-y-8 pb-20 px-4">
+        {/* Top Configuration Card - Floating Header */}
+        <div className="bg-white border border-gray-200/60 rounded-[1.5rem] p-4 shadow-sm flex items-center justify-between gap-6">
+          <div className="flex items-center gap-4">
+            <div className="h-12 w-12 flex items-center justify-center rounded-2xl bg-gray-50 border border-gray-100 text-gray-400">
+              {isEditing ? <Settings2 className="w-5 h-5" /> : <Plus className="w-5 h-5" />}
             </div>
             <div>
-              <h1 className="text-xl font-bold tracking-tight">
-                {isEditing ? 'Edit Question' : 'Create Question'}
-              </h1>
-              <p className="text-xs text-muted-foreground font-medium">
-                {previewCategoryName || 'Select a category to begin'}
+              <h3 className="text-sm font-bold text-gray-900">
+                {isEditing ? 'Update Question' : 'Create Question'}
+              </h3>
+              <p className="text-[11px] text-gray-400 font-medium leading-none">
+                {isEditing ? 'Update question details' : 'Define your quiz question'}
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            <Button variant="ghost" type="button" size="sm" onClick={() => router.back()} className="rounded-xl h-10 px-4">
+
+          <div className="flex items-center gap-3">
+            <FormField
+              control={form.control}
+              name="category_id"
+              render={({ field }) => (
+                <Select onValueChange={field.onChange} value={field.value}>
+                  <FormControl>
+                    <SelectTrigger className="h-10 w-44 bg-gray-50/50 border-gray-200 rounded-xl text-xs font-medium text-gray-600 focus:ring-1 focus:ring-primary/20">
+                      <SelectValue placeholder="Select a category" />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent className="rounded-xl border-gray-200 bg-white shadow-xl">
+                    {categories?.map((cat) => (
+                      <SelectItem key={cat.id} value={cat.id} className="text-xs font-medium">
+                        {getLocalizedText(cat.name, cat.slug)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="difficulty"
+              render={({ field }) => (
+                <Select onValueChange={field.onChange} value={field.value}>
+                  <FormControl>
+                    <SelectTrigger className="h-10 w-28 bg-gray-50/50 border-gray-200 rounded-xl text-xs font-medium text-gray-600 focus:ring-1 focus:ring-primary/20">
+                      <SelectValue placeholder="Difficulty" />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent className="rounded-xl border-gray-200 bg-white shadow-xl">
+                    <SelectItem value="easy" className="text-xs font-medium text-emerald-600">Easy</SelectItem>
+                    <SelectItem value="medium" className="text-xs font-medium text-amber-600">Medium</SelectItem>
+                    <SelectItem value="hard" className="text-xs font-medium text-rose-600">Hard</SelectItem>
+                  </SelectContent>
+                </Select>
+              )}
+            />
+
+            <div className="w-px h-6 bg-gray-100 mx-1" />
+
+            <button
+              type="button"
+              onClick={() => router.back()}
+              className="px-4 py-2 text-xs font-bold text-gray-500 hover:text-gray-900 transition-colors"
+            >
               Cancel
-            </Button>
+            </button>
             <Button
               type="submit"
-              className="h-10 px-6 rounded-xl shadow-lg shadow-primary/20 transition-all active:scale-95 font-bold"
+              className="h-11 px-6 rounded-xl bg-gray-900 hover:bg-gray-800 text-white font-bold transition-all active:scale-95 shadow-lg shadow-gray-200 flex items-center gap-2"
               disabled={createQuestion.isPending || updateQuestion.isPending}
             >
-              {createQuestion.isPending || updateQuestion.isPending ? (
-                <span className="flex items-center gap-2">
-                  <span className="h-4 w-4 border-2 border-white/20 border-t-white rounded-full animate-spin" />
-                  Saving...
-                </span>
-              ) : (
-                <span className="flex items-center gap-2">
-                  <Save className="w-4 h-4" />
-                  {isEditing ? 'Save Changes' : 'Create Question'}
-                </span>
-              )}
+              <Save className="w-4 h-4" />
+              {isEditing ? 'Save Changes' : 'Create Question'}
             </Button>
           </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-          {/* Left Column: Configuration & Content */}
-          <div className="lg:col-span-8 space-y-6">
-            {/* Live Preview */}
+        {/* Live Preview & MCQ Options - Top Grid */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+          <div className="lg:col-span-8 space-y-4">
+            <div className="flex items-center justify-between px-1">
+              <h2 className="text-[11px] font-bold uppercase tracking-[0.2em] text-gray-400">Live Preview</h2>
+            </div>
             <QuestionPreview
               prompt={previewPrompt}
               categoryName={previewCategoryName}
               difficulty={difficulty}
-              type={type}
+              type={questionType}
               mcqOptions={mcqOptions}
               acceptedAnswers={acceptedAnswers}
               previewLang={previewLang}
-              onLanguageChange={setPreviewLang}
             />
-
-            {/* Content Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {/* Configuration Section */}
-              <Card className="border-white/5 bg-card/40 backdrop-blur-xl rounded-[2rem] shadow-xl overflow-hidden">
-                <CardHeader className="p-6 pb-2 border-b border-white/5 bg-white/5">
-                  <div className="flex items-center gap-2">
-                    <div className="p-1.5 bg-primary/10 rounded-lg">
-                      <Settings2 className="w-4 h-4 text-primary" />
-                    </div>
-                    <CardTitle className="text-sm font-bold tracking-tight">Configuration</CardTitle>
-                  </div>
-                </CardHeader>
-                <CardContent className="p-6 space-y-4">
-                  <FormField
-                    control={form.control}
-                    name="category_id"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/70 ml-1">Category</FormLabel>
-                        <Select onValueChange={field.onChange} value={field.value}>
-                          <FormControl>
-                            <SelectTrigger className="h-10 bg-white/5 border-white/10 rounded-xl focus:ring-1 focus:ring-primary/30 transition-all text-xs">
-                              <SelectValue placeholder="Select a category" />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent className="rounded-xl border-white/10 bg-background/80 backdrop-blur-xl shadow-2xl">
-                            {categories?.map((cat) => (
-                              <SelectItem key={cat.id} value={cat.id} className="text-xs">
-                                {getLocalizedText(cat.name, cat.slug)}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <div className="grid grid-cols-2 gap-4">
-                    <FormField
-                      control={form.control}
-                      name="difficulty"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/70 ml-1">Difficulty</FormLabel>
-                          <Select onValueChange={field.onChange} value={field.value}>
-                            <FormControl>
-                              <SelectTrigger className="h-10 bg-white/5 border-white/10 rounded-xl focus:ring-1 focus:ring-primary/30 transition-all text-xs">
-                                <SelectValue />
-                              </SelectTrigger>
-                            </FormControl>
-                            <SelectContent className="rounded-xl border-white/10 bg-background/80 backdrop-blur-xl shadow-2xl">
-                              <SelectItem value="easy" className="text-xs font-bold text-emerald-500">Easy</SelectItem>
-                              <SelectItem value="medium" className="text-xs font-bold text-amber-500">Medium</SelectItem>
-                              <SelectItem value="hard" className="text-xs font-bold text-rose-500">Hard</SelectItem>
-                            </SelectContent>
-                          </Select>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <FormField
-                      control={form.control}
-                      name="status"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/70 ml-1">Status</FormLabel>
-                          <Select onValueChange={field.onChange} value={field.value}>
-                            <FormControl>
-                              <SelectTrigger className={cn(
-                                "h-10 bg-white/5 border-white/10 rounded-xl focus:ring-1 focus:ring-primary/30 transition-all text-xs font-bold",
-                                field.value === 'published' ? "text-emerald-500" : field.value === 'draft' ? "text-amber-500" : "text-muted-foreground"
-                              )}>
-                                <SelectValue />
-                              </SelectTrigger>
-                            </FormControl>
-                            <SelectContent className="rounded-xl border-white/10 bg-background/80 backdrop-blur-xl shadow-2xl">
-                              <SelectItem value="draft" className="text-xs font-bold text-amber-500">Draft</SelectItem>
-                              <SelectItem value="published" className="text-xs font-bold text-emerald-500">Published</SelectItem>
-                              <SelectItem value="archived" className="text-xs font-bold text-slate-500">Archived</SelectItem>
-                            </SelectContent>
-                          </Select>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Type Selection */}
-              <Card className="border-white/5 bg-card/40 backdrop-blur-xl rounded-[2rem] shadow-xl overflow-hidden">
-                <CardHeader className="p-6 pb-2 border-b border-white/5 bg-white/5">
-                  <div className="flex items-center gap-2">
-                    <div className="p-1.5 bg-primary/10 rounded-lg">
-                      <LayoutList className="w-4 h-4 text-primary" />
-                    </div>
-                    <CardTitle className="text-sm font-bold tracking-tight">Question Type</CardTitle>
-                  </div>
-                </CardHeader>
-                <CardContent className="p-6">
-                  <FormField
-                    control={form.control}
-                    name="type"
-                    render={({ field }) => (
-                      <div className="grid grid-cols-1 gap-3">
-                        {[
-                          { value: 'mcq_single', label: 'Multiple Choice', icon: LayoutList, desc: 'Single correct answer from options' },
-                          { value: 'input_text', label: 'Text Input', icon: FileText, desc: 'User types the correct answer' }
-                        ].map((t) => {
-                          const Icon = t.icon;
-                          const isSelected = field.value === t.value;
-                          return (
-                            <button
-                              key={t.value}
-                              type="button"
-                              disabled={isEditing}
-                              onClick={() => field.onChange(t.value)}
-                              className={cn(
-                                "flex items-start gap-4 p-4 rounded-2xl border transition-all duration-300 text-left relative overflow-hidden group",
-                                isSelected 
-                                  ? "bg-primary/10 border-primary/40 shadow-lg shadow-primary/5" 
-                                  : "bg-white/5 border-white/5 hover:bg-white/10 hover:border-white/10",
-                                isEditing && !isSelected && "opacity-50 grayscale cursor-not-allowed"
-                              )}
-                            >
-                              <div className={cn(
-                                "h-10 w-10 rounded-xl flex items-center justify-center transition-all duration-300",
-                                isSelected ? "bg-primary text-primary-foreground scale-110" : "bg-white/10 text-muted-foreground group-hover:bg-white/20"
-                              )}>
-                                <Icon className="w-5 h-5" />
-                              </div>
-                              <div className="flex-1">
-                                <h4 className={cn("text-xs font-bold transition-colors", isSelected ? "text-primary" : "text-foreground")}>{t.label}</h4>
-                                <p className="text-[10px] text-muted-foreground/60 leading-tight mt-0.5">{t.desc}</p>
-                              </div>
-                              {isSelected && (
-                                <div className="absolute top-2 right-2">
-                                  <CheckCircle2 className="w-3.5 h-3.5 text-primary" />
-                                </div>
-                              )}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    )}
-                  />
-                </CardContent>
-              </Card>
-            </div>
-
-            {/* Question Content */}
-            <Card className="border-white/5 bg-card/40 backdrop-blur-xl rounded-[2rem] shadow-xl overflow-hidden">
-              <CardHeader className="p-6 pb-2 border-b border-white/5 bg-white/5">
-                <div className="flex items-center gap-2">
-                  <div className="p-1.5 bg-primary/10 rounded-lg">
-                    <MessageSquare className="w-4 h-4 text-primary" />
-                  </div>
-                  <CardTitle className="text-sm font-bold tracking-tight">Question Content</CardTitle>
-                </div>
-              </CardHeader>
-              <CardContent className="p-6">
-                <Tabs defaultValue="en" className="w-full">
-                  <TabsList className="bg-white/5 border border-white/5 p-1 rounded-xl mb-6">
-                    <TabsTrigger value="en" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground rounded-lg px-6 h-8 text-[10px] font-black uppercase tracking-widest">
-                      <Languages className="w-3.5 h-3.5 mr-2" />
-                      English
-                    </TabsTrigger>
-                    <TabsTrigger value="ka" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground rounded-lg px-6 h-8 text-[10px] font-black uppercase tracking-widest">
-                      <Languages className="w-3.5 h-3.5 mr-2" />
-                      Georgian
-                    </TabsTrigger>
-                  </TabsList>
-
-                  <TabsContent value="en" className="space-y-6 animate-in fade-in slide-in-from-left-2 duration-300">
-                    <FormField
-                      control={form.control}
-                      name="prompt_en"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/70 ml-1">Prompt</FormLabel>
-                          <FormControl>
-                            <textarea
-                              className="w-full min-h-[100px] px-4 py-3 border border-white/10 rounded-2xl text-sm bg-white/5 focus:bg-background focus:ring-1 focus:ring-primary/30 outline-none resize-none transition-all placeholder:text-muted-foreground/30 font-medium leading-relaxed"
-                              placeholder="Type the question content here..."
-                              {...field}
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={form.control}
-                      name="explanation_en"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-muted-foreground/70 ml-1">
-                            <Info className="w-3 h-3 text-primary" />
-                            Explanation
-                          </FormLabel>
-                          <FormControl>
-                            <textarea
-                              className="w-full min-h-[80px] px-4 py-3 border border-white/10 rounded-2xl text-xs bg-white/5 focus:bg-background focus:ring-1 focus:ring-primary/30 outline-none resize-none transition-all placeholder:text-muted-foreground/30 leading-relaxed"
-                              placeholder="Provide context for the correct answer..."
-                              {...field}
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  </TabsContent>
-
-                  <TabsContent value="ka" className="space-y-6 animate-in fade-in slide-in-from-right-2 duration-300">
-                    <FormField
-                      control={form.control}
-                      name="prompt_ka"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/70 ml-1">Prompt (Georgian)</FormLabel>
-                          <FormControl>
-                            <textarea
-                              className="w-full min-h-[100px] px-4 py-3 border border-white/10 rounded-2xl text-sm bg-white/5 focus:bg-background focus:ring-1 focus:ring-primary/30 outline-none resize-none transition-all placeholder:text-muted-foreground/30 font-medium leading-relaxed"
-                              placeholder="შეიყვანეთ კითხვის ტექსტი ქართულად..."
-                              {...field}
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={form.control}
-                      name="explanation_ka"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-muted-foreground/70 ml-1">
-                            <Info className="w-3 h-3 text-primary" />
-                            Explanation (Georgian)
-                          </FormLabel>
-                          <FormControl>
-                            <textarea
-                              className="w-full min-h-[80px] px-4 py-3 border border-white/10 rounded-2xl text-xs bg-white/5 focus:bg-background focus:ring-1 focus:ring-primary/30 outline-none resize-none transition-all placeholder:text-muted-foreground/30 leading-relaxed"
-                              placeholder="ახსენით რატომ არის ეს პასუხი სწორი..."
-                              {...field}
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  </TabsContent>
-                </Tabs>
-              </CardContent>
-            </Card>
           </div>
 
-          {/* Right Column: Payload Editor */}
           <div className="lg:col-span-4 h-full">
-            <Card className="border-white/5 bg-card/40 backdrop-blur-xl rounded-[2.5rem] shadow-2xl overflow-hidden sticky top-24">
-              <CardHeader className="p-6 border-b border-white/5 bg-white/5">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="h-10 w-10 flex items-center justify-center rounded-xl bg-primary/10 border border-primary/20">
-                      {questionType === 'mcq_single' ? <LayoutList className="w-5 h-5 text-primary" /> : <FileText className="w-5 h-5 text-primary" />}
-                    </div>
-                    <div>
-                      <CardTitle className="text-sm font-bold tracking-tight">
-                        {questionType === 'mcq_single' ? 'MCQ Options' : 'Accepted Answers'}
-                      </CardTitle>
-                      <p className="text-[10px] text-muted-foreground/60 font-bold uppercase tracking-widest mt-0.5">
-                        {questionType === 'mcq_single' ? 'Select 1 Correct' : 'Direct Typing'}
-                      </p>
-                    </div>
+            <Card className="border border-gray-200/60 bg-white rounded-[2rem] shadow-sm overflow-hidden min-h-[340px]">
+              <CardHeader className="p-6 pb-4">
+                <div className="flex items-center gap-3">
+                  <div className="h-10 w-10 flex items-center justify-center rounded-xl bg-gray-50 border border-gray-100">
+                    {questionType === 'mcq_single' ? <LayoutList className="w-5 h-5 text-gray-400" /> : <FileText className="w-5 h-5 text-gray-400" />}
+                  </div>
+                  <div>
+                    <CardTitle className="text-sm font-bold tracking-tight text-gray-900">
+                      {questionType === 'mcq_single' ? 'MCQ Options' : 'Answers'}
+                    </CardTitle>
+                    <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mt-0.5 leading-none">
+                      {questionType === 'mcq_single' ? 'Select 1 Correct' : 'Direct Typing'}
+                    </p>
                   </div>
                 </div>
               </CardHeader>
-              <CardContent className="p-6 overflow-y-auto max-h-[calc(100vh-250px)] scrollbar-hide">
+              <CardContent className="p-6 pt-0 overflow-y-auto max-h-[400px] scrollbar-hide">
                 {questionType === 'mcq_single' ? (
                   <McqEditor options={mcqOptions} onChange={setMcqOptions} />
                 ) : (
@@ -569,6 +365,137 @@ export function QuestionForm({ question, onSuccess }: QuestionFormProps) {
                 )}
               </CardContent>
             </Card>
+          </div>
+        </div>
+
+        {/* Question Type & Content - Bottom Surface Grid */}
+        <div className="bg-white/50 border border-gray-200/60 rounded-[2.5rem] shadow-sm overflow-hidden">
+          <div className="grid grid-cols-1 lg:grid-cols-12 divide-x divide-gray-100">
+            {/* Left: Type Picker */}
+            <div className="lg:col-span-4 p-8 space-y-6">
+              <div className="space-y-1">
+                <h2 className="text-base font-bold text-gray-900">Question Type</h2>
+                <p className="text-xs text-gray-400 font-medium">Select how players answer</p>
+              </div>
+              <FormField
+                control={form.control}
+                name="type"
+                render={({ field }) => (
+                  <div className="space-y-3">
+                    {[
+                      { value: 'mcq_single', label: 'Multiple Choice', icon: LayoutList, desc: 'Single correct answer from options' },
+                      { value: 'input_text', label: 'Text Input', icon: FileText, desc: 'User types the correct answer' }
+                    ].map((t) => {
+                      const Icon = t.icon;
+                      const isSelected = field.value === t.value;
+                      return (
+                        <button
+                          key={t.value}
+                          type="button"
+                          disabled={isEditing}
+                          onClick={() => field.onChange(t.value)}
+                          className={cn(
+                            "w-full flex items-start gap-4 p-4 rounded-2xl border transition-all duration-300 text-left relative overflow-hidden group",
+                            isSelected 
+                              ? "bg-gray-50 border-gray-300 shadow-inner" 
+                              : "bg-white border-gray-100 hover:border-gray-200 hover:bg-gray-50/50",
+                            isEditing && !isSelected && "opacity-50 grayscale cursor-not-allowed"
+                          )}
+                        >
+                          <div className={cn(
+                            "h-10 w-10 rounded-xl flex items-center justify-center transition-all duration-300",
+                            isSelected ? "bg-gray-900 text-white" : "bg-gray-100 text-gray-400 group-hover:bg-gray-200"
+                          )}>
+                            <Icon className="w-5 h-5" />
+                          </div>
+                          <div className="flex-1">
+                            <h4 className={cn("text-sm font-bold transition-colors", isSelected ? "text-gray-900" : "text-gray-600")}>{t.label}</h4>
+                            <p className="text-[11px] text-gray-400 font-medium leading-tight mt-0.5">{t.desc}</p>
+                          </div>
+                          {isSelected && (
+                            <div className="absolute top-2 right-2">
+                              <CheckCircle2 className="w-3.5 h-3.5 text-gray-900" />
+                            </div>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              />
+            </div>
+
+            {/* Right: Content Editor */}
+            <div className="lg:col-span-8 p-8 space-y-8">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className="p-1.5 bg-gray-100 rounded-lg">
+                    <MessageSquare className="w-4 h-4 text-gray-400" />
+                  </div>
+                  <h2 className="text-base font-bold text-gray-900">Question Content</h2>
+                </div>
+                <div className="flex p-0.5 bg-gray-100 rounded-lg">
+                  <button
+                    type="button"
+                    onClick={() => setPreviewLang('en')}
+                    className={cn(
+                      "px-4 py-1.5 text-[10px] font-black rounded-md transition-all",
+                      previewLang === 'en' ? "bg-white text-gray-900 shadow-sm" : "text-gray-400 hover:text-gray-600"
+                    )}
+                  >
+                    ENGLISH
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPreviewLang('ka')}
+                    className={cn(
+                      "px-4 py-1.5 text-[10px] font-black rounded-md transition-all",
+                      previewLang === 'ka' ? "bg-white text-gray-900 shadow-sm" : "text-gray-400 hover:text-gray-600"
+                    )}
+                  >
+                    GEORGIAN
+                  </button>
+                </div>
+              </div>
+
+              <div className="space-y-10">
+                <FormField
+                  control={form.control}
+                  name={previewLang === 'ka' ? 'prompt_ka' : 'prompt_en'}
+                  render={({ field }) => (
+                    <FormItem className="space-y-3">
+                      <FormLabel className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">Prompt</FormLabel>
+                      <FormControl>
+                        <textarea
+                          className="w-full min-h-[100px] px-4 py-3 bg-gray-50/50 border border-gray-100 rounded-2xl text-base font-medium text-gray-900 focus:bg-white focus:border-gray-200 focus:ring-4 focus:ring-gray-100 outline-none resize-none transition-all placeholder:text-gray-200 leading-relaxed"
+                          placeholder="Type the question content here..."
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name={previewLang === 'ka' ? 'explanation_ka' : 'explanation_en'}
+                  render={({ field }) => (
+                    <FormItem className="space-y-3">
+                      <FormLabel className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">Explanation (Optional)</FormLabel>
+                      <FormControl>
+                        <textarea
+                          className="w-full min-h-[80px] px-4 py-3 bg-gray-50/50 border border-gray-100 rounded-2xl text-sm font-medium text-gray-500 focus:bg-white focus:border-gray-200 focus:ring-4 focus:ring-gray-100 outline-none resize-none transition-all placeholder:text-gray-200 leading-relaxed"
+                          placeholder="Provide context for the correct answer..."
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+            </div>
           </div>
         </div>
       </form>

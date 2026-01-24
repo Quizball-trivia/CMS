@@ -13,8 +13,9 @@ export function QueryProvider({ children }: QueryProviderProps) {
       new QueryClient({
         defaultOptions: {
           queries: {
-            staleTime: 60 * 1000, // 1 minute
-            refetchOnWindowFocus: false,
+            staleTime: 0, // Always refetch - no caching
+            gcTime: 0, // Don't keep in cache
+            refetchOnWindowFocus: true, // Refetch when window regains focus
           },
         },
       })

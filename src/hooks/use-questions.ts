@@ -6,6 +6,7 @@ import type {
   ListQuestionsParams,
   UpdateQuestionStatusRequest,
 } from '@/types';
+import { logger } from '@/lib/logger';
 
 export const questionKeys = {
   all: ['questions'] as const,
@@ -25,7 +26,12 @@ export function useQuestions(params?: ListQuestionsParams) {
 export function useQuestion(id: string) {
   return useQuery({
     queryKey: questionKeys.detail(id),
-    queryFn: () => questionsService.getById(id),
+    queryFn: async () => {
+      logger.debug('questions', 'Fetching question by ID', { id });
+      const result = await questionsService.getById(id);
+      logger.info('questions', 'Question fetched', { id, type: result.type, payload: result.payload });
+      return result;
+    },
     enabled: !!id,
   });
 }
@@ -34,9 +40,17 @@ export function useCreateQuestion() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (data: CreateQuestionRequest) => questionsService.create(data),
+    mutationFn: async (data: CreateQuestionRequest) => {
+      logger.info('questions', 'Creating question', { data });
+      const result = await questionsService.create(data);
+      logger.info('questions', 'Question created', { id: result.id, result });
+      return result;
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: questionKeys.all });
+    },
+    onError: (error) => {
+      logger.error('questions', 'Failed to create question', { error: error instanceof Error ? error.message : error });
     },
   });
 }
@@ -45,11 +59,18 @@ export function useUpdateQuestion() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ id, data }: { id: string; data: UpdateQuestionRequest }) =>
-      questionsService.update(id, data),
+    mutationFn: async ({ id, data }: { id: string; data: UpdateQuestionRequest }) => {
+      logger.info('questions', 'Updating question', { id, data });
+      const result = await questionsService.update(id, data);
+      logger.info('questions', 'Question updated', { id, result });
+      return result;
+    },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: questionKeys.all });
       queryClient.invalidateQueries({ queryKey: questionKeys.detail(variables.id) });
+    },
+    onError: (error, variables) => {
+      logger.error('questions', 'Failed to update question', { id: variables.id, error: error instanceof Error ? error.message : error });
     },
   });
 }

@@ -23,7 +23,7 @@ export function Header() {
     : user?.email?.[0].toUpperCase() || '?';
 
   return (
-    <header className="h-16 bg-background/40 backdrop-blur-xl border-b border-white/10 flex items-center justify-end px-6 sticky top-0 z-10 shadow-lg shadow-black/5">
+    <header className="h-16 bg-background/40 backdrop-blur-xl flex items-center justify-end px-6 sticky top-0 z-10">
       <div className="flex items-center gap-4">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
@@ -48,10 +48,6 @@ export function Header() {
               </div>
             </DropdownMenuLabel>
             <DropdownMenuSeparator className="bg-white/5" />
-            <DropdownMenuItem className="cursor-pointer gap-2 py-2.5 rounded-lg transition-colors focus:bg-white/10">
-              <User className="h-4 w-4 text-primary/70" />
-              <span className="text-sm font-medium">Profile Settings</span>
-            </DropdownMenuItem>
             <DropdownMenuSeparator className="bg-white/5" />
             <DropdownMenuItem 
               onClick={() => logout()} 

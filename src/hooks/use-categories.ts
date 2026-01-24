@@ -4,7 +4,9 @@ import type {
   CreateCategoryRequest,
   UpdateCategoryRequest,
   ListCategoriesParams,
+  FeaturedCategory,
 } from '@/types';
+import { featuredKeys } from './use-featured';
 
 export const categoryKeys = {
   all: ['categories'] as const,
@@ -46,9 +48,36 @@ export function useUpdateCategory() {
   return useMutation({
     mutationFn: ({ id, data }: { id: string; data: UpdateCategoryRequest }) =>
       categoriesService.update(id, data),
-    onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: categoryKeys.all });
-      queryClient.invalidateQueries({ queryKey: categoryKeys.detail(variables.id) });
+    onSuccess: (updatedCategory, variables) => {
+      // Update the detail cache
+      queryClient.setQueryData(categoryKeys.detail(variables.id), updatedCategory);
+      
+      // Update the list cache directly with the new data (instant update)
+      queryClient.setQueriesData<{ data: typeof updatedCategory[] }>(
+        { queryKey: categoryKeys.lists() },
+        (old) => {
+          if (!old?.data) return old;
+          return {
+            ...old,
+            data: old.data.map((cat) =>
+              cat.id === variables.id ? updatedCategory : cat
+            ),
+          };
+        }
+      );
+      
+      // Also update featured categories cache (they contain nested category data)
+      queryClient.setQueriesData<FeaturedCategory[]>(
+        { queryKey: featuredKeys.list() },
+        (old) => {
+          if (!old) return old;
+          return old.map((featured) =>
+            featured.category.id === variables.id
+              ? { ...featured, category: { ...featured.category, ...updatedCategory } }
+              : featured
+          );
+        }
+      );
     },
   });
 }

@@ -71,39 +71,35 @@ export function CategoryForm({ category, onSuccess }: CategoryFormProps) {
 
   const isEditing = !!category;
 
+  // Compute default values from category prop (form will remount via key prop when category changes)
   const form = useForm<CategoryFormData>({
     resolver: zodResolver(categorySchema),
-    defaultValues: {
-      slug: '',
-      parent_id: null,
-      name_en: '',
-      name_ka: '',
-      description_en: '',
-      description_ka: '',
-      icon: '',
-      image_url: '',
-      visibility: 'active',
-      is_featured: false,
-    },
+    defaultValues: category
+      ? {
+          slug: category.slug,
+          parent_id: category.parent_id,
+          name_en: category.name.en || '',
+          name_ka: category.name.ka || '',
+          description_en: category.description?.en || '',
+          description_ka: category.description?.ka || '',
+          icon: category.icon || '',
+          image_url: category.image_url || '',
+          visibility: category.is_active ? 'active' : 'draft',
+          is_featured: false,
+        }
+      : {
+          slug: '',
+          parent_id: null,
+          name_en: '',
+          name_ka: '',
+          description_en: '',
+          description_ka: '',
+          icon: '',
+          image_url: '',
+          visibility: 'active',
+          is_featured: false,
+        },
   });
-
-  // Populate form when editing
-  useEffect(() => {
-    if (category) {
-      form.reset({
-        slug: category.slug,
-        parent_id: category.parent_id,
-        name_en: category.name.en || '',
-        name_ka: category.name.ka || '',
-        description_en: category.description?.en || '',
-        description_ka: category.description?.ka || '',
-        icon: category.icon || '',
-        image_url: category.image_url || '',
-        visibility: category.is_active ? 'active' : 'draft',
-        is_featured: false,
-      });
-    }
-  }, [category, form]);
 
   const watched = useWatch({
     control: form.control,
@@ -177,7 +173,7 @@ export function CategoryForm({ category, onSuccess }: CategoryFormProps) {
 
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
         <CategoryPreview
           name={previewName}
           description={previewDescription}
@@ -187,70 +183,61 @@ export function CategoryForm({ category, onSuccess }: CategoryFormProps) {
           onLanguageChange={setActiveLang}
         />
 
-        <div className="space-y-3">
-          <div className="flex items-center gap-2 px-1">
-            <Sparkles className="w-4 h-4 text-primary" />
-            <h3 className="text-sm font-semibold tracking-tight">Category Identity</h3>
-          </div>
+        <div className="grid grid-cols-2 gap-x-4 gap-y-3">
+          <FormField
+            control={form.control}
+            name={activeLang === 'ka' ? 'name_ka' : 'name_en'}
+            render={({ field }) => (
+              <FormItem className="col-span-2">
+                <FormLabel className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider ml-1">
+                  Name ({activeLang === 'ka' ? 'KA' : 'EN'})
+                </FormLabel>
+                <FormControl>
+                  <Input
+                    placeholder={activeLang === 'ka' ? 'ქართული სახელი' : 'Category name'}
+                    className="h-10 shadow-sm border-border/50 bg-white/5 backdrop-blur-md focus:ring-1 focus:ring-primary/30 transition-all rounded-xl"
+                    {...field}
+                  />
+                </FormControl>
+                <FormMessage className="text-[10px]" />
+              </FormItem>
+            )}
+          />
 
-          <div className="grid grid-cols-2 gap-4">
-            <FormField
-              control={form.control}
-              name={activeLang === 'ka' ? 'name_ka' : 'name_en'}
-              render={({ field }) => (
-                <FormItem className="col-span-2">
-                  <FormLabel className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                    Name ({activeLang === 'ka' ? 'KA' : 'EN'})
-                  </FormLabel>
-                  <FormControl>
-                    <Input
-                      placeholder={activeLang === 'ka' ? 'ქართული სახელი' : 'Category name'}
-                      className="h-11 shadow-sm border-border/50 bg-white/5 backdrop-blur-md focus:ring-1 focus:ring-primary/30 transition-all rounded-xl"
-                      {...field}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+          <FormField
+            control={form.control}
+            name={activeLang === 'ka' ? 'description_ka' : 'description_en'}
+            render={({ field }) => (
+              <FormItem className="col-span-2">
+                <FormLabel className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider ml-1">
+                  Description ({activeLang === 'ka' ? 'KA' : 'EN'})
+                </FormLabel>
+                <FormControl>
+                  <Input
+                    placeholder={activeLang === 'ka' ? 'ქართული აღწერა' : 'Short description (optional)'}
+                    className="h-10 shadow-sm border-border/50 bg-white/5 backdrop-blur-md focus:ring-1 focus:ring-primary/30 transition-all rounded-xl"
+                    {...field}
+                  />
+                </FormControl>
+                <FormMessage className="text-[10px]" />
+              </FormItem>
+            )}
+          />
 
-            <FormField
-              control={form.control}
-              name={activeLang === 'ka' ? 'description_ka' : 'description_en'}
-              render={({ field }) => (
-                <FormItem className="col-span-2">
-                  <FormLabel className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                    Description ({activeLang === 'ka' ? 'KA' : 'EN'})
-                  </FormLabel>
-                  <FormControl>
-                    <Input
-                      placeholder={activeLang === 'ka' ? 'ქართული აღწერა' : 'Short description (optional)'}
-                      className="h-11 shadow-sm border-border/50 bg-white/5 backdrop-blur-md focus:ring-1 focus:ring-primary/30 transition-all rounded-xl"
-                      {...field}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-          </div>
-        </div>
-
-        <div className="grid grid-cols-2 gap-4">
           <FormField
             control={form.control}
             name="slug"
             render={({ field }) => (
               <FormItem>
-                <FormLabel className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Slug</FormLabel>
+                <FormLabel className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider ml-1">Slug</FormLabel>
                 <FormControl>
                   <Input 
-                    placeholder="my-category-slug" 
-                    className="h-11 shadow-sm border-border/50 bg-white/5 backdrop-blur-md focus:ring-1 focus:ring-primary/30 transition-all rounded-xl" 
+                    placeholder="slug" 
+                    className="h-10 shadow-sm border-border/50 bg-white/5 backdrop-blur-md focus:ring-1 focus:ring-primary/30 transition-all rounded-xl" 
                     {...field} 
                   />
                 </FormControl>
-                <FormMessage />
+                <FormMessage className="text-[10px]" />
               </FormItem>
             )}
           />
@@ -260,14 +247,14 @@ export function CategoryForm({ category, onSuccess }: CategoryFormProps) {
             name="parent_id"
             render={({ field }) => (
               <FormItem>
-                <FormLabel className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Parent Category</FormLabel>
+                <FormLabel className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider ml-1">Parent</FormLabel>
                 <Select
                   onValueChange={(value) => field.onChange(value === 'none' ? null : value)}
                   value={field.value || 'none'}
                 >
                   <FormControl>
-                    <SelectTrigger className="h-11 shadow-sm border-border/50 bg-white/5 backdrop-blur-md focus:ring-1 focus:ring-primary/30 transition-all rounded-xl">
-                      <SelectValue placeholder="Select parent" />
+                    <SelectTrigger className="h-10 shadow-sm border-border/50 bg-white/5 backdrop-blur-md focus:ring-1 focus:ring-primary/30 transition-all rounded-xl">
+                      <SelectValue placeholder="Select" />
                     </SelectTrigger>
                   </FormControl>
                   <SelectContent className="rounded-xl border-white/10 bg-background/80 backdrop-blur-xl shadow-2xl">
@@ -279,77 +266,57 @@ export function CategoryForm({ category, onSuccess }: CategoryFormProps) {
                     ))}
                   </SelectContent>
                 </Select>
-                <FormMessage />
+                <FormMessage className="text-[10px]" />
               </FormItem>
             )}
           />
-        </div>
-
-        <div className="space-y-4 pt-2">
-          <div className="flex items-center gap-2 px-1">
-            <ImageIcon className="w-4 h-4 text-primary" />
-            <h3 className="text-sm font-semibold tracking-tight">Visual Identity</h3>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <FormField
-              control={form.control}
-              name="icon"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel className="text-[10px] font-bold uppercase text-muted-foreground ml-1">Icon</FormLabel>
-                  <FormControl>
-                    <Input placeholder="✨" className="h-11 text-center shadow-sm border-border/50 bg-white/5 backdrop-blur-md focus:ring-1 focus:ring-primary/30 transition-all rounded-xl" {...field} />
-                  </FormControl>
-                  <FormDescription className="text-[11px] text-muted-foreground/70 ml-1">
-                    Tip: Press Ctrl + Cmd + Space to pick an emoji.
-                  </FormDescription>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            
-          </div>
 
           <FormField
             control={form.control}
-            name="image_url"
+            name="icon"
             render={({ field }) => (
               <FormItem>
-                <FormLabel className="text-[10px] font-bold uppercase text-muted-foreground ml-1">Cover Image URL</FormLabel>
+                <FormLabel className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider ml-1">Icon</FormLabel>
                 <FormControl>
-                  <Input placeholder="https://..." className="h-11 shadow-sm border-border/50 bg-white/5 backdrop-blur-md focus:ring-1 focus:ring-primary/30 transition-all rounded-xl" {...field} />
+                  <Input placeholder="✨" className="h-10 text-center shadow-sm border-border/50 bg-white/5 backdrop-blur-md focus:ring-1 focus:ring-primary/30 transition-all rounded-xl" {...field} />
                 </FormControl>
-                <FormMessage />
+                <FormMessage className="text-[10px]" />
               </FormItem>
             )}
           />
-        </div>
-
-        <div className="space-y-3">
-          <div className="flex items-center gap-2 px-1">
-            <Sparkles className="w-4 h-4 text-primary" />
-            <h3 className="text-sm font-semibold tracking-tight">Visibility</h3>
-          </div>
 
           <FormField
             control={form.control}
             name="visibility"
             render={({ field }) => (
               <FormItem>
-                <FormLabel className="text-xs font-semibold text-muted-foreground uppercase tracking-wider ml-1">Status</FormLabel>
+                <FormLabel className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider ml-1">Status</FormLabel>
                 <Select onValueChange={field.onChange} value={field.value}>
                   <FormControl>
-                    <SelectTrigger className="h-11 shadow-sm border-border/50 bg-white/5 backdrop-blur-md focus:ring-1 focus:ring-primary/30 transition-all rounded-xl">
+                    <SelectTrigger className="h-10 shadow-sm border-border/50 bg-white/5 backdrop-blur-md focus:ring-1 focus:ring-primary/30 transition-all rounded-xl">
                       <SelectValue />
                     </SelectTrigger>
                   </FormControl>
                   <SelectContent className="rounded-xl border-white/10 bg-background/80 backdrop-blur-xl shadow-2xl">
-                    <SelectItem value="active">Active (Visible)</SelectItem>
-                    <SelectItem value="draft">Draft (Not visible)</SelectItem>
+                    <SelectItem value="active">Active</SelectItem>
+                    <SelectItem value="draft">Draft</SelectItem>
                   </SelectContent>
                 </Select>
-                <FormMessage />
+                <FormMessage className="text-[10px]" />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name="image_url"
+            render={({ field }) => (
+              <FormItem className="col-span-2">
+                <FormLabel className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider ml-1">Cover Image URL</FormLabel>
+                <FormControl>
+                  <Input placeholder="https://..." className="h-10 shadow-sm border-border/50 bg-white/5 backdrop-blur-md focus:ring-1 focus:ring-primary/30 transition-all rounded-xl" {...field} />
+                </FormControl>
+                <FormMessage className="text-[10px]" />
               </FormItem>
             )}
           />
@@ -360,7 +327,7 @@ export function CategoryForm({ category, onSuccess }: CategoryFormProps) {
             control={form.control}
             name="is_featured"
             render={({ field }) => (
-              <FormItem className="flex flex-row items-center space-x-3 space-y-0 rounded-2xl border border-white/10 p-5 bg-white/5 backdrop-blur-md">
+              <FormItem className="flex flex-row items-center space-x-3 space-y-0 rounded-xl border border-white/10 p-3 bg-white/5 backdrop-blur-md">
                 <FormControl>
                   <input
                     type="checkbox"
@@ -369,10 +336,10 @@ export function CategoryForm({ category, onSuccess }: CategoryFormProps) {
                     onChange={field.onChange}
                   />
                 </FormControl>
-                <div className="space-y-1">
-                  <FormLabel className="text-sm font-semibold">Feature this category</FormLabel>
-                  <FormDescription className="text-xs text-muted-foreground/70">
-                    Adds it to your featured collection for faster discovery.
+                <div className="space-y-0.5">
+                  <FormLabel className="text-xs font-semibold">Feature this category</FormLabel>
+                  <FormDescription className="text-[10px] text-muted-foreground/70 leading-none">
+                    Adds it to your featured collection.
                   </FormDescription>
                 </div>
               </FormItem>
@@ -380,25 +347,30 @@ export function CategoryForm({ category, onSuccess }: CategoryFormProps) {
           />
         )}
 
-        {!isEditing && (
-          <div className="space-y-3">
-            <p className="text-xs text-muted-foreground/70">
-              Publishing makes the category visible to players. Draft keeps it private until you’re ready.
-            </p>
+        <div className="pt-2">
+          {isEditing ? (
+            <Button
+              type="submit"
+              disabled={createCategory.isPending || updateCategory.isPending}
+              className="w-full h-11 rounded-xl font-bold shadow-lg shadow-primary/20"
+            >
+              {updateCategory.isPending ? 'Saving…' : 'Save Changes'}
+            </Button>
+          ) : (
             <div className="grid grid-cols-2 gap-3">
               <Button
                 type="submit"
                 disabled={createCategory.isPending || updateCategory.isPending}
-                className="h-12 rounded-2xl font-bold shadow-lg shadow-primary/20"
+                className="h-11 rounded-xl font-bold shadow-lg shadow-primary/20"
                 onClick={() => form.setValue('visibility', 'active')}
               >
-                {createCategory.isPending || updateCategory.isPending ? 'Creating…' : 'Create Category'}
+                {createCategory.isPending ? 'Creating…' : 'Create Category'}
               </Button>
               <Button
                 type="button"
                 variant="secondary"
                 disabled={createCategory.isPending || updateCategory.isPending}
-                className="h-12 rounded-2xl font-semibold bg-white/5 border border-white/10 hover:bg-white/10"
+                className="h-11 rounded-xl font-semibold bg-white/5 border border-white/10 hover:bg-white/10"
                 onClick={() => {
                   form.setValue('visibility', 'draft');
                   void form.handleSubmit(onSubmit)();
@@ -407,18 +379,8 @@ export function CategoryForm({ category, onSuccess }: CategoryFormProps) {
                 Save as Draft
               </Button>
             </div>
-          </div>
-        )}
-
-        {isEditing && (
-          <Button
-            type="submit"
-            disabled={createCategory.isPending || updateCategory.isPending}
-            className="w-full h-12 rounded-2xl font-bold shadow-lg shadow-primary/20"
-          >
-            {updateCategory.isPending ? 'Saving…' : 'Save Changes'}
-          </Button>
-        )}
+          )}
+        </div>
       </form>
     </Form>
   );

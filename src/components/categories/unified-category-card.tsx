@@ -52,13 +52,11 @@ export function UnifiedCategoryCard({
     <>
       <Card
         className={cn(
-          "relative flex flex-col overflow-hidden border border-white/10 bg-[#0a0a0a] rounded-2xl",
+          "relative flex flex-col overflow-hidden border border-gray-200/50 bg-white rounded-[2rem] transition-all duration-300 group/card",
           isDragging && "opacity-50 scale-95 z-50",
-          isFeatured && "h-[200px] w-[300px] flex-shrink-0",
-          isRepository && "h-[190px] w-full"
+          isFeatured ? "h-[240px] w-[420px] flex-shrink-0 shadow-sm hover:shadow-xl hover:-translate-y-1" : "h-[200px] w-full shadow-sm hover:shadow-md hover:-translate-y-0.5"
         )}
       >
-
         {/* Background Layer */}
         <div className="absolute inset-0 z-0">
           {category.image_url ? (
@@ -66,125 +64,117 @@ export function UnifiedCategoryCard({
               <img
                 src={category.image_url}
                 alt=""
-                className="h-full w-full object-cover"
+                className="h-full w-full object-cover transition-transform duration-500 group-hover/card:scale-105"
               />
-              <div className="absolute inset-0 bg-gradient-to-t from-black via-black/50 to-black/20" />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
             </>
           ) : (
-            <div className="h-full w-full bg-gradient-to-br from-primary/20 via-primary/5 to-black" />
+            <div className="h-full w-full bg-gradient-to-br from-gray-100 to-gray-200 transition-colors duration-300 group-hover/card:from-gray-200 group-hover/card:to-gray-300" />
           )}
         </div>
 
-        <div className="relative z-10 flex h-full flex-col p-3 justify-between">
+        <div className="relative z-10 flex h-full flex-col p-5 justify-between">
           {/* Top Row */}
           <div className="flex items-start justify-between">
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-black/40 backdrop-blur-md border border-white/10">
+            <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-white/10 backdrop-blur-md border border-white/20 shadow-sm group-hover/card:bg-white/20 transition-colors">
               {category.icon ? (
-                <span className="text-lg leading-none" role="img" aria-label="category icon">{category.icon}</span>
-              ) : isFeatured ? (
-                <Star className="h-4 w-4 text-primary" />
+                <span className="text-xl leading-none" role="img" aria-label="category icon">{category.icon}</span>
               ) : (
-                <Folder className="h-4 w-4 text-primary" />
+                <Star className={cn("h-5 w-5", category.image_url ? "text-white" : "text-gray-400")} />
               )}
             </div>
 
-            {/* Action buttons */}
-            <div className="flex items-center gap-0.5" onClick={(e) => e.stopPropagation()}>
-              {/* Drag Handle */}
+            {/* Action buttons - visible on hover or low opacity */}
+            <div className="absolute top-5 right-5 z-30 flex items-center gap-1.5 opacity-0 group-hover/card:opacity-100 transition-opacity duration-200" onClick={(e) => e.stopPropagation()}>
               {isDraggable && (
                 <div
                   {...dragHandleProps}
                   className={cn(
-                    "cursor-grab active:cursor-grabbing p-1.5 bg-black/30 backdrop-blur-md border border-white/10 rounded-lg text-white/50 hover:text-white transition-all",
+                    "cursor-grab active:cursor-grabbing p-2 bg-white/10 backdrop-blur-md border border-white/20 rounded-xl text-white hover:bg-white/20 transition-all",
                     isAlreadyFeatured && "opacity-50 cursor-not-allowed"
                   )}
                 >
-                  <GripVertical className="w-3.5 h-3.5" />
+                  <GripVertical className="w-4 h-4" />
                 </div>
               )}
 
-              {/* Edit Button */}
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-7 w-7 rounded-lg bg-black/30 backdrop-blur-md border border-white/10 text-white/50 hover:text-primary hover:bg-primary/20 transition-all"
+                className="h-9 w-9 rounded-xl bg-white/10 backdrop-blur-md border border-white/20 text-white hover:bg-white/20 transition-all"
                 onClick={() => onEdit?.(category)}
               >
-                <Edit2 className="w-3.5 h-3.5" />
+                <Edit2 className="w-4 h-4" />
               </Button>
 
-              {/* Delete/Remove Button */}
               {isFeatured ? (
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="h-7 w-7 rounded-lg bg-black/30 backdrop-blur-md border border-white/10 text-white/50 hover:text-red-400 hover:bg-red-500/20 transition-all"
+                  className="h-9 w-9 rounded-xl bg-white/10 backdrop-blur-md border border-white/20 text-white hover:bg-red-500 hover:border-red-500 transition-all"
                   onClick={handleRemoveFromFeatured}
                 >
-                  <X className="w-3.5 h-3.5" />
+                  <X className="w-4 h-4" />
                 </Button>
               ) : (
                 <Button
                   variant="ghost"
                   size="icon"
                   className={cn(
-                    "h-7 w-7 rounded-lg bg-black/30 backdrop-blur-md border border-white/10 text-white/50 hover:text-red-400 hover:bg-red-500/20 transition-all",
-                    isAlreadyFeatured && "opacity-50 cursor-not-allowed hover:text-white/50 hover:bg-black/30"
+                    "h-9 w-9 rounded-xl bg-white/10 backdrop-blur-md border border-white/20 text-white hover:bg-red-500 hover:border-red-500 transition-all",
+                    isAlreadyFeatured && "opacity-50 cursor-not-allowed"
                   )}
                   onClick={() => !isAlreadyFeatured && setShowDeleteModal(true)}
-                  title={isAlreadyFeatured ? "Remove from featured first" : "Delete category"}
                 >
-                  <Trash2 className="w-3.5 h-3.5" />
+                  <Trash2 className="w-4 h-4" />
                 </Button>
               )}
+            </div>
+
+            {/* Rank/Trophy Badge - Top Right */}
+            <div className={cn(
+              "absolute top-5 right-5 z-20 flex items-center gap-1.5 px-3 py-1.5 rounded-xl backdrop-blur-md transition-all duration-300 group-hover/card:opacity-0",
+              category.image_url ? "bg-emerald-500/30 text-emerald-200 border border-emerald-500/20" : "bg-emerald-100/80 text-emerald-700 border border-emerald-200"
+            )}>
+              <Trophy className="w-3.5 h-3.5" />
+              <span className="text-[11px] font-bold uppercase tracking-wider">#52</span>
             </div>
           </div>
 
           {/* Bottom Row */}
           <div className="flex-1 flex flex-col justify-end min-w-0">
-            {parentName && (
-              <div className="flex items-center gap-1 mb-0.5">
-                <span className="text-[10px] text-white/40 font-medium">in</span>
-                <span className="text-[10px] text-primary/70 font-semibold truncate">{parentName}</span>
-              </div>
-            )}
-            <h3 className="text-sm font-bold tracking-tight text-white line-clamp-2 drop-shadow-md">
+            <h3 className={cn(
+              "text-lg font-bold tracking-tight line-clamp-1 drop-shadow-sm transition-colors",
+              category.image_url ? "text-white" : "text-gray-900"
+            )}>
               {name}
             </h3>
             {description && (
-              <p className="text-[10px] text-white/50 line-clamp-3 font-medium mt-0.5 break-words">
+              <p className={cn(
+                "text-xs line-clamp-2 font-medium mt-1 mb-3 transition-colors",
+                category.image_url ? "text-white/70" : "text-gray-500"
+              )}>
                 {description}
               </p>
             )}
 
             {/* Stats Row */}
-            <div className="flex items-center gap-2 mt-1.5">
-              <div className="flex items-center gap-0.5 text-white/40">
-                <Users className="w-3 h-3" />
-                <span className="text-[9px] font-medium">1.2k</span>
+            <div className="flex items-center gap-3">
+              <div className={cn("flex items-center gap-1.5 px-2 py-1 rounded-lg transition-colors", category.image_url ? "bg-white/10 text-white/80" : "bg-gray-100 text-gray-600")}>
+                <Users className="w-3.5 h-3.5" />
+                <span className="text-[10px] font-bold uppercase tracking-wider">1.2k</span>
               </div>
-              <div className="flex items-center gap-0.5 text-white/40">
-                <TrendingUp className="w-3 h-3" />
-                <span className="text-[9px] font-medium">89%</span>
-              </div>
-              <div className="flex items-center gap-0.5 text-white/40">
-                <Trophy className="w-3 h-3" />
-                <span className="text-[9px] font-medium">#4</span>
+              <div className={cn("flex items-center gap-1.5 px-2 py-1 rounded-lg transition-colors", category.image_url ? "bg-white/10 text-white/80" : "bg-gray-100 text-gray-600")}>
+                <TrendingUp className="w-3.5 h-3.5" />
+                <span className="text-[10px] font-bold uppercase tracking-wider">89%</span>
               </div>
             </div>
 
             {/* Status Indicator */}
             <div className={cn(
-              "absolute top-3 left-3 h-1.5 w-1.5 rounded-full",
-              category.is_active ? "bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.5)]" : "bg-slate-400"
+              "absolute top-5 left-5 h-2 w-2 rounded-full",
+              category.is_active ? "bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.6)]" : "bg-gray-300"
             )} />
-
-            {/* Already Featured Badge - bottom right corner */}
-            {isRepository && isAlreadyFeatured && (
-              <div className="absolute bottom-2 right-2 z-20 p-1 bg-red-500/90 rounded-md shadow-lg">
-                <Star className="w-3 h-3 text-white fill-white" />
-              </div>
-            )}
           </div>
         </div>
       </Card>
