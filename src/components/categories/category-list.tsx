@@ -6,7 +6,7 @@ import type { Category } from '@/types';
 import { DraggableCategoryCard } from './draggable-category-card';
 import { RepositoryDropZone } from './repository-drop-zone';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { DEFAULT_LANGUAGE } from '@/lib/constants';
+import { getLocalizedText } from '@/lib/utils';
 
 interface CategoryListProps {
   onEditCategory?: (category: Category) => void;
@@ -23,7 +23,7 @@ export function CategoryList({ onEditCategory, featuredCategoryIds = new Set() }
     // Build a map of category ID to name for parent lookups
     const nameMap: Record<string, string> = {};
     categories.forEach((cat) => {
-      nameMap[cat.id] = cat.name[DEFAULT_LANGUAGE] || cat.slug;
+      nameMap[cat.id] = getLocalizedText(cat.name, cat.slug);
     });
 
     // Sort: root categories first, then children grouped by parent
@@ -34,8 +34,8 @@ export function CategoryList({ onEditCategory, featuredCategoryIds = new Set() }
 
       // Among roots or among children with same parent, sort by name
       if (a.parent_id === b.parent_id) {
-        const nameA = a.name[DEFAULT_LANGUAGE] || a.slug;
-        const nameB = b.name[DEFAULT_LANGUAGE] || b.slug;
+        const nameA = getLocalizedText(a.name, a.slug);
+        const nameB = getLocalizedText(b.name, b.slug);
         return nameA.localeCompare(nameB);
       }
 

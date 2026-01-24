@@ -3,7 +3,7 @@
 import { use } from 'react';
 import { useRouter } from 'next/navigation';
 import { useCategory, useFeaturedCategories, useCreateFeaturedCategory, useDeleteFeaturedCategory } from '@/hooks';
-import { DEFAULT_LANGUAGE } from '@/lib/constants';
+import { getLocalizedText } from '@/lib/utils';
 import { CategoryForm } from '@/components/categories';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -65,7 +65,7 @@ export default function CategoryPage({ params }: CategoryPageProps) {
     );
   }
 
-  const name = category.name[DEFAULT_LANGUAGE] || Object.values(category.name)[0] || 'Untitled';
+  const name = getLocalizedText(category.name, 'Untitled');
 
   return (
     <div className="space-y-6">

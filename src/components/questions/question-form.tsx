@@ -6,12 +6,10 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { toast } from 'sonner';
 import { useCreateQuestion, useUpdateQuestion, useCategories } from '@/hooks';
-import { DEFAULT_LANGUAGE } from '@/lib/constants';
-import type { Question, McqOption, I18nField } from '@/types';
+import type { Question, McqOption } from '@/types';
+import type { AnswerWithId } from './text-input-editor';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import {
   Form,
   FormControl,
@@ -29,7 +27,6 @@ import {
 } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Separator } from '@/components/ui/separator';
 import {
   Info,
   Settings2,
@@ -37,17 +34,14 @@ import {
   LayoutList,
   Languages,
   MessageSquare,
-  HelpCircle,
   Save,
   CheckCircle2,
-  X,
   Plus,
-  Trash2,
 } from 'lucide-react';
-import { cn } from '@/lib/utils';
-import { Badge } from '@/components/ui/badge';
+import { cn, getLocalizedText } from '@/lib/utils';
 import { McqEditor } from './mcq-editor';
 import { TextInputEditor } from './text-input-editor';
+import { QuestionPreview } from './question-preview';
 
 const questionSchema = z.object({
   category_id: z.string().uuid('Please select a category'),
@@ -78,8 +72,8 @@ export function QuestionForm({ question, onSuccess }: QuestionFormProps) {
   // MCQ state
   const [mcqOptions, setMcqOptions] = useState<McqOption[]>([]);
 
-  // Text input state
-  const [acceptedAnswers, setAcceptedAnswers] = useState<I18nField[]>([]);
+  // Text input state - using AnswerWithId for stable React keys
+  const [acceptedAnswers, setAcceptedAnswers] = useState<AnswerWithId[]>([]);
   const [caseSensitive, setCaseSensitive] = useState(false);
 
   // Preview state
@@ -114,7 +108,9 @@ export function QuestionForm({ question, onSuccess }: QuestionFormProps) {
   // Compute preview values
   const previewPrompt = previewLang === 'ka' ? promptKa : promptEn;
   const previewCategory = categories?.find((c) => c.id === categoryId);
-  const previewCategoryName = previewCategory?.name[previewLang] || previewCategory?.name.en || '';
+  const previewCategoryName = previewCategory
+    ? (previewCategory.name[previewLang] || previewCategory.name.en || '')
+    : '';
 
   // Populate form when editing
   useEffect(() => {
@@ -135,7 +131,13 @@ export function QuestionForm({ question, onSuccess }: QuestionFormProps) {
         if (question.payload.type === 'mcq_single') {
           setMcqOptions(question.payload.options);
         } else if (question.payload.type === 'input_text') {
-          setAcceptedAnswers(question.payload.accepted_answers);
+          // Add IDs to existing answers for stable React keys
+          setAcceptedAnswers(
+            question.payload.accepted_answers.map((a) => ({
+              ...a,
+              id: crypto.randomUUID(),
+            }))
+          );
           setCaseSensitive(question.payload.case_sensitive);
         }
       }
@@ -173,12 +175,13 @@ export function QuestionForm({ question, onSuccess }: QuestionFormProps) {
     }
 
     try {
-      const payload =
+      // Strip IDs from answers before sending to API
+    const payload =
         data.type === 'mcq_single'
           ? { type: 'mcq_single' as const, options: mcqOptions }
           : {
               type: 'input_text' as const,
-              accepted_answers: acceptedAnswers,
+              accepted_answers: acceptedAnswers.map(({ id: _id, ...rest }) => rest),
               case_sensitive: caseSensitive,
             };
 
@@ -260,80 +263,17 @@ export function QuestionForm({ question, onSuccess }: QuestionFormProps) {
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
           {/* Left Column: Configuration & Content */}
           <div className="lg:col-span-8 space-y-6">
-        {/* Live Preview */}
-        <div className="mb-8">
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="text-sm font-semibold tracking-tight">Live Preview</h3>
-            <div className="flex gap-1 bg-muted/50 p-1 rounded-lg">
-              <Button type="button" size="sm" variant={previewLang === 'en' ? 'default' : 'ghost'}
-                className="h-7 px-3" onClick={() => setPreviewLang('en')}>EN</Button>
-              <Button type="button" size="sm" variant={previewLang === 'ka' ? 'default' : 'ghost'}
-                className="h-7 px-3" onClick={() => setPreviewLang('ka')}>KA</Button>
-            </div>
-          </div>
-
-          <div className="rounded-2xl bg-[#0a0a0a] p-6 text-white min-h-[280px]">
-            {/* Progress bar */}
-            <div className="h-1 bg-white/20 rounded-full mb-6">
-              <div className="h-full w-1/3 bg-[#22c55e] rounded-full" />
-            </div>
-
-            {/* Category/difficulty badge */}
-            <span className={cn(
-              "inline-block px-3 py-1 rounded-lg text-xs font-bold mb-4",
-              difficulty === 'easy' && "bg-emerald-500/20 text-emerald-400",
-              difficulty === 'medium' && "bg-amber-500/20 text-amber-400",
-              difficulty === 'hard' && "bg-rose-500/20 text-rose-400",
-            )}>
-              {previewCategoryName || 'Category'}
-            </span>
-
-            {/* Question prompt */}
-            <p className="text-lg font-medium mb-6">
-              {previewPrompt || 'Your question will appear here...'}
-            </p>
-
-            {/* MCQ options OR Text input based on type */}
-            {type === 'mcq_single' ? (
-              <div className="space-y-3">
-                {mcqOptions.length > 0 ? mcqOptions.map((opt, i) => (
-                  <div key={opt.id} className={cn(
-                    "flex items-center gap-3 p-4 rounded-xl border",
-                    opt.is_correct ? "bg-emerald-500/10 border-emerald-500/50" : "bg-white/5 border-white/10"
-                  )}>
-                    <span className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center text-sm font-bold">
-                      {String.fromCharCode(65 + i)}
-                    </span>
-                    <span className="flex-1">
-                      {(previewLang === 'ka' ? opt.text.ka : opt.text.en) || `Option ${i + 1}`}
-                    </span>
-                    {opt.is_correct && (
-                      <svg className="w-5 h-5 text-emerald-400" fill="currentColor" viewBox="0 0 20 20">
-                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                      </svg>
-                    )}
-                  </div>
-                )) : (
-                  <p className="text-white/40 text-center py-4">Add options to see preview</p>
-                )}
-              </div>
-            ) : (
-              <div className="space-y-3">
-                <div className="flex gap-2">
-                  <div className="flex-1 h-12 rounded-xl bg-white/10 border border-white/20 px-4 flex items-center text-white/40">
-                    Type your answer...
-                  </div>
-                  <div className="px-6 h-12 rounded-xl bg-[#22c55e] font-bold flex items-center">Submit</div>
-                </div>
-                {acceptedAnswers.length > 0 && (
-                  <p className="text-xs text-white/40">
-                    Accepted: {acceptedAnswers.map(a => (previewLang === 'ka' ? a.ka : a.en) || a.en).filter(Boolean).join(', ')}
-                  </p>
-                )}
-              </div>
-            )}
-          </div>
-        </div>
+            {/* Live Preview */}
+            <QuestionPreview
+              prompt={previewPrompt}
+              categoryName={previewCategoryName}
+              difficulty={difficulty}
+              type={type}
+              mcqOptions={mcqOptions}
+              acceptedAnswers={acceptedAnswers}
+              previewLang={previewLang}
+              onLanguageChange={setPreviewLang}
+            />
 
             {/* Content Cards */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -363,7 +303,7 @@ export function QuestionForm({ question, onSuccess }: QuestionFormProps) {
                           <SelectContent className="rounded-xl border-white/10 bg-background/80 backdrop-blur-xl shadow-2xl">
                             {categories?.map((cat) => (
                               <SelectItem key={cat.id} value={cat.id} className="text-xs">
-                                {cat.name[DEFAULT_LANGUAGE] || cat.slug}
+                                {getLocalizedText(cat.name, cat.slug)}
                               </SelectItem>
                             ))}
                           </SelectContent>

@@ -10,7 +10,7 @@ import {
 } from 'react';
 import { useRouter } from 'next/navigation';
 import { authService } from '@/services';
-import { AUTH_TOKEN_KEY, REFRESH_TOKEN_KEY } from '@/lib/constants';
+import { AUTH_TOKEN_KEY, REFRESH_TOKEN_KEY, AUTH_EXPIRY_KEY } from '@/lib/constants';
 import type { User, LoginRequest } from '@/types';
 
 interface AuthContextType {
@@ -48,12 +48,26 @@ export function AuthProvider({ children }: AuthProviderProps) {
         return;
       }
 
+      // Check if token has expired (treat invalid/NaN values as expired)
+      const expiresAt = localStorage.getItem(AUTH_EXPIRY_KEY);
+      if (expiresAt) {
+        const expiryTime = Number(expiresAt);
+        if (!Number.isFinite(expiryTime) || Date.now() > expiryTime) {
+          localStorage.removeItem(AUTH_TOKEN_KEY);
+          localStorage.removeItem(REFRESH_TOKEN_KEY);
+          localStorage.removeItem(AUTH_EXPIRY_KEY);
+          setIsLoading(false);
+          return;
+        }
+      }
+
       const userData = await authService.getMe();
       setUser(userData);
     } catch {
       // Token invalid or expired
       localStorage.removeItem(AUTH_TOKEN_KEY);
       localStorage.removeItem(REFRESH_TOKEN_KEY);
+      localStorage.removeItem(AUTH_EXPIRY_KEY);
       setUser(null);
     } finally {
       setIsLoading(false);
@@ -74,6 +88,14 @@ export function AuthProvider({ children }: AuthProviderProps) {
     if (response.refresh_token) {
       localStorage.setItem(REFRESH_TOKEN_KEY, response.refresh_token);
     }
+    // Store expiry timestamp for client-side validation
+    // Clear any stale expiry if not provided to avoid incorrect validation
+    if (response.expires_in) {
+      const expiresAt = Date.now() + response.expires_in * 1000;
+      localStorage.setItem(AUTH_EXPIRY_KEY, String(expiresAt));
+    } else {
+      localStorage.removeItem(AUTH_EXPIRY_KEY);
+    }
 
     // Fetch full user profile after login
     const userData = await authService.getMe();
@@ -88,6 +110,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     } finally {
       localStorage.removeItem(AUTH_TOKEN_KEY);
       localStorage.removeItem(REFRESH_TOKEN_KEY);
+      localStorage.removeItem(AUTH_EXPIRY_KEY);
       setUser(null);
       router.push('/login');
     }

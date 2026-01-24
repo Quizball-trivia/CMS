@@ -3,7 +3,7 @@
 import { use } from 'react';
 import { useRouter } from 'next/navigation';
 import { useQuestion } from '@/hooks';
-import { DEFAULT_LANGUAGE } from '@/lib/constants';
+import { getLocalizedText } from '@/lib/utils';
 import { QuestionForm } from '@/components/questions';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -42,10 +42,7 @@ export default function QuestionPage({ params }: QuestionPageProps) {
     );
   }
 
-  const prompt =
-    question.prompt[DEFAULT_LANGUAGE] ||
-    Object.values(question.prompt)[0] ||
-    'Untitled Question';
+  const prompt = getLocalizedText(question.prompt, 'Untitled Question');
 
   return (
     <div className="space-y-6">

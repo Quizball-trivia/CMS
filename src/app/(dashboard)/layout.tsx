@@ -4,7 +4,6 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/providers';
 import { Sidebar, Header } from '@/components/layout';
-import { cn } from '@/lib/utils';
 import { Loader2 } from 'lucide-react';
 
 export default function DashboardLayout({
@@ -59,10 +58,7 @@ export default function DashboardLayout({
       </div>
 
       <Sidebar collapsed={sidebarCollapsed} onToggle={handleSidebarToggle} />
-      <div className={cn(
-        "flex-1 flex flex-col min-w-0 transition-all duration-300 ease-in-out",
-        sidebarCollapsed ? "pl-0" : "pl-0"
-      )}>
+      <div className="flex-1 flex flex-col min-w-0 transition-all duration-300 ease-in-out">
         <Header />
         <main className="flex-1 p-6 overflow-y-auto animate-in fade-in duration-500">
           <div className="max-w-[1800px] mx-auto space-y-6">

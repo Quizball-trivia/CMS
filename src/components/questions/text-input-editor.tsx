@@ -3,31 +3,33 @@
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Card, CardContent } from '@/components/ui/card';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import type { I18nField } from '@/types';
-import { Plus, Trash2, Languages, Info, CheckCircle2 } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { Plus, Trash2, Info, CheckCircle2 } from 'lucide-react';
+
+// Extended I18nField with stable ID for React keys
+export interface AnswerWithId extends I18nField {
+  id: string;
+}
 
 interface TextInputEditorProps {
-  acceptedAnswers: I18nField[];
+  acceptedAnswers: AnswerWithId[];
   caseSensitive: boolean;
-  onChange: (acceptedAnswers: I18nField[], caseSensitive: boolean) => void;
+  onChange: (acceptedAnswers: AnswerWithId[], caseSensitive: boolean) => void;
 }
 
 export function TextInputEditor({ acceptedAnswers, caseSensitive, onChange }: TextInputEditorProps) {
   const addAnswer = () => {
-    onChange([...acceptedAnswers, { en: '' }], caseSensitive);
+    onChange([...acceptedAnswers, { id: crypto.randomUUID(), en: '' }], caseSensitive);
   };
 
-  const removeAnswer = (index: number) => {
-    const newAnswers = acceptedAnswers.filter((_, i) => i !== index);
+  const removeAnswer = (id: string) => {
+    const newAnswers = acceptedAnswers.filter((a) => a.id !== id);
     onChange(newAnswers, caseSensitive);
   };
 
-  const updateAnswer = (index: number, lang: string, value: string) => {
-    const newAnswers = acceptedAnswers.map((answer, i) =>
-      i === index ? { ...answer, [lang]: value } : answer
+  const updateAnswer = (id: string, lang: string, value: string) => {
+    const newAnswers = acceptedAnswers.map((answer) =>
+      answer.id === id ? { ...answer, [lang]: value } : answer
     );
     onChange(newAnswers, caseSensitive);
   };
@@ -59,8 +61,8 @@ export function TextInputEditor({ acceptedAnswers, caseSensitive, onChange }: Te
       ) : (
         <div className="space-y-2">
           {acceptedAnswers.map((answer, index) => (
-            <div 
-              key={index} 
+            <div
+              key={answer.id}
               className="group relative rounded-2xl border bg-white/[0.03] border-white/5 hover:border-white/10 transition-all duration-200"
             >
               <div className="p-3 space-y-2">
@@ -68,13 +70,13 @@ export function TextInputEditor({ acceptedAnswers, caseSensitive, onChange }: Te
                   <span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground/40">
                     #{index + 1}
                   </span>
-                  
+
                   <Button
                     type="button"
                     variant="ghost"
                     size="icon"
                     className="h-5 w-5 rounded-md text-muted-foreground/30 hover:text-rose-500 hover:bg-rose-500/10 transition-all opacity-0 group-hover:opacity-100"
-                    onClick={() => removeAnswer(index)}
+                    onClick={() => removeAnswer(answer.id)}
                   >
                     <Trash2 className="w-3 h-3" />
                   </Button>
@@ -88,7 +90,7 @@ export function TextInputEditor({ acceptedAnswers, caseSensitive, onChange }: Te
                   <Input
                     placeholder="Correct text..."
                     value={answer.en || ''}
-                    onChange={(e) => updateAnswer(index, 'en', e.target.value)}
+                    onChange={(e) => updateAnswer(answer.id, 'en', e.target.value)}
                     className="h-9 bg-white/5 border-white/5 rounded-xl focus:ring-1 focus:ring-primary/30 transition-all text-xs placeholder:text-white/10 border-none shadow-inner"
                   />
                 </div>

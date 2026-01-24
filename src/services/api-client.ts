@@ -24,7 +24,17 @@ function getAuthToken(): string | null {
 
 async function handleResponse<T>(response: Response): Promise<T> {
   if (!response.ok) {
-    const error = await response.json() as ApiError;
+    let error: ApiError;
+    try {
+      error = await response.json() as ApiError;
+    } catch {
+      error = {
+        code: 'NETWORK_ERROR',
+        message: `Request failed with status ${response.status}`,
+        details: null,
+        request_id: null,
+      };
+    }
     throw new ApiClientError(error, response.status);
   }
 

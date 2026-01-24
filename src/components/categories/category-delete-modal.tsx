@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { toast } from 'sonner';
 import { useCategoryDependencies, useCascadeDeleteCategory, useDeleteCategory } from '@/hooks';
 import { useDeleteQuestion } from '@/hooks/use-questions';
-import { DEFAULT_LANGUAGE } from '@/lib/constants';
+import { getLocalizedText } from '@/lib/utils';
 import type { Category } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -39,7 +39,7 @@ export function CategoryDeleteModal({
   const cascadeDeleteCategory = useCascadeDeleteCategory();
   const deleteQuestion = useDeleteQuestion();
 
-  const categoryName = category.name[DEFAULT_LANGUAGE] || Object.values(category.name)[0] || 'Untitled';
+  const categoryName = getLocalizedText(category.name, 'Untitled');
 
   const hasChildren = (dependencies?.children.length ?? 0) > 0;
   const hasQuestions = (dependencies?.questions.length ?? 0) > 0;
@@ -84,7 +84,7 @@ export function CategoryDeleteModal({
   };
 
   const getQuestionLabel = (prompt: Record<string, string>) => {
-    return prompt[DEFAULT_LANGUAGE] || Object.values(prompt)[0] || 'Untitled question';
+    return getLocalizedText(prompt, 'Untitled question');
   };
 
   const isPending = deleteCategory.isPending || cascadeDeleteCategory.isPending;
@@ -108,7 +108,7 @@ export function CategoryDeleteModal({
               <ul className="mt-2 list-disc pl-4 space-y-1">
                 {dependencies?.children.map((child) => (
                   <li key={child.id}>
-                    {child.name[DEFAULT_LANGUAGE] || Object.values(child.name)[0] || child.slug}
+                    {getLocalizedText(child.name, child.slug)}
                   </li>
                 ))}
               </ul>

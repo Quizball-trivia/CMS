@@ -1,12 +1,11 @@
 'use client';
 
 import { useState } from 'react';
-import { DEFAULT_LANGUAGE } from '@/lib/constants';
 import type { Category } from '@/types';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { GripVertical, Edit2, Trash2, X, Folder, Star, Users, TrendingUp, Trophy } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { cn, getLocalizedText } from '@/lib/utils';
 import { CategoryDeleteModal } from './category-delete-modal';
 
 export interface UnifiedCategoryCardProps {
@@ -37,8 +36,8 @@ export function UnifiedCategoryCard({
 }: UnifiedCategoryCardProps) {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
 
-  const name = category.name[DEFAULT_LANGUAGE] || Object.values(category.name)[0] || 'Untitled';
-  const description = category.description?.[DEFAULT_LANGUAGE] || Object.values(category.description || {})[0] || '';
+  const name = getLocalizedText(category.name, 'Untitled');
+  const description = getLocalizedText(category.description);
 
   const handleRemoveFromFeatured = () => {
     if (onRemoveFromFeatured && featuredId) {

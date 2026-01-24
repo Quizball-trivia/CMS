@@ -11,7 +11,6 @@ import {
   useCategories,
   useCreateFeaturedCategory,
 } from '@/hooks';
-import { DEFAULT_LANGUAGE } from '@/lib/constants';
 import type { Category } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -31,16 +30,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
-  Globe,
   Image as ImageIcon,
   Sparkles,
-  Users,
-  TrendingUp,
-  Trophy,
 } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { getLocalizedText } from '@/lib/utils';
+import { CategoryPreview } from './category-preview';
 
 const categorySchema = z.object({
   slug: z
@@ -132,7 +127,7 @@ export function CategoryForm({ category, onSuccess }: CategoryFormProps) {
   const previewParentLabel = useMemo(() => {
     if (!parentId || parentId === 'none') return 'Root';
     const parent = categories?.find((c) => c.id === parentId);
-    return parent ? parent.name[DEFAULT_LANGUAGE] || parent.slug : 'Parent';
+    return parent ? getLocalizedText(parent.name, parent.slug) : 'Parent';
   }, [categories, parentId]);
 
   // Filter out current category from parent options
@@ -183,60 +178,14 @@ export function CategoryForm({ category, onSuccess }: CategoryFormProps) {
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-        <div className="relative group overflow-hidden rounded-[2rem] border border-white/10 min-h-[240px] w-full shadow-2xl">
-          {/* Background Layer */}
-          <div className="absolute inset-0 bg-[#0a0a0a]">
-            {imageUrl ? (
-              <>
-                <img src={imageUrl} alt="" className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-105" />
-                <div className="absolute inset-0 bg-gradient-to-t from-black via-black/40 to-transparent" />
-                <div className="absolute inset-0 bg-gradient-to-r from-black/60 via-transparent to-transparent" />
-              </>
-            ) : (
-              <div className="h-full w-full bg-gradient-to-br from-primary/20 via-primary/5 to-black" />
-            )}
-          </div>
-
-          {/* Content Layer */}
-          <div className="relative h-full w-full p-6 flex flex-col justify-between">
-            {/* Top Row */}
-            <div className="flex items-start justify-between">
-              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-black/40 backdrop-blur-md border border-white/10 shadow-xl">
-                <span className="text-3xl leading-none">{icon || '✨'}</span>
-              </div>
-              
-              <div className="flex flex-col items-end gap-2">
-                <div className="flex items-center gap-2 bg-[#22c55e] text-white px-3 py-1.5 rounded-lg shadow-lg">
-                  <Trophy className="w-4 h-4" />
-                  <span className="text-xs font-black tracking-tighter">#52</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Bottom Row */}
-            <div className="flex items-end justify-between gap-4">
-              <div className="flex-1 min-w-0">
-                <h3 className="text-2xl font-black tracking-tight text-white truncate drop-shadow-md">
-                  {previewName || 'New Category'}
-                </h3>
-                <p className="mt-1 text-sm text-white/70 line-clamp-2 font-medium max-w-[80%] whitespace-normal leading-relaxed">
-                  {previewDescription || 'Experience the ultimate challenge in this category.'}
-                </p>
-                
-                <div className="mt-4 flex items-center gap-3">
-                  <div className="flex items-center gap-2 bg-black/60 backdrop-blur-md border border-white/10 px-3 py-1.5 rounded-full shadow-lg transition-transform hover:scale-105">
-                    <Users className="w-3.5 h-3.5 text-white/60" />
-                    <span className="text-xs font-bold text-white tracking-tight">24.8k</span>
-                  </div>
-                  <div className="flex items-center gap-2 bg-black/60 backdrop-blur-md border border-white/10 px-3 py-1.5 rounded-full shadow-lg transition-transform hover:scale-105">
-                    <TrendingUp className="w-3.5 h-3.5 text-white/60" />
-                    <span className="text-xs font-bold text-white tracking-tight">2450</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
+        <CategoryPreview
+          name={previewName}
+          description={previewDescription}
+          icon={icon}
+          imageUrl={imageUrl}
+          activeLang={activeLang}
+          onLanguageChange={setActiveLang}
+        />
 
         <div className="space-y-3">
           <div className="flex items-center gap-2 px-1">
@@ -325,7 +274,7 @@ export function CategoryForm({ category, onSuccess }: CategoryFormProps) {
                     <SelectItem value="none">No parent</SelectItem>
                     {parentOptions.map((cat) => (
                       <SelectItem key={cat.id} value={cat.id}>
-                        {cat.name[DEFAULT_LANGUAGE] || cat.slug}
+                        {getLocalizedText(cat.name, cat.slug)}
                       </SelectItem>
                     ))}
                   </SelectContent>

@@ -24,3 +24,4 @@ export const QUESTION_TYPE_LABELS: Record<string, string> = {
 
 export const AUTH_TOKEN_KEY = 'quizball_auth_token';
 export const REFRESH_TOKEN_KEY = 'quizball_refresh_token';
+export const AUTH_EXPIRY_KEY = 'quizball_auth_expires_at';

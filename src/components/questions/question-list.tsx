@@ -5,11 +5,11 @@ import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { useQuestions, useDeleteQuestion, useUpdateQuestionStatus, useCategories } from '@/hooks';
 import {
-  DEFAULT_LANGUAGE,
   QUESTION_STATUS_LABELS,
   DIFFICULTY_LABELS,
   QUESTION_TYPE_LABELS,
 } from '@/lib/constants';
+import { getLocalizedText } from '@/lib/utils';
 import type { ListQuestionsParams, QuestionStatus } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -117,7 +117,7 @@ export function QuestionList() {
 
   const getCategoryName = (categoryId: string) => {
     const category = categories?.find((c) => c.id === categoryId);
-    return category?.name[DEFAULT_LANGUAGE] || category?.slug || 'Unknown';
+    return category ? getLocalizedText(category.name, category.slug) : 'Unknown';
   };
 
   const statusVariant = (status: QuestionStatus) => {
@@ -184,7 +184,7 @@ export function QuestionList() {
                   <SelectItem value="all">All Categories</SelectItem>
                   {categories?.map((cat) => (
                     <SelectItem key={cat.id} value={cat.id}>
-                      {cat.name[DEFAULT_LANGUAGE] || cat.slug}
+                      {getLocalizedText(cat.name, cat.slug)}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -276,9 +276,7 @@ export function QuestionList() {
                   <TableCell className="py-4">
                     <div className="flex flex-col space-y-1">
                       <span className="font-bold text-sm line-clamp-2 leading-snug group-hover:text-primary transition-colors">
-                        {question.prompt[DEFAULT_LANGUAGE] ||
-                          Object.values(question.prompt)[0] ||
-                          'No prompt'}
+                        {getLocalizedText(question.prompt, 'No prompt')}
                       </span>
                       <span className="text-[10px] font-mono text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity">
                         ID: {question.id.substring(0, 8)}...
