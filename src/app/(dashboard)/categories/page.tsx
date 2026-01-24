@@ -121,9 +121,7 @@ export default function CategoriesPage() {
             <h1 className="text-4xl font-black tracking-tight bg-clip-text text-transparent bg-gradient-to-br from-foreground to-foreground/60">
               Categories
             </h1>
-            <p className="text-muted-foreground/60 font-medium tracking-tight">
-              Architect and organize your quiz hierarchy with high-level categories.
-            </p>
+           
           </div>
 
           <Button

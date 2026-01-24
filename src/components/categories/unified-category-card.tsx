@@ -1,22 +1,13 @@
 'use client';
 
 import { useState } from 'react';
-import { toast } from 'sonner';
-import { useDeleteCategory } from '@/hooks';
 import { DEFAULT_LANGUAGE } from '@/lib/constants';
 import type { Category } from '@/types';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { GripVertical, Edit2, Trash2, X, Folder, Star, Users, TrendingUp, Trophy } from 'lucide-react';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
+import { CategoryDeleteModal } from './category-delete-modal';
 
 export interface UnifiedCategoryCardProps {
   category: Category;
@@ -44,22 +35,10 @@ export function UnifiedCategoryCard({
   isDragging = false,
   parentName,
 }: UnifiedCategoryCardProps) {
-  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
-  const deleteCategory = useDeleteCategory();
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
 
   const name = category.name[DEFAULT_LANGUAGE] || Object.values(category.name)[0] || 'Untitled';
   const description = category.description?.[DEFAULT_LANGUAGE] || Object.values(category.description || {})[0] || '';
-
-  const handleDelete = async () => {
-    try {
-      await deleteCategory.mutateAsync(category.id);
-      toast.success('Category deleted successfully');
-      setShowDeleteDialog(false);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to delete category';
-      toast.error(message);
-    }
-  };
 
   const handleRemoveFromFeatured = () => {
     if (onRemoveFromFeatured && featuredId) {
@@ -76,8 +55,8 @@ export function UnifiedCategoryCard({
         className={cn(
           "relative flex flex-col overflow-hidden border border-white/10 bg-[#0a0a0a] rounded-2xl",
           isDragging && "opacity-50 scale-95 z-50",
-          isFeatured && "h-[180px] w-[300px] flex-shrink-0",
-          isRepository && "h-[170px] w-full"
+          isFeatured && "h-[200px] w-[300px] flex-shrink-0",
+          isRepository && "h-[190px] w-full"
         )}
       >
 
@@ -153,7 +132,7 @@ export function UnifiedCategoryCard({
                     "h-7 w-7 rounded-lg bg-black/30 backdrop-blur-md border border-white/10 text-white/50 hover:text-red-400 hover:bg-red-500/20 transition-all",
                     isAlreadyFeatured && "opacity-50 cursor-not-allowed hover:text-white/50 hover:bg-black/30"
                   )}
-                  onClick={() => !isAlreadyFeatured && setShowDeleteDialog(true)}
+                  onClick={() => !isAlreadyFeatured && setShowDeleteModal(true)}
                   title={isAlreadyFeatured ? "Remove from featured first" : "Delete category"}
                 >
                   <Trash2 className="w-3.5 h-3.5" />
@@ -174,7 +153,7 @@ export function UnifiedCategoryCard({
               {name}
             </h3>
             {description && (
-              <p className="text-[10px] text-white/50 line-clamp-2 font-medium mt-0.5">
+              <p className="text-[10px] text-white/50 line-clamp-3 font-medium mt-0.5 break-words">
                 {description}
               </p>
             )}
@@ -211,30 +190,13 @@ export function UnifiedCategoryCard({
         </div>
       </Card>
 
-      {/* Delete Confirmation Dialog - only for repository cards */}
+      {/* Delete Modal - only for repository cards */}
       {isRepository && (
-        <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Delete Category</DialogTitle>
-              <DialogDescription>
-                Are you sure you want to delete &quot;{name}&quot;? This action cannot be undone.
-              </DialogDescription>
-            </DialogHeader>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setShowDeleteDialog(false)}>
-                Cancel
-              </Button>
-              <Button
-                variant="destructive"
-                onClick={handleDelete}
-                disabled={deleteCategory.isPending}
-              >
-                {deleteCategory.isPending ? 'Deleting...' : 'Delete'}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+        <CategoryDeleteModal
+          category={category}
+          open={showDeleteModal}
+          onOpenChange={setShowDeleteModal}
+        />
       )}
     </>
   );

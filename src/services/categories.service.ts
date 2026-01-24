@@ -4,6 +4,7 @@ import type {
   CreateCategoryRequest,
   UpdateCategoryRequest,
   ListCategoriesParams,
+  CategoryDependencies,
 } from '@/types';
 
 export const categoriesService = {
@@ -25,5 +26,13 @@ export const categoriesService = {
 
   async delete(id: string): Promise<void> {
     return apiClient.delete<void>(`/categories/${id}`);
+  },
+
+  async getDependencies(id: string): Promise<CategoryDependencies> {
+    return apiClient.get<CategoryDependencies>(`/categories/${id}/dependencies`);
+  },
+
+  async deleteWithCascade(id: string): Promise<void> {
+    return apiClient.delete<void>(`/categories/${id}?cascade=true`);
   },
 };

@@ -31,7 +31,7 @@ export function FeaturedDropZone({ children, itemIds }: FeaturedDropZoneProps) {
         {/* Drop indicator when empty or dragging over */}
         {itemIds.length === 0 && (
           <div className={cn(
-            "flex-1 flex items-center justify-center text-muted-foreground text-sm border-2 border-dashed rounded-2xl min-h-[180px]",
+            "flex-1 flex items-center justify-center text-muted-foreground text-sm border-2 border-dashed rounded-2xl min-h-[200px]",
             isOver ? "border-primary bg-primary/5" : "border-white/10"
           )}>
             {isOver ? 'Drop to add to featured' : 'Drag categories here to feature them'}

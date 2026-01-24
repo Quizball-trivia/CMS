@@ -1,20 +1,10 @@
-export interface I18nField {
-  [languageCode: string]: string;
-}
+import type { components } from './api.generated';
 
-export interface Category {
-  id: string;
-  slug: string;
-  parent_id: string | null;
-  name: I18nField;
-  description: I18nField | null;
-  icon: string | null;
-  image_url: string | null;
-  is_active: boolean;
-  created_at: string;
-  updated_at: string;
-}
+// Re-export from generated types - these stay in sync with backend automatically
+export type I18nField = components['schemas']['I18nField'];
+export type Category = components['schemas']['CategoryResponse'];
 
+// Request types derived from backend (for create/update)
 export interface CreateCategoryRequest {
   slug: string;
   parent_id?: string | null;
@@ -40,24 +30,8 @@ export interface ListCategoriesParams {
   is_active?: boolean;
 }
 
-export interface FeaturedCategory {
-  id: string;
-  category_id: string;
-  sort_order: number;
-  created_at: string;
-  category: {
-    id: string;
-    slug: string;
-    parent_id: string | null;
-    name: I18nField;
-    description: I18nField | null;
-    icon: string | null;
-    image_url: string | null;
-    is_active: boolean;
-    created_at: string;
-    updated_at: string;
-  };
-}
+// Featured categories - now from generated types
+export type FeaturedCategory = components['schemas']['FeaturedCategoryResponse'];
 
 export interface CreateFeaturedCategoryRequest {
   category_id: string;
@@ -73,4 +47,11 @@ export interface ReorderFeaturedCategoriesRequest {
     id: string;
     sort_order: number;
   }>;
+}
+
+// Category dependencies for delete modal
+export interface CategoryDependencies {
+  children: { id: string; name: I18nField; slug: string }[];
+  questions: { id: string; prompt: I18nField; type: string; difficulty: string }[];
+  featured: boolean;
 }

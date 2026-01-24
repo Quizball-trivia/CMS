@@ -6,6 +6,8 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import type { McqOption } from '@/types';
+import { Plus, Trash2, CheckCircle2, Languages, X, Info } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 interface McqEditorProps {
   options: McqOption[];
@@ -47,96 +49,97 @@ export function McqEditor({ options, onChange }: McqEditorProps) {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <Label>Answer Options</Label>
-        <Button type="button" variant="outline" size="sm" onClick={addOption}>
-          Add Option
+      <div className="flex items-center justify-between px-1">
+        <div className="space-y-0.5">
+          <Label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/50">Answer Options</Label>
+          <p className="text-[9px] text-muted-foreground/40 font-medium italic">2-4 choices recommended</p>
+        </div>
+        <Button 
+          type="button" 
+          size="sm" 
+          onClick={addOption}
+          className="h-7 px-3 rounded-lg bg-primary/10 text-primary hover:bg-primary/20 border-none font-bold text-[9px] uppercase tracking-wider transition-all active:scale-95"
+        >
+          <Plus className="w-3 h-3 mr-1" />
+          Add
         </Button>
       </div>
 
       {options.length === 0 ? (
-        <p className="text-sm text-gray-500 text-center py-4">
-          No options added yet. Click &quot;Add Option&quot; to create answer choices.
-        </p>
+        <div className="flex flex-col items-center justify-center py-8 rounded-2xl border border-dashed border-white/5 bg-white/[0.02]">
+          <p className="text-[9px] font-bold text-white/10 uppercase tracking-widest text-center">
+            No options added
+          </p>
+        </div>
       ) : (
-        <div className="space-y-3">
+        <div className="space-y-2">
           {options.map((option, index) => (
-            <Card key={option.id} className={option.is_correct ? 'ring-2 ring-green-500' : ''}>
-              <CardContent className="p-4">
-                <div className="flex items-start gap-3">
-                  <button
-                    type="button"
-                    onClick={() => setCorrectAnswer(option.id)}
-                    className={`mt-1 w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${
-                      option.is_correct
-                        ? 'border-green-500 bg-green-500'
-                        : 'border-gray-300 hover:border-green-400'
-                    }`}
-                  >
-                    {option.is_correct && (
-                      <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
-                        <path
-                          fillRule="evenodd"
-                          d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
-                          clipRule="evenodd"
-                        />
-                      </svg>
-                    )}
-                  </button>
-
-                  <div className="flex-1">
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-sm font-medium text-gray-700">
-                        Option {index + 1}
-                        {option.is_correct && (
-                          <span className="ml-2 text-green-600">(Correct)</span>
-                        )}
-                      </span>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        className="h-6 w-6 p-0 text-gray-400 hover:text-red-500"
-                        onClick={() => removeOption(option.id)}
-                      >
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                        </svg>
-                      </Button>
-                    </div>
-
-                    <Tabs defaultValue="en" className="w-full">
-                      <TabsList className="mb-2 h-8">
-                        <TabsTrigger value="en" className="text-xs">EN</TabsTrigger>
-                        <TabsTrigger value="ka" className="text-xs">KA</TabsTrigger>
-                      </TabsList>
-                      <TabsContent value="en">
-                        <Input
-                          placeholder="Option text in English"
-                          value={option.text.en || ''}
-                          onChange={(e) => updateOptionText(option.id, 'en', e.target.value)}
-                        />
-                      </TabsContent>
-                      <TabsContent value="ka">
-                        <Input
-                          placeholder="Option text in Georgian"
-                          value={option.text.ka || ''}
-                          onChange={(e) => updateOptionText(option.id, 'ka', e.target.value)}
-                        />
-                      </TabsContent>
-                    </Tabs>
+            <div 
+              key={option.id} 
+              className={cn(
+                "group relative rounded-2xl border transition-all duration-200 overflow-hidden",
+                option.is_correct 
+                  ? "bg-primary/[0.05] border-primary/30 shadow-lg shadow-primary/5" 
+                  : "bg-white/[0.03] border-white/5 hover:border-white/10"
+              )}
+            >
+              <div className="p-3 space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setCorrectAnswer(option.id)}
+                      className={cn(
+                        "h-5 w-5 rounded-full flex items-center justify-center border transition-all duration-200",
+                        option.is_correct
+                          ? "bg-primary border-primary text-primary-foreground scale-110 shadow-lg shadow-primary/10"
+                          : "bg-white/5 border-white/10 text-transparent hover:border-primary/50"
+                      )}
+                    >
+                      <CheckCircle2 className="w-3 h-3" />
+                    </button>
+                    <span className={cn(
+                      "text-[9px] font-black uppercase tracking-widest transition-colors",
+                      option.is_correct ? "text-primary" : "text-muted-foreground/40"
+                    )}>
+                      #{index + 1}
+                    </span>
                   </div>
+                  
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="h-5 w-5 rounded-md text-muted-foreground/30 hover:text-rose-500 hover:bg-rose-500/10 transition-all opacity-0 group-hover:opacity-100"
+                    onClick={() => removeOption(option.id)}
+                  >
+                    <Trash2 className="w-3 h-3" />
+                  </Button>
                 </div>
-              </CardContent>
-            </Card>
+
+                <div className="flex items-center gap-2">
+                  <div className="flex flex-col bg-white/5 p-0.5 rounded-lg border border-white/5 self-start">
+                    <button type="button" className="px-1.5 py-1 text-[8px] font-black rounded-md bg-white/10 text-white">EN</button>
+                    <button type="button" className="px-1.5 py-1 text-[8px] font-black rounded-md text-white/40 hover:text-white">KA</button>
+                  </div>
+                  <Input
+                    placeholder="Option text..."
+                    value={option.text.en || ''}
+                    onChange={(e) => updateOptionText(option.id, 'en', e.target.value)}
+                    className="h-9 bg-white/5 border-white/5 rounded-xl focus:ring-1 focus:ring-primary/30 transition-all text-xs placeholder:text-white/10 border-none shadow-inner"
+                  />
+                </div>
+              </div>
+            </div>
           ))}
         </div>
       )}
 
       {options.length > 0 && options.length < 2 && (
-        <p className="text-sm text-amber-600">
-          Add at least 2 options for a valid multiple choice question.
-        </p>
+        <div className="flex items-center gap-2 p-2 rounded-lg bg-amber-500/5 text-[9px] text-amber-500/60 font-bold uppercase tracking-widest border border-amber-500/10">
+          <Info className="w-3 h-3" />
+          Add 1 more option
+        </div>
       )}
     </div>
   );

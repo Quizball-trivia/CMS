@@ -54,7 +54,7 @@ export function CategoryList({ onEditCategory, featuredCategoryIds = new Set() }
         {[...Array(12)].map((_, i) => (
           <div
             key={i}
-            className="h-[170px] w-full bg-card/20 rounded-2xl animate-pulse border border-white/5"
+            className="h-[190px] w-full bg-card/20 rounded-2xl animate-pulse border border-white/5"
           />
         ))}
       </div>

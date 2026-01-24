@@ -55,7 +55,7 @@ const categorySchema = z.object({
   description_ka: z.string().optional(),
   icon: z.string().optional(),
   image_url: z.string().url().optional().or(z.literal('')),
-  visibility: z.enum(['active', 'draft', 'hidden']),
+  visibility: z.enum(['active', 'draft']),
   is_featured: z.boolean(),
 });
 
@@ -219,7 +219,7 @@ export function CategoryForm({ category, onSuccess }: CategoryFormProps) {
                 <h3 className="text-2xl font-black tracking-tight text-white truncate drop-shadow-md">
                   {previewName || 'New Category'}
                 </h3>
-                <p className="mt-1 text-sm text-white/70 line-clamp-1 font-medium max-w-[80%]">
+                <p className="mt-1 text-sm text-white/70 line-clamp-2 font-medium max-w-[80%] whitespace-normal leading-relaxed">
                   {previewDescription || 'Experience the ultimate challenge in this category.'}
                 </p>
                 
@@ -398,7 +398,6 @@ export function CategoryForm({ category, onSuccess }: CategoryFormProps) {
                   <SelectContent className="rounded-xl border-white/10 bg-background/80 backdrop-blur-xl shadow-2xl">
                     <SelectItem value="active">Active (Visible)</SelectItem>
                     <SelectItem value="draft">Draft (Not visible)</SelectItem>
-                    <SelectItem value="hidden">Hidden (Internal)</SelectItem>
                   </SelectContent>
                 </Select>
                 <FormMessage />

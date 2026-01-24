@@ -63,3 +63,22 @@ export function useDeleteCategory() {
     },
   });
 }
+
+export function useCategoryDependencies(id: string, enabled = true) {
+  return useQuery({
+    queryKey: [...categoryKeys.detail(id), 'dependencies'] as const,
+    queryFn: () => categoriesService.getDependencies(id),
+    enabled: enabled && !!id,
+  });
+}
+
+export function useCascadeDeleteCategory() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (id: string) => categoriesService.deleteWithCascade(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: categoryKeys.all });
+    },
+  });
+}

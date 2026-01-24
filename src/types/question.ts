@@ -1,9 +1,13 @@
+import type { components } from './api.generated';
 import type { I18nField } from './category';
 
-export type QuestionType = 'mcq_single' | 'input_text';
-export type Difficulty = 'easy' | 'medium' | 'hard';
-export type QuestionStatus = 'draft' | 'published' | 'archived';
+// Re-export enums from generated types - these stay in sync with backend
+type QuestionResponseType = components['schemas']['QuestionResponse'];
+export type QuestionType = QuestionResponseType['type'];
+export type Difficulty = QuestionResponseType['difficulty'];
+export type QuestionStatus = QuestionResponseType['status'];
 
+// Payload types (not in OpenAPI yet - specific to question types)
 export interface McqOption {
   id: string;
   text: I18nField;
@@ -23,16 +27,8 @@ export interface TextInputPayload {
 
 export type QuestionPayload = McqPayload | TextInputPayload;
 
-export interface Question {
-  id: string;
-  category_id: string;
-  type: QuestionType;
-  difficulty: Difficulty;
-  status: QuestionStatus;
-  prompt: I18nField;
-  explanation: I18nField | null;
-  created_at: string;
-  updated_at: string;
+// Extend the generated type with proper payload typing
+export interface Question extends Omit<components['schemas']['QuestionResponse'], 'payload'> {
   payload: QuestionPayload | null;
 }
 
@@ -69,3 +65,6 @@ export interface ListQuestionsParams {
 export interface UpdateQuestionStatusRequest {
   status: QuestionStatus;
 }
+
+// Paginated response from generated types
+export type PaginatedQuestionsResponse = components['schemas']['PaginatedQuestionsResponse'];
