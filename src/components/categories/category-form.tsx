@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useState } from 'react';
 import { useForm, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -30,12 +30,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import {
-  Image as ImageIcon,
-  Sparkles,
-} from 'lucide-react';
 import { getLocalizedText } from '@/lib/utils';
 import { CategoryPreview } from './category-preview';
+import { CategoryQuestions } from './category-questions';
 
 const categorySchema = z.object({
   slug: z
@@ -106,25 +103,16 @@ export function CategoryForm({ category, onSuccess }: CategoryFormProps) {
   });
 
   const {
-    slug: _slug,
     name_en: nameEn,
     name_ka: nameKa,
     description_en: descEn,
     description_ka: descKa,
     icon,
     image_url: imageUrl,
-    visibility,
-    parent_id: parentId,
   } = watched;
 
   const previewName = activeLang === 'ka' ? nameKa : nameEn;
   const previewDescription = activeLang === 'ka' ? descKa : descEn;
-
-  const previewParentLabel = useMemo(() => {
-    if (!parentId || parentId === 'none') return 'Root';
-    const parent = categories?.find((c) => c.id === parentId);
-    return parent ? getLocalizedText(parent.name, parent.slug) : 'Parent';
-  }, [categories, parentId]);
 
   // Filter out current category from parent options
   const parentOptions = categories?.filter((c) => c.id !== category?.id) || [];
@@ -321,6 +309,11 @@ export function CategoryForm({ category, onSuccess }: CategoryFormProps) {
             )}
           />
         </div>
+
+        {/* Category Questions - Only show when editing */}
+        {isEditing && category && (
+          <CategoryQuestions categoryId={category.id} />
+        )}
 
         {!isEditing && (
           <FormField

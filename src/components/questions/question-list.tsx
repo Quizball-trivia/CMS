@@ -1,18 +1,15 @@
 'use client';
 
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useMemo, useState, useEffect } from 'react';
 import { toast } from 'sonner';
 import { useQuestions, useDeleteQuestion, useUpdateQuestionStatus, useCategories } from '@/hooks';
+import { questionsService } from '@/services/questions.service';
 import {
-  QUESTION_STATUS_LABELS,
-  DIFFICULTY_LABELS,
   QUESTION_TYPE_LABELS,
 } from '@/lib/constants';
 import { getLocalizedText } from '@/lib/utils';
-import type { ListQuestionsParams, QuestionStatus } from '@/types';
+import type { ListQuestionsParams, QuestionStatus, Question } from '@/types';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import {
   Select,
@@ -21,21 +18,28 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { motion } from 'framer-motion';
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
+  Search,
+  MoreHorizontal,
+  Trash2,
+  Archive,
+  Send,
+  Clock,
+  ChevronLeft,
+  ChevronRight,
+  HelpCircle,
+  FileText,
+  LayoutList,
+  AlertCircle,
+  Layers,
+  X
+} from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { QuestionDialog } from './question-dialog';
+import { DifficultySignal, getDifficultyTextColor } from '@/components/ui/difficulty-signal';
+import { processBatch } from '@/lib/batch-utils';
+import { logger } from '@/lib/logger';
 import {
   Dialog,
   DialogContent,
@@ -45,42 +49,104 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { 
-  Search, 
-  Plus, 
-  MoreHorizontal, 
-  Edit2, 
-  Trash2, 
-  Archive, 
-  Send, 
-  Clock, 
-  Filter, 
-  ChevronLeft, 
-  ChevronRight,
-  HelpCircle,
-  FileText,
-  LayoutList,
-  AlertCircle,
-  Layers,
-  Zap,
-  Copy
-} from 'lucide-react';
-import { cn } from '@/lib/utils';
-import { Card, CardContent } from '@/components/ui/card';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 
 export function QuestionList() {
-  const router = useRouter();
   const [params, setParams] = useState<ListQuestionsParams>({
     page: 1,
     limit: 10,
   });
   const [searchQuery, setSearchQuery] = useState('');
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [openQuestionId, setOpenQuestionId] = useState<string | null>(null);
+  const [isBulkOperating, setIsBulkOperating] = useState(false);
+
+  // Progressive loading for preview navigation
+  const [questionsByPage, setQuestionsByPage] = useState<Map<number, Question[]>>(new Map());
+  const [isFetchingMore, setIsFetchingMore] = useState(false);
+
+  // Flatten questions from all loaded pages in order
+  const loadedQuestions = useMemo(() => {
+    const pages = Array.from(questionsByPage.keys()).sort((a, b) => a - b);
+    return pages.flatMap(page => questionsByPage.get(page) || []);
+  }, [questionsByPage]);
 
   const { data, isLoading, error } = useQuestions(params);
   const { data: categories } = useCategories();
   const deleteQuestion = useDeleteQuestion();
   const updateStatus = useUpdateQuestionStatus();
+
+  // Sync current page questions with questionsByPage
+  useEffect(() => {
+    if (data?.data) {
+      const currentPage = params.page || 1;
+      setQuestionsByPage((prev) => {
+        const newMap = new Map(prev);
+        newMap.set(currentPage, data.data);
+        return newMap;
+      });
+    }
+  }, [data, params.page]);
+
+  // Reset loaded questions when filters change
+  useEffect(() => {
+    setQuestionsByPage(new Map());
+  }, [params.category_id, params.status, params.difficulty, params.type, params.search]);
+
+  // Function to fetch additional pages for preview navigation
+  const fetchAdjacentPage = async (pageToFetch: number) => {
+    if (questionsByPage.has(pageToFetch) || isFetchingMore || !data) return;
+    if (pageToFetch < 1 || pageToFetch > data.total_pages) return;
+
+    setIsFetchingMore(true);
+
+    try {
+      const pageData = await questionsService.list({
+        ...params,
+        page: pageToFetch,
+      });
+
+      setQuestionsByPage((prev) => {
+        const newMap = new Map(prev);
+        newMap.set(pageToFetch, pageData.data);
+        return newMap;
+      });
+    } catch (error) {
+      logger.error('questions', 'Failed to fetch adjacent page', { error, pageToFetch });
+      toast.error('Failed to load more questions');
+    } finally {
+      setIsFetchingMore(false);
+    }
+  };
+
+  // Handle preview navigation with progressive loading
+  const handlePreviewNavigate = (newIndex: number) => {
+    if (!data) return;
+
+    // Check if we need to load more questions
+    const threshold = 3; // Fetch when within 3 questions of edge
+    const questionsPerPage = params.limit || 10;
+
+    // Calculate which page contains this index
+    const targetPage = Math.floor(newIndex / questionsPerPage) + 1;
+
+    // Prefetch next page if close to end of loaded questions
+    if (newIndex >= loadedQuestions.length - threshold && targetPage < data.total_pages) {
+      fetchAdjacentPage(targetPage + 1);
+    }
+
+    // Prefetch previous page if close to start and there are earlier pages
+    if (newIndex <= threshold && targetPage > 1) {
+      fetchAdjacentPage(targetPage - 1);
+    }
+  };
 
   const handleFilterChange = (key: keyof ListQuestionsParams, value: string | undefined) => {
     setParams((prev) => ({
@@ -109,6 +175,46 @@ export function QuestionList() {
     }
   };
 
+  const handleBulkDelete = async () => {
+    if (selectedIds.length === 0) {
+      toast.error('No questions selected');
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `Are you sure you want to delete ${selectedIds.length} question${selectedIds.length > 1 ? 's' : ''}?`
+    );
+
+    if (!confirmed) return;
+
+    setIsBulkOperating(true);
+    try {
+      const result = await processBatch(
+        selectedIds,
+        (id) => deleteQuestion.mutateAsync(id),
+        10 // Batch size of 10
+      );
+
+      if (result.successful.length > 0) {
+        toast.success(
+          `Deleted ${result.successful.length} question${result.successful.length > 1 ? 's' : ''}`
+        );
+        setSelectedIds([]);
+        setDeleteId(null);
+      }
+
+      if (result.failed.length > 0) {
+        toast.error(
+          `Failed to delete ${result.failed.length} question${result.failed.length > 1 ? 's' : ''}`
+        );
+      }
+    } catch {
+      toast.error('Bulk delete operation failed');
+    } finally {
+      setIsBulkOperating(false);
+    }
+  };
+
   const handleStatusChange = async (id: string, status: QuestionStatus) => {
     try {
       await updateStatus.mutateAsync({ id, data: { status } });
@@ -118,35 +224,58 @@ export function QuestionList() {
     }
   };
 
+  const handleBulkStatusChange = async (status: QuestionStatus) => {
+    if (selectedIds.length === 0) {
+      toast.error('No questions selected');
+      return;
+    }
+
+    setIsBulkOperating(true);
+    try {
+      const result = await processBatch(
+        selectedIds,
+        (id) => updateStatus.mutateAsync({ id, data: { status } }),
+        10 // Batch size of 10
+      );
+
+      if (result.successful.length > 0) {
+        toast.success(
+          `Updated ${result.successful.length} question${result.successful.length > 1 ? 's' : ''} to ${status}`
+        );
+        setSelectedIds([]);
+      }
+
+      if (result.failed.length > 0) {
+        toast.error(
+          `Failed to update ${result.failed.length} question${result.failed.length > 1 ? 's' : ''}`
+        );
+      }
+    } catch {
+      toast.error('Bulk status change operation failed');
+    } finally {
+      setIsBulkOperating(false);
+    }
+  };
+
   const getCategoryName = (categoryId: string) => {
     const category = categories?.find((c) => c.id === categoryId);
     return category ? getLocalizedText(category.name, category.slug) : 'Unknown';
   };
 
-  const statusVariant = (status: QuestionStatus) => {
-    switch (status) {
-      case 'published':
-        return 'bg-emerald-50 text-emerald-600 border-emerald-100';
-      case 'draft':
-        return 'bg-gray-100 text-gray-600 border-gray-200';
-      case 'archived':
-        return 'bg-slate-100 text-slate-600 border-slate-200';
-      default:
-        return 'bg-muted text-muted-foreground';
+
+  const visibleIds = useMemo(() => data?.data.map((question) => question.id) ?? [], [data]);
+  const allVisibleSelected = visibleIds.length > 0 && visibleIds.every((id) => selectedIds.includes(id));
+
+  const toggleSelectAllVisible = () => {
+    if (allVisibleSelected) {
+      setSelectedIds((prev) => prev.filter((id) => !visibleIds.includes(id)));
+      return;
     }
+    setSelectedIds((prev) => Array.from(new Set([...prev, ...visibleIds])));
   };
 
-  const difficultyVariant = (difficulty: string) => {
-    switch (difficulty) {
-      case 'easy':
-        return 'text-emerald-500';
-      case 'medium':
-        return 'text-amber-500';
-      case 'hard':
-        return 'text-rose-500';
-      default:
-        return 'text-muted-foreground';
-    }
+  const toggleSelectOne = (id: string) => {
+    setSelectedIds((prev) => (prev.includes(id) ? prev.filter((value) => value !== id) : [...prev, id]));
   };
 
   if (error) {
@@ -161,65 +290,143 @@ export function QuestionList() {
   return (
     <div className="space-y-8 animate-in fade-in duration-700">
       {/* Search & Filter Bar - Lightweight Toolbar style */}
-      <div className="flex flex-wrap gap-3 items-center">
-        <div className="flex-1 min-w-[300px] relative group">
-          <Search className="absolute left-3.5 top-2.5 h-4 w-4 text-gray-400 transition-colors group-focus-within:text-gray-900" />
-          <Input
-            placeholder="Search questions..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-            className="pl-10 h-10 bg-gray-200/30 border-transparent rounded-xl text-sm focus-visible:ring-2 focus-visible:ring-gray-900/5 focus:bg-white focus:border-gray-200 transition-all font-medium"
-          />
+      <div className="space-y-4">
+        <div className="flex flex-wrap gap-3 items-center">
+          <div className="flex-1 min-w-[300px] relative group">
+            <Search className="absolute left-3.5 top-2.5 h-4 w-4 text-gray-400 transition-colors group-focus-within:text-gray-900" />
+            <Input
+              placeholder="Search questions..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+              className="pl-10 h-10 bg-gray-200/30 border-transparent rounded-xl text-sm focus-visible:ring-2 focus-visible:ring-gray-900/5 focus:bg-white focus:border-gray-200 transition-all font-medium"
+            />
+          </div>
+
+          <div className="flex items-center gap-2">
+            <Select
+              value={params.category_id || 'all'}
+              onValueChange={(v) => handleFilterChange('category_id', v)}
+            >
+              <SelectTrigger className="w-[160px] h-10 bg-white border-gray-200 rounded-xl text-xs font-bold text-gray-600 hover:bg-gray-50 transition-colors">
+                <SelectValue placeholder="Category" />
+              </SelectTrigger>
+              <SelectContent className="rounded-xl border-gray-200 bg-white shadow-xl">
+                <SelectItem value="all" className="text-xs font-medium">Categories</SelectItem>
+                {categories?.map((cat) => (
+                  <SelectItem key={cat.id} value={cat.id} className="text-xs font-medium">
+                    {getLocalizedText(cat.name, cat.slug)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            <Select
+              value={params.status || 'all'}
+              onValueChange={(v) => handleFilterChange('status', v)}
+            >
+              <SelectTrigger className="w-[120px] h-10 bg-white border-gray-200 rounded-xl text-xs font-bold text-gray-600 hover:bg-gray-50 transition-colors">
+                <SelectValue placeholder="Status" />
+              </SelectTrigger>
+              <SelectContent className="rounded-xl border-gray-200 bg-white shadow-xl">
+                <SelectItem value="all" className="text-xs font-medium">Status</SelectItem>
+                <SelectItem value="draft" className="text-xs font-medium">Draft</SelectItem>
+                <SelectItem value="published" className="text-xs font-medium">Published</SelectItem>
+                <SelectItem value="archived" className="text-xs font-medium">Archived</SelectItem>
+              </SelectContent>
+            </Select>
+
+            <Select
+              value={params.difficulty || 'all'}
+              onValueChange={(v) => handleFilterChange('difficulty', v)}
+            >
+              <SelectTrigger className="w-[120px] h-10 bg-white border-gray-200 rounded-xl text-xs font-bold text-gray-600 hover:bg-gray-50 transition-colors">
+                <SelectValue placeholder="Difficulty" />
+              </SelectTrigger>
+              <SelectContent className="rounded-xl border-gray-200 bg-white shadow-xl">
+                <SelectItem value="all" className="text-xs font-medium">Difficulty</SelectItem>
+                <SelectItem value="easy" className="text-xs font-medium text-emerald-600">Easy</SelectItem>
+                <SelectItem value="medium" className="text-xs font-medium text-amber-600">Medium</SelectItem>
+                <SelectItem value="hard" className="text-xs font-medium text-rose-600">Hard</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          {selectedIds.length > 0 && (
+            <div className="flex items-center gap-2 bg-white border border-gray-200/70 rounded-xl px-3 py-2 shadow-sm">
+              <span className="text-xs font-bold text-gray-600">
+                {selectedIds.length} selected
+              </span>
+              <div className="h-4 w-px bg-gray-200" />
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8 rounded-lg text-xs font-bold"
+                onClick={() => handleBulkStatusChange('published')}
+              >
+                Publish
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8 rounded-lg text-xs font-bold"
+                onClick={() => handleBulkStatusChange('draft')}
+              >
+                Move to Draft
+              </Button>
+              <Button
+                variant="destructive"
+                size="sm"
+                className="h-8 rounded-lg text-xs font-bold"
+                onClick={() => setDeleteId('bulk')}
+              >
+                Delete
+              </Button>
+            </div>
+          )}
         </div>
 
-        <div className="flex items-center gap-2">
-          <Select
-            value={params.category_id || 'all'}
-            onValueChange={(v) => handleFilterChange('category_id', v)}
-          >
-            <SelectTrigger className="w-[160px] h-10 bg-white border-gray-200 rounded-xl text-xs font-bold text-gray-600 hover:bg-gray-50 transition-colors">
-              <SelectValue placeholder="Category" />
-            </SelectTrigger>
-            <SelectContent className="rounded-xl border-gray-200 bg-white shadow-xl">
-              <SelectItem value="all" className="text-xs font-medium">All Categories</SelectItem>
-              {categories?.map((cat) => (
-                <SelectItem key={cat.id} value={cat.id} className="text-xs font-medium">
-                  {getLocalizedText(cat.name, cat.slug)}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-
-          <Select
-            value={params.status || 'all'}
-            onValueChange={(v) => handleFilterChange('status', v)}
-          >
-            <SelectTrigger className="w-[120px] h-10 bg-white border-gray-200 rounded-xl text-xs font-bold text-gray-600 hover:bg-gray-50 transition-colors">
-              <SelectValue placeholder="Status" />
-            </SelectTrigger>
-            <SelectContent className="rounded-xl border-gray-200 bg-white shadow-xl">
-              <SelectItem value="all" className="text-xs font-medium">All Status</SelectItem>
-              <SelectItem value="draft" className="text-xs font-medium">Draft</SelectItem>
-              <SelectItem value="published" className="text-xs font-medium">Published</SelectItem>
-              <SelectItem value="archived" className="text-xs font-medium">Archived</SelectItem>
-            </SelectContent>
-          </Select>
-
-          <Select
-            value={params.difficulty || 'all'}
-            onValueChange={(v) => handleFilterChange('difficulty', v)}
-          >
-            <SelectTrigger className="w-[120px] h-10 bg-white border-gray-200 rounded-xl text-xs font-bold text-gray-600 hover:bg-gray-50 transition-colors">
-              <SelectValue placeholder="Difficulty" />
-            </SelectTrigger>
-            <SelectContent className="rounded-xl border-gray-200 bg-white shadow-xl">
-              <SelectItem value="all" className="text-xs font-medium">All Difficulty</SelectItem>
-              <SelectItem value="easy" className="text-xs font-medium text-emerald-600">Easy</SelectItem>
-              <SelectItem value="medium" className="text-xs font-medium text-amber-600">Medium</SelectItem>
-              <SelectItem value="hard" className="text-xs font-medium text-rose-600">Hard</SelectItem>
-            </SelectContent>
-          </Select>
+        {/* Filter Chips */}
+        <div className="flex flex-wrap gap-2">
+          {params.category_id && (
+            <button
+              onClick={() => handleFilterChange('category_id', 'all')}
+              className="flex items-center gap-1.5 px-3 py-1 bg-slate-900 text-white rounded-full text-[11px] font-bold transition-all hover:bg-slate-800"
+            >
+              Category: {getCategoryName(params.category_id)}
+              <X className="w-3 h-3" />
+            </button>
+          )}
+          {params.status && (params.status as string) !== 'all' && (
+            <button
+              onClick={() => handleFilterChange('status', 'all')}
+              className="flex items-center gap-1.5 px-3 py-1 bg-slate-900 text-white rounded-full text-[11px] font-bold transition-all hover:bg-slate-800"
+            >
+              Status: {params.status}
+              <X className="w-3 h-3" />
+            </button>
+          )}
+          {params.difficulty && (params.difficulty as string) !== 'all' && (
+            <button
+              onClick={() => handleFilterChange('difficulty', 'all')}
+              className="flex items-center gap-1.5 px-3 py-1 bg-slate-900 text-white rounded-full text-[11px] font-bold transition-all hover:bg-slate-800"
+            >
+              Difficulty: {params.difficulty}
+              <X className="w-3 h-3" />
+            </button>
+          )}
+          {params.search && (
+            <button
+              onClick={() => {
+                setSearchQuery('');
+                handleFilterChange('search', undefined);
+              }}
+              className="flex items-center gap-1.5 px-3 py-1 bg-slate-900 text-white rounded-full text-[11px] font-bold transition-all hover:bg-slate-800"
+            >
+              Search: {params.search}
+              <X className="w-3 h-3" />
+            </button>
+          )}
         </div>
       </div>
 
@@ -236,45 +443,67 @@ export function QuestionList() {
               <p className="text-sm font-bold text-gray-900">No questions found</p>
               <p className="text-xs font-medium mt-1">Try adjusting your filters or search terms.</p>
             </div>
-            <Button variant="outline" onClick={() => setParams({ page: 1, limit: 10 })} className="h-9 rounded-xl text-xs font-bold">
-              Clear all filters
-            </Button>
           </div>
         ) : (
-          <div className="bg-white border border-gray-200/50 rounded-[2rem] overflow-hidden shadow-sm">
-            {data?.data.map((question) => (
-              <div 
-                key={question.id} 
-                className="group relative flex items-center justify-between p-4 hover:bg-gray-50/80 transition-all cursor-pointer border-b border-gray-100 last:border-0"
-                onClick={() => router.push(`/questions/${question.id}`)}
+          <div className="bg-white rounded-[2.5rem] overflow-hidden shadow-sm border-0">
+            <div className="flex items-center gap-3 px-6 py-4 border-b border-gray-50 bg-white">
+              <input
+                type="checkbox"
+                className="h-4 w-4 rounded-md border-gray-200 text-slate-900 focus:ring-slate-900 transition-all"
+                checked={allVisibleSelected}
+                onChange={toggleSelectAllVisible}
+                onClick={(e) => e.stopPropagation()}
+              />
+              <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">
+                Select all 
+              </span>
+            </div>
+            {data?.data.map((question, index) => (
+              <motion.div
+                key={question.id}
+                initial={{ opacity: 0, x: -10 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: index * 0.05 }}
+                className="group relative flex items-center justify-between px-6 py-5 hover:bg-slate-50 transition-all cursor-pointer border-b border-gray-50 last:border-0 hover:scale-[1.01] active:scale-[0.99]"
+                onClick={() => setOpenQuestionId(question.id)}
               >
-                <div className="flex-1 min-w-0 flex items-center gap-4">
+                <div className="flex-1 min-w-0 flex items-center gap-5">
+                  <input
+                    type="checkbox"
+                    className="h-4 w-4 rounded-md border-gray-200 text-slate-900 focus:ring-slate-900 transition-all"
+                    checked={selectedIds.includes(question.id)}
+                    onChange={() => toggleSelectOne(question.id)}
+                    onClick={(e) => e.stopPropagation()}
+                  />
+                  
                   {/* Status Indicator Dot */}
                   <div className={cn(
-                    "w-2 h-2 rounded-full shrink-0",
-                    question.status === 'published' ? "bg-emerald-400" : "bg-gray-300"
+                    "w-2.5 h-2.5 rounded-full shrink-0 transition-all duration-500",
+                    question.status === 'published' 
+                      ? "bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.4)]" 
+                      : "border-2 border-gray-200 bg-transparent"
                   )} />
-                  
+
                   <div className="flex flex-col min-w-0">
-                    <span className="text-[15px] font-bold text-gray-900 truncate leading-none">
+                    <span className="text-[16px] font-semibold text-slate-900 truncate leading-tight">
                       {getLocalizedText(question.prompt, 'Untitled Question')}
                     </span>
-                    <div className="flex items-center gap-2 mt-2">
-                      <div className="flex items-center gap-1.5 px-2 py-0.5 bg-gray-100 rounded-lg">
-                        <Layers className="w-3 h-3 text-gray-400" />
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-gray-500">
+                    <div className="flex items-center gap-4 mt-2">
+                      <div className="flex items-center gap-1.5">
+                        <Layers className="w-3.5 h-3.5 text-slate-300" />
+                        <span className="text-xs font-medium text-slate-400">
                           {getCategoryName(question.category_id)}
                         </span>
                       </div>
-                      <div className="flex items-center gap-1.5 px-2 py-0.5 bg-gray-100 rounded-lg">
-                        {question.type === 'mcq_single' ? <LayoutList className="w-3 h-3 text-gray-400" /> : <FileText className="w-3 h-3 text-gray-400" />}
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-gray-500">
+                      <div className="flex items-center gap-1.5">
+                        {question.type === 'mcq_single' ? <LayoutList className="w-3.5 h-3.5 text-slate-300" /> : <FileText className="w-3.5 h-3.5 text-slate-300" />}
+                        <span className="text-xs font-medium text-slate-400">
                           {QUESTION_TYPE_LABELS[question.type]}
                         </span>
                       </div>
-                      <div className="flex items-center gap-1 px-1.5">
-                        <Zap className={cn("w-3 h-3", difficultyVariant(question.difficulty))} />
-                        <span className={cn("text-[10px] font-black uppercase tracking-widest", difficultyVariant(question.difficulty))}>
+                      <div className="flex items-center gap-2">
+                        <DifficultySignal difficulty={question.difficulty} size="sm" />
+                        <span className={cn("text-xs font-bold capitalize", getDifficultyTextColor(question.difficulty))}>
                           {question.difficulty}
                         </span>
                       </div>
@@ -283,54 +512,70 @@ export function QuestionList() {
                 </div>
 
                 <div className="flex items-center gap-6 shrink-0 ml-4">
-                  <Badge 
-                    className={cn(
-                      "text-[10px] uppercase tracking-widest font-black px-3 py-1 rounded-lg border",
-                      statusVariant(question.status)
-                    )}
-                  >
-                    {QUESTION_STATUS_LABELS[question.status]}
-                  </Badge>
-
+                  <div className="flex flex-col items-end gap-1 px-4">
+                    <span className="text-[10px] font-black text-slate-300 uppercase tracking-tighter">Status</span>
+                    <div className={cn(
+                      "px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-widest",
+                      question.status === 'published' ? "bg-emerald-50 text-emerald-600" : "bg-slate-100 text-slate-400"
+                    )}>
+                      {question.status}
+                    </div>
+                  </div>
                   {/* Actions - visible on hover */}
-                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all duration-200" onClick={(e) => e.stopPropagation()}>
-                    <Button 
-                      variant="ghost" 
-                      size="icon" 
-                      className="h-8 w-8 rounded-xl hover:bg-white hover:shadow-sm text-gray-400 hover:text-gray-900"
-                      onClick={() => router.push(`/questions/${question.id}`)}
-                    >
-                      <Edit2 className="h-4 w-4" />
-                    </Button>
+                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all duration-300" onClick={(e) => e.stopPropagation()}>
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon" className="h-8 w-8 rounded-xl hover:bg-white hover:shadow-sm text-gray-400 hover:text-gray-900">
+                        <Button variant="ghost" size="icon" className="h-9 w-9 rounded-xl hover:bg-white hover:shadow-md text-slate-400 hover:text-slate-900 transition-all">
                           <MoreHorizontal className="h-4 w-4" />
                         </Button>
                       </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end" className="w-48 bg-white/95 backdrop-blur-xl border-gray-200 shadow-2xl rounded-2xl p-1.5">
-                        <DropdownMenuItem onClick={() => handleStatusChange(question.id, 'published')} disabled={question.status === 'published'} className="rounded-lg gap-2 font-medium">
-                          <Send className="h-4 w-4 text-emerald-500" /> Publish
+                      <DropdownMenuContent align="end" className="w-52 bg-white/95 backdrop-blur-xl border-slate-100 shadow-2xl rounded-[1.25rem] p-2">
+                        <DropdownMenuItem onClick={() => handleStatusChange(question.id, 'published')} disabled={question.status === 'published'} className="rounded-lg gap-3 py-2.5 px-3 font-medium transition-colors">
+                          <Send className="h-4 w-4 text-emerald-500" /> Publish Question
                         </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => handleStatusChange(question.id, 'draft')} disabled={question.status === 'draft'} className="rounded-lg gap-2 font-medium">
-                          <Clock className="h-4 w-4 text-gray-400" /> Move to Draft
+                        <DropdownMenuItem onClick={() => handleStatusChange(question.id, 'draft')} disabled={question.status === 'draft'} className="rounded-lg gap-3 py-2.5 px-3 font-medium transition-colors">
+                          <Clock className="h-4 w-4 text-slate-400" /> Move to Draft
                         </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => handleStatusChange(question.id, 'archived')} disabled={question.status === 'archived'} className="rounded-lg gap-2 font-medium">
-                          <Archive className="h-4 w-4 text-slate-400" /> Archive
+                        <DropdownMenuItem onClick={() => handleStatusChange(question.id, 'archived')} disabled={question.status === 'archived'} className="rounded-lg gap-3 py-2.5 px-3 font-medium transition-colors">
+                          <Archive className="h-4 w-4 text-slate-400" /> Archive Question
                         </DropdownMenuItem>
-                        <DropdownMenuSeparator className="my-1.5 bg-gray-100" />
-                        <DropdownMenuItem className="text-rose-500 focus:text-rose-600 focus:bg-rose-50 rounded-lg gap-2 font-bold" onClick={() => setDeleteId(question.id)}>
+                        <DropdownMenuSeparator className="my-2 bg-slate-50" />
+                        <DropdownMenuItem className="text-rose-500 focus:text-rose-600 focus:bg-rose-50 rounded-lg gap-3 py-2.5 px-3 font-bold transition-colors" onClick={() => setDeleteId(question.id)}>
                           <Trash2 className="h-4 w-4" /> Delete Permanently
                         </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
                   </div>
                 </div>
-              </div>
+              </motion.div>
             ))}
           </div>
-        )}
+        )
+      }
       </div>
+
+      {/* Question Preview/Edit Dialog */}
+      {openQuestionId && (() => {
+        const question = loadedQuestions.find(q => q.id === openQuestionId) || data?.data.find(q => q.id === openQuestionId);
+        const questionIndex = loadedQuestions.findIndex(q => q.id === openQuestionId);
+
+        if (!question) return null;
+
+        return (
+          <QuestionDialog
+            mode="view"
+            question={question}
+            allQuestions={loadedQuestions.length > 0 ? loadedQuestions : (data?.data || [])}
+            currentIndex={questionIndex !== -1 ? questionIndex : (data?.data.findIndex(q => q.id === openQuestionId) || 0)}
+            onNavigate={handlePreviewNavigate}
+            totalAvailable={data?.total || 0}
+            open={true}
+            onOpenChange={(isOpen) => {
+              if (!isOpen) setOpenQuestionId(null);
+            }}
+          />
+        );
+      })()}
 
       {/* Modernized Pagination */}
       {data && data.total_pages > 1 && (
@@ -372,7 +617,9 @@ export function QuestionList() {
           <DialogHeader>
             <DialogTitle>Delete Question</DialogTitle>
             <DialogDescription>
-              Are you sure you want to delete this question? This action cannot be undone.
+              {deleteId === 'bulk'
+                ? `Are you sure you want to delete ${selectedIds.length} selected question${selectedIds.length === 1 ? '' : 's'}? This action cannot be undone.`
+                : 'Are you sure you want to delete this question? This action cannot be undone.'}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
@@ -381,10 +628,10 @@ export function QuestionList() {
             </Button>
             <Button
               variant="destructive"
-              onClick={handleDelete}
-              disabled={deleteQuestion.isPending}
+              onClick={deleteId === 'bulk' ? handleBulkDelete : handleDelete}
+              disabled={deleteQuestion.isPending || isBulkOperating}
             >
-              {deleteQuestion.isPending ? 'Deleting...' : 'Delete'}
+              {(deleteQuestion.isPending || isBulkOperating) ? 'Deleting...' : 'Delete'}
             </Button>
           </DialogFooter>
         </DialogContent>

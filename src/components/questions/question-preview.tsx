@@ -1,6 +1,5 @@
 'use client';
 
-import { Button } from '@/components/ui/button';
 import type { McqOption } from '@/types';
 import type { AnswerWithId } from './text-input-editor';
 import { cn } from '@/lib/utils';

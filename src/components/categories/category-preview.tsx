@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import { Button } from '@/components/ui/button';
 import { Users, TrendingUp, Trophy } from 'lucide-react';
 
@@ -26,10 +27,12 @@ export function CategoryPreview({
       <div className="absolute inset-0 bg-[#0a0a0a]">
         {imageUrl ? (
           <>
-            <img
+            <Image
               src={imageUrl}
               alt=""
-              className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-105"
+              fill
+              unoptimized
+              className="object-cover transition-transform duration-700 group-hover:scale-105"
             />
             <div className="absolute inset-0 bg-gradient-to-t from-black via-black/40 to-transparent" />
           </>

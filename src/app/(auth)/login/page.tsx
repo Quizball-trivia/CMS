@@ -85,7 +85,7 @@ export default function LoginPage() {
             Welcome Back
           </CardTitle>
           <CardDescription className="text-muted-foreground/60 font-medium text-sm tracking-tight">
-            Secure access to your QuizBall control center
+            CMS-ი, სიმონ!
           </CardDescription>
         </div>
       </CardHeader>
@@ -183,9 +183,6 @@ export default function LoginPage() {
       
       <CardFooter className="flex flex-col space-y-4 border-t border-white/5 pt-6 text-center relative z-10">
         <div className="flex items-center justify-center gap-6 opacity-40 grayscale group-hover:grayscale-0 group-hover:opacity-100 transition-all duration-700">
-          <div className="h-6 w-px bg-white/10" />
-          <p className="text-[9px] font-black uppercase tracking-[0.3em] text-muted-foreground">End-to-End Encrypted</p>
-          <div className="h-6 w-px bg-white/10" />
         </div>
       </CardFooter>
     </Card>

@@ -3,11 +3,10 @@
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Card, CardContent } from '@/components/ui/card';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import type { McqOption } from '@/types';
-import { Plus, Trash2, CheckCircle2, Languages, X, Info } from 'lucide-react';
+import { Plus, Trash2, CheckCircle2, Info } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { generateAnswerId } from '@/lib/question-utils';
 
 interface McqEditorProps {
   options: McqOption[];
@@ -17,7 +16,7 @@ interface McqEditorProps {
 export function McqEditor({ options, onChange }: McqEditorProps) {
   const addOption = () => {
     const newOption: McqOption = {
-      id: crypto.randomUUID(),
+      id: generateAnswerId(),
       text: { en: '' },
       is_correct: options.length === 0, // First option is correct by default
     };

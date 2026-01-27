@@ -4,7 +4,6 @@ import { useMemo } from 'react';
 import { useCategories } from '@/hooks';
 import type { Category } from '@/types';
 import { DraggableCategoryCard } from './draggable-category-card';
-import { UnifiedCategoryCard } from './unified-category-card';
 import { RepositoryDropZone } from './repository-drop-zone';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { getLocalizedText } from '@/lib/utils';

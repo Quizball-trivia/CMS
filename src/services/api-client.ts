@@ -1,6 +1,8 @@
 import { API_BASE_URL, AUTH_TOKEN_KEY } from '@/lib/constants';
 import type { ApiError } from '@/types';
 
+const DEFAULT_TIMEOUT_MS = 30000; // 30 seconds
+
 export class ApiClientError extends Error {
   public code: string;
   public details: unknown;
@@ -15,6 +17,33 @@ export class ApiClientError extends Error {
     this.requestId = error.request_id;
     this.status = status;
   }
+}
+
+function createTimeoutController(
+  timeoutMs: number = DEFAULT_TIMEOUT_MS,
+  existingSignal?: AbortSignal
+): { signal: AbortSignal; cleanup: () => void } {
+  const controller = new AbortController();
+
+  // If existing signal is already aborted, abort immediately
+  if (existingSignal?.aborted) {
+    controller.abort();
+  }
+
+  // Set up timeout
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+  // If existing signal is provided, listen for its abort
+  const abortHandler = () => controller.abort();
+  existingSignal?.addEventListener('abort', abortHandler);
+
+  // Cleanup function to clear timeout and listeners
+  const cleanup = () => {
+    clearTimeout(timeoutId);
+    existingSignal?.removeEventListener('abort', abortHandler);
+  };
+
+  return { signal: controller.signal, cleanup };
 }
 
 function getAuthToken(): string | null {
@@ -76,56 +105,102 @@ function getHeaders(includeAuth = true): HeadersInit {
 }
 
 export const apiClient = {
-  async get<T>(endpoint: string, params?: Record<string, string | number | boolean | undefined>): Promise<T> {
-    const response = await fetch(buildUrl(endpoint, params), {
-      method: 'GET',
-      headers: getHeaders(),
-    });
-    return handleResponse<T>(response);
+  async get<T>(
+    endpoint: string,
+    params?: Record<string, string | number | boolean | undefined>,
+    signal?: AbortSignal
+  ): Promise<T> {
+    const { signal: timeoutSignal, cleanup } = createTimeoutController(DEFAULT_TIMEOUT_MS, signal);
+
+    try {
+      const response = await fetch(buildUrl(endpoint, params), {
+        method: 'GET',
+        headers: getHeaders(),
+        signal: timeoutSignal,
+      });
+      return await handleResponse<T>(response);
+    } finally {
+      cleanup();
+    }
   },
 
-  async post<T>(endpoint: string, data?: unknown): Promise<T> {
-    const response = await fetch(buildUrl(endpoint), {
-      method: 'POST',
-      headers: getHeaders(),
-      body: data ? JSON.stringify(data) : undefined,
-    });
-    return handleResponse<T>(response);
+  async post<T>(endpoint: string, data?: unknown, signal?: AbortSignal): Promise<T> {
+    const { signal: timeoutSignal, cleanup } = createTimeoutController(DEFAULT_TIMEOUT_MS, signal);
+
+    try {
+      const response = await fetch(buildUrl(endpoint), {
+        method: 'POST',
+        headers: getHeaders(),
+        body: data ? JSON.stringify(data) : undefined,
+        signal: timeoutSignal,
+      });
+      return await handleResponse<T>(response);
+    } finally {
+      cleanup();
+    }
   },
 
-  async put<T>(endpoint: string, data?: unknown): Promise<T> {
-    const response = await fetch(buildUrl(endpoint), {
-      method: 'PUT',
-      headers: getHeaders(),
-      body: data ? JSON.stringify(data) : undefined,
-    });
-    return handleResponse<T>(response);
+  async put<T>(endpoint: string, data?: unknown, signal?: AbortSignal): Promise<T> {
+    const { signal: timeoutSignal, cleanup } = createTimeoutController(DEFAULT_TIMEOUT_MS, signal);
+
+    try {
+      const response = await fetch(buildUrl(endpoint), {
+        method: 'PUT',
+        headers: getHeaders(),
+        body: data ? JSON.stringify(data) : undefined,
+        signal: timeoutSignal,
+      });
+      return await handleResponse<T>(response);
+    } finally {
+      cleanup();
+    }
   },
 
-  async patch<T>(endpoint: string, data?: unknown): Promise<T> {
-    const response = await fetch(buildUrl(endpoint), {
-      method: 'PATCH',
-      headers: getHeaders(),
-      body: data ? JSON.stringify(data) : undefined,
-    });
-    return handleResponse<T>(response);
+  async patch<T>(endpoint: string, data?: unknown, signal?: AbortSignal): Promise<T> {
+    const { signal: timeoutSignal, cleanup } = createTimeoutController(DEFAULT_TIMEOUT_MS, signal);
+
+    try {
+      const response = await fetch(buildUrl(endpoint), {
+        method: 'PATCH',
+        headers: getHeaders(),
+        body: data ? JSON.stringify(data) : undefined,
+        signal: timeoutSignal,
+      });
+      return await handleResponse<T>(response);
+    } finally {
+      cleanup();
+    }
   },
 
-  async delete<T>(endpoint: string): Promise<T> {
-    const response = await fetch(buildUrl(endpoint), {
-      method: 'DELETE',
-      headers: getHeaders(),
-    });
-    return handleResponse<T>(response);
+  async delete<T>(endpoint: string, signal?: AbortSignal): Promise<T> {
+    const { signal: timeoutSignal, cleanup } = createTimeoutController(DEFAULT_TIMEOUT_MS, signal);
+
+    try {
+      const response = await fetch(buildUrl(endpoint), {
+        method: 'DELETE',
+        headers: getHeaders(),
+        signal: timeoutSignal,
+      });
+      return await handleResponse<T>(response);
+    } finally {
+      cleanup();
+    }
   },
 
   // Special method for auth that doesn't include auth header
-  async postNoAuth<T>(endpoint: string, data?: unknown): Promise<T> {
-    const response = await fetch(buildUrl(endpoint), {
-      method: 'POST',
-      headers: getHeaders(false),
-      body: data ? JSON.stringify(data) : undefined,
-    });
-    return handleResponse<T>(response);
+  async postNoAuth<T>(endpoint: string, data?: unknown, signal?: AbortSignal): Promise<T> {
+    const { signal: timeoutSignal, cleanup } = createTimeoutController(DEFAULT_TIMEOUT_MS, signal);
+
+    try {
+      const response = await fetch(buildUrl(endpoint), {
+        method: 'POST',
+        headers: getHeaders(false),
+        body: data ? JSON.stringify(data) : undefined,
+        signal: timeoutSignal,
+      });
+      return await handleResponse<T>(response);
+    } finally {
+      cleanup();
+    }
   },
 };

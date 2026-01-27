@@ -5,8 +5,11 @@ import type {
   UpdateQuestionRequest,
   ListQuestionsParams,
   UpdateQuestionStatusRequest,
+  BulkCreateQuestionsRequest,
+  FindDuplicatesParams,
 } from '@/types';
 import { logger } from '@/lib/logger';
+import { toast } from 'sonner';
 
 export const questionKeys = {
   all: ['questions'] as const,
@@ -14,6 +17,7 @@ export const questionKeys = {
   list: (params?: ListQuestionsParams) => [...questionKeys.lists(), params] as const,
   details: () => [...questionKeys.all, 'detail'] as const,
   detail: (id: string) => [...questionKeys.details(), id] as const,
+  duplicates: (params?: FindDuplicatesParams) => [...questionKeys.all, 'duplicates', params] as const,
 };
 
 export function useQuestions(params?: ListQuestionsParams) {
@@ -95,6 +99,70 @@ export function useUpdateQuestionStatus() {
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: questionKeys.all });
       queryClient.invalidateQueries({ queryKey: questionKeys.detail(variables.id) });
+    },
+  });
+}
+
+export function useBulkCreateQuestions() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (data: BulkCreateQuestionsRequest) => {
+      logger.info('questions', 'Starting bulk create', { count: data.questions.length });
+      return questionsService.bulkCreate(data);
+    },
+    onSuccess: (result) => {
+      // Invalidate all question queries
+      queryClient.invalidateQueries({ queryKey: questionKeys.all });
+
+      // Show success toast
+      if (result.failed === 0) {
+        toast.success(`Successfully created ${result.successful} questions`);
+      } else {
+        toast.warning(
+          `Created ${result.successful} questions, ${result.failed} failed`,
+          {
+            description: 'Check the upload results for details',
+          }
+        );
+      }
+
+      logger.info('questions', 'Bulk create completed', {
+        successful: result.successful,
+        failed: result.failed,
+        total: result.total,
+      });
+    },
+    onError: (error) => {
+      toast.error('Bulk upload failed. Please try again.');
+      logger.error('questions', 'Failed to bulk create questions', {
+        error: error instanceof Error ? error.message : error,
+      });
+    },
+  });
+}
+
+export function useDuplicateQuestions(
+  params?: FindDuplicatesParams,
+  options?: { enabled?: boolean }
+) {
+  return useQuery({
+    queryKey: questionKeys.duplicates(params),
+    queryFn: () => questionsService.findDuplicates(params),
+    staleTime: 5 * 60 * 1000, // 5 minutes
+    refetchOnWindowFocus: false,
+    enabled: options?.enabled !== false,
+  });
+}
+
+export function useCheckDuplicates() {
+  return useMutation({
+    mutationFn: (data: { locale: string; prompts: Array<Record<string, string>> }) =>
+      questionsService.checkDuplicates(data),
+    onError: (error) => {
+      logger.error('questions', 'Failed to check duplicates', {
+        error: error instanceof Error ? error.message : error,
+      });
     },
   });
 }
