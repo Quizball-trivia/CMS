@@ -19,7 +19,8 @@ export function TextInputEditor({ acceptedAnswers, caseSensitive, locale = 'en',
   const updateAnswer = (value: string) => {
     // Preserve existing answer data and update only the current locale
     const existingAnswer = acceptedAnswers[0] || { id: generateAnswerId() };
-    const newAnswers = [{ ...existingAnswer, id: existingAnswer.id || generateAnswerId(), [locale]: value }];
+    const id = existingAnswer.id ?? generateAnswerId();
+    const newAnswers = [{ ...existingAnswer, id, [locale]: value }];
     onChange(newAnswers, caseSensitive);
   };
 

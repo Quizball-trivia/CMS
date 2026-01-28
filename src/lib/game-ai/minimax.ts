@@ -4,17 +4,20 @@ type Player = 'X' | 'O';
 /**
  * Find best move for AI using Minimax algorithm
  * @param board Current board state
- * @param aiPlayer AI's symbol ('O')
- * @param humanPlayer Human's symbol ('X')
- * @returns Index of best move (0-8)
+ * @param aiPlayer AI's symbol
+ * @param humanPlayer Human's symbol
+ * @returns Index of best move (0-8) or null if no moves available
  */
 export function findBestMove(
   board: Board,
   aiPlayer: Player,
   humanPlayer: Player
-): number {
+): number | null {
+  if (isBoardFull(board)) {
+    return null;
+  }
   let bestScore = -Infinity;
-  let bestMove = -1;
+  let bestMove: number | null = null;
 
   // Try each empty cell
   for (let i = 0; i < 9; i++) {

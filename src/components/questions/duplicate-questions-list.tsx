@@ -5,6 +5,7 @@ import { motion } from 'framer-motion';
 import { toast } from 'sonner';
 import { useDuplicateQuestions, useDeleteQuestion } from '@/hooks';
 import { cn } from '@/lib/utils';
+import { logger } from '@/lib/logger';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -25,6 +26,7 @@ export interface DuplicateQuestionsListProps {
 
 export function DuplicateQuestionsList({ type, onTypeChange }: DuplicateQuestionsListProps) {
   const [selectedQuestionId, setSelectedQuestionId] = useState<string | null>(null);
+  const [deletingQuestionId, setDeletingQuestionId] = useState<string | null>(null);
   const deleteQuestion = useDeleteQuestion();
 
   const { data: duplicatesData, isLoading, error } = useDuplicateQuestions(
@@ -38,10 +40,17 @@ export function DuplicateQuestionsList({ type, onTypeChange }: DuplicateQuestion
     if (!confirm('Delete this question?')) return;
 
     try {
+      setDeletingQuestionId(questionId);
       await deleteQuestion.mutateAsync(questionId);
       toast.success('Question deleted');
-    } catch {
+    } catch (error) {
+      logger.error('questions', 'Failed to delete duplicate question', {
+        error: error instanceof Error ? error.message : error,
+        questionId,
+      });
       toast.error('Failed to delete question');
+    } finally {
+      setDeletingQuestionId(null);
     }
   };
 
@@ -137,7 +146,7 @@ export function DuplicateQuestionsList({ type, onTypeChange }: DuplicateQuestion
               </span>
               {group.categories.length > 0 && (
                 <span className="text-xs text-gray-500">
-                  in {group.categories.map(c => c.name?.en || c.name?.ka || 'Untitled').join(', ')}
+                  in {group.categories.map(c => c.name || 'Untitled').join(', ')}
                 </span>
               )}
             </div>
@@ -156,7 +165,7 @@ export function DuplicateQuestionsList({ type, onTypeChange }: DuplicateQuestion
             <div className="space-y-2">
               {group.questions.map((question) => {
                 const category = group.categories.find(c => c.id === question.category_id);
-                const categoryName = category?.name?.en || category?.name?.ka || '';
+                const categoryName = category?.name || '';
 
                 return (
                   <motion.div
@@ -204,9 +213,9 @@ export function DuplicateQuestionsList({ type, onTypeChange }: DuplicateQuestion
                       size="icon"
                       className="h-8 w-8 shrink-0 text-gray-400 hover:text-red-600 hover:bg-red-50 opacity-0 group-hover:opacity-100 transition-all"
                       onClick={(e) => handleDelete(question.id, e)}
-                      disabled={deleteQuestion.isPending}
+                      disabled={deletingQuestionId === question.id}
                     >
-                      {deleteQuestion.isPending ? (
+                      {deletingQuestionId === question.id ? (
                         <Loader2 className="w-4 h-4 animate-spin" />
                       ) : (
                         <Trash2 className="w-4 h-4" />

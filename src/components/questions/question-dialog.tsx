@@ -24,11 +24,11 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Eye, EyeOff, Edit, CheckCircle2, ChevronLeft, ChevronRight, Save, X, Loader2 } from 'lucide-react';
-import { getLocalizedText } from '@/lib/utils';
-import { cn } from '@/lib/utils';
+import { getLocalizedText, cn } from '@/lib/utils';
 import { TextInputEditor, type AnswerWithId } from './text-input-editor';
 import { DifficultySignal, getDifficultyVariant } from '@/components/ui/difficulty-signal';
 import { questionToFormData, generateAnswerId } from '@/lib/question-utils';
+import { DuplicateConfirmationDialog } from './duplicate-confirmation-dialog';
 
 type DialogMode = 'view' | 'edit' | 'create';
 
@@ -122,9 +122,12 @@ export function QuestionDialog({
       setActiveIndex(currentIndex);
       setMode(initialMode);
 
-      if (initialMode === 'edit' && displayQuestion) {
-        // Load question data into form using utility function
-        setFormData(questionToFormData(displayQuestion, 'en'));
+      if (initialMode === 'edit') {
+        const selectedQuestion = allQuestions.length > 0 ? allQuestions[currentIndex] : question;
+        if (selectedQuestion) {
+          // Load question data into form using utility function
+          setFormData(questionToFormData(selectedQuestion, 'en'));
+        }
       } else if (initialMode === 'create') {
         // Reset form for new question
         setFormData({
@@ -290,12 +293,14 @@ export function QuestionDialog({
             ? {
                 type: 'mcq_single',
                 options: formData.options.map((opt, idx) => {
-                  // Get existing option text to preserve other locales
+                  const optionId = opt.id || generateAnswerId();
+                  // Prefer id-based match; fall back to index to preserve other locales.
                   const existingOption = displayQuestion.payload?.type === 'mcq_single'
-                    ? displayQuestion.payload.options[idx]
+                    ? displayQuestion.payload.options.find(o => o.id === optionId)
+                      ?? displayQuestion.payload.options[idx]
                     : undefined;
                   return {
-                    id: opt.id || generateAnswerId(),
+                    id: optionId,
                     text: { ...existingOption?.text, [formData.locale]: opt.text },
                     is_correct: opt.is_correct,
                   };
@@ -306,9 +311,11 @@ export function QuestionDialog({
                 accepted_answers: formData.acceptedAnswers
                   .filter(a => (a[formData.locale] || '').trim())
                   .map((a, idx) => {
-                    // Get existing answer to preserve other locales
+                    // Prefer id-based match; fall back to index to preserve other locales.
                     const existingAnswer = displayQuestion.payload?.type === 'input_text'
-                      ? displayQuestion.payload.accepted_answers[idx]
+                      ? (displayQuestion.payload.accepted_answers as Array<Record<string, string> & { id?: string }>)
+                        .find(answer => answer.id === a.id)
+                        ?? displayQuestion.payload.accepted_answers[idx]
                       : undefined;
                     return { ...existingAnswer, [formData.locale]: a[formData.locale] };
                   }),
@@ -744,45 +751,24 @@ export function QuestionDialog({
           {mode === 'view' ? renderViewMode() : renderEditMode()}
         </div>
       </DialogContent>
-      <Dialog open={duplicateModalOpen} onOpenChange={setDuplicateModalOpen}>
-        <DialogContent className="max-w-xl">
-          <DialogHeader>
-            <DialogTitle>Possible Duplicate Found</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-3 text-sm text-slate-600">
-            <p>
-              We found existing questions with the same prompt in this language.
-              Do you want to create anyway?
-            </p>
-            <div className="space-y-2 rounded-xl border border-slate-200 bg-slate-50 p-4">
-              {duplicateResults.map((item) => (
-                <div key={item.id} className="flex items-center justify-between text-xs">
-                  <span className="font-medium text-slate-700">{item.category_name?.en || 'Unknown Category'}</span>
-                  <span className="text-slate-400">{new Date(item.created_at).toLocaleDateString()}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-          <div className="flex gap-2 justify-end">
-            <Button variant="outline" onClick={() => setDuplicateModalOpen(false)}>Cancel</Button>
-            <Button
-              onClick={async () => {
-                if (!pendingCreate) return;
-                try {
-                  await createQuestion.mutateAsync(pendingCreate);
-                  toast.success('Question created successfully');
-                  setDuplicateModalOpen(false);
-                  setOpen(false);
-                } catch {
-                  toast.error('Failed to create question');
-                }
-              }}
-            >
-              Create Anyway
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
+      <DuplicateConfirmationDialog
+        open={duplicateModalOpen}
+        onOpenChange={setDuplicateModalOpen}
+        duplicates={duplicateResults}
+        isCreating={createQuestion.isPending}
+        onConfirm={async () => {
+          if (!pendingCreate) return;
+          try {
+            await createQuestion.mutateAsync(pendingCreate);
+            toast.success('Question created successfully');
+            setDuplicateModalOpen(false);
+            setOpen(false);
+          } catch {
+            toast.error('Failed to create question');
+          }
+        }}
+        onCancel={() => setDuplicateModalOpen(false)}
+      />
     </Dialog>
   );
 }

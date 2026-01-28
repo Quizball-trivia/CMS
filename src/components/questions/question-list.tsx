@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState, useEffect } from 'react';
+import { useMemo, useState, useEffect, useRef } from 'react';
 import { toast } from 'sonner';
 import { useQuestions, useDeleteQuestion, useUpdateQuestionStatus, useCategories } from '@/hooks';
 import { questionsService } from '@/services/questions.service';
@@ -63,14 +63,15 @@ export function QuestionList() {
     limit: 10,
   });
   const [searchQuery, setSearchQuery] = useState('');
-  const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [deleteState, setDeleteState] = useState<{ type: 'single'; id: string } | { type: 'bulk' } | null>(null);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [openQuestionId, setOpenQuestionId] = useState<string | null>(null);
   const [isBulkOperating, setIsBulkOperating] = useState(false);
 
   // Progressive loading for preview navigation
   const [questionsByPage, setQuestionsByPage] = useState<Map<number, Question[]>>(new Map());
-  const [isFetchingMore, setIsFetchingMore] = useState(false);
+  const [inFlightPages, setInFlightPages] = useState<Set<number>>(new Set());
+  const inFlightControllersRef = useRef(new Map<number, AbortController>());
 
   // Flatten questions from all loaded pages in order
   const loadedQuestions = useMemo(() => {
@@ -100,18 +101,27 @@ export function QuestionList() {
     setQuestionsByPage(new Map());
   }, [params.category_id, params.status, params.difficulty, params.type, params.search]);
 
+  useEffect(() => {
+    return () => {
+      inFlightControllersRef.current.forEach((controller) => controller.abort());
+      inFlightControllersRef.current.clear();
+    };
+  }, []);
+
   // Function to fetch additional pages for preview navigation
   const fetchAdjacentPage = async (pageToFetch: number) => {
-    if (questionsByPage.has(pageToFetch) || isFetchingMore || !data) return;
+    if (questionsByPage.has(pageToFetch) || inFlightPages.has(pageToFetch) || !data) return;
     if (pageToFetch < 1 || pageToFetch > data.total_pages) return;
 
-    setIsFetchingMore(true);
+    const controller = new AbortController();
+    inFlightControllersRef.current.set(pageToFetch, controller);
+    setInFlightPages((prev) => new Set(prev).add(pageToFetch));
 
     try {
       const pageData = await questionsService.list({
         ...params,
         page: pageToFetch,
-      });
+      }, controller.signal);
 
       setQuestionsByPage((prev) => {
         const newMap = new Map(prev);
@@ -119,10 +129,19 @@ export function QuestionList() {
         return newMap;
       });
     } catch (error) {
-      logger.error('questions', 'Failed to fetch adjacent page', { error, pageToFetch });
-      toast.error('Failed to load more questions');
+      if (error instanceof DOMException && error.name === 'AbortError') {
+        logger.debug('questions', 'Adjacent page fetch aborted', { pageToFetch });
+      } else {
+        logger.error('questions', 'Failed to fetch adjacent page', { error, pageToFetch });
+        toast.error('Failed to load more questions');
+      }
     } finally {
-      setIsFetchingMore(false);
+      inFlightControllersRef.current.delete(pageToFetch);
+      setInFlightPages((prev) => {
+        const next = new Set(prev);
+        next.delete(pageToFetch);
+        return next;
+      });
     }
   };
 
@@ -165,11 +184,11 @@ export function QuestionList() {
   };
 
   const handleDelete = async () => {
-    if (!deleteId) return;
+    if (!deleteState || deleteState.type !== 'single') return;
     try {
-      await deleteQuestion.mutateAsync(deleteId);
+      await deleteQuestion.mutateAsync(deleteState.id);
       toast.success('Question deleted successfully');
-      setDeleteId(null);
+      setDeleteState(null);
     } catch {
       toast.error('Failed to delete question');
     }
@@ -180,12 +199,6 @@ export function QuestionList() {
       toast.error('No questions selected');
       return;
     }
-
-    const confirmed = window.confirm(
-      `Are you sure you want to delete ${selectedIds.length} question${selectedIds.length > 1 ? 's' : ''}?`
-    );
-
-    if (!confirmed) return;
 
     setIsBulkOperating(true);
     try {
@@ -200,7 +213,7 @@ export function QuestionList() {
           `Deleted ${result.successful.length} question${result.successful.length > 1 ? 's' : ''}`
         );
         setSelectedIds([]);
-        setDeleteId(null);
+        setDeleteState(null);
       }
 
       if (result.failed.length > 0) {
@@ -378,7 +391,7 @@ export function QuestionList() {
                 variant="destructive"
                 size="sm"
                 className="h-8 rounded-lg text-xs font-bold"
-                onClick={() => setDeleteId('bulk')}
+                onClick={() => setDeleteState({ type: 'bulk' })}
               >
                 Delete
               </Button>
@@ -463,7 +476,7 @@ export function QuestionList() {
                 key={question.id}
                 initial={{ opacity: 0, x: -10 }}
                 animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: index * 0.05 }}
+                transition={{ delay: Math.min(index * 0.05, 0.2) }}
                 className="group relative flex items-center justify-between px-6 py-5 hover:bg-slate-50 transition-all cursor-pointer border-b border-gray-50 last:border-0 hover:scale-[1.01] active:scale-[0.99]"
                 onClick={() => setOpenQuestionId(question.id)}
               >
@@ -540,7 +553,7 @@ export function QuestionList() {
                           <Archive className="h-4 w-4 text-slate-400" /> Archive Question
                         </DropdownMenuItem>
                         <DropdownMenuSeparator className="my-2 bg-slate-50" />
-                        <DropdownMenuItem className="text-rose-500 focus:text-rose-600 focus:bg-rose-50 rounded-lg gap-3 py-2.5 px-3 font-bold transition-colors" onClick={() => setDeleteId(question.id)}>
+                        <DropdownMenuItem className="text-rose-500 focus:text-rose-600 focus:bg-rose-50 rounded-lg gap-3 py-2.5 px-3 font-bold transition-colors" onClick={() => setDeleteState({ type: 'single', id: question.id })}>
                           <Trash2 className="h-4 w-4" /> Delete Permanently
                         </DropdownMenuItem>
                       </DropdownMenuContent>
@@ -558,6 +571,8 @@ export function QuestionList() {
       {openQuestionId && (() => {
         const question = loadedQuestions.find(q => q.id === openQuestionId) || data?.data.find(q => q.id === openQuestionId);
         const questionIndex = loadedQuestions.findIndex(q => q.id === openQuestionId);
+        const dataQuestionIndex = data?.data.findIndex(q => q.id === openQuestionId);
+        const fallbackIndex = typeof dataQuestionIndex === 'number' && dataQuestionIndex >= 0 ? dataQuestionIndex : 0;
 
         if (!question) return null;
 
@@ -566,7 +581,7 @@ export function QuestionList() {
             mode="view"
             question={question}
             allQuestions={loadedQuestions.length > 0 ? loadedQuestions : (data?.data || [])}
-            currentIndex={questionIndex !== -1 ? questionIndex : (data?.data.findIndex(q => q.id === openQuestionId) || 0)}
+            currentIndex={questionIndex !== -1 ? questionIndex : fallbackIndex}
             onNavigate={handlePreviewNavigate}
             totalAvailable={data?.total || 0}
             open={true}
@@ -612,23 +627,23 @@ export function QuestionList() {
       )}
 
       {/* Delete Dialog */}
-      <Dialog open={!!deleteId} onOpenChange={() => setDeleteId(null)}>
+      <Dialog open={!!deleteState} onOpenChange={() => setDeleteState(null)}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Delete Question</DialogTitle>
             <DialogDescription>
-              {deleteId === 'bulk'
+              {deleteState?.type === 'bulk'
                 ? `Are you sure you want to delete ${selectedIds.length} selected question${selectedIds.length === 1 ? '' : 's'}? This action cannot be undone.`
                 : 'Are you sure you want to delete this question? This action cannot be undone.'}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDeleteId(null)}>
+            <Button variant="outline" onClick={() => setDeleteState(null)}>
               Cancel
             </Button>
             <Button
               variant="destructive"
-              onClick={deleteId === 'bulk' ? handleBulkDelete : handleDelete}
+              onClick={deleteState?.type === 'bulk' ? handleBulkDelete : handleDelete}
               disabled={deleteQuestion.isPending || isBulkOperating}
             >
               {(deleteQuestion.isPending || isBulkOperating) ? 'Deleting...' : 'Delete'}

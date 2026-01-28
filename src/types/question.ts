@@ -81,7 +81,7 @@ export interface BulkCreateQuestionsRequest {
 
 export interface BulkCreateError {
   index: number;
-  question: unknown;
+  question: BulkCreateQuestionsRequest['questions'][number];
   error: string;
 }
 
@@ -119,5 +119,5 @@ export type CheckDuplicatesResponse = components['schemas']['CheckDuplicatesResp
 
 export interface CheckDuplicatesRequest {
   locale: string;
-  prompts: Array<Record<string, string>>; // Array of i18n field objects
+  prompts: I18nField[]; // Array of i18n field objects
 }

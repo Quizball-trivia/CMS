@@ -1,5 +1,5 @@
-export interface BatchResult<T> {
-  successful: T[];
+export interface BatchResult<T, R> {
+  successful: Array<{ item: T; result: R }>;
   failed: Array<{ item: T; error: unknown }>;
 }
 
@@ -14,8 +14,11 @@ export async function processBatch<T, R>(
   items: T[],
   processor: (item: T) => Promise<R>,
   batchSize: number = 10
-): Promise<BatchResult<T>> {
-  const successful: T[] = [];
+): Promise<BatchResult<T, R>> {
+  if (!Number.isInteger(batchSize) || batchSize <= 0) {
+    throw new Error('batchSize must be a positive integer');
+  }
+  const successful: Array<{ item: T; result: R }> = [];
   const failed: Array<{ item: T; error: unknown }> = [];
 
   for (let i = 0; i < items.length; i += batchSize) {
@@ -27,7 +30,7 @@ export async function processBatch<T, R>(
     results.forEach((result, index) => {
       const item = batch[index];
       if (result.status === 'fulfilled') {
-        successful.push(item);
+        successful.push({ item, result: result.value });
       } else {
         failed.push({ item, error: result.reason });
       }

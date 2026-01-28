@@ -15,12 +15,10 @@ export interface UnifiedCategoryCardProps {
   isDraggable?: boolean;
   dragHandleProps?: Record<string, unknown>;
   onEdit?: (category: Category) => void;
-  onDelete?: (categoryId: string) => void;
   onRemoveFromFeatured?: (featuredId: string) => void;
   featuredId?: string;
   isAlreadyFeatured?: boolean;
   isDragging?: boolean;
-  parentName?: string;
 }
 
 export function UnifiedCategoryCard({
@@ -67,6 +65,7 @@ export function UnifiedCategoryCard({
                 alt=""
                 fill
                 unoptimized
+                sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 420px"
                 className="object-cover transition-transform duration-500 group-hover/card:scale-105"
               />
               <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />

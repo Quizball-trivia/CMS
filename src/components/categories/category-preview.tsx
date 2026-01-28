@@ -21,6 +21,8 @@ export function CategoryPreview({
   activeLang,
   onLanguageChange,
 }: CategoryPreviewProps) {
+  const isUnoptimizedImage = !!imageUrl && (imageUrl.startsWith('blob:') || imageUrl.startsWith('data:'));
+
   return (
     <div className="relative group overflow-hidden rounded-[1.5rem] border border-white/10 min-h-[160px] w-full shadow-xl">
       {/* Background Layer */}
@@ -31,7 +33,8 @@ export function CategoryPreview({
               src={imageUrl}
               alt=""
               fill
-              unoptimized
+              sizes="(max-width: 640px) 100vw, 33vw"
+              unoptimized={isUnoptimizedImage}
               className="object-cover transition-transform duration-700 group-hover:scale-105"
             />
             <div className="absolute inset-0 bg-gradient-to-t from-black via-black/40 to-transparent" />

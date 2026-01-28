@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useCallback, useEffect, useState, useRef } from 'react';
 import { toast } from 'sonner';
 import { parseQuestionFile, type ParsedQuestion, type ParseError } from '@/lib/parsers/question-parser';
 import { useBulkCreateQuestions, useCategories, useCheckDuplicates } from '@/hooks';
@@ -43,6 +43,7 @@ import { TicTacToeGame } from '@/components/games/tic-tac-toe-game';
 import { Checkbox } from '@/components/ui/checkbox';
 
 interface QuestionWithSelection extends ParsedQuestion {
+  id: string;
   isSelected: boolean;
   isDuplicate: boolean;
   duplicateInfo?: {
@@ -73,11 +74,55 @@ export function BulkUploadDialog() {
     failed: 0,
     total: 0,
   });
+  const [page, setPage] = useState(1);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const latestQuestionsRef = useRef<QuestionWithSelection[]>([]);
 
   const { data: categories } = useCategories();
   const bulkCreate = useBulkCreateQuestions();
   const checkDuplicates = useCheckDuplicates();
+
+  const runDuplicateCheck = useCallback(async (questions: QuestionWithSelection[], locale: 'en' | 'ka') => {
+    try {
+      const prompts = questions.map(q => ({ [locale]: q.prompt }));
+      const duplicateResult = await checkDuplicates.mutateAsync({
+        locale,
+        prompts,
+      });
+
+      // Mark duplicates and auto-deselect them
+      const updated = questions.map((q, idx) => {
+        const duplicate = duplicateResult.duplicates.find(d => d.index === idx);
+        if (duplicate) {
+          return {
+            ...q,
+            isDuplicate: true,
+            isSelected: false, // Auto-deselect duplicates
+            duplicateInfo: {
+              existingQuestions: duplicate.existingQuestions,
+            },
+          };
+        }
+        return { ...q, isDuplicate: false, duplicateInfo: undefined };
+      });
+
+      setQuestionsWithState(updated);
+
+      // Show summary
+      const dupCount = duplicateResult.duplicates.length;
+      if (dupCount > 0) {
+        toast.warning(
+          `Found ${dupCount} duplicate question${dupCount > 1 ? 's' : ''}. They are unselected by default.`
+        );
+      }
+    } catch {
+      toast.error('Failed to check for duplicates. You can still proceed with upload.');
+      // Keep all questions selected on error
+      setQuestionsWithState(prev =>
+        prev.map(q => ({ ...q, isSelected: true, isDuplicate: false, duplicateInfo: undefined }))
+      );
+    }
+  }, [checkDuplicates]);
 
   const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -114,13 +159,15 @@ export function BulkUploadDialog() {
       }
 
       // Initialize with all questions selected
-      const questionsWithSelection: QuestionWithSelection[] = result.questions.map(q => ({
+      const questionsWithSelection: QuestionWithSelection[] = result.questions.map((q, idx) => ({
         ...q,
+        id: `${q.questionNumber}-${q.lineNumber}-${idx}`,
         isSelected: true,
         isDuplicate: false,
       }));
 
       setQuestionsWithState(questionsWithSelection);
+      setPage(1);
 
       if (result.errors.length > 0) {
         toast.warning(`Parsed ${result.questions.length} questions with ${result.errors.length} errors`);
@@ -129,42 +176,7 @@ export function BulkUploadDialog() {
       }
 
       // Check for duplicates
-      try {
-        const prompts = result.questions.map(q => ({ [selectedLocale]: q.prompt }));
-        const duplicateResult = await checkDuplicates.mutateAsync({
-          locale: selectedLocale,
-          prompts,
-        });
-
-        // Mark duplicates and auto-deselect them
-        const updated = questionsWithSelection.map((q, idx) => {
-          const duplicate = duplicateResult.duplicates.find(d => d.index === idx);
-          if (duplicate) {
-            return {
-              ...q,
-              isDuplicate: true,
-              isSelected: false, // Auto-deselect duplicates
-              duplicateInfo: {
-                existingQuestions: duplicate.existingQuestions,
-              },
-            };
-          }
-          return q;
-        });
-
-        setQuestionsWithState(updated);
-
-        // Show summary
-        const dupCount = duplicateResult.duplicates.length;
-        if (dupCount > 0) {
-          toast.warning(
-            `Found ${dupCount} duplicate question${dupCount > 1 ? 's' : ''}. They are unselected by default.`
-          );
-        }
-      } catch {
-        toast.error('Failed to check for duplicates. You can still proceed with upload.');
-        // Keep all questions selected on error
-      }
+      await runDuplicateCheck(questionsWithSelection, selectedLocale);
     };
 
     reader.onerror = () => {
@@ -174,12 +186,19 @@ export function BulkUploadDialog() {
     reader.readAsText(file);
   };
 
-  const handleRemoveQuestion = (index: number) => {
-    setQuestionsWithState((prev) => prev.filter((_, i) => i !== index));
-    setState((prev) => ({
-      ...prev,
-      parsedQuestions: prev.parsedQuestions.filter((_, i) => i !== index),
-    }));
+  const handleRemoveQuestion = (id: string) => {
+    setQuestionsWithState((prev) => {
+      const removed = prev.find((q) => q.id === id);
+      if (removed) {
+        setState((statePrev) => ({
+          ...statePrev,
+          parsedQuestions: statePrev.parsedQuestions.filter(
+            (q) => !(q.questionNumber === removed.questionNumber && q.lineNumber === removed.lineNumber)
+          ),
+        }));
+      }
+      return prev.filter((q) => q.id !== id);
+    });
   };
 
   const handleUpload = async () => {
@@ -242,6 +261,11 @@ export function BulkUploadDialog() {
     } catch {
       // Error is handled in the mutation
       setState((prev) => ({ ...prev, isUploading: false }));
+      setUploadProgress({
+        successful: 0,
+        failed: 0,
+        total: 0,
+      });
     }
   };
 
@@ -261,6 +285,7 @@ export function BulkUploadDialog() {
         total: 0,
       });
       setSelectedCategory('');
+      setPage(1);
       if (fileInputRef.current) {
         fileInputRef.current.value = '';
       }
@@ -271,6 +296,26 @@ export function BulkUploadDialog() {
   const selectedCount = questionsWithState.filter(q => q.isSelected).length;
   const duplicateCount = questionsWithState.filter(q => q.isDuplicate).length;
   const canUpload = selectedCategory && selectedCount > 0 && !state.isUploading;
+  const pageSize = 100;
+  const totalPages = Math.max(1, Math.ceil(questionsWithState.length / pageSize));
+  const currentPage = Math.min(page, totalPages);
+  const pageStart = (currentPage - 1) * pageSize;
+  const pageQuestions = questionsWithState.slice(pageStart, pageStart + pageSize);
+
+  useEffect(() => {
+    setPage((prev) => Math.min(prev, totalPages));
+  }, [totalPages]);
+
+  useEffect(() => {
+    latestQuestionsRef.current = questionsWithState;
+  }, [questionsWithState]);
+
+  // Re-check duplicates only when locale changes (not when runDuplicateCheck changes)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (latestQuestionsRef.current.length === 0) return;
+    void runDuplicateCheck(latestQuestionsRef.current, selectedLocale);
+  }, [selectedLocale]);
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -311,11 +356,17 @@ export function BulkUploadDialog() {
                 <SelectValue placeholder="Select a category" />
               </SelectTrigger>
               <SelectContent>
-                {categories?.map((cat) => (
-                  <SelectItem key={cat.id} value={cat.id}>
-                    {getLocalizedText(cat.name)}
+                {categories && categories.length > 0 ? (
+                  categories.map((cat) => (
+                    <SelectItem key={cat.id} value={cat.id}>
+                      {getLocalizedText(cat.name)}
+                    </SelectItem>
+                  ))
+                ) : (
+                  <SelectItem value="" disabled>
+                    {categories ? 'No categories available' : 'Loading categories...'}
                   </SelectItem>
-                )) || <SelectItem value="" disabled>Loading categories...</SelectItem>}
+                )}
               </SelectContent>
             </Select>
           </div>
@@ -452,7 +503,9 @@ Difficulty: Medium`}
           {questionsWithState.length > 0 && (
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <Label className="text-base font-semibold">Parsed Questions ({questionsWithState.length})</Label>
+                <Label className="text-base font-semibold">
+                  Parsed Questions ({questionsWithState.length})
+                </Label>
                 {questionsWithState.length > 100 && (
                   <Badge variant="destructive">
                     Maximum 100 questions allowed
@@ -464,14 +517,20 @@ Difficulty: Medium`}
                   <TableHeader>
                     <TableRow>
                       <TableHead className="w-12">
-                        <Checkbox
-                          checked={questionsWithState.every(q => q.isSelected)}
-                          onCheckedChange={(checked: boolean | 'indeterminate') => {
-                            setQuestionsWithState(prev =>
-                              prev.map(q => ({ ...q, isSelected: checked === true }))
-                            );
-                          }}
-                        />
+                        {(() => {
+                          const allSelected = questionsWithState.every(q => q.isSelected);
+                          const someSelected = questionsWithState.some(q => q.isSelected);
+                          return (
+                            <Checkbox
+                              checked={allSelected ? true : someSelected ? 'indeterminate' : false}
+                              onCheckedChange={(checked: boolean | 'indeterminate') => {
+                                setQuestionsWithState(prev =>
+                                  prev.map(q => ({ ...q, isSelected: checked === true }))
+                                );
+                              }}
+                            />
+                          );
+                        })()}
                       </TableHead>
                       <TableHead className="w-12">#</TableHead>
                       <TableHead>Question</TableHead>
@@ -481,15 +540,15 @@ Difficulty: Medium`}
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {questionsWithState.slice(0, 100).map((q, index) => (
-                      <TableRow key={index} className={cn(!q.isSelected && 'opacity-50')}>
+                    {pageQuestions.map((q) => (
+                      <TableRow key={q.id} className={cn(!q.isSelected && 'opacity-50')}>
                         <TableCell>
                           <Checkbox
                             checked={q.isSelected}
                             onCheckedChange={(checked: boolean | 'indeterminate') => {
                               setQuestionsWithState(prev =>
-                                prev.map((item, i) =>
-                                  i === index ? { ...item, isSelected: checked === true } : item
+                                prev.map((item) =>
+                                  item.id === q.id ? { ...item, isSelected: checked === true } : item
                                 )
                               );
                             }}
@@ -520,7 +579,7 @@ Difficulty: Medium`}
                           <Button
                             variant="ghost"
                             size="icon"
-                            onClick={() => handleRemoveQuestion(index)}
+                            onClick={() => handleRemoveQuestion(q.id)}
                           >
                             <Trash2 className="h-4 w-4" />
                           </Button>
@@ -530,6 +589,31 @@ Difficulty: Medium`}
                   </TableBody>
                 </Table>
               </div>
+              {totalPages > 1 && (
+                <div className="flex items-center justify-between">
+                  <div className="text-sm text-muted-foreground">
+                    Page {currentPage} of {totalPages}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setPage((p) => Math.max(1, p - 1))}
+                      disabled={currentPage === 1}
+                    >
+                      Previous
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                      disabled={currentPage === totalPages}
+                    >
+                      Next
+                    </Button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
           </div>

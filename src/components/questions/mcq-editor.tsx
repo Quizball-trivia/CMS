@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -14,6 +15,7 @@ interface McqEditorProps {
 }
 
 export function McqEditor({ options, onChange }: McqEditorProps) {
+  const [activeLang, setActiveLang] = useState<'en' | 'ka'>('en');
   const addOption = () => {
     const newOption: McqOption = {
       id: generateAnswerId(),
@@ -27,9 +29,11 @@ export function McqEditor({ options, onChange }: McqEditorProps) {
     const newOptions = options.filter((o) => o.id !== id);
     // If we removed the correct answer, make the first one correct
     if (newOptions.length > 0 && !newOptions.some((o) => o.is_correct)) {
-      newOptions[0].is_correct = true;
+      const [first, ...rest] = newOptions;
+      onChange([{ ...first, is_correct: true }, ...rest.map((o) => ({ ...o }))]);
+      return;
     }
-    onChange(newOptions);
+    onChange(newOptions.map((o) => ({ ...o })));
   };
 
   const updateOptionText = (id: string, lang: string, value: string) => {
@@ -116,15 +120,37 @@ export function McqEditor({ options, onChange }: McqEditorProps) {
                   </Button>
                 </div>
 
-                <div className="flex items-center gap-2">
-                  <div className="flex flex-col bg-white/5 p-0.5 rounded-lg border border-white/5 self-start">
-                    <button type="button" className="px-1.5 py-1 text-[8px] font-black rounded-md bg-white/10 text-white">EN</button>
-                    <button type="button" className="px-1.5 py-1 text-[8px] font-black rounded-md text-white/40 hover:text-white">KA</button>
-                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="flex flex-col bg-white/5 p-0.5 rounded-lg border border-white/5 self-start">
+                    <button
+                      type="button"
+                      onClick={() => setActiveLang('en')}
+                      className={cn(
+                        "px-1.5 py-1 text-[8px] font-black rounded-md transition-colors",
+                        activeLang === 'en'
+                          ? "bg-white/10 text-white"
+                          : "text-white/40 hover:text-white"
+                      )}
+                    >
+                      EN
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setActiveLang('ka')}
+                      className={cn(
+                        "px-1.5 py-1 text-[8px] font-black rounded-md transition-colors",
+                        activeLang === 'ka'
+                          ? "bg-white/10 text-white"
+                          : "text-white/40 hover:text-white"
+                      )}
+                    >
+                      KA
+                    </button>
+                    </div>
                   <Input
                     placeholder="Option text..."
-                    value={option.text.en || ''}
-                    onChange={(e) => updateOptionText(option.id, 'en', e.target.value)}
+                    value={option.text[activeLang] || ''}
+                    onChange={(e) => updateOptionText(option.id, activeLang, e.target.value)}
                     className="h-9 bg-white/5 border-white/5 rounded-xl focus:ring-1 focus:ring-primary/30 transition-all text-xs placeholder:text-white/10 border-none shadow-inner"
                   />
                 </div>

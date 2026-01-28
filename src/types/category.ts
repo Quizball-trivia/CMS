@@ -3,6 +3,7 @@ import type { components } from './api.generated';
 // Re-export from generated types - these stay in sync with backend automatically
 export type I18nField = components['schemas']['I18nField'];
 export type Category = components['schemas']['CategoryResponse'];
+export type PaginatedCategoriesResponse = components['schemas']['PaginatedCategoriesResponse'];
 
 // Request types derived from backend (for create/update)
 export interface CreateCategoryRequest {
@@ -27,7 +28,9 @@ export interface UpdateCategoryRequest {
 
 export interface ListCategoriesParams {
   parent_id?: string;
-  is_active?: boolean;
+  is_active?: string;
+  page?: number;
+  limit?: number;
 }
 
 // Featured categories - now from generated types

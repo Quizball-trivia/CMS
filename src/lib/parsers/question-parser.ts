@@ -45,6 +45,8 @@ export function parseQuestionFile(content: string): ParseResult {
   const lines = content.split('\n');
   const questions: ParsedQuestion[] = [];
   const errors: ParseError[] = [];
+  const seenQuestionNumbers = new Set<number>();
+  let lastQuestionNumber: number | null = null;
 
   let currentQuestion: Partial<ParsedQuestion> | null = null;
   let currentExplanation: string[] = [];
@@ -79,6 +81,26 @@ export function parseQuestionFile(content: string): ParseResult {
     // Check for question start (1., 2., etc.)
     const questionMatch = trimmed.match(/^(\d+)\.\s+(.+)$/);
     if (questionMatch) {
+      const questionNum = parseInt(questionMatch[1], 10);
+      if (seenQuestionNumbers.has(questionNum)) {
+        errors.push({
+          lineNumber,
+          questionNumber: questionNum,
+          message: `Duplicate question number ${questionNum}`,
+          severity: 'warning',
+        });
+      }
+      if (lastQuestionNumber !== null && questionNum !== lastQuestionNumber + 1) {
+        errors.push({
+          lineNumber,
+          questionNumber: questionNum,
+          message: `Expected question number ${lastQuestionNumber + 1}, found ${questionNum}`,
+          severity: 'warning',
+        });
+      }
+      seenQuestionNumbers.add(questionNum);
+      lastQuestionNumber = questionNum;
+
       // Save previous question if exists
       if (currentQuestion) {
         if (currentExplanation.length > 0) {
@@ -96,7 +118,7 @@ export function parseQuestionFile(content: string): ParseResult {
 
       // Start new question
       currentQuestion = {
-        questionNumber: parseInt(questionMatch[1], 10),
+        questionNumber: questionNum,
         prompt: questionMatch[2],
         options: [],
         lineNumber,
@@ -137,6 +159,14 @@ export function parseQuestionFile(content: string): ParseResult {
       currentExplanation = [explanationMatch[1]];
       inExplanation = true;
       continue;
+    }
+
+    if (!inExplanation) {
+      console.warn('Unrecognized line while parsing question', {
+        lineNumber,
+        questionNumber: currentQuestion.questionNumber,
+        line: trimmed,
+      });
     }
 
     // Continuation of explanation
@@ -183,6 +213,19 @@ function validateQuestion(
       message: `Must have exactly 4 options (A, B, C, D), found ${q.options?.length || 0}`,
       severity: 'error',
     });
+  } else {
+    const expectedLetters = new Set(['A', 'B', 'C', 'D']);
+    const letters = q.options.map((o) => o.letter);
+    const uniqueLetters = new Set(letters);
+    const allValid = letters.every((letter) => expectedLetters.has(letter));
+    if (!allValid || uniqueLetters.size !== 4) {
+      errors.push({
+        lineNumber,
+        questionNumber: q.questionNumber,
+        message: 'Option letters must be unique and use A, B, C, D',
+        severity: 'error',
+      });
+    }
   }
 
   const correctCount = q.options?.filter((o) => o.is_correct).length || 0;

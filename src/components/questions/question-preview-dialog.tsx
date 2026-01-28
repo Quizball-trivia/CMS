@@ -19,6 +19,19 @@ import { getLocalizedText } from '@/lib/utils';
 import { cn } from '@/lib/utils';
 import { useRouter } from 'next/navigation';
 
+const getDifficultyVariant = (difficulty: string) => {
+  switch (difficulty) {
+    case 'easy':
+      return 'bg-emerald-50 text-emerald-700 border-emerald-200';
+    case 'medium':
+      return 'bg-amber-50 text-amber-700 border-amber-200';
+    case 'hard':
+      return 'bg-rose-50 text-rose-700 border-rose-200';
+    default:
+      return 'bg-gray-50 text-gray-700 border-gray-200';
+  }
+};
+
 interface QuestionPreviewDialogProps {
   question: Question;
   allQuestions?: Question[];
@@ -43,25 +56,32 @@ export function QuestionPreviewDialog({
   const hasPrevious = activeIndex > 0;
   const hasNext = activeIndex < totalQuestions - 1;
   const showLoadingIndicator = totalAvailable > totalQuestions;
+  const clampIndex = useCallback((index: number) => {
+    if (totalQuestions === 0) return 0;
+    return Math.min(Math.max(index, 0), totalQuestions - 1);
+  }, [totalQuestions]);
 
   // Use the question at activeIndex if we're navigating, otherwise use the prop
-  const displayQuestion = allQuestions.length > 0 ? allQuestions[activeIndex] : question;
+  const displayQuestion = allQuestions.length > 0
+    ? allQuestions[clampIndex(activeIndex)] ?? question
+    : question;
 
   // Reset activeIndex when dialog opens
   const handleOpenChange = (isOpen: boolean) => {
     setOpen(isOpen);
     if (isOpen) {
-      setActiveIndex(currentIndex);
+      setActiveIndex(clampIndex(currentIndex));
     }
   };
 
   // Handle navigation
   const handleNavigate = useCallback((newIndex: number) => {
-    setActiveIndex(newIndex);
+    const clampedIndex = clampIndex(newIndex);
+    setActiveIndex(clampedIndex);
     if (onNavigate) {
-      onNavigate(newIndex);
+      onNavigate(clampedIndex);
     }
-  }, [onNavigate]);
+  }, [clampIndex, onNavigate]);
 
   // Keyboard navigation
   useEffect(() => {
@@ -80,19 +100,6 @@ export function QuestionPreviewDialog({
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [open, activeIndex, hasPrevious, hasNext, handleNavigate]);
-
-  const getDifficultyVariant = (difficulty: string) => {
-    switch (difficulty) {
-      case 'easy':
-        return 'bg-emerald-50 text-emerald-700 border-emerald-200';
-      case 'medium':
-        return 'bg-amber-50 text-amber-700 border-amber-200';
-      case 'hard':
-        return 'bg-rose-50 text-rose-700 border-rose-200';
-      default:
-        return 'bg-gray-50 text-gray-700 border-gray-200';
-    }
-  };
 
   const handleToggleStatus = async (e: React.MouseEvent) => {
     e.stopPropagation();

@@ -99,7 +99,6 @@ export function CategoryList({
               category={category}
               isAlreadyFeatured={featuredCategoryIds.has(category.id)}
               onEdit={onEditCategory}
-              parentName={category.parent_id ? parentNames[category.parent_id] : undefined}
             />
           ))}
         </div>

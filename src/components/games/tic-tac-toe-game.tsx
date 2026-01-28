@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { findBestMove, checkWinner, isBoardFull, getWinningLine } from '@/lib/game-ai/minimax';
 import { cn } from '@/lib/utils';
 
@@ -23,6 +23,7 @@ export function TicTacToeGame({ uploadProgress, onUploadComplete, className }: T
   const [isPlayerTurn, setIsPlayerTurn] = useState(true); // Player (X) goes first
   const [gameStatus, setGameStatus] = useState<GameStatus>('playing');
   const [winningLine, setWinningLine] = useState<number[] | null>(null);
+  const uploadCallbackCalled = useRef(false);
 
   // Check if upload is complete
   const uploadComplete =
@@ -67,7 +68,7 @@ export function TicTacToeGame({ uploadProgress, onUploadComplete, className }: T
       const timer = setTimeout(() => {
         const aiMove = findBestMove(board, 'O', 'X');
 
-        if (aiMove !== -1) {
+        if (aiMove !== null) {
           const newBoard = [...board];
           newBoard[aiMove] = 'O';
           setBoard(newBoard);
@@ -103,7 +104,8 @@ export function TicTacToeGame({ uploadProgress, onUploadComplete, className }: T
 
   // Call completion callback when upload done
   useEffect(() => {
-    if (uploadComplete && onUploadComplete) {
+    if (uploadComplete && onUploadComplete && !uploadCallbackCalled.current) {
+      uploadCallbackCalled.current = true;
       onUploadComplete();
     }
   }, [uploadComplete, onUploadComplete]);
@@ -163,8 +165,7 @@ export function TicTacToeGame({ uploadProgress, onUploadComplete, className }: T
                 <span
                   className={cn(
                     'transition-all duration-300 transform',
-                    cell === 'X' ? 'text-blue-600' : 'text-red-600',
-                    'scale-100'
+                    cell === 'X' ? 'text-blue-600' : 'text-red-600'
                   )}
                 >
                   {cell}

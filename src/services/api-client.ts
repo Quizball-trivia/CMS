@@ -27,20 +27,25 @@ function createTimeoutController(
 
   // If existing signal is already aborted, abort immediately
   if (existingSignal?.aborted) {
-    controller.abort();
+    controller.abort(existingSignal.reason);
+    return { signal: controller.signal, cleanup: () => {} };
   }
 
   // Set up timeout
-  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  const timeoutId = setTimeout(() => controller.abort('timeout'), timeoutMs);
 
   // If existing signal is provided, listen for its abort
-  const abortHandler = () => controller.abort();
-  existingSignal?.addEventListener('abort', abortHandler);
+  const abortHandler = () => controller.abort(existingSignal?.reason);
+  if (existingSignal) {
+    existingSignal.addEventListener('abort', abortHandler);
+  }
 
   // Cleanup function to clear timeout and listeners
   const cleanup = () => {
     clearTimeout(timeoutId);
-    existingSignal?.removeEventListener('abort', abortHandler);
+    if (existingSignal) {
+      existingSignal.removeEventListener('abort', abortHandler);
+    }
   };
 
   return { signal: controller.signal, cleanup };

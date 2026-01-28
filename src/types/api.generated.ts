@@ -21,7 +21,7 @@ export interface paths {
                 path?: never;
                 cookie?: never;
             };
-            requestBody?: {
+            requestBody: {
                 content: {
                     "application/json": {
                         /** Format: email */
@@ -74,7 +74,7 @@ export interface paths {
                 path?: never;
                 cookie?: never;
             };
-            requestBody?: {
+            requestBody: {
                 content: {
                     "application/json": {
                         /** Format: email */
@@ -127,7 +127,7 @@ export interface paths {
                 path?: never;
                 cookie?: never;
             };
-            requestBody?: {
+            requestBody: {
                 content: {
                     "application/json": {
                         refresh_token: string;
@@ -178,7 +178,7 @@ export interface paths {
                 path?: never;
                 cookie?: never;
             };
-            requestBody?: {
+            requestBody: {
                 content: {
                     "application/json": {
                         /** Format: email */
@@ -223,7 +223,7 @@ export interface paths {
                 path?: never;
                 cookie?: never;
             };
-            requestBody?: {
+            requestBody: {
                 content: {
                     "application/json": {
                         access_token: string;
@@ -266,7 +266,7 @@ export interface paths {
                 path?: never;
                 cookie?: never;
             };
-            requestBody?: {
+            requestBody: {
                 content: {
                     "application/json": {
                         /** @enum {string} */
@@ -376,7 +376,7 @@ export interface paths {
                 path?: never;
                 cookie?: never;
             };
-            requestBody?: {
+            requestBody: {
                 content: {
                     "application/json": {
                         nickname?: string;
@@ -472,6 +472,8 @@ export interface paths {
                 query?: {
                     parent_id?: string;
                     is_active?: string;
+                    page?: number;
+                    limit?: number;
                 };
                 header?: never;
                 path?: never;
@@ -485,7 +487,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["CategoryResponse"][];
+                        "application/json": components["schemas"]["PaginatedCategoriesResponse"];
                     };
                 };
             };
@@ -502,7 +504,7 @@ export interface paths {
                 path?: never;
                 cookie?: never;
             };
-            requestBody?: {
+            requestBody: {
                 content: {
                     "application/json": {
                         slug: string;
@@ -614,7 +616,7 @@ export interface paths {
                 };
                 cookie?: never;
             };
-            requestBody?: {
+            requestBody: {
                 content: {
                     "application/json": {
                         slug?: string;
@@ -835,7 +837,7 @@ export interface paths {
                 path?: never;
                 cookie?: never;
             };
-            requestBody?: {
+            requestBody: {
                 content: {
                     "application/json": {
                         /** Format: uuid */
@@ -950,7 +952,7 @@ export interface paths {
                 };
                 cookie?: never;
             };
-            requestBody?: {
+            requestBody: {
                 content: {
                     "application/json": {
                         sort_order: number;
@@ -1072,7 +1074,7 @@ export interface paths {
                 path?: never;
                 cookie?: never;
             };
-            requestBody?: {
+            requestBody: {
                 content: {
                     "application/json": {
                         items: {
@@ -1177,7 +1179,7 @@ export interface paths {
                 path?: never;
                 cookie?: never;
             };
-            requestBody?: {
+            requestBody: {
                 content: {
                     "application/json": {
                         /** Format: uuid */
@@ -1291,7 +1293,7 @@ export interface paths {
                 };
                 cookie?: never;
             };
-            requestBody?: {
+            requestBody: {
                 content: {
                     "application/json": {
                         /** Format: uuid */
@@ -1433,7 +1435,7 @@ export interface paths {
                 path?: never;
                 cookie?: never;
             };
-            requestBody?: {
+            requestBody: {
                 content: {
                     "application/json": {
                         /** Format: uuid */
@@ -1523,7 +1525,7 @@ export interface paths {
                 };
                 cookie?: never;
             };
-            requestBody?: {
+            requestBody: {
                 content: {
                     "application/json": {
                         /** @enum {string} */
@@ -1653,7 +1655,7 @@ export interface paths {
                 path?: never;
                 cookie?: never;
             };
-            requestBody?: {
+            requestBody: {
                 content: {
                     "application/json": {
                         /**
@@ -1782,6 +1784,13 @@ export interface components {
             /** Format: date-time */
             updated_at: string;
         };
+        PaginatedCategoriesResponse: {
+            data: components["schemas"]["CategoryResponse"][];
+            page: number;
+            limit: number;
+            total: number;
+            total_pages: number;
+        };
         CategoryDependenciesResponse: {
             children: {
                 /** Format: uuid */
@@ -1848,7 +1857,7 @@ export interface components {
         CategorySummary: {
             /** Format: uuid */
             id: string;
-            name: components["schemas"]["I18nField"];
+            name: string;
         };
         DuplicateGroup: {
             id: string;

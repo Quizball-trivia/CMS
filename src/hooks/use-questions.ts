@@ -7,6 +7,7 @@ import type {
   UpdateQuestionStatusRequest,
   BulkCreateQuestionsRequest,
   FindDuplicatesParams,
+  CheckDuplicatesRequest,
 } from '@/types';
 import { logger } from '@/lib/logger';
 import { toast } from 'sonner';
@@ -151,13 +152,13 @@ export function useDuplicateQuestions(
     queryFn: () => questionsService.findDuplicates(params),
     staleTime: 5 * 60 * 1000, // 5 minutes
     refetchOnWindowFocus: false,
-    enabled: options?.enabled !== false,
+    enabled: options?.enabled ?? true,
   });
 }
 
 export function useCheckDuplicates() {
   return useMutation({
-    mutationFn: (data: { locale: string; prompts: Array<Record<string, string>> }) =>
+    mutationFn: (data: CheckDuplicatesRequest) =>
       questionsService.checkDuplicates(data),
     onError: (error) => {
       logger.error('questions', 'Failed to check duplicates', {

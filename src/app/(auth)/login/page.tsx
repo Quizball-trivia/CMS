@@ -18,7 +18,7 @@ import { useAuth } from '@/providers';
 import { ApiClientError } from '@/services';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { toast } from 'sonner';
@@ -180,11 +180,6 @@ export default function LoginPage() {
           </form>
         </Form>
       </CardContent>
-      
-      <CardFooter className="flex flex-col space-y-4 border-t border-white/5 pt-6 text-center relative z-10">
-        <div className="flex items-center justify-center gap-6 opacity-40 grayscale group-hover:grayscale-0 group-hover:opacity-100 transition-all duration-700">
-        </div>
-      </CardFooter>
     </Card>
   );
 }

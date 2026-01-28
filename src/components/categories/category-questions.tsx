@@ -3,8 +3,7 @@
 import { useState } from 'react';
 import { useQuestions } from '@/hooks';
 import { QuestionDialog } from '../questions/question-dialog';
-import { getLocalizedText } from '@/lib/utils';
-import { cn } from '@/lib/utils';
+import { cn, getLocalizedText } from '@/lib/utils';
 import { FileText, LayoutList } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 
@@ -12,43 +11,43 @@ interface CategoryQuestionsProps {
   categoryId: string;
 }
 
+const getDifficultyColor = (difficulty: string) => {
+  switch (difficulty) {
+    case 'easy':
+      return 'text-emerald-500';
+    case 'medium':
+      return 'text-amber-500';
+    case 'hard':
+      return 'text-rose-500';
+    default:
+      return 'text-gray-400';
+  }
+};
+
+const DifficultyDots = ({ difficulty }: { difficulty: string }) => {
+  const dots = difficulty === 'easy' ? 1 : difficulty === 'medium' ? 2 : 3;
+  const color = getDifficultyColor(difficulty).replace('text-', 'bg-');
+
+  return (
+    <div className="flex items-center gap-0.5">
+      {[1, 2, 3].map((dot) => (
+        <div
+          key={dot}
+          className={cn(
+            "w-1 h-1 rounded-full transition-colors",
+            dot <= dots ? color : "bg-gray-200"
+          )}
+        />
+      ))}
+    </div>
+  );
+};
+
 export function CategoryQuestions({ categoryId }: CategoryQuestionsProps) {
   const { data, isLoading } = useQuestions({ category_id: categoryId, limit: 50 });
   const [selectedQuestionId, setSelectedQuestionId] = useState<string | null>(null);
 
   const questions = data?.data || [];
-
-  const getDifficultyColor = (difficulty: string) => {
-    switch (difficulty) {
-      case 'easy':
-        return 'text-emerald-500';
-      case 'medium':
-        return 'text-amber-500';
-      case 'hard':
-        return 'text-rose-500';
-      default:
-        return 'text-gray-400';
-    }
-  };
-
-  const DifficultyDots = ({ difficulty }: { difficulty: string }) => {
-    const dots = difficulty === 'easy' ? 1 : difficulty === 'medium' ? 2 : 3;
-    const color = difficulty === 'easy' ? 'bg-emerald-500' : difficulty === 'medium' ? 'bg-amber-500' : 'bg-rose-500';
-
-    return (
-      <div className="flex items-center gap-0.5">
-        {[1, 2, 3].map((dot) => (
-          <div
-            key={dot}
-            className={cn(
-              "w-1 h-1 rounded-full transition-colors",
-              dot <= dots ? color : "bg-gray-200"
-            )}
-          />
-        ))}
-      </div>
-    );
-  };
 
   if (isLoading) {
     return (
@@ -94,6 +93,17 @@ export function CategoryQuestions({ categoryId }: CategoryQuestionsProps) {
           <div
             key={question.id}
             onClick={() => setSelectedQuestionId(question.id)}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter' || event.key === ' ') {
+                if (event.key === ' ') {
+                  event.preventDefault();
+                }
+                setSelectedQuestionId(question.id);
+              }
+            }}
+            role="button"
+            tabIndex={0}
+            aria-pressed={selectedQuestionId === question.id}
             className="group flex items-center gap-2 px-2.5 py-2 rounded-lg border border-gray-100 bg-white hover:bg-gray-50 hover:border-gray-200 transition-all cursor-pointer"
           >
             {/* Status Dot */}

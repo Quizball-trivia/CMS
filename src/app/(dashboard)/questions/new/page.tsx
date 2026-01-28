@@ -8,7 +8,7 @@ export default function NewQuestionPage() {
   const router = useRouter();
 
   return (
-    <div className="min-h-screen bg-[#f8f9fb] text-foreground py-10">
+    <div className="min-h-screen bg-background text-foreground py-10">
       <div className="max-w-[1280px] mx-auto px-8 space-y-8">
         {/* Page Header */}
         <div className="flex items-center gap-4 py-2">
@@ -24,7 +24,7 @@ export default function NewQuestionPage() {
             <h1 className="text-2xl font-bold tracking-tight text-gray-900">
               New Question
             </h1>
-            <p className="text-sm text-gray-400 font-medium">
+            <p className="text-sm text-gray-600 font-medium">
               Create a new quiz question
             </p>
           </div>

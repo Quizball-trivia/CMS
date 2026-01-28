@@ -16,9 +16,16 @@ import type {
 import { logger } from '@/lib/logger';
 
 export const questionsService = {
-  async list(params?: ListQuestionsParams): Promise<PaginatedResponse<Question>> {
+  async list(
+    params?: ListQuestionsParams,
+    signal?: AbortSignal
+  ): Promise<PaginatedResponse<Question>> {
     logger.debug('api', 'GET /questions', { params });
-    const result = await apiClient.get<PaginatedResponse<Question>>('/questions', params as Record<string, string | number | boolean | undefined>);
+    const result = await apiClient.get<PaginatedResponse<Question>>(
+      '/questions',
+      params as Record<string, string | number | boolean | undefined>,
+      signal
+    );
     logger.debug('api', 'GET /questions response', { count: result.data.length, total: result.total });
     return result;
   },
@@ -59,7 +66,7 @@ export const questionsService = {
   async bulkCreate(data: BulkCreateQuestionsRequest): Promise<BulkCreateResponse> {
     logger.debug('api', 'POST /questions/bulk', { count: data.questions.length, category_id: data.category_id });
     const result = await apiClient.post<BulkCreateResponse>('/questions/bulk', data);
-    logger.info('api', 'POST /questions/bulk response', {
+    logger.debug('api', 'POST /questions/bulk response', {
       successful: result.successful,
       failed: result.failed,
       total: result.total
