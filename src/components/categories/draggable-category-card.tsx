@@ -9,14 +9,12 @@ interface DraggableCategoryCardProps {
   category: Category;
   isAlreadyFeatured: boolean;
   onEdit?: (category: Category) => void;
-  parentName?: string;
 }
 
 export function DraggableCategoryCard({
   category,
   isAlreadyFeatured,
   onEdit,
-  parentName,
 }: DraggableCategoryCardProps) {
   const dragData: DragData = {
     source: 'repository',
@@ -39,7 +37,6 @@ export function DraggableCategoryCard({
         onEdit={onEdit}
         isAlreadyFeatured={isAlreadyFeatured}
         isDragging={isDragging}
-        parentName={parentName}
       />
     </div>
   );

@@ -194,8 +194,8 @@ export default function CategoriesPage() {
         </div>
 
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-          <DialogContent className="sm:max-w-[600px] p-0 overflow-hidden border-none shadow-2xl rounded-[2rem]">
-            <DialogHeader className="p-8 pb-4">
+          <DialogContent className="sm:max-w-[600px] max-h-[90vh] p-0 overflow-hidden border-none shadow-2xl rounded-[2rem] flex flex-col">
+            <DialogHeader className="p-8 pb-4 shrink-0">
               <DialogTitle className="text-2xl font-bold tracking-tight">
                 {isEditing ? 'Edit Category' : 'Create Category'}
               </DialogTitle>
@@ -205,7 +205,7 @@ export default function CategoriesPage() {
                   : 'Define a new content bucket for your questions.'}
               </DialogDescription>
             </DialogHeader>
-            <div className="px-8 pb-8">
+            <div className="px-8 pb-8 overflow-y-auto flex-1">
               <CategoryForm
                 key={editingCategory?.id ?? 'new'}
                 category={editingCategory}

@@ -1,12 +1,12 @@
 'use client';
 
-import { useRouter } from 'next/navigation';
 import { QuestionList } from '@/components/questions';
+import { BulkUploadDialog } from '@/components/questions/bulk-upload-dialog';
+import { QuestionDialog } from '@/components/questions/question-dialog';
 import { Button } from '@/components/ui/button';
 import { Plus } from 'lucide-react';
 
 export default function QuestionsPage() {
-  const router = useRouter();
 
   return (
     <div className="min-h-screen bg-[#f8f9fb] text-foreground py-10">
@@ -17,13 +17,18 @@ export default function QuestionsPage() {
             <p className="text-gray-500 font-medium text-base">Manage and curate your quiz questions library.</p>
           </header>
 
-          <Button 
-            onClick={() => router.push('/questions/new')}
-            className="bg-gray-900 hover:bg-gray-800 text-white px-6 h-11 rounded-xl font-bold text-sm transition-all shadow-lg shadow-gray-200 active:scale-95 flex items-center gap-2 shrink-0"
-          >
-            <Plus className="w-4 h-4" />
-            New Question
-          </Button>
+          <div className="flex items-center gap-2 shrink-0">
+            <BulkUploadDialog />
+            <QuestionDialog
+              mode="create"
+              trigger={
+                <Button className="bg-gray-900 hover:bg-gray-800 text-white px-6 h-11 rounded-xl font-bold text-sm transition-all shadow-lg shadow-gray-200 active:scale-95 flex items-center gap-2">
+                  <Plus className="w-4 h-4" />
+                  New Question
+                </Button>
+              }
+            />
+          </div>
         </div>
 
         <QuestionList />

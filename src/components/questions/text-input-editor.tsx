@@ -1,130 +1,40 @@
 'use client';
 
-import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import type { I18nField } from '@/types';
-import { Plus, Trash2, Info, CheckCircle2 } from 'lucide-react';
+import type { AnswerWithId } from '@/types';
+import { generateAnswerId } from '@/lib/question-utils';
 
-// Extended I18nField with stable ID for React keys
-export interface AnswerWithId extends I18nField {
-  id: string;
-}
+// Re-export for backwards compatibility
+export type { AnswerWithId } from '@/types';
 
 interface TextInputEditorProps {
   acceptedAnswers: AnswerWithId[];
   caseSensitive: boolean;
+  locale?: 'en' | 'ka';
   onChange: (acceptedAnswers: AnswerWithId[], caseSensitive: boolean) => void;
 }
 
-export function TextInputEditor({ acceptedAnswers, caseSensitive, onChange }: TextInputEditorProps) {
-  const addAnswer = () => {
-    onChange([...acceptedAnswers, { id: crypto.randomUUID(), en: '' }], caseSensitive);
-  };
-
-  const removeAnswer = (id: string) => {
-    const newAnswers = acceptedAnswers.filter((a) => a.id !== id);
-    onChange(newAnswers, caseSensitive);
-  };
-
-  const updateAnswer = (id: string, lang: string, value: string) => {
-    const newAnswers = acceptedAnswers.map((answer) =>
-      answer.id === id ? { ...answer, [lang]: value } : answer
-    );
+export function TextInputEditor({ acceptedAnswers, caseSensitive, locale = 'en', onChange }: TextInputEditorProps) {
+  const updateAnswer = (value: string) => {
+    // Preserve existing answer data and update only the current locale
+    const existingAnswer = acceptedAnswers[0] || { id: generateAnswerId() };
+    const id = existingAnswer.id ?? generateAnswerId();
+    const newAnswers = [{ ...existingAnswer, id, [locale]: value }];
     onChange(newAnswers, caseSensitive);
   };
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between px-1">
-        <div className="space-y-0.5">
-          <Label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/50">Accepted Answers</Label>
-          <p className="text-[9px] text-muted-foreground/40 font-medium italic">Variations of correct answer</p>
-        </div>
-        <Button 
-          type="button" 
-          size="sm" 
-          onClick={addAnswer}
-          className="h-7 px-3 rounded-lg bg-primary/10 text-primary hover:bg-primary/20 border-none font-bold text-[9px] uppercase tracking-wider transition-all active:scale-95"
-        >
-          <Plus className="w-3 h-3 mr-1" />
-          Add
-        </Button>
-      </div>
-
-      {acceptedAnswers.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-8 rounded-2xl border border-dashed border-white/5 bg-white/[0.02]">
-          <p className="text-[9px] font-bold text-white/10 uppercase tracking-widest text-center">
-            No answers added
-          </p>
-        </div>
-      ) : (
-        <div className="space-y-2">
-          {acceptedAnswers.map((answer, index) => (
-            <div
-              key={answer.id}
-              className="group relative rounded-2xl border bg-white/[0.03] border-white/5 hover:border-white/10 transition-all duration-200"
-            >
-              <div className="p-3 space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground/40">
-                    #{index + 1}
-                  </span>
-
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    className="h-5 w-5 rounded-md text-muted-foreground/30 hover:text-rose-500 hover:bg-rose-500/10 transition-all opacity-0 group-hover:opacity-100"
-                    onClick={() => removeAnswer(answer.id)}
-                  >
-                    <Trash2 className="w-3 h-3" />
-                  </Button>
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <div className="flex flex-col bg-white/5 p-0.5 rounded-lg border border-white/5 self-start">
-                    <button type="button" className="px-1.5 py-1 text-[8px] font-black rounded-md bg-white/10 text-white">EN</button>
-                    <button type="button" className="px-1.5 py-1 text-[8px] font-black rounded-md text-white/40 hover:text-white">KA</button>
-                  </div>
-                  <Input
-                    placeholder="Correct text..."
-                    value={answer.en || ''}
-                    onChange={(e) => updateAnswer(answer.id, 'en', e.target.value)}
-                    className="h-9 bg-white/5 border-white/5 rounded-xl focus:ring-1 focus:ring-primary/30 transition-all text-xs placeholder:text-white/10 border-none shadow-inner"
-                  />
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      <div className="flex items-center gap-2.5 p-3 rounded-2xl bg-white/[0.02] border border-white/5 transition-all hover:bg-white/[0.04] group">
-        <div className="relative flex items-center">
-          <input
-            type="checkbox"
-            id="case-sensitive"
-            checked={caseSensitive}
-            onChange={(e) => onChange(acceptedAnswers, e.target.checked)}
-            className="peer h-4 w-4 rounded-md border border-white/10 bg-white/5 text-primary focus:ring-0 focus:ring-offset-0 transition-all checked:bg-primary checked:border-primary cursor-pointer appearance-none"
-          />
-          <CheckCircle2 className="absolute pointer-events-none opacity-0 peer-checked:opacity-100 transition-opacity left-0.5 w-3 h-3 text-primary-foreground" />
-        </div>
-        <Label 
-          htmlFor="case-sensitive" 
-          className="text-[9px] font-bold text-muted-foreground/40 uppercase tracking-widest cursor-pointer group-hover:text-muted-foreground transition-colors"
-        >
-          Case sensitive matching
-        </Label>
-      </div>
-
-      {acceptedAnswers.length === 0 && (
-        <div className="flex items-center gap-2 p-2 rounded-lg bg-amber-500/5 text-[9px] text-amber-500/60 font-bold uppercase tracking-widest border border-amber-500/10">
-          <Info className="w-3 h-3" />
-          Add 1 answer
-        </div>
-      )}
+    <div className="space-y-2">
+      <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">
+        Correct Answer *
+      </Label>
+      <Input
+        placeholder="Enter the correct answer..."
+        value={acceptedAnswers[0]?.[locale] || ''}
+        onChange={(e) => updateAnswer(e.target.value)}
+        className="h-11 rounded-xl border-slate-200 bg-white focus:ring-slate-100 focus:ring-offset-2 transition-all font-medium"
+      />
     </div>
   );
 }

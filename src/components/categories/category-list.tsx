@@ -4,7 +4,6 @@ import { useMemo } from 'react';
 import { useCategories } from '@/hooks';
 import type { Category } from '@/types';
 import { DraggableCategoryCard } from './draggable-category-card';
-import { UnifiedCategoryCard } from './unified-category-card';
 import { RepositoryDropZone } from './repository-drop-zone';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { getLocalizedText } from '@/lib/utils';
@@ -100,7 +99,6 @@ export function CategoryList({
               category={category}
               isAlreadyFeatured={featuredCategoryIds.has(category.id)}
               onEdit={onEditCategory}
-              parentName={category.parent_id ? parentNames[category.parent_id] : undefined}
             />
           ))}
         </div>

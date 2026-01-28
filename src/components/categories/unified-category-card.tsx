@@ -1,10 +1,11 @@
 'use client';
 
 import { useState } from 'react';
+import Image from 'next/image';
 import type { Category } from '@/types';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { GripVertical, Edit2, Trash2, X, Folder, Star, Users, TrendingUp, Trophy } from 'lucide-react';
+import { GripVertical, Edit2, Trash2, X, Star, Users, TrendingUp, Trophy } from 'lucide-react';
 import { cn, getLocalizedText } from '@/lib/utils';
 import { CategoryDeleteModal } from './category-delete-modal';
 
@@ -14,12 +15,10 @@ export interface UnifiedCategoryCardProps {
   isDraggable?: boolean;
   dragHandleProps?: Record<string, unknown>;
   onEdit?: (category: Category) => void;
-  onDelete?: (categoryId: string) => void;
   onRemoveFromFeatured?: (featuredId: string) => void;
   featuredId?: string;
   isAlreadyFeatured?: boolean;
   isDragging?: boolean;
-  parentName?: string;
 }
 
 export function UnifiedCategoryCard({
@@ -32,7 +31,6 @@ export function UnifiedCategoryCard({
   featuredId,
   isAlreadyFeatured = false,
   isDragging = false,
-  parentName,
 }: UnifiedCategoryCardProps) {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
 
@@ -52,19 +50,23 @@ export function UnifiedCategoryCard({
     <>
       <Card
         className={cn(
-          "relative flex flex-col overflow-hidden border border-gray-200/50 bg-white rounded-[2rem] transition-all duration-300 group/card",
+          "relative flex flex-col overflow-hidden border border-gray-200/50 bg-white rounded-[2rem] transition-all duration-300 group/card cursor-pointer",
           isDragging && "opacity-50 scale-95 z-50",
           isFeatured ? "h-[240px] w-[420px] flex-shrink-0 shadow-sm hover:shadow-xl hover:-translate-y-1" : "h-[200px] w-full shadow-sm hover:shadow-md hover:-translate-y-0.5"
         )}
+        onClick={() => onEdit?.(category)}
       >
         {/* Background Layer */}
         <div className="absolute inset-0 z-0">
           {category.image_url ? (
             <>
-              <img
+              <Image
                 src={category.image_url}
                 alt=""
-                className="h-full w-full object-cover transition-transform duration-500 group-hover/card:scale-105"
+                fill
+                unoptimized
+                sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 420px"
+                className="object-cover transition-transform duration-500 group-hover/card:scale-105"
               />
               <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
             </>

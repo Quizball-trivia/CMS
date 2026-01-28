@@ -6,8 +6,8 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { toast } from 'sonner';
 import { useCreateQuestion, useUpdateQuestion, useCategories } from '@/hooks';
-import type { Question, McqOption } from '@/types';
-import type { AnswerWithId } from './text-input-editor';
+import type { Question, McqOption, AnswerWithId } from '@/types';
+import { generateAnswerId } from '@/lib/question-utils';
 import { useRouter } from 'next/navigation';
 import { logger } from '@/lib/logger';
 import { Button } from '@/components/ui/button';
@@ -26,14 +26,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
-  Info,
   Settings2,
   FileText,
   LayoutList,
-  Languages,
   MessageSquare,
   Save,
   CheckCircle2,
@@ -96,7 +93,7 @@ export function QuestionForm({ question, onSuccess }: QuestionFormProps) {
     if (question?.payload?.type === 'input_text') {
       return question.payload.accepted_answers.map((a) => ({
         ...a,
-        id: crypto.randomUUID(),
+        id: generateAnswerId(),
       }));
     }
     return [];
@@ -194,7 +191,8 @@ export function QuestionForm({ question, onSuccess }: QuestionFormProps) {
           ? { type: 'mcq_single' as const, options: mcqOptions }
           : {
               type: 'input_text' as const,
-              accepted_answers: acceptedAnswers.map(({ id: _id, ...rest }) => rest),
+              // eslint-disable-next-line @typescript-eslint/no-unused-vars
+              accepted_answers: acceptedAnswers.map(({ id: _unusedId, ...rest }) => rest),
               case_sensitive: caseSensitive,
             };
 
@@ -357,6 +355,7 @@ export function QuestionForm({ question, onSuccess }: QuestionFormProps) {
                   <TextInputEditor
                     acceptedAnswers={acceptedAnswers}
                     caseSensitive={caseSensitive}
+                    locale={previewLang}
                     onChange={(answers, sensitive) => {
                       setAcceptedAnswers(answers);
                       setCaseSensitive(sensitive);

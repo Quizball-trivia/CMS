@@ -21,7 +21,7 @@ export interface paths {
                 path?: never;
                 cookie?: never;
             };
-            requestBody?: {
+            requestBody: {
                 content: {
                     "application/json": {
                         /** Format: email */
@@ -74,7 +74,7 @@ export interface paths {
                 path?: never;
                 cookie?: never;
             };
-            requestBody?: {
+            requestBody: {
                 content: {
                     "application/json": {
                         /** Format: email */
@@ -127,7 +127,7 @@ export interface paths {
                 path?: never;
                 cookie?: never;
             };
-            requestBody?: {
+            requestBody: {
                 content: {
                     "application/json": {
                         refresh_token: string;
@@ -178,7 +178,7 @@ export interface paths {
                 path?: never;
                 cookie?: never;
             };
-            requestBody?: {
+            requestBody: {
                 content: {
                     "application/json": {
                         /** Format: email */
@@ -223,7 +223,7 @@ export interface paths {
                 path?: never;
                 cookie?: never;
             };
-            requestBody?: {
+            requestBody: {
                 content: {
                     "application/json": {
                         access_token: string;
@@ -266,7 +266,7 @@ export interface paths {
                 path?: never;
                 cookie?: never;
             };
-            requestBody?: {
+            requestBody: {
                 content: {
                     "application/json": {
                         /** @enum {string} */
@@ -376,7 +376,7 @@ export interface paths {
                 path?: never;
                 cookie?: never;
             };
-            requestBody?: {
+            requestBody: {
                 content: {
                     "application/json": {
                         nickname?: string;
@@ -472,6 +472,8 @@ export interface paths {
                 query?: {
                     parent_id?: string;
                     is_active?: string;
+                    page?: number;
+                    limit?: number;
                 };
                 header?: never;
                 path?: never;
@@ -485,7 +487,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["CategoryResponse"][];
+                        "application/json": components["schemas"]["PaginatedCategoriesResponse"];
                     };
                 };
             };
@@ -502,7 +504,7 @@ export interface paths {
                 path?: never;
                 cookie?: never;
             };
-            requestBody?: {
+            requestBody: {
                 content: {
                     "application/json": {
                         slug: string;
@@ -614,7 +616,7 @@ export interface paths {
                 };
                 cookie?: never;
             };
-            requestBody?: {
+            requestBody: {
                 content: {
                     "application/json": {
                         slug?: string;
@@ -835,7 +837,7 @@ export interface paths {
                 path?: never;
                 cookie?: never;
             };
-            requestBody?: {
+            requestBody: {
                 content: {
                     "application/json": {
                         /** Format: uuid */
@@ -950,7 +952,7 @@ export interface paths {
                 };
                 cookie?: never;
             };
-            requestBody?: {
+            requestBody: {
                 content: {
                     "application/json": {
                         sort_order: number;
@@ -1072,7 +1074,7 @@ export interface paths {
                 path?: never;
                 cookie?: never;
             };
-            requestBody?: {
+            requestBody: {
                 content: {
                     "application/json": {
                         items: {
@@ -1177,7 +1179,7 @@ export interface paths {
                 path?: never;
                 cookie?: never;
             };
-            requestBody?: {
+            requestBody: {
                 content: {
                     "application/json": {
                         /** Format: uuid */
@@ -1291,7 +1293,7 @@ export interface paths {
                 };
                 cookie?: never;
             };
-            requestBody?: {
+            requestBody: {
                 content: {
                     "application/json": {
                         /** Format: uuid */
@@ -1413,6 +1415,90 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/questions/bulk": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Bulk create questions
+         * @description Create multiple questions in a single request. Maximum 100 questions per upload. Requires admin role.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        category_id: string;
+                        questions: {
+                            /** @enum {string} */
+                            type: "mcq_single" | "input_text";
+                            /** @enum {string} */
+                            difficulty: "easy" | "medium" | "hard";
+                            /** @enum {string} */
+                            status?: "draft" | "published" | "archived";
+                            prompt: components["schemas"]["I18nField"];
+                            explanation?: components["schemas"]["I18nField"] & unknown;
+                            payload?: unknown;
+                        }[];
+                    };
+                };
+            };
+            responses: {
+                /** @description Questions created (may include partial failures) */
+                207: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["BulkCreateResponse"];
+                    };
+                };
+                /** @description Invalid request or category not found */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Not authenticated */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Insufficient permissions (admin role required) */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/questions/{id}/status": {
         parameters: {
             query?: never;
@@ -1439,7 +1525,7 @@ export interface paths {
                 };
                 cookie?: never;
             };
-            requestBody?: {
+            requestBody: {
                 content: {
                     "application/json": {
                         /** @enum {string} */
@@ -1486,6 +1572,150 @@ export interface paths {
                 };
             };
         };
+        trace?: never;
+    };
+    "/api/v1/questions/duplicates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Find duplicate questions
+         * @description Detect questions with identical prompt text. Returns groups of questions with the same prompt, either within the same category or across different categories. Requires admin role.
+         */
+        get: {
+            parameters: {
+                query?: {
+                    type?: "cross_category" | "same_category" | "all";
+                    category_id?: string;
+                    include_drafts?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Duplicate groups found successfully */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["DuplicatesResponse"];
+                    };
+                };
+                /** @description Not authenticated */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Insufficient permissions (admin role required) */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/questions/check-duplicates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Check for duplicate prompts before bulk upload
+         * @description Check if question prompts already exist in the database. Used during bulk upload preview to show users which questions are duplicates. Requires admin role.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        /**
+                         * @description Array of question prompts to check
+                         * @example [
+                         *       {
+                         *         "en": "What is the capital of France?"
+                         *       },
+                         *       {
+                         *         "en": "What is 2+2?"
+                         *       }
+                         *     ]
+                         */
+                        prompts: components["schemas"]["I18nField"][];
+                    };
+                };
+            };
+            responses: {
+                /** @description Duplicate check completed successfully */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["CheckDuplicatesResponse"];
+                    };
+                };
+                /** @description Invalid request (e.g., too many prompts) */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Not authenticated */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Insufficient permissions (admin role required) */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
 }
@@ -1554,6 +1784,13 @@ export interface components {
             /** Format: date-time */
             updated_at: string;
         };
+        PaginatedCategoriesResponse: {
+            data: components["schemas"]["CategoryResponse"][];
+            page: number;
+            limit: number;
+            total: number;
+            total_pages: number;
+        };
         CategoryDependenciesResponse: {
             children: {
                 /** Format: uuid */
@@ -1604,23 +1841,52 @@ export interface components {
             sort_order: number;
             /** Format: date-time */
             created_at: string;
-            category: {
-                /** Format: uuid */
-                id: string;
-                slug: string;
-                /** Format: uuid */
-                parent_id: string | null;
-                name: components["schemas"]["I18nField"];
-                description: components["schemas"]["I18nField"] & unknown;
-                icon: string | null;
-                /** Format: uri */
-                image_url: string | null;
-                is_active: boolean;
-                /** Format: date-time */
-                created_at: string;
-                /** Format: date-time */
-                updated_at: string;
-            };
+            category: components["schemas"]["CategoryResponse"];
+        };
+        BulkCreateResponse: {
+            total: number;
+            successful: number;
+            failed: number;
+            created: components["schemas"]["QuestionResponse"][];
+            errors: {
+                index: number;
+                question?: unknown;
+                error: string;
+            }[];
+        };
+        CategorySummary: {
+            /** Format: uuid */
+            id: string;
+            name: string;
+        };
+        DuplicateGroup: {
+            id: string;
+            /** @enum {string} */
+            type: "cross_category" | "same_category";
+            prompt: string;
+            count: number;
+            questions: components["schemas"]["QuestionResponse"][];
+            categories: components["schemas"]["CategorySummary"][];
+        };
+        DuplicatesResponse: {
+            total_groups: number;
+            groups: components["schemas"]["DuplicateGroup"][];
+        };
+        DuplicateQuestionInfo: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            category_id: string;
+            category_name: components["schemas"]["I18nField"];
+            /** Format: date-time */
+            created_at: string;
+        };
+        CheckDuplicatesResponse: {
+            duplicates: {
+                index: number;
+                prompt: components["schemas"]["I18nField"];
+                existingQuestions: components["schemas"]["DuplicateQuestionInfo"][];
+            }[];
         };
     };
     responses: never;

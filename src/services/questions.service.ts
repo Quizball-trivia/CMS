@@ -6,13 +6,26 @@ import type {
   ListQuestionsParams,
   UpdateQuestionStatusRequest,
   PaginatedResponse,
+  BulkCreateQuestionsRequest,
+  BulkCreateResponse,
+  FindDuplicatesParams,
+  DuplicatesResponse,
+  CheckDuplicatesRequest,
+  CheckDuplicatesResponse,
 } from '@/types';
 import { logger } from '@/lib/logger';
 
 export const questionsService = {
-  async list(params?: ListQuestionsParams): Promise<PaginatedResponse<Question>> {
+  async list(
+    params?: ListQuestionsParams,
+    signal?: AbortSignal
+  ): Promise<PaginatedResponse<Question>> {
     logger.debug('api', 'GET /questions', { params });
-    const result = await apiClient.get<PaginatedResponse<Question>>('/questions', params as Record<string, string | number | boolean | undefined>);
+    const result = await apiClient.get<PaginatedResponse<Question>>(
+      '/questions',
+      params as Record<string, string | number | boolean | undefined>,
+      signal
+    );
     logger.debug('api', 'GET /questions response', { count: result.data.length, total: result.total });
     return result;
   },
@@ -47,6 +60,34 @@ export const questionsService = {
     logger.debug('api', `PATCH /questions/${id}/status`, { data });
     const result = await apiClient.patch<Question>(`/questions/${id}/status`, data);
     logger.debug('api', `PATCH /questions/${id}/status response`, { status: result.status });
+    return result;
+  },
+
+  async bulkCreate(data: BulkCreateQuestionsRequest): Promise<BulkCreateResponse> {
+    logger.debug('api', 'POST /questions/bulk', { count: data.questions.length, category_id: data.category_id });
+    const result = await apiClient.post<BulkCreateResponse>('/questions/bulk', data);
+    logger.debug('api', 'POST /questions/bulk response', {
+      successful: result.successful,
+      failed: result.failed,
+      total: result.total
+    });
+    return result;
+  },
+
+  async findDuplicates(params?: FindDuplicatesParams): Promise<DuplicatesResponse> {
+    logger.debug('api', 'GET /questions/duplicates', { params });
+    const result = await apiClient.get<DuplicatesResponse>('/questions/duplicates', params as Record<string, string | number | boolean | undefined>);
+    logger.debug('api', 'GET /questions/duplicates response', { total_groups: result.total_groups });
+    return result;
+  },
+
+  async checkDuplicates(data: CheckDuplicatesRequest): Promise<CheckDuplicatesResponse> {
+    logger.debug('api', 'POST /questions/check-duplicates', {
+      count: data.prompts.length,
+      locale: data.locale,
+    });
+    const result = await apiClient.post<CheckDuplicatesResponse>('/questions/check-duplicates', data);
+    logger.debug('api', 'POST /questions/check-duplicates response', { duplicates_count: result.duplicates.length });
     return result;
   },
 };

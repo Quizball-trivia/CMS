@@ -5,19 +5,12 @@ import type {
   UpdateCategoryRequest,
   ListCategoriesParams,
   CategoryDependencies,
+  PaginatedCategoriesResponse,
 } from '@/types';
-
-interface PaginatedResponse<T> {
-  data: T[];
-  total: number;
-  page: number;
-  limit: number;
-  total_pages: number;
-}
 
 export const categoriesService = {
   async list(params?: ListCategoriesParams): Promise<Category[]> {
-    const response = await apiClient.get<PaginatedResponse<Category>>(
+    const response = await apiClient.get<PaginatedCategoriesResponse>(
       '/categories',
       params as Record<string, string | number | boolean | undefined>
     );
