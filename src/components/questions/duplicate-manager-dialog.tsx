@@ -180,7 +180,7 @@ export function DuplicateManagerDialog() {
                           <Badge variant="outline">{group.questions.length} copies</Badge>
                         </div>
                         <p className="text-sm font-medium text-gray-900 line-clamp-2">
-                          {getLocalizedText(group.prompt)}
+                          {typeof group.prompt === 'string' ? group.prompt : getLocalizedText(group.prompt)}
                         </p>
                       </div>
                       <Button
@@ -233,9 +233,7 @@ export function DuplicateManagerDialog() {
                               >
                                 {question.status}
                               </Badge>
-                              <span className="text-xs text-muted-foreground">
-                                {getLocalizedText(question.category_name)}
-                              </span>
+                              {/* Category name not available in this context */}
                             </div>
                           </div>
                           {selectedForDeletion.has(question.id) && (
