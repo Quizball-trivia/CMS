@@ -158,8 +158,8 @@ export function useDuplicateQuestions(
 
 export function useCheckDuplicates() {
   return useMutation({
-    mutationFn: (data: CheckDuplicatesRequest) =>
-      questionsService.checkDuplicates(data),
+    mutationFn: (data: CheckDuplicatesRequest & { onProgress?: (checked: number, total: number) => void }) =>
+      questionsService.checkDuplicates(data, data.onProgress),
     onError: (error) => {
       logger.error('questions', 'Failed to check duplicates', {
         error: error instanceof Error ? error.message : error,

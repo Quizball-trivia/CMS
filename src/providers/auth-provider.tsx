@@ -11,6 +11,7 @@ import {
 import { useRouter } from 'next/navigation';
 import { authService } from '@/services';
 import { AUTH_TOKEN_KEY, REFRESH_TOKEN_KEY, AUTH_EXPIRY_KEY } from '@/lib/constants';
+import { logger } from '@/lib/logger';
 import type { User, LoginRequest } from '@/types';
 
 interface AuthContextType {
@@ -77,6 +78,23 @@ export function AuthProvider({ children }: AuthProviderProps) {
   useEffect(() => {
     checkAuth();
   }, [checkAuth]);
+
+  // Listen for session expiry events from API client
+  useEffect(() => {
+    const handleSessionExpired = () => {
+      logger.info('auth', 'Session expired event received, logging out');
+      localStorage.removeItem(AUTH_TOKEN_KEY);
+      localStorage.removeItem(REFRESH_TOKEN_KEY);
+      localStorage.removeItem(AUTH_EXPIRY_KEY);
+      setUser(null);
+      router.push('/login');
+    };
+
+    window.addEventListener('auth:session-expired', handleSessionExpired);
+    return () => {
+      window.removeEventListener('auth:session-expired', handleSessionExpired);
+    };
+  }, [router]);
 
   const login = useCallback(async (data: LoginRequest): Promise<void> => {
     const response = await authService.login(data);

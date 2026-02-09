@@ -18,19 +18,7 @@ import { Eye, EyeOff, Edit, CheckCircle2, ChevronLeft, ChevronRight } from 'luci
 import { getLocalizedText } from '@/lib/utils';
 import { cn } from '@/lib/utils';
 import { useRouter } from 'next/navigation';
-
-const getDifficultyVariant = (difficulty: string) => {
-  switch (difficulty) {
-    case 'easy':
-      return 'bg-emerald-50 text-emerald-700 border-emerald-200';
-    case 'medium':
-      return 'bg-amber-50 text-amber-700 border-amber-200';
-    case 'hard':
-      return 'bg-rose-50 text-rose-700 border-rose-200';
-    default:
-      return 'bg-gray-50 text-gray-700 border-gray-200';
-  }
-};
+import { getDifficultyVariant } from '@/components/ui/difficulty-signal';
 
 interface QuestionPreviewDialogProps {
   question: Question;

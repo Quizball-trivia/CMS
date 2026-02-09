@@ -67,6 +67,8 @@ export function QuestionList() {
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [openQuestionId, setOpenQuestionId] = useState<string | null>(null);
   const [isBulkOperating, setIsBulkOperating] = useState(false);
+  const [bulkProgress, setBulkProgress] = useState<{ completed: number; total: number; successful: number; failed: number } | null>(null);
+  const [isSelectingAll, setIsSelectingAll] = useState(false);
 
   // Progressive loading for preview navigation
   const [questionsByPage, setQuestionsByPage] = useState<Map<number, Question[]>>(new Map());
@@ -102,9 +104,10 @@ export function QuestionList() {
   }, [params.category_id, params.status, params.difficulty, params.type, params.search]);
 
   useEffect(() => {
+    const controllers = inFlightControllersRef.current;
     return () => {
-      inFlightControllersRef.current.forEach((controller) => controller.abort());
-      inFlightControllersRef.current.clear();
+      controllers.forEach((controller) => controller.abort());
+      controllers.clear();
     };
   }, []);
 
@@ -201,11 +204,16 @@ export function QuestionList() {
     }
 
     setIsBulkOperating(true);
+    setBulkProgress({ completed: 0, total: selectedIds.length, successful: 0, failed: 0 });
     try {
       const result = await processBatch(
         selectedIds,
         (id) => deleteQuestion.mutateAsync(id),
-        10 // Batch size of 10
+        {
+          batchSize: 5,
+          delayBetweenBatches: 500,
+          onProgress: setBulkProgress,
+        }
       );
 
       if (result.successful.length > 0) {
@@ -225,6 +233,7 @@ export function QuestionList() {
       toast.error('Bulk delete operation failed');
     } finally {
       setIsBulkOperating(false);
+      setBulkProgress(null);
     }
   };
 
@@ -244,11 +253,16 @@ export function QuestionList() {
     }
 
     setIsBulkOperating(true);
+    setBulkProgress({ completed: 0, total: selectedIds.length, successful: 0, failed: 0 });
     try {
       const result = await processBatch(
         selectedIds,
         (id) => updateStatus.mutateAsync({ id, data: { status } }),
-        10 // Batch size of 10
+        {
+          batchSize: 5, // Smaller batch size to avoid rate limiting
+          delayBetweenBatches: 500, // 500ms delay between batches
+          onProgress: setBulkProgress,
+        }
       );
 
       if (result.successful.length > 0) {
@@ -267,6 +281,7 @@ export function QuestionList() {
       toast.error('Bulk status change operation failed');
     } finally {
       setIsBulkOperating(false);
+      setBulkProgress(null);
     }
   };
 
@@ -289,6 +304,27 @@ export function QuestionList() {
 
   const toggleSelectOne = (id: string) => {
     setSelectedIds((prev) => (prev.includes(id) ? prev.filter((value) => value !== id) : [...prev, id]));
+  };
+
+  const handleSelectAllAcrossPages = async () => {
+    if (!data || data.total <= visibleIds.length) return;
+
+    setIsSelectingAll(true);
+    try {
+      const allIds = await questionsService.getAllIds({
+        category_id: params.category_id,
+        status: params.status,
+        difficulty: params.difficulty,
+        type: params.type,
+        search: params.search,
+      });
+      setSelectedIds(allIds);
+      toast.success(`Selected all ${allIds.length} questions`);
+    } catch {
+      toast.error('Failed to select all questions');
+    } finally {
+      setIsSelectingAll(false);
+    }
   };
 
   if (error) {
@@ -367,34 +403,60 @@ export function QuestionList() {
 
           {selectedIds.length > 0 && (
             <div className="flex items-center gap-2 bg-white border border-gray-200/70 rounded-xl px-3 py-2 shadow-sm">
-              <span className="text-xs font-bold text-gray-600">
-                {selectedIds.length} selected
-              </span>
-              <div className="h-4 w-px bg-gray-200" />
-              <Button
-                variant="outline"
-                size="sm"
-                className="h-8 rounded-lg text-xs font-bold"
-                onClick={() => handleBulkStatusChange('published')}
-              >
-                Publish
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                className="h-8 rounded-lg text-xs font-bold"
-                onClick={() => handleBulkStatusChange('draft')}
-              >
-                Move to Draft
-              </Button>
-              <Button
-                variant="destructive"
-                size="sm"
-                className="h-8 rounded-lg text-xs font-bold"
-                onClick={() => setDeleteState({ type: 'bulk' })}
-              >
-                Delete
-              </Button>
+              {isBulkOperating && bulkProgress ? (
+                <>
+                  <div className="flex items-center gap-2 min-w-[200px]">
+                    <div className="flex-1 h-2 bg-gray-200 rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-blue-500 transition-all duration-300"
+                        style={{ width: `${(bulkProgress.completed / bulkProgress.total) * 100}%` }}
+                      />
+                    </div>
+                    <span className="text-xs font-bold text-gray-600 whitespace-nowrap">
+                      {bulkProgress.completed}/{bulkProgress.total}
+                    </span>
+                  </div>
+                  {bulkProgress.failed > 0 && (
+                    <span className="text-xs font-bold text-red-500">
+                      {bulkProgress.failed} failed
+                    </span>
+                  )}
+                </>
+              ) : (
+                <>
+                  <span className="text-xs font-bold text-gray-600">
+                    {selectedIds.length} selected
+                  </span>
+                  <div className="h-4 w-px bg-gray-200" />
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-8 rounded-lg text-xs font-bold"
+                    onClick={() => handleBulkStatusChange('published')}
+                    disabled={params.status === 'published' || isBulkOperating}
+                  >
+                    Publish
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-8 rounded-lg text-xs font-bold"
+                    onClick={() => handleBulkStatusChange('draft')}
+                    disabled={params.status === 'draft' || isBulkOperating}
+                  >
+                    Move to Draft
+                  </Button>
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    className="h-8 rounded-lg text-xs font-bold"
+                    onClick={() => setDeleteState({ type: 'bulk' })}
+                    disabled={isBulkOperating}
+                  >
+                    Delete
+                  </Button>
+                </>
+              )}
             </div>
           )}
         </div>
@@ -468,9 +530,24 @@ export function QuestionList() {
                 onClick={(e) => e.stopPropagation()}
               />
               <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">
-                Select all 
+                Select all
               </span>
             </div>
+            {/* Select all across pages banner */}
+            {allVisibleSelected && data && data.total > visibleIds.length && (
+              <div className="flex items-center justify-center gap-2 px-6 py-2 bg-blue-50 border-b border-blue-100">
+                <span className="text-xs font-medium text-blue-700">
+                  All {visibleIds.length} questions on this page are selected.
+                </span>
+                <button
+                  onClick={handleSelectAllAcrossPages}
+                  disabled={isSelectingAll}
+                  className="text-xs font-bold text-blue-600 hover:text-blue-800 underline underline-offset-2 disabled:opacity-50"
+                >
+                  {isSelectingAll ? 'Selecting...' : `Select all ${data.total} questions`}
+                </button>
+              </div>
+            )}
             {data?.data.map((question, index) => (
               <motion.div
                 key={question.id}

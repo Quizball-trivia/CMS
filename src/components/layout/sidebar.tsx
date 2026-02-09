@@ -59,12 +59,6 @@ export function Sidebar() {
         })}
       </nav>
 
-      {/* Footer */}
-      <div className="p-4 mt-auto flex justify-center pb-8">
-        <div className="w-10 h-10 rounded-full bg-gray-100 border border-gray-200/50 flex items-center justify-center overflow-hidden cursor-pointer hover:bg-gray-200 transition-colors">
-          <span className="text-xs font-bold text-gray-500">A</span>
-        </div>
-      </div>
     </aside>
   );
 }

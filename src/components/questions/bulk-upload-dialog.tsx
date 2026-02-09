@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { toast } from 'sonner';
 import { parseQuestionFile, type ParsedQuestion, type ParseError } from '@/lib/parsers/question-parser';
 import { useBulkCreateQuestions, useCategories, useCheckDuplicates } from '@/hooks';
@@ -33,13 +33,15 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { Upload, AlertCircle, Trash2, Info } from 'lucide-react';
+import { Upload, AlertCircle, Trash2, Info, ChevronLeft, ChevronRight, CheckCircle2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { generateAnswerId } from '@/lib/question-utils';
+import { getDifficultyVariant } from '@/components/ui/difficulty-signal';
 import { Badge } from '@/components/ui/badge';
 import { getLocalizedText } from '@/lib/utils';
 import { Card, CardContent } from '@/components/ui/card';
 import { TicTacToeGame } from '@/components/games/tic-tac-toe-game';
+import { SnakeGame } from '@/components/games/snake-game';
 import { Checkbox } from '@/components/ui/checkbox';
 
 interface QuestionWithSelection extends ParsedQuestion {
@@ -74,54 +76,72 @@ export function BulkUploadDialog() {
     failed: 0,
     total: 0,
   });
+  const [isCheckingDuplicates, setIsCheckingDuplicates] = useState(false);
+  const [duplicateCheckProgress, setDuplicateCheckProgress] = useState({
+    checked: 0,
+    total: 0,
+  });
   const [page, setPage] = useState(1);
+  const [previewIndex, setPreviewIndex] = useState<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const latestQuestionsRef = useRef<QuestionWithSelection[]>([]);
+  const runDuplicateCheckRef = useRef<((questions: QuestionWithSelection[], locale: 'en' | 'ka') => Promise<void>) | null>(null);
 
   const { data: categories } = useCategories();
   const bulkCreate = useBulkCreateQuestions();
   const checkDuplicates = useCheckDuplicates();
 
-  const runDuplicateCheck = useCallback(async (questions: QuestionWithSelection[], locale: 'en' | 'ka') => {
-    try {
-      const prompts = questions.map(q => ({ [locale]: q.prompt }));
-      const duplicateResult = await checkDuplicates.mutateAsync({
-        locale,
-        prompts,
-      });
+  // Store stable function reference in ref to prevent useEffect re-triggers
+  useEffect(() => {
+    runDuplicateCheckRef.current = async (questions: QuestionWithSelection[], locale: 'en' | 'ka') => {
+      setIsCheckingDuplicates(true);
+      setDuplicateCheckProgress({ checked: 0, total: questions.length });
 
-      // Mark duplicates and auto-deselect them
-      const updated = questions.map((q, idx) => {
-        const duplicate = duplicateResult.duplicates.find(d => d.index === idx);
-        if (duplicate) {
-          return {
-            ...q,
-            isDuplicate: true,
-            isSelected: false, // Auto-deselect duplicates
-            duplicateInfo: {
-              existingQuestions: duplicate.existingQuestions,
-            },
-          };
+      try {
+        const prompts = questions.map(q => ({ [locale]: q.prompt }));
+        const duplicateResult = await checkDuplicates.mutateAsync({
+          locale,
+          prompts,
+          onProgress: (checked, total) => {
+            setDuplicateCheckProgress({ checked, total });
+          },
+        });
+
+        // Mark duplicates and auto-deselect them
+        const updated = questions.map((q, idx) => {
+          const duplicate = duplicateResult.duplicates.find(d => d.index === idx);
+          if (duplicate) {
+            return {
+              ...q,
+              isDuplicate: true,
+              isSelected: false, // Auto-deselect duplicates
+              duplicateInfo: {
+                existingQuestions: duplicate.existingQuestions,
+              },
+            };
+          }
+          return { ...q, isDuplicate: false, duplicateInfo: undefined };
+        });
+
+        setQuestionsWithState(updated);
+
+        // Show summary
+        const dupCount = duplicateResult.duplicates.length;
+        if (dupCount > 0) {
+          toast.warning(
+            `Found ${dupCount} duplicate question${dupCount > 1 ? 's' : ''}. They are unselected by default.`
+          );
         }
-        return { ...q, isDuplicate: false, duplicateInfo: undefined };
-      });
-
-      setQuestionsWithState(updated);
-
-      // Show summary
-      const dupCount = duplicateResult.duplicates.length;
-      if (dupCount > 0) {
-        toast.warning(
-          `Found ${dupCount} duplicate question${dupCount > 1 ? 's' : ''}. They are unselected by default.`
+      } catch {
+        toast.error('Failed to check for duplicates. You can still proceed with upload.');
+        // Keep all questions selected on error
+        setQuestionsWithState(prev =>
+          prev.map(q => ({ ...q, isSelected: true, isDuplicate: false, duplicateInfo: undefined }))
         );
+      } finally {
+        setIsCheckingDuplicates(false);
       }
-    } catch {
-      toast.error('Failed to check for duplicates. You can still proceed with upload.');
-      // Keep all questions selected on error
-      setQuestionsWithState(prev =>
-        prev.map(q => ({ ...q, isSelected: true, isDuplicate: false, duplicateInfo: undefined }))
-      );
-    }
+    };
   }, [checkDuplicates]);
 
   const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -176,7 +196,7 @@ export function BulkUploadDialog() {
       }
 
       // Check for duplicates
-      await runDuplicateCheck(questionsWithSelection, selectedLocale);
+      await runDuplicateCheckRef.current?.(questionsWithSelection, selectedLocale);
     };
 
     reader.onerror = () => {
@@ -284,6 +304,11 @@ export function BulkUploadDialog() {
         failed: 0,
         total: 0,
       });
+      setDuplicateCheckProgress({
+        checked: 0,
+        total: 0,
+      });
+      setIsCheckingDuplicates(false);
       setSelectedCategory('');
       setPage(1);
       if (fileInputRef.current) {
@@ -295,7 +320,7 @@ export function BulkUploadDialog() {
   // Computed values
   const selectedCount = questionsWithState.filter(q => q.isSelected).length;
   const duplicateCount = questionsWithState.filter(q => q.isDuplicate).length;
-  const canUpload = selectedCategory && selectedCount > 0 && !state.isUploading;
+  const canUpload = selectedCategory && selectedCount > 0 && !state.isUploading && !isCheckingDuplicates;
   const pageSize = 100;
   const totalPages = Math.max(1, Math.ceil(questionsWithState.length / pageSize));
   const currentPage = Math.min(page, totalPages);
@@ -303,19 +328,14 @@ export function BulkUploadDialog() {
   const pageQuestions = questionsWithState.slice(pageStart, pageStart + pageSize);
 
   useEffect(() => {
-    setPage((prev) => Math.min(prev, totalPages));
-  }, [totalPages]);
-
-  useEffect(() => {
     latestQuestionsRef.current = questionsWithState;
   }, [questionsWithState]);
 
-  // Re-check duplicates only when locale changes (not when runDuplicateCheck changes)
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+  // Re-check duplicates only when locale changes
   useEffect(() => {
     if (latestQuestionsRef.current.length === 0) return;
-    void runDuplicateCheck(latestQuestionsRef.current, selectedLocale);
-  }, [selectedLocale]);
+    void runDuplicateCheckRef.current?.(latestQuestionsRef.current, selectedLocale);
+  }, [selectedLocale]); // No runDuplicateCheck dependency - use ref to avoid multiple calls
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -334,7 +354,9 @@ export function BulkUploadDialog() {
           <DialogDescription>
             {state.isUploading
               ? `Creating questions: ${uploadProgress.successful + uploadProgress.failed} / ${uploadProgress.total}${uploadProgress.failed > 0 ? ` (${uploadProgress.failed} failed)` : ''}`
-              : 'Upload a .txt file with multiple questions to create them all at once. Maximum 100 questions per upload.'
+              : isCheckingDuplicates
+              ? `Checking for duplicates: ${duplicateCheckProgress.checked} / ${duplicateCheckProgress.total} questions`
+              : 'Upload a .txt file with multiple questions to create them all at once. Maximum 500 questions per upload.'
             }
           </DialogDescription>
         </DialogHeader>
@@ -343,6 +365,13 @@ export function BulkUploadDialog() {
           <div className="flex-1 flex items-center justify-center py-8">
             <TicTacToeGame
               uploadProgress={uploadProgress}
+              className="mt-4"
+            />
+          </div>
+        ) : isCheckingDuplicates ? (
+          <div className="flex-1 flex items-center justify-center py-8">
+            <SnakeGame
+              checkProgress={duplicateCheckProgress}
               className="mt-4"
             />
           </div>
@@ -506,9 +535,9 @@ Difficulty: Medium`}
                 <Label className="text-base font-semibold">
                   Parsed Questions ({questionsWithState.length})
                 </Label>
-                {questionsWithState.length > 100 && (
+                {questionsWithState.length > 500 && (
                   <Badge variant="destructive">
-                    Maximum 100 questions allowed
+                    Maximum 500 questions allowed
                   </Badge>
                 )}
               </div>
@@ -540,9 +569,16 @@ Difficulty: Medium`}
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {pageQuestions.map((q) => (
-                      <TableRow key={q.id} className={cn(!q.isSelected && 'opacity-50')}>
-                        <TableCell>
+                    {pageQuestions.map((q, rowIndex) => (
+                      <TableRow
+                        key={q.id}
+                        className={cn(
+                          'cursor-pointer hover:bg-muted/50',
+                          !q.isSelected && 'opacity-50'
+                        )}
+                        onClick={() => setPreviewIndex(pageStart + rowIndex)}
+                      >
+                        <TableCell onClick={(e) => e.stopPropagation()}>
                           <Checkbox
                             checked={q.isSelected}
                             onCheckedChange={(checked: boolean | 'indeterminate') => {
@@ -575,7 +611,7 @@ Difficulty: Medium`}
                             </Badge>
                           )}
                         </TableCell>
-                        <TableCell>
+                        <TableCell onClick={(e) => e.stopPropagation()}>
                           <Button
                             variant="ghost"
                             size="icon"
@@ -619,13 +655,24 @@ Difficulty: Medium`}
           </div>
         )}
 
+        {/* Question Preview Dialog */}
+        {previewIndex !== null && questionsWithState[previewIndex] && (
+          <ParsedQuestionPreviewDialog
+            question={questionsWithState[previewIndex]}
+            currentIndex={previewIndex}
+            totalQuestions={questionsWithState.length}
+            onClose={() => setPreviewIndex(null)}
+            onNavigate={setPreviewIndex}
+          />
+        )}
+
         <DialogFooter className="flex-shrink-0 border-t pt-4 mt-4">
-          <Button variant="outline" onClick={handleClose} disabled={state.isUploading}>
+          <Button variant="outline" onClick={handleClose} disabled={state.isUploading || isCheckingDuplicates}>
             Cancel
           </Button>
           <Button
             onClick={handleUpload}
-            disabled={!canUpload || selectedCount > 100}
+            disabled={!canUpload || selectedCount > 500}
           >
             {state.isUploading ? (
               <>Uploading...</>
@@ -634,6 +681,160 @@ Difficulty: Medium`}
             )}
           </Button>
         </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+interface ParsedQuestionPreviewDialogProps {
+  question: QuestionWithSelection;
+  currentIndex: number;
+  totalQuestions: number;
+  onClose: () => void;
+  onNavigate: (index: number) => void;
+}
+
+function ParsedQuestionPreviewDialog({
+  question,
+  currentIndex,
+  totalQuestions,
+  onClose,
+  onNavigate,
+}: ParsedQuestionPreviewDialogProps) {
+  const hasPrevious = currentIndex > 0;
+  const hasNext = currentIndex < totalQuestions - 1;
+
+  // Keyboard navigation
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'ArrowLeft' && hasPrevious) {
+        e.preventDefault();
+        onNavigate(currentIndex - 1);
+      } else if (e.key === 'ArrowRight' && hasNext) {
+        e.preventDefault();
+        onNavigate(currentIndex + 1);
+      } else if (e.key === 'Escape') {
+        e.preventDefault();
+        onClose();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [currentIndex, hasPrevious, hasNext, onNavigate, onClose]);
+
+  return (
+    <Dialog open onOpenChange={(isOpen) => !isOpen && onClose()}>
+      <DialogContent className="max-w-2xl" onClick={(e) => e.stopPropagation()}>
+        <DialogHeader className="pr-10">
+          <div className="flex items-center justify-between">
+            <DialogTitle>Question Preview</DialogTitle>
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-muted-foreground">
+                {currentIndex + 1} of {totalQuestions}
+              </span>
+              <div className="flex gap-1">
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="h-8 w-8"
+                  disabled={!hasPrevious}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (hasPrevious) onNavigate(currentIndex - 1);
+                  }}
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="h-8 w-8"
+                  disabled={!hasNext}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (hasNext) onNavigate(currentIndex + 1);
+                  }}
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+          </div>
+        </DialogHeader>
+
+        <div className="space-y-4">
+          {/* Header with badges */}
+          <div className="flex items-center gap-2 flex-wrap">
+            <Badge variant="outline" className={cn('border', getDifficultyVariant(question.difficulty))}>
+              {question.difficulty}
+            </Badge>
+            <Badge variant="outline">mcq_single</Badge>
+            {question.isDuplicate ? (
+              <Badge variant="destructive">Duplicate</Badge>
+            ) : (
+              <Badge variant="outline" className="text-green-600 border-green-600">New</Badge>
+            )}
+            {question.isSelected ? (
+              <Badge variant="default">Selected</Badge>
+            ) : (
+              <Badge variant="secondary">Not Selected</Badge>
+            )}
+          </div>
+
+          {/* Question Prompt */}
+          <div>
+            <Label className="text-xs text-muted-foreground">Question #{question.questionNumber}</Label>
+            <p className="text-sm font-medium mt-1">{question.prompt}</p>
+          </div>
+
+          {/* Options */}
+          <div>
+            <Label className="text-xs text-muted-foreground">Options</Label>
+            <div className="space-y-2 mt-1">
+              {question.options.map((option, index) => (
+                <div
+                  key={index}
+                  className={cn(
+                    'flex items-center gap-2 p-3 rounded-lg border text-sm',
+                    option.is_correct
+                      ? 'bg-green-50 border-green-200'
+                      : 'border-gray-200 bg-gray-50'
+                  )}
+                >
+                  <span className="font-semibold">
+                    {String.fromCharCode(65 + index)})
+                  </span>
+                  <span className="flex-1">{option.text}</span>
+                  {option.is_correct && (
+                    <CheckCircle2 className="ml-auto h-4 w-4 text-green-600" />
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Explanation */}
+          {question.explanation && (
+            <div>
+              <Label className="text-xs text-muted-foreground">Explanation</Label>
+              <p className="text-sm text-muted-foreground mt-1">{question.explanation}</p>
+            </div>
+          )}
+
+          {/* Duplicate Info */}
+          {question.isDuplicate && question.duplicateInfo && (
+            <Alert variant="destructive">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>
+                <p className="font-medium">This question already exists:</p>
+                <p className="text-sm mt-1">
+                  Category: {question.duplicateInfo.existingQuestions[0]?.category_name?.en || 'Unknown'}
+                </p>
+              </AlertDescription>
+            </Alert>
+          )}
+        </div>
       </DialogContent>
     </Dialog>
   );
