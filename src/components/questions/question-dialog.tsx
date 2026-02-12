@@ -562,13 +562,13 @@ export function QuestionDialog({
 
   const renderEditMode = () => {
     return (
-      <div className="space-y-6 font-inter">
-        {/* Category and Settings */}
-        <div className="grid grid-cols-2 gap-4">
-          <div className="space-y-2">
+      <div className="space-y-4 font-inter">
+        {/* Row 1: Category + Difficulty */}
+        <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-1.5">
             <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Category *</Label>
             <Select value={formData.category_id} onValueChange={(v) => setFormData(prev => ({ ...prev, category_id: v }))}>
-              <SelectTrigger className="h-11 rounded-xl border-slate-200 bg-white focus:ring-slate-100 focus:ring-offset-2 transition-all">
+              <SelectTrigger className="h-9 rounded-lg border-slate-200 bg-white text-sm">
                 <SelectValue placeholder="Select category" />
               </SelectTrigger>
               <SelectContent className="rounded-xl border-slate-200 shadow-xl">
@@ -581,10 +581,10 @@ export function QuestionDialog({
             </Select>
           </div>
 
-          <div className="space-y-2">
+          <div className="space-y-1.5">
             <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Difficulty *</Label>
             <Select value={formData.difficulty} onValueChange={(v: 'easy' | 'medium' | 'hard') => setFormData(prev => ({ ...prev, difficulty: v }))}>
-              <SelectTrigger className="h-11 rounded-xl border-slate-200 bg-white focus:ring-slate-100 focus:ring-offset-2 transition-all">
+              <SelectTrigger className="h-9 rounded-lg border-slate-200 bg-white text-sm">
                 <div className="flex items-center gap-2">
                   <DifficultySignal difficulty={formData.difficulty} />
                   <SelectValue />
@@ -614,8 +614,9 @@ export function QuestionDialog({
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
-          <div className="space-y-2">
+        {/* Row 2: Language + Type + Status — all in one row */}
+        <div className="grid grid-cols-3 gap-3">
+          <div className="space-y-1.5">
             <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Language *</Label>
             <Select value={formData.locale} onValueChange={(v: 'en' | 'ka') => {
               if (mode === 'edit' && displayQuestion) {
@@ -624,7 +625,7 @@ export function QuestionDialog({
                 setFormData(prev => ({ ...prev, locale: v }));
               }
             }}>
-              <SelectTrigger className="h-11 rounded-xl border-slate-200 bg-white focus:ring-slate-100 focus:ring-offset-2 transition-all">
+              <SelectTrigger className="h-9 rounded-lg border-slate-200 bg-white text-sm">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent className="rounded-xl border-slate-200 shadow-xl">
@@ -633,13 +634,11 @@ export function QuestionDialog({
               </SelectContent>
             </Select>
           </div>
-        </div>
 
-        <div className="grid grid-cols-2 gap-4">
-          <div className="space-y-2">
+          <div className="space-y-1.5">
             <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Type *</Label>
             <Select value={formData.type} onValueChange={(v: 'mcq_single' | 'input_text') => setFormData(prev => ({ ...prev, type: v }))}>
-              <SelectTrigger className="h-11 rounded-xl border-slate-200 bg-white focus:ring-slate-100 focus:ring-offset-2 transition-all">
+              <SelectTrigger className="h-9 rounded-lg border-slate-200 bg-white text-sm">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent className="rounded-xl border-slate-200 shadow-xl">
@@ -649,10 +648,10 @@ export function QuestionDialog({
             </Select>
           </div>
 
-          <div className="space-y-2">
+          <div className="space-y-1.5">
             <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Status *</Label>
             <Select value={formData.status} onValueChange={(v: QuestionStatus) => setFormData(prev => ({ ...prev, status: v }))}>
-              <SelectTrigger className="h-11 rounded-xl border-slate-200 bg-white focus:ring-slate-100 focus:ring-offset-2 transition-all">
+              <SelectTrigger className="h-9 rounded-lg border-slate-200 bg-white text-sm">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent className="rounded-xl border-slate-200 shadow-xl">
@@ -665,25 +664,25 @@ export function QuestionDialog({
         </div>
 
         {/* Question Prompt */}
-        <div className="space-y-2">
+        <div className="space-y-1.5">
           <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Question *</Label>
           <Textarea
             value={formData.prompt}
             onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setFormData(prev => ({ ...prev, prompt: e.target.value }))}
             placeholder="Enter your question here..."
-            className="min-h-[100px] rounded-xl border-slate-200 bg-white focus:ring-slate-100 focus:ring-offset-2 transition-all font-medium leading-relaxed resize-none"
+            className="min-h-[72px] rounded-xl border-slate-200 bg-white focus:ring-slate-100 focus:ring-offset-2 transition-all font-medium leading-relaxed resize-none text-sm"
           />
         </div>
 
         {/* Options (MCQ) or Accepted Answers (Text Input) */}
         {formData.type === 'mcq_single' ? (
-          <div className="space-y-3">
-            <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Options * (click to mark as correct)</Label>
-            <div className="grid gap-3 mt-1">
+          <div className="space-y-1.5">
+            <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Options * (click to mark correct)</Label>
+            <div className="grid gap-2">
               {formData.options.map((option, index) => (
-                <div key={index} className="flex items-center gap-3 group">
-                  <span className="font-black text-xs w-6 text-slate-300 group-focus-within:text-slate-900 transition-colors">
-                    {String.fromCharCode(65 + index)})
+                <div key={index} className="flex items-center gap-2 group">
+                  <span className="font-black text-xs w-5 text-slate-300 group-focus-within:text-slate-900 transition-colors">
+                    {String.fromCharCode(65 + index)}
                   </span>
                   <Input
                     value={option.text}
@@ -692,8 +691,8 @@ export function QuestionDialog({
                       newOptions[index].text = e.target.value;
                       setFormData(prev => ({ ...prev, options: newOptions }));
                     }}
-                    placeholder={`Option ${String.fromCharCode(65 + index)} text...`}
-                    className="flex-1 h-11 rounded-xl border-slate-200 bg-white focus:ring-slate-100 focus:ring-offset-2 transition-all font-medium"
+                    placeholder={`Option ${String.fromCharCode(65 + index)}...`}
+                    className="flex-1 h-9 rounded-lg border-slate-200 bg-white transition-all font-medium text-sm"
                   />
                   <button
                     type="button"
@@ -705,13 +704,13 @@ export function QuestionDialog({
                       setFormData(prev => ({ ...prev, options: newOptions }));
                     }}
                     className={cn(
-                      "p-2.5 rounded-xl border transition-all duration-300 shadow-sm",
+                      "p-1.5 rounded-lg border transition-all duration-300",
                       option.is_correct
-                        ? "bg-emerald-50 border-emerald-500 text-emerald-600 shadow-emerald-100"
+                        ? "bg-emerald-50 border-emerald-500 text-emerald-600"
                         : "bg-white border-slate-200 text-slate-300 hover:border-emerald-200 hover:text-emerald-400"
                     )}
                   >
-                    <CheckCircle2 className={cn("h-5 w-5 transition-transform duration-300", option.is_correct ? "scale-110" : "scale-100")} />
+                    <CheckCircle2 className={cn("h-4 w-4 transition-transform duration-300", option.is_correct ? "scale-110" : "scale-100")} />
                   </button>
                 </div>
               ))}
@@ -733,18 +732,18 @@ export function QuestionDialog({
         )}
 
         {/* Explanation */}
-        <div className="space-y-2">
+        <div className="space-y-1.5">
           <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Explanation (optional)</Label>
           <Textarea
             value={formData.explanation}
             onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setFormData(prev => ({ ...prev, explanation: e.target.value }))}
-            placeholder="Provide context for the correct answer..."
-            className="min-h-[80px] rounded-xl border-slate-200 bg-white focus:ring-slate-100 focus:ring-offset-2 transition-all text-sm font-medium leading-relaxed resize-none text-slate-500"
+            placeholder="Context for the correct answer..."
+            className="min-h-[56px] rounded-xl border-slate-200 bg-white focus:ring-slate-100 focus:ring-offset-2 transition-all text-sm font-medium leading-relaxed resize-none text-slate-500"
           />
         </div>
 
         {/* Action Buttons */}
-        <div className="flex gap-3 pt-6 border-t border-slate-100">
+        <div className="flex gap-3 pt-4 border-t border-slate-100">
           <Button
             variant="ghost"
             onClick={handleCancel}
@@ -779,8 +778,8 @@ export function QuestionDialog({
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       {trigger && <DialogTrigger asChild>{trigger}</DialogTrigger>}
-      <DialogContent className="max-w-2xl bg-white border border-slate-200 shadow-2xl rounded-[1.5rem] p-8 overflow-hidden font-inter focus:outline-none" onClick={(e) => e.stopPropagation()}>
-        <DialogHeader className="pr-12 pb-6">
+      <DialogContent className="max-w-2xl bg-white border border-slate-200 shadow-2xl rounded-[1.5rem] p-6 overflow-hidden font-inter focus:outline-none" onClick={(e) => e.stopPropagation()}>
+        <DialogHeader className="pr-12 pb-4">
           <div className="flex items-center justify-between">
             <DialogTitle className="text-2xl font-black text-slate-900 tracking-tight">
               {mode === 'create' ? 'New Question' : mode === 'edit' ? 'Edit Question' : 'Question Preview'}
