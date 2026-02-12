@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { toast } from 'sonner';
-import { useUpdateQuestionStatus, useUpdateQuestion, useCreateQuestion, useCategories, useCheckDuplicates } from '@/hooks';
+import { useUpdateQuestionStatus, useUpdateQuestion, useCreateQuestion, useDeleteQuestion, useCategories, useCheckDuplicates } from '@/hooks';
 import type { Question, QuestionStatus, CreateQuestionRequest, UpdateQuestionRequest } from '@/types';
 import {
   Dialog,
@@ -23,8 +23,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Eye, EyeOff, Edit, CheckCircle2, ChevronLeft, ChevronRight, Save, X, Loader2 } from 'lucide-react';
-import { getLocalizedText, cn } from '@/lib/utils';
+import { Eye, EyeOff, Edit, CheckCircle2, ChevronLeft, ChevronRight, Save, X, Loader2, Trash2 } from 'lucide-react';
+import { getLocalizedText, getLocalizedTextByLang, cn } from '@/lib/utils';
 import { TextInputEditor, type AnswerWithId } from './text-input-editor';
 import { DifficultySignal, getDifficultyVariant } from '@/components/ui/difficulty-signal';
 import { questionToFormData, generateAnswerId } from '@/lib/question-utils';
@@ -63,10 +63,14 @@ export function QuestionDialog({
   const open = controlledOpen !== undefined ? controlledOpen : internalOpen;
   const setOpen = controlledOnOpenChange || setInternalOpen;
 
+  const [viewLang, setViewLang] = useState<'en' | 'ka'>('en');
+  const [confirmDelete, setConfirmDelete] = useState(false);
+
   const { data: categories } = useCategories();
   const updateStatus = useUpdateQuestionStatus();
   const updateQuestion = useUpdateQuestion();
   const createQuestion = useCreateQuestion();
+  const deleteQuestionMutation = useDeleteQuestion();
   const checkDuplicates = useCheckDuplicates();
 
   const isSubmitting = createQuestion.isPending || checkDuplicates.isPending;
@@ -121,6 +125,7 @@ export function QuestionDialog({
     if (isOpen) {
       setActiveIndex(currentIndex);
       setMode(initialMode);
+      setConfirmDelete(false);
 
       if (initialMode === 'edit') {
         const selectedQuestion = allQuestions.length > 0 ? allQuestions[currentIndex] : question;
@@ -154,6 +159,7 @@ export function QuestionDialog({
   // Handle navigation
   const handleNavigate = useCallback((newIndex: number) => {
     setActiveIndex(newIndex);
+    setConfirmDelete(false);
     if (onNavigate) {
       onNavigate(newIndex);
     }
@@ -198,6 +204,32 @@ export function QuestionDialog({
       setFormData(questionToFormData(displayQuestion, formData.locale || 'en'));
     }
     setMode('edit');
+  };
+
+  const handleDelete = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!displayQuestion) return;
+
+    if (!confirmDelete) {
+      setConfirmDelete(true);
+      return;
+    }
+
+    try {
+      await deleteQuestionMutation.mutateAsync(displayQuestion.id);
+      toast.success('Question deleted');
+      setConfirmDelete(false);
+
+      if (hasNext) {
+        // Stay at same index — next question slides in via React Query invalidation
+      } else if (hasPrevious) {
+        handleNavigate(activeIndex - 1);
+      } else {
+        setOpen(false);
+      }
+    } catch {
+      toast.error('Failed to delete question');
+    }
   };
 
   const buildCreatePayload = (): CreateQuestionRequest => {
@@ -345,34 +377,58 @@ export function QuestionDialog({
 
     return (
       <div className="space-y-6 font-inter">
-        {/* Header with badges */}
-        <div className="flex items-center gap-3 flex-wrap">
-          <div className="flex items-center gap-2 bg-slate-50 px-3 py-1.5 rounded-full border border-slate-100">
-            <DifficultySignal difficulty={displayQuestion.difficulty} />
-            <span className={cn("text-[10px] font-black uppercase tracking-widest", getDifficultyVariant(displayQuestion.difficulty).split(' ')[1])}>
-              {displayQuestion.difficulty}
-            </span>
+        {/* Header with badges + language toggle */}
+        <div className="flex items-center justify-between flex-wrap gap-2">
+          <div className="flex items-center gap-3 flex-wrap">
+            <div className="flex items-center gap-2 bg-slate-50 px-3 py-1.5 rounded-full border border-slate-100">
+              <DifficultySignal difficulty={displayQuestion.difficulty} />
+              <span className={cn("text-[10px] font-black uppercase tracking-widest", getDifficultyVariant(displayQuestion.difficulty).split(' ')[1])}>
+                {displayQuestion.difficulty}
+              </span>
+            </div>
+
+            <Badge variant="outline" className="rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-widest border-slate-200 bg-slate-50/50">
+              {displayQuestion.type}
+            </Badge>
+            <Badge
+              variant={displayQuestion.status === 'published' ? 'default' : 'secondary'}
+              className={cn(
+                "rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-widest transition-all",
+                displayQuestion.status === 'published' ? "bg-slate-900 shadow-sm" : "bg-slate-100 text-slate-500"
+              )}
+            >
+              {displayQuestion.status}
+            </Badge>
           </div>
 
-          <Badge variant="outline" className="rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-widest border-slate-200 bg-slate-50/50">
-            {displayQuestion.type}
-          </Badge>
-          <Badge 
-            variant={displayQuestion.status === 'published' ? 'default' : 'secondary'}
-            className={cn(
-              "rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-widest transition-all",
-              displayQuestion.status === 'published' ? "bg-slate-900 shadow-sm" : "bg-slate-100 text-slate-500"
-            )}
-          >
-            {displayQuestion.status}
-          </Badge>
+          {/* Language toggle */}
+          <div className="flex rounded-xl border border-slate-200 overflow-hidden text-xs font-black uppercase tracking-widest">
+            <button
+              className={cn(
+                'px-3 py-1.5 transition-all',
+                viewLang === 'en' ? 'bg-slate-900 text-white' : 'bg-white text-slate-400 hover:bg-slate-50'
+              )}
+              onClick={() => setViewLang('en')}
+            >
+              EN
+            </button>
+            <button
+              className={cn(
+                'px-3 py-1.5 transition-all',
+                viewLang === 'ka' ? 'bg-slate-900 text-white' : 'bg-white text-slate-400 hover:bg-slate-50'
+              )}
+              onClick={() => setViewLang('ka')}
+            >
+              KA
+            </button>
+          </div>
         </div>
 
         {/* Question Prompt */}
         <div className="space-y-2">
           <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Question</Label>
           <p className="text-lg font-semibold text-slate-900 leading-snug">
-            {getLocalizedText(displayQuestion.prompt, 'Untitled Question')}
+            {getLocalizedTextByLang(displayQuestion.prompt, viewLang, 'Untitled Question')}
           </p>
         </div>
 
@@ -401,7 +457,7 @@ export function QuestionDialog({
                     "flex-1 text-sm font-medium transition-colors",
                     option.is_correct ? "text-emerald-900" : "text-slate-600"
                   )}>
-                    {getLocalizedText(option.text)}
+                    {getLocalizedTextByLang(option.text, viewLang)}
                   </span>
                   {option.is_correct && (
                     <div className="h-6 w-6 rounded-full bg-emerald-500 flex items-center justify-center shadow-sm animate-in zoom-in duration-300">
@@ -428,7 +484,7 @@ export function QuestionDialog({
                     {index + 1}
                   </span>
                   <span className="flex-1 text-sm font-medium text-emerald-900">
-                    {getLocalizedText(answer)}
+                    {getLocalizedTextByLang(answer, viewLang)}
                   </span>
                   <div className="h-6 w-6 rounded-full bg-emerald-500 flex items-center justify-center shadow-sm">
                     <CheckCircle2 className="h-4 w-4 text-white" />
@@ -438,7 +494,7 @@ export function QuestionDialog({
             </div>
             {displayQuestion.payload.case_sensitive && (
               <p className="text-xs text-slate-500 font-medium">
-                ⚠️ Case sensitive matching enabled
+                Case sensitive matching enabled
               </p>
             )}
           </div>
@@ -449,7 +505,7 @@ export function QuestionDialog({
           <div className="space-y-2 p-4 bg-slate-50 rounded-2xl border border-slate-100">
             <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Explanation</Label>
             <p className="text-sm text-slate-600 leading-relaxed font-medium">
-              {getLocalizedText(displayQuestion.explanation)}
+              {getLocalizedTextByLang(displayQuestion.explanation, viewLang)}
             </p>
           </div>
         )}
@@ -461,8 +517,8 @@ export function QuestionDialog({
             onClick={handleToggleStatus}
             className={cn(
               "flex-1 h-11 rounded-xl font-bold transition-all text-sm",
-              displayQuestion.status === 'published' 
-                ? "text-slate-500 hover:bg-slate-100 hover:text-slate-900" 
+              displayQuestion.status === 'published'
+                ? "text-slate-500 hover:bg-slate-100 hover:text-slate-900"
                 : "text-emerald-600 hover:bg-emerald-50 hover:text-emerald-700"
             )}
             disabled={updateStatus.isPending}
@@ -479,13 +535,25 @@ export function QuestionDialog({
               </>
             )}
           </Button>
-          <Button 
+          <Button
             variant="outline"
             onClick={handleEdit}
             className="flex-1 h-11 rounded-xl border-slate-200 font-bold text-slate-700 hover:bg-slate-50 transition-all text-sm"
           >
             <Edit className="mr-2 h-4 w-4" />
             Edit Details
+          </Button>
+          <Button
+            variant={confirmDelete ? 'destructive' : 'ghost'}
+            onClick={handleDelete}
+            disabled={deleteQuestionMutation.isPending}
+            className={cn(
+              "h-11 rounded-xl font-bold transition-all text-sm",
+              !confirmDelete && "text-red-400 hover:bg-red-50 hover:text-red-600"
+            )}
+          >
+            <Trash2 className="mr-2 h-4 w-4" />
+            {confirmDelete ? 'Confirm?' : 'Delete'}
           </Button>
         </div>
       </div>
@@ -549,7 +617,13 @@ export function QuestionDialog({
         <div className="grid grid-cols-2 gap-4">
           <div className="space-y-2">
             <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Language *</Label>
-            <Select value={formData.locale} onValueChange={(v: 'en' | 'ka') => setFormData(prev => ({ ...prev, locale: v }))}>
+            <Select value={formData.locale} onValueChange={(v: 'en' | 'ka') => {
+              if (mode === 'edit' && displayQuestion) {
+                setFormData(questionToFormData(displayQuestion, v));
+              } else {
+                setFormData(prev => ({ ...prev, locale: v }));
+              }
+            }}>
               <SelectTrigger className="h-11 rounded-xl border-slate-200 bg-white focus:ring-slate-100 focus:ring-offset-2 transition-all">
                 <SelectValue />
               </SelectTrigger>

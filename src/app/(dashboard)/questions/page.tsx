@@ -1,6 +1,6 @@
 'use client';
 
-import { QuestionList, DuplicateManagerDialog } from '@/components/questions';
+import { QuestionList, DuplicateManagerDialog, TranslateBackfillDialog } from '@/components/questions';
 import { BulkUploadDialog } from '@/components/questions/bulk-upload-dialog';
 import { QuestionDialog } from '@/components/questions/question-dialog';
 import { Button } from '@/components/ui/button';
@@ -18,6 +18,7 @@ export default function QuestionsPage() {
           </header>
 
           <div className="flex items-center gap-2 shrink-0">
+            <TranslateBackfillDialog />
             <DuplicateManagerDialog />
             <BulkUploadDialog />
             <QuestionDialog

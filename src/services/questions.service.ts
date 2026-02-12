@@ -96,6 +96,30 @@ export const questionsService = {
     return allIds;
   },
 
+  async translateBackfill(): Promise<{
+    status: 'started' | 'done';
+    total: number;
+    remaining: number;
+    categories: number;
+  }> {
+    logger.debug('api', 'POST /questions/translate/backfill');
+    const result = await apiClient.post<{
+      status: 'started' | 'done';
+      total: number;
+      remaining: number;
+      categories: number;
+    }>('/questions/translate/backfill');
+    logger.debug('api', 'POST /questions/translate/backfill response', result);
+    return result;
+  },
+
+  async translateStatus(): Promise<{
+    questions: number;
+    categories: number;
+  }> {
+    return apiClient.get<{ questions: number; categories: number }>('/questions/translate/status');
+  },
+
   async findDuplicates(params?: FindDuplicatesParams): Promise<DuplicatesResponse> {
     logger.debug('api', 'GET /questions/duplicates', { params });
     const result = await apiClient.get<DuplicatesResponse>('/questions/duplicates', params as Record<string, string | number | boolean | undefined>);

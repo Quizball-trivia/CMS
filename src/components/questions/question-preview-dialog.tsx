@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { toast } from 'sonner';
-import { useUpdateQuestionStatus } from '@/hooks';
+import { useUpdateQuestionStatus, useDeleteQuestion } from '@/hooks';
 import type { Question, QuestionStatus } from '@/types';
 import {
   Dialog,
@@ -14,8 +14,8 @@ import {
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
-import { Eye, EyeOff, Edit, CheckCircle2, ChevronLeft, ChevronRight } from 'lucide-react';
-import { getLocalizedText } from '@/lib/utils';
+import { Eye, EyeOff, Edit, CheckCircle2, ChevronLeft, ChevronRight, Trash2 } from 'lucide-react';
+import { getLocalizedTextByLang } from '@/lib/utils';
 import { cn } from '@/lib/utils';
 import { useRouter } from 'next/navigation';
 import { getDifficultyVariant } from '@/components/ui/difficulty-signal';
@@ -37,8 +37,11 @@ export function QuestionPreviewDialog({
 }: QuestionPreviewDialogProps) {
   const [open, setOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(currentIndex);
+  const [lang, setLang] = useState<'en' | 'ka'>('en');
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const router = useRouter();
   const updateStatus = useUpdateQuestionStatus();
+  const deleteQuestion = useDeleteQuestion();
 
   const totalQuestions = allQuestions.length;
   const hasPrevious = activeIndex > 0;
@@ -59,6 +62,7 @@ export function QuestionPreviewDialog({
     setOpen(isOpen);
     if (isOpen) {
       setActiveIndex(clampIndex(currentIndex));
+      setConfirmDelete(false);
     }
   };
 
@@ -106,6 +110,37 @@ export function QuestionPreviewDialog({
     setOpen(false);
     router.push(`/questions/${displayQuestion.id}`);
   };
+
+  const handleDelete = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!confirmDelete) {
+      setConfirmDelete(true);
+      return;
+    }
+
+    try {
+      await deleteQuestion.mutateAsync(displayQuestion.id);
+      toast.success('Question deleted');
+      setConfirmDelete(false);
+
+      // Navigate to next question or close if none left
+      if (hasNext) {
+        // Index stays the same — the next question slides into this position
+        // But we need to trigger a re-render since allQuestions will update via React Query
+      } else if (hasPrevious) {
+        handleNavigate(activeIndex - 1);
+      } else {
+        setOpen(false);
+      }
+    } catch {
+      toast.error('Failed to delete question');
+    }
+  };
+
+  // Reset confirmDelete when navigating
+  useEffect(() => {
+    setConfirmDelete(false);
+  }, [activeIndex]);
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
@@ -160,24 +195,46 @@ export function QuestionPreviewDialog({
         </DialogHeader>
 
         <div className="space-y-4">
-          {/* Header with badges */}
-          <div className="flex items-center gap-2 flex-wrap">
-            <Badge variant="outline" className={cn('border', getDifficultyVariant(displayQuestion.difficulty))}>
-              {displayQuestion.difficulty}
-            </Badge>
-            <Badge variant="outline">{displayQuestion.type}</Badge>
-            <Badge
-              variant={displayQuestion.status === 'published' ? 'default' : 'secondary'}
-            >
-              {displayQuestion.status}
-            </Badge>
+          {/* Header with badges + language toggle */}
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
+              <Badge variant="outline" className={cn('border', getDifficultyVariant(displayQuestion.difficulty))}>
+                {displayQuestion.difficulty}
+              </Badge>
+              <Badge variant="outline">{displayQuestion.type}</Badge>
+              <Badge
+                variant={displayQuestion.status === 'published' ? 'default' : 'secondary'}
+              >
+                {displayQuestion.status}
+              </Badge>
+            </div>
+            <div className="flex rounded-lg border overflow-hidden text-xs font-semibold">
+              <button
+                className={cn(
+                  'px-3 py-1.5 transition-colors',
+                  lang === 'en' ? 'bg-gray-900 text-white' : 'bg-white text-gray-500 hover:bg-gray-50'
+                )}
+                onClick={() => setLang('en')}
+              >
+                EN
+              </button>
+              <button
+                className={cn(
+                  'px-3 py-1.5 transition-colors',
+                  lang === 'ka' ? 'bg-gray-900 text-white' : 'bg-white text-gray-500 hover:bg-gray-50'
+                )}
+                onClick={() => setLang('ka')}
+              >
+                KA
+              </button>
+            </div>
           </div>
 
           {/* Question Prompt */}
           <div>
             <Label className="text-xs text-muted-foreground">Question</Label>
             <p className="text-sm font-medium mt-1">
-              {getLocalizedText(displayQuestion.prompt, 'Untitled Question')}
+              {getLocalizedTextByLang(displayQuestion.prompt, lang, 'Untitled Question')}
             </p>
           </div>
 
@@ -199,7 +256,7 @@ export function QuestionPreviewDialog({
                     <span className="font-semibold">
                       {String.fromCharCode(65 + index)})
                     </span>
-                    <span className="flex-1">{getLocalizedText(option.text)}</span>
+                    <span className="flex-1">{getLocalizedTextByLang(option.text, lang)}</span>
                     {option.is_correct && (
                       <CheckCircle2 className="ml-auto h-4 w-4 text-green-600" />
                     )}
@@ -220,7 +277,7 @@ export function QuestionPreviewDialog({
                     className="flex items-center gap-2 p-2 rounded-lg border border-gray-200 bg-gray-50 text-sm"
                   >
                     <CheckCircle2 className="h-4 w-4 text-green-600" />
-                    <span>{getLocalizedText(answer)}</span>
+                    <span>{getLocalizedTextByLang(answer, lang)}</span>
                   </div>
                 ))}
               </div>
@@ -235,7 +292,7 @@ export function QuestionPreviewDialog({
             <div>
               <Label className="text-xs text-muted-foreground">Explanation</Label>
               <p className="text-sm text-muted-foreground mt-1">
-                {getLocalizedText(displayQuestion.explanation)}
+                {getLocalizedTextByLang(displayQuestion.explanation, lang)}
               </p>
             </div>
           )}
@@ -268,6 +325,16 @@ export function QuestionPreviewDialog({
             >
               <Edit className="mr-2 h-3 w-3" />
               Edit
+            </Button>
+            <Button
+              size="sm"
+              variant={confirmDelete ? 'destructive' : 'outline'}
+              onClick={handleDelete}
+              disabled={deleteQuestion.isPending}
+              className={cn(!confirmDelete && 'text-red-500 hover:text-red-600 hover:bg-red-50')}
+            >
+              <Trash2 className="mr-2 h-3 w-3" />
+              {confirmDelete ? 'Confirm?' : 'Delete'}
             </Button>
           </div>
         </div>

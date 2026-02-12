@@ -350,7 +350,7 @@ export function QuestionForm({ question, onSuccess }: QuestionFormProps) {
               </CardHeader>
               <CardContent className="p-6 pt-0 overflow-y-auto max-h-[400px] scrollbar-hide">
                 {questionType === 'mcq_single' ? (
-                  <McqEditor options={mcqOptions} onChange={setMcqOptions} />
+                  <McqEditor options={mcqOptions} onChange={setMcqOptions} locale={previewLang} />
                 ) : (
                   <TextInputEditor
                     acceptedAnswers={acceptedAnswers}

@@ -4,3 +4,4 @@ export { DuplicateManagerDialog } from './duplicate-manager-dialog';
 export { QuestionForm } from './question-form';
 export { McqEditor } from './mcq-editor';
 export { TextInputEditor } from './text-input-editor';
+export { TranslateBackfillDialog } from './translate-backfill-dialog';

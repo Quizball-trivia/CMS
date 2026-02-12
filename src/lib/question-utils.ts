@@ -20,11 +20,8 @@ export interface QuestionFormData {
  * @returns Form data ready for use in question forms
  */
 export function questionToFormData(question: Question, preferredLocale: 'en' | 'ka' = 'en'): QuestionFormData {
-  // Use preferred locale if available, otherwise use first available locale, fallback to 'en'
-  const availableLocales = Object.keys(question.prompt || {});
-  const locale = availableLocales.includes(preferredLocale)
-    ? preferredLocale
-    : (availableLocales[0] as 'en' | 'ka') || 'en';
+  // Always use the requested locale so the user can add translations for missing locales
+  const locale = preferredLocale;
 
   const baseData = {
     category_id: question.category_id,
