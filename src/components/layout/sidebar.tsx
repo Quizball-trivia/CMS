@@ -3,11 +3,15 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
+import { ACTIVITY_ALLOWED_EMAIL } from '@/lib/constants';
+import { useAuth } from '@/providers';
 import {
   Layers,
   HelpCircle,
-  Trophy
+  Trophy,
+  Activity,
 } from 'lucide-react';
+
 const navItems = [
   {
     title: 'Categories',
@@ -23,6 +27,14 @@ const navItems = [
 
 export function Sidebar() {
   const pathname = usePathname();
+  const { user } = useAuth();
+
+  const allNavItems = [
+    ...navItems,
+    ...(user?.email === ACTIVITY_ALLOWED_EMAIL
+      ? [{ title: 'Activity', href: '/activity', icon: Activity }]
+      : []),
+  ];
 
   return (
     <aside className="w-20 bg-[#f8f9fb] border-r border-gray-200/50 flex flex-col h-screen sticky top-0 z-[100]">
@@ -35,7 +47,7 @@ export function Sidebar() {
 
       {/* Navigation */}
       <nav className="flex-1 flex flex-col items-center gap-4 py-2">
-        {navItems.map((item) => {
+        {allNavItems.map((item) => {
           const isActive = pathname.startsWith(item.href);
           const Icon = item.icon;
           return (

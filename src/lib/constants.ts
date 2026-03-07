@@ -22,6 +22,8 @@ export const QUESTION_TYPE_LABELS: Record<string, string> = {
   input_text: 'Text Input',
 };
 
+export const ACTIVITY_ALLOWED_EMAIL = 'bighead@quizball.com';
+
 export const AUTH_TOKEN_KEY = 'quizball_auth_token';
 export const REFRESH_TOKEN_KEY = 'quizball_refresh_token';
 export const AUTH_EXPIRY_KEY = 'quizball_auth_expires_at';
