@@ -24,10 +24,11 @@ function aggregateWeekly(days: DayActivity[]): DayActivity[] {
   const weeks = new Map<string, DayActivity>();
 
   for (const day of days) {
-    const date = new Date(day.date);
+    const [y, m, d] = day.date.split('-').map(Number);
+    const date = new Date(Date.UTC(y, m - 1, d));
     // Get Monday of the week
     const monday = new Date(date);
-    monday.setDate(date.getDate() - ((date.getDay() + 6) % 7));
+    monday.setUTCDate(date.getUTCDate() - ((date.getUTCDay() + 6) % 7));
     const weekKey = monday.toISOString().split('T')[0];
 
     const existing = weeks.get(weekKey);
@@ -80,13 +81,16 @@ export function ActivityChart({ days }: ActivityChartProps) {
                 dataKey="date"
                 tick={{ fontSize: 11 }}
                 tickFormatter={(val: string) => {
-                  const d = new Date(val);
-                  return `${d.getMonth() + 1}/${d.getDate()}`;
+                  const [, m, d] = val.split('-');
+                  return `${Number(m)}/${Number(d)}`;
                 }}
               />
               <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
               <Tooltip
-                labelFormatter={(val) => new Date(String(val)).toLocaleDateString()}
+                labelFormatter={(val) => {
+                  const [y, m, d] = String(val).split('-');
+                  return `${Number(m)}/${Number(d)}/${y}`;
+                }}
                 contentStyle={{ fontSize: 12, borderRadius: 8 }}
               />
               <Legend wrapperStyle={{ fontSize: 12 }} />
