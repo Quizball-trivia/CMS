@@ -20,6 +20,9 @@ export const DIFFICULTY_LABELS: Record<string, string> = {
 export const QUESTION_TYPE_LABELS: Record<string, string> = {
   mcq_single: 'Multiple Choice',
   input_text: 'Text Input',
+  countdown_list: 'Countdown List',
+  clue_chain: 'Clue Chain',
+  put_in_order: 'Put In Order',
 };
 
 export const ACTIVITY_ALLOWED_EMAIL = 'bighead@quizball.com';

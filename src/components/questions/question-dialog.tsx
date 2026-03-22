@@ -3,7 +3,15 @@
 import { useState, useEffect, useCallback } from 'react';
 import { toast } from 'sonner';
 import { useUpdateQuestionStatus, useUpdateQuestion, useCreateQuestion, useDeleteQuestion, useCategories, useCheckDuplicates } from '@/hooks';
-import type { Question, QuestionStatus, CreateQuestionRequest, UpdateQuestionRequest } from '@/types';
+import type {
+  ClueChainPayload,
+  CountdownPayload,
+  CreateQuestionRequest,
+  PutInOrderPayload,
+  Question,
+  QuestionStatus,
+  UpdateQuestionRequest,
+} from '@/types';
 import {
   Dialog,
   DialogContent,
@@ -27,8 +35,11 @@ import { Eye, EyeOff, Edit, CheckCircle2, ChevronLeft, ChevronRight, Save, X, Lo
 import { getLocalizedText, getLocalizedTextByLang, cn } from '@/lib/utils';
 import { TextInputEditor, type AnswerWithId } from './text-input-editor';
 import { DifficultySignal, getDifficultyVariant } from '@/components/ui/difficulty-signal';
-import { questionToFormData, generateAnswerId } from '@/lib/question-utils';
+import { createDefaultAdvancedPayload, questionToFormData, generateAnswerId, type AdvancedQuestionPayload } from '@/lib/question-utils';
 import { DuplicateConfirmationDialog } from './duplicate-confirmation-dialog';
+import { CountdownListEditor } from './countdown-list-editor';
+import { ClueChainEditor } from './clue-chain-editor';
+import { PutInOrderEditor } from './put-in-order-editor';
 
 type DialogMode = 'view' | 'edit' | 'create';
 
@@ -95,12 +106,13 @@ export function QuestionDialog({
     locale: 'en' | 'ka';
     difficulty: 'easy' | 'medium' | 'hard';
     status: QuestionStatus;
-    type: 'mcq_single' | 'input_text';
+    type: 'mcq_single' | 'input_text' | 'countdown_list' | 'clue_chain' | 'put_in_order';
     prompt: string;
     explanation: string;
     options: Array<{ id?: string; text: string; is_correct: boolean }>;
     acceptedAnswers: AnswerWithId[];
     caseSensitive: boolean;
+    customPayload: AdvancedQuestionPayload | null;
   }>({
     category_id: '',
     locale: 'en',
@@ -117,6 +129,7 @@ export function QuestionDialog({
     ],
     acceptedAnswers: [{ id: generateAnswerId(), en: '' }],
     caseSensitive: false,
+    customPayload: null,
   });
 
   // Reset activeIndex when dialog opens
@@ -151,6 +164,7 @@ export function QuestionDialog({
           ],
           acceptedAnswers: [{ id: generateAnswerId(), en: '' }],
           caseSensitive: false,
+          customPayload: null,
         });
       }
     }
@@ -251,13 +265,15 @@ export function QuestionDialog({
               is_correct: opt.is_correct,
             })),
           }
-        : {
-            type: 'input_text',
-            accepted_answers: formData.acceptedAnswers
-              .filter(a => (a[locale] || '').trim())
-              .map(a => ({ [locale]: a[locale] })),
-            case_sensitive: formData.caseSensitive,
-          },
+        : formData.type === 'input_text'
+          ? {
+              type: 'input_text',
+              accepted_answers: formData.acceptedAnswers
+                .filter(a => (a[locale] || '').trim())
+                .map(a => ({ [locale]: a[locale] })),
+              case_sensitive: formData.caseSensitive,
+            }
+          : formData.customPayload!,
     };
   };
 
@@ -292,6 +308,9 @@ export function QuestionDialog({
         toast.error('At least one accepted answer is required');
         return;
       }
+    } else if (!formData.customPayload || formData.customPayload.type !== formData.type) {
+      toast.error('Challenge payload is incomplete');
+      return;
     }
 
     try {
@@ -326,7 +345,6 @@ export function QuestionDialog({
                 type: 'mcq_single',
                 options: formData.options.map((opt, idx) => {
                   const optionId = opt.id || generateAnswerId();
-                  // Prefer id-based match; fall back to index to preserve other locales.
                   const existingOption = displayQuestion.payload?.type === 'mcq_single'
                     ? displayQuestion.payload.options.find(o => o.id === optionId)
                       ?? displayQuestion.payload.options[idx]
@@ -338,21 +356,22 @@ export function QuestionDialog({
                   };
                 }),
               }
-            : {
-                type: 'input_text',
-                accepted_answers: formData.acceptedAnswers
-                  .filter(a => (a[formData.locale] || '').trim())
-                  .map((a, idx) => {
-                    // Prefer id-based match; fall back to index to preserve other locales.
-                    const existingAnswer = displayQuestion.payload?.type === 'input_text'
-                      ? (displayQuestion.payload.accepted_answers as Array<Record<string, string> & { id?: string }>)
-                        .find(answer => answer.id === a.id)
-                        ?? displayQuestion.payload.accepted_answers[idx]
-                      : undefined;
-                    return { ...existingAnswer, [formData.locale]: a[formData.locale] };
-                  }),
-                case_sensitive: formData.caseSensitive,
-              },
+            : formData.type === 'input_text'
+              ? {
+                  type: 'input_text',
+                  accepted_answers: formData.acceptedAnswers
+                    .filter(a => (a[formData.locale] || '').trim())
+                    .map((a, idx) => {
+                      const existingAnswer = displayQuestion.payload?.type === 'input_text'
+                        ? (displayQuestion.payload.accepted_answers as Array<Record<string, string> & { id?: string }>)
+                          .find(answer => answer.id === a.id)
+                          ?? displayQuestion.payload.accepted_answers[idx]
+                        : undefined;
+                      return { ...existingAnswer, [formData.locale]: a[formData.locale] };
+                    }),
+                  case_sensitive: formData.caseSensitive,
+                }
+              : formData.customPayload!,
         };
 
         await updateQuestion.mutateAsync({ id: displayQuestion.id, data });
@@ -637,13 +656,25 @@ export function QuestionDialog({
 
           <div className="space-y-1.5">
             <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Type *</Label>
-            <Select value={formData.type} onValueChange={(v: 'mcq_single' | 'input_text') => setFormData(prev => ({ ...prev, type: v }))}>
+            <Select
+              value={formData.type}
+              onValueChange={(v: 'mcq_single' | 'input_text' | 'countdown_list' | 'clue_chain' | 'put_in_order') =>
+                setFormData(prev => ({
+                  ...prev,
+                  type: v,
+                  customPayload: v === 'mcq_single' || v === 'input_text' ? null : createDefaultAdvancedPayload(v),
+                }))
+              }
+            >
               <SelectTrigger className="h-9 rounded-lg border-slate-200 bg-white text-sm">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent className="rounded-xl border-slate-200 shadow-xl">
                 <SelectItem value="mcq_single" className="rounded-lg font-medium">Multiple Choice</SelectItem>
                 <SelectItem value="input_text" className="rounded-lg font-medium">Text Input</SelectItem>
+                <SelectItem value="countdown_list" className="rounded-lg font-medium">Countdown List</SelectItem>
+                <SelectItem value="clue_chain" className="rounded-lg font-medium">Clue Chain</SelectItem>
+                <SelectItem value="put_in_order" className="rounded-lg font-medium">Put In Order</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -716,7 +747,7 @@ export function QuestionDialog({
               ))}
             </div>
           </div>
-        ) : (
+        ) : formData.type === 'input_text' ? (
           <TextInputEditor
             acceptedAnswers={formData.acceptedAnswers}
             caseSensitive={formData.caseSensitive}
@@ -729,6 +760,29 @@ export function QuestionDialog({
               }));
             }}
           />
+        ) : formData.type === 'countdown_list' && formData.customPayload?.type === 'countdown_list' ? (
+          <CountdownListEditor
+            payload={formData.customPayload as CountdownPayload}
+            locale={formData.locale}
+            onChange={(payload) => setFormData(prev => ({ ...prev, customPayload: payload }))}
+          />
+        ) : formData.type === 'clue_chain' && formData.customPayload?.type === 'clue_chain' ? (
+          <ClueChainEditor
+            payload={formData.customPayload as ClueChainPayload}
+            locale={formData.locale}
+            onChange={(payload) => setFormData(prev => ({ ...prev, customPayload: payload }))}
+          />
+        ) : formData.type === 'put_in_order' && formData.customPayload?.type === 'put_in_order' ? (
+          <PutInOrderEditor
+            payload={formData.customPayload as PutInOrderPayload}
+            locale={formData.locale}
+            onChange={(payload) => setFormData(prev => ({ ...prev, customPayload: payload }))}
+          />
+        ) : (
+          <div className="space-y-1.5">
+            <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Challenge Payload *</Label>
+            <p className="text-xs text-slate-500">Select a supported challenge type to edit structured payload fields.</p>
+          </div>
         )}
 
         {/* Explanation */}

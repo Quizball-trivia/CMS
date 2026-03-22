@@ -10,6 +10,7 @@ import {
   HelpCircle,
   Trophy,
   Activity,
+  CalendarDays,
 } from 'lucide-react';
 
 const navItems = [
@@ -22,6 +23,11 @@ const navItems = [
     title: 'Questions',
     href: '/questions',
     icon: HelpCircle,
+  },
+  {
+    title: 'Daily Challenges',
+    href: '/daily-challenges',
+    icon: CalendarDays,
   },
 ];
 

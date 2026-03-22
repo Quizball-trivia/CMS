@@ -6,8 +6,8 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { toast } from 'sonner';
 import { useCreateQuestion, useUpdateQuestion, useCategories } from '@/hooks';
-import type { Question, McqOption, AnswerWithId } from '@/types';
-import { generateAnswerId } from '@/lib/question-utils';
+import type { ClueChainPayload, CountdownPayload, PutInOrderPayload, Question, McqOption, AnswerWithId } from '@/types';
+import { createDefaultAdvancedPayload, generateAnswerId, type AdvancedQuestionPayload } from '@/lib/question-utils';
 import { useRouter } from 'next/navigation';
 import { logger } from '@/lib/logger';
 import { Button } from '@/components/ui/button';
@@ -27,6 +27,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Textarea } from '@/components/ui/textarea';
 import {
   Settings2,
   FileText,
@@ -40,10 +41,13 @@ import { cn, getLocalizedText } from '@/lib/utils';
 import { McqEditor } from './mcq-editor';
 import { TextInputEditor } from './text-input-editor';
 import { QuestionPreview } from './question-preview';
+import { CountdownListEditor } from './countdown-list-editor';
+import { ClueChainEditor } from './clue-chain-editor';
+import { PutInOrderEditor } from './put-in-order-editor';
 
 const questionSchema = z.object({
   category_id: z.string().uuid('Please select a category'),
-  type: z.enum(['mcq_single', 'input_text']),
+  type: z.enum(['mcq_single', 'input_text', 'countdown_list', 'clue_chain', 'put_in_order']),
   difficulty: z.enum(['easy', 'medium', 'hard']),
   status: z.enum(['draft', 'published', 'archived']),
   prompt_en: z.string().min(1, 'English prompt is required'),
@@ -104,6 +108,16 @@ export function QuestionForm({ question, onSuccess }: QuestionFormProps) {
     }
     return false;
   });
+  const [customPayload, setCustomPayload] = useState<AdvancedQuestionPayload | null>(() => {
+    if (
+      question?.payload
+      && question.payload.type !== 'mcq_single'
+      && question.payload.type !== 'input_text'
+    ) {
+      return question.payload;
+    }
+    return null;
+  });
 
   // Preview state
   const [previewLang, setPreviewLang] = useState<'en' | 'ka'>('en');
@@ -155,8 +169,15 @@ export function QuestionForm({ question, onSuccess }: QuestionFormProps) {
       if (questionType === 'mcq_single') {
         setAcceptedAnswers([]);
         setCaseSensitive(false);
+        setCustomPayload(null);
+      } else if (questionType === 'input_text') {
+        setMcqOptions([]);
+        setCustomPayload(null);
       } else {
         setMcqOptions([]);
+        setAcceptedAnswers([]);
+        setCaseSensitive(false);
+        setCustomPayload((current) => current?.type === questionType ? current : createDefaultAdvancedPayload(questionType));
       }
     }
   }, [questionType, isEditing]);
@@ -176,10 +197,15 @@ export function QuestionForm({ question, onSuccess }: QuestionFormProps) {
         toast.error('Please mark one option as correct');
         return;
       }
-    } else {
+    } else if (data.type === 'input_text') {
       if (acceptedAnswers.length === 0) {
         logger.warn('questions', 'Text input validation failed: no answers');
         toast.error('Text input questions need at least 1 accepted answer');
+        return;
+      }
+    } else {
+      if (!customPayload || customPayload.type !== data.type) {
+        toast.error('Question payload is incomplete');
         return;
       }
     }
@@ -189,12 +215,14 @@ export function QuestionForm({ question, onSuccess }: QuestionFormProps) {
       const payload =
         data.type === 'mcq_single'
           ? { type: 'mcq_single' as const, options: mcqOptions }
-          : {
+          : data.type === 'input_text'
+            ? {
               type: 'input_text' as const,
               // eslint-disable-next-line @typescript-eslint/no-unused-vars
               accepted_answers: acceptedAnswers.map(({ id: _unusedId, ...rest }) => rest),
               case_sensitive: caseSensitive,
-            };
+            }
+            : customPayload!;
 
       const questionData = {
         category_id: data.category_id,
@@ -320,11 +348,11 @@ export function QuestionForm({ question, onSuccess }: QuestionFormProps) {
             <div className="flex items-center justify-between px-1">
               <h2 className="text-[11px] font-bold uppercase tracking-[0.2em] text-gray-400">Live Preview</h2>
             </div>
-            <QuestionPreview
-              prompt={previewPrompt}
-              categoryName={previewCategoryName}
-              difficulty={difficulty}
-              type={questionType}
+              <QuestionPreview
+                prompt={previewPrompt}
+                categoryName={previewCategoryName}
+                difficulty={difficulty}
+                type={questionType}
               mcqOptions={mcqOptions}
               acceptedAnswers={acceptedAnswers}
               previewLang={previewLang}
@@ -340,10 +368,10 @@ export function QuestionForm({ question, onSuccess }: QuestionFormProps) {
                   </div>
                   <div>
                     <CardTitle className="text-sm font-bold tracking-tight text-gray-900">
-                      {questionType === 'mcq_single' ? 'MCQ Options' : 'Answers'}
+                      {questionType === 'mcq_single' ? 'MCQ Options' : questionType === 'input_text' ? 'Answers' : 'Challenge Editor'}
                     </CardTitle>
                     <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mt-0.5 leading-none">
-                      {questionType === 'mcq_single' ? 'Select 1 Correct' : 'Direct Typing'}
+                      {questionType === 'mcq_single' ? 'Select 1 Correct' : questionType === 'input_text' ? 'Direct Typing' : 'Typed Payload'}
                     </p>
                   </div>
                 </div>
@@ -351,7 +379,7 @@ export function QuestionForm({ question, onSuccess }: QuestionFormProps) {
               <CardContent className="p-6 pt-0 overflow-y-auto max-h-[400px] scrollbar-hide">
                 {questionType === 'mcq_single' ? (
                   <McqEditor options={mcqOptions} onChange={setMcqOptions} locale={previewLang} />
-                ) : (
+                ) : questionType === 'input_text' ? (
                   <TextInputEditor
                     acceptedAnswers={acceptedAnswers}
                     caseSensitive={caseSensitive}
@@ -361,6 +389,28 @@ export function QuestionForm({ question, onSuccess }: QuestionFormProps) {
                       setCaseSensitive(sensitive);
                     }}
                   />
+                ) : questionType === 'countdown_list' && customPayload?.type === 'countdown_list' ? (
+                  <CountdownListEditor
+                    payload={customPayload as CountdownPayload}
+                    locale={previewLang}
+                    onChange={(payload) => setCustomPayload(payload)}
+                  />
+                ) : questionType === 'clue_chain' && customPayload?.type === 'clue_chain' ? (
+                  <ClueChainEditor
+                    payload={customPayload as ClueChainPayload}
+                    locale={previewLang}
+                    onChange={(payload) => setCustomPayload(payload)}
+                  />
+                ) : questionType === 'put_in_order' && customPayload?.type === 'put_in_order' ? (
+                  <PutInOrderEditor
+                    payload={customPayload as PutInOrderPayload}
+                    locale={previewLang}
+                    onChange={(payload) => setCustomPayload(payload)}
+                  />
+                ) : (
+                  <p className="text-[11px] text-gray-400 leading-relaxed">
+                    Select a supported challenge question type to edit its payload.
+                  </p>
                 )}
               </CardContent>
             </Card>
@@ -383,7 +433,10 @@ export function QuestionForm({ question, onSuccess }: QuestionFormProps) {
                   <div className="space-y-3">
                     {[
                       { value: 'mcq_single', label: 'Multiple Choice', icon: LayoutList, desc: 'Single correct answer from options' },
-                      { value: 'input_text', label: 'Text Input', icon: FileText, desc: 'User types the correct answer' }
+                      { value: 'input_text', label: 'Text Input', icon: FileText, desc: 'User types the correct answer' },
+                      { value: 'countdown_list', label: 'Countdown List', icon: FileText, desc: 'List-building answer groups for countdown mode' },
+                      { value: 'clue_chain', label: 'Clue Chain', icon: FileText, desc: 'Progressive clue reveals with accepted answers' },
+                      { value: 'put_in_order', label: 'Put In Order', icon: FileText, desc: 'Sortable football timeline or ranking data' },
                     ].map((t) => {
                       const Icon = t.icon;
                       const isSelected = field.value === t.value;

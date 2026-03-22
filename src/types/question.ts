@@ -3,7 +3,11 @@ import type { I18nField } from './category';
 
 // Re-export enums from generated types - these stay in sync with backend
 type QuestionResponseType = components['schemas']['QuestionResponse'];
-export type QuestionType = QuestionResponseType['type'];
+export type QuestionType =
+  | QuestionResponseType['type']
+  | 'countdown_list'
+  | 'clue_chain'
+  | 'put_in_order';
 export type Difficulty = QuestionResponseType['difficulty'];
 export type QuestionStatus = QuestionResponseType['status'];
 
@@ -29,7 +33,45 @@ export interface TextInputPayload {
   case_sensitive: boolean;
 }
 
-export type QuestionPayload = McqPayload | TextInputPayload;
+export interface CountdownPayload {
+  type: 'countdown_list';
+  prompt: I18nField;
+  answer_groups: Array<{
+    id: string;
+    display: I18nField;
+    accepted_answers: string[];
+  }>;
+}
+
+export interface ClueChainPayload {
+  type: 'clue_chain';
+  display_answer: I18nField;
+  accepted_answers: string[];
+  clues: Array<{
+    type: 'text' | 'emoji';
+    content: I18nField;
+  }>;
+}
+
+export interface PutInOrderPayload {
+  type: 'put_in_order';
+  prompt: I18nField;
+  direction: 'asc';
+  items: Array<{
+    id: string;
+    label: I18nField;
+    details?: I18nField | null;
+    emoji?: string | null;
+    sort_value: number;
+  }>;
+}
+
+export type QuestionPayload =
+  | McqPayload
+  | TextInputPayload
+  | CountdownPayload
+  | ClueChainPayload
+  | PutInOrderPayload;
 
 // Extend the generated type with proper payload typing
 export interface Question extends Omit<components['schemas']['QuestionResponse'], 'payload'> {

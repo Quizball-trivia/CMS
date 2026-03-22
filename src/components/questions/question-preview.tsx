@@ -8,7 +8,7 @@ interface QuestionPreviewProps {
   prompt: string | undefined;
   categoryName: string;
   difficulty: 'easy' | 'medium' | 'hard' | undefined;
-  type: 'mcq_single' | 'input_text' | undefined;
+  type: 'mcq_single' | 'input_text' | 'countdown_list' | 'clue_chain' | 'put_in_order' | undefined;
   mcqOptions: McqOption[];
   acceptedAnswers: AnswerWithId[];
   previewLang: 'en' | 'ka';

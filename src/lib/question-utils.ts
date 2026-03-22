@@ -1,16 +1,27 @@
-import type { Question, QuestionStatus, AnswerWithId } from '@/types';
+import type {
+  AnswerWithId,
+  ClueChainPayload,
+  CountdownPayload,
+  PutInOrderPayload,
+  Question,
+  QuestionStatus,
+  QuestionType,
+} from '@/types';
+
+export type AdvancedQuestionPayload = CountdownPayload | ClueChainPayload | PutInOrderPayload;
 
 export interface QuestionFormData {
   category_id: string;
   locale: 'en' | 'ka';
   difficulty: 'easy' | 'medium' | 'hard';
   status: QuestionStatus;
-  type: 'mcq_single' | 'input_text';
+  type: 'mcq_single' | 'input_text' | 'countdown_list' | 'clue_chain' | 'put_in_order';
   prompt: string;
   explanation: string;
   options: Array<{ id?: string; text: string; is_correct: boolean }>;
   acceptedAnswers: AnswerWithId[];
   caseSensitive: boolean;
+  customPayload: AdvancedQuestionPayload | null;
 }
 
 /**
@@ -32,6 +43,10 @@ export function questionToFormData(question: Question, preferredLocale: 'en' | '
     prompt: question.prompt?.[locale] || '',
     explanation: question.explanation?.[locale] || '',
     caseSensitive: false,
+    customPayload:
+      question.type !== 'mcq_single' && question.type !== 'input_text' && question.payload
+        ? question.payload
+        : null,
   };
 
   if (question.type === 'mcq_single') {
@@ -44,6 +59,7 @@ export function questionToFormData(question: Question, preferredLocale: 'en' | '
         is_correct: opt.is_correct
       })) || [],
       acceptedAnswers: [],
+      customPayload: null,
     };
   } else if (question.type === 'input_text') {
     const payload = question.payload as {
@@ -59,15 +75,61 @@ export function questionToFormData(question: Question, preferredLocale: 'en' | '
         ka: ans.ka || '',
       })) || [],
       caseSensitive: payload.case_sensitive || false,
+      customPayload: null,
     };
   }
 
-  // Fallback (shouldn't happen with valid data)
   return {
     ...baseData,
     options: [],
     acceptedAnswers: [],
+    customPayload: (question.payload as AdvancedQuestionPayload | null) ?? null,
   };
+}
+
+export function createDefaultAdvancedPayload(type: QuestionType): AdvancedQuestionPayload | null {
+  if (type === 'countdown_list') {
+    return {
+      type: 'countdown_list',
+      prompt: { en: '' },
+      answer_groups: [
+        {
+          id: generateAnswerId(),
+          display: { en: '' },
+          accepted_answers: [''],
+        },
+      ],
+    };
+  }
+
+  if (type === 'clue_chain') {
+    return {
+      type: 'clue_chain',
+      display_answer: { en: '' },
+      accepted_answers: [''],
+      clues: [
+        {
+          type: 'text',
+          content: { en: '' },
+        },
+      ],
+    };
+  }
+
+  if (type === 'put_in_order') {
+    return {
+      type: 'put_in_order',
+      prompt: { en: '' },
+      direction: 'asc',
+      items: [
+        { id: generateAnswerId(), label: { en: '' }, sort_value: 1, details: null, emoji: null },
+        { id: generateAnswerId(), label: { en: '' }, sort_value: 2, details: null, emoji: null },
+        { id: generateAnswerId(), label: { en: '' }, sort_value: 3, details: null, emoji: null },
+      ],
+    };
+  }
+
+  return null;
 }
 
 /**

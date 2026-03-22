@@ -331,6 +331,924 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/stats/head-to-head": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get head-to-head summary for two users */
+        get: {
+            parameters: {
+                query: {
+                    userA: string;
+                    userB: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Head-to-head summary */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** Format: uuid */
+                            userAId: string;
+                            /** Format: uuid */
+                            userBId: string;
+                            winsA: number;
+                            winsB: number;
+                            draws: number;
+                            total: number;
+                            /** Format: date-time */
+                            lastPlayedAt: string | null;
+                        };
+                    };
+                };
+                /** @description Authentication required */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/stats/recent-matches": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get recent matches for authenticated user */
+        get: {
+            parameters: {
+                query?: {
+                    limit?: number;
+                    userId?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Recent matches list */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            items: {
+                                /** Format: uuid */
+                                matchId: string;
+                                /** @enum {string} */
+                                mode: "friendly" | "ranked";
+                                /** @enum {string} */
+                                competition: "friendly" | "placement" | "ranked";
+                                /** @enum {string} */
+                                status: "completed" | "abandoned";
+                                /** @enum {string} */
+                                result: "win" | "loss" | "draw";
+                                /** Format: date-time */
+                                endedAt: string | null;
+                                playerScore: number;
+                                opponentScore: number;
+                                playerGoals: number;
+                                playerPenaltyGoals: number;
+                                opponentGoals: number;
+                                opponentPenaltyGoals: number;
+                                /** @enum {string|null} */
+                                winnerDecisionMethod: "goals" | "penalty_goals" | "total_points" | "total_points_fallback" | "forfeit" | null;
+                                rpDelta: number | null;
+                                opponent: {
+                                    /** Format: uuid */
+                                    id: string | null;
+                                    username: string;
+                                    /** Format: uri */
+                                    avatarUrl: string | null;
+                                    isAi: boolean;
+                                };
+                            }[];
+                        };
+                    };
+                };
+                /** @description Authentication required */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/stats/summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get aggregate match stats for authenticated user */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Aggregate stats summary */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            overall: {
+                                gamesPlayed: number;
+                                wins: number;
+                                losses: number;
+                                draws: number;
+                                winRate: number;
+                            };
+                            ranked: {
+                                gamesPlayed: number;
+                                wins: number;
+                                losses: number;
+                                draws: number;
+                                winRate: number;
+                            };
+                            friendly: {
+                                gamesPlayed: number;
+                                wins: number;
+                                losses: number;
+                                draws: number;
+                                winRate: number;
+                            };
+                        };
+                    };
+                };
+                /** @description Authentication required */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/lobbies/public": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List public lobbies */
+        get: {
+            parameters: {
+                query?: {
+                    limit?: number;
+                    joinableOnly?: boolean | null;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Public lobby list */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            items: {
+                                /** Format: uuid */
+                                lobbyId: string;
+                                inviteCode: string;
+                                displayName: string;
+                                /** @enum {string} */
+                                gameMode: "friendly_possession" | "friendly_party_quiz" | "ranked_sim";
+                                isPublic: boolean;
+                                /** Format: date-time */
+                                createdAt: string;
+                                memberCount: number;
+                                maxMembers: number;
+                                host: {
+                                    /** Format: uuid */
+                                    id: string;
+                                    username: string | null;
+                                    /** Format: uri */
+                                    avatarUrl: string | null;
+                                };
+                            }[];
+                        };
+                    };
+                };
+                /** @description Authentication required */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/ranked/profile": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get ranked profile for authenticated user */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Ranked profile */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            rp: number;
+                            /** @enum {string} */
+                            tier: "Academy" | "Youth Prospect" | "Reserve" | "Bench" | "Rotation" | "Starting11" | "Key Player" | "Captain" | "World-Class" | "Legend" | "GOAT";
+                            /** @enum {string} */
+                            placementStatus: "unplaced" | "in_progress" | "placed";
+                            placementPlayed: number;
+                            placementRequired: number;
+                            placementWins: number;
+                            currentWinStreak: number;
+                            /** Format: date-time */
+                            lastRankedMatchAt: string | null;
+                        };
+                    };
+                };
+                /** @description Authentication required */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/store/products": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List active store products */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Active store products */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            items: {
+                                /** Format: uuid */
+                                id: string;
+                                slug: string;
+                                /** @enum {string} */
+                                type: "coin_pack" | "ticket_pack" | "avatar" | "chance_card";
+                                /** @default {} */
+                                name: {
+                                    [key: string]: string;
+                                };
+                                /** @default {} */
+                                description: {
+                                    [key: string]: string;
+                                };
+                                priceCents: number;
+                                currency: string;
+                                metadata: {
+                                    [key: string]: unknown;
+                                } | null;
+                            }[];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/store/checkout": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create Stripe checkout session */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        productSlug: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description Checkout URL created */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** Format: uri */
+                            url: string;
+                        };
+                    };
+                };
+                /** @description Not authenticated */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Product not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Stripe checkout creation failed */
+                502: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/store/purchase-coins": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Purchase non-coin-pack products with coin balance */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        productSlug: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description Product purchased with coins */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            wallet: {
+                                coins: number;
+                                tickets: number;
+                            };
+                        };
+                    };
+                };
+                /** @description Insufficient coins or invalid product type */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Not authenticated */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Product not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/store/wallet": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get authenticated wallet balances */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Wallet balances */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            coins: number;
+                            tickets: number;
+                        };
+                    };
+                };
+                /** @description Not authenticated */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/store/inventory": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get authenticated user inventory */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description User inventory */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            items: {
+                                /** Format: uuid */
+                                inventoryId: string;
+                                /** Format: uuid */
+                                productId: string;
+                                slug: string;
+                                /** @enum {string} */
+                                type: "coin_pack" | "ticket_pack" | "avatar" | "chance_card";
+                                /** @default {} */
+                                name: {
+                                    [key: string]: string;
+                                };
+                                /** @default {} */
+                                description: {
+                                    [key: string]: string;
+                                };
+                                metadata: {
+                                    [key: string]: unknown;
+                                } | null;
+                                quantity: number;
+                                /** Format: date-time */
+                                acquiredAt: string;
+                            }[];
+                        };
+                    };
+                };
+                /** @description Not authenticated */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/store/dev/grant-self": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Development-only self wallet grant
+         * @description Local development helper for quickly granting coins/tickets to the authenticated user.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        coinsDelta?: number;
+                        ticketsDelta?: number;
+                    };
+                };
+            };
+            responses: {
+                /** @description Updated wallet after grant */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            wallet: {
+                                coins: number;
+                                tickets: number;
+                            };
+                        };
+                    };
+                };
+                /** @description Not authenticated */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Not available outside local environment */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/store/admin/adjustments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Apply manual admin adjustment
+         * @description Requires admin role
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        userId: string;
+                        coinsDelta?: number;
+                        ticketsDelta?: number;
+                        inventoryGrants?: {
+                            productSlug: string;
+                            /** @default 1 */
+                            quantity?: number;
+                        }[];
+                        reason: string;
+                        idempotencyKey?: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description Adjustment result */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            applied: boolean;
+                            wallet: {
+                                coins: number;
+                                tickets: number;
+                            };
+                            inventoryApplied: {
+                                productSlug: string;
+                                /** @default 1 */
+                                quantity: number;
+                            }[];
+                        };
+                    };
+                };
+                /** @description Invalid adjustment request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Not authenticated */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Insufficient permissions */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/store/admin/transactions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List store transaction logs
+         * @description Requires admin role
+         */
+        get: {
+            parameters: {
+                query?: {
+                    userId?: string;
+                    purchaseId?: string;
+                    eventType?: "checkout_session_created" | "checkout_session_failed" | "webhook_received" | "webhook_signature_invalid" | "fulfillment_succeeded" | "fulfillment_failed" | "manual_adjustment_succeeded" | "manual_adjustment_failed";
+                    outcome?: "success" | "failure";
+                    from?: string;
+                    to?: string;
+                    page?: number;
+                    limit?: number;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Paginated store transaction logs */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            items: {
+                                /** Format: uuid */
+                                id: string;
+                                /** @enum {string} */
+                                eventType: "checkout_session_created" | "checkout_session_failed" | "webhook_received" | "webhook_signature_invalid" | "fulfillment_succeeded" | "fulfillment_failed" | "manual_adjustment_succeeded" | "manual_adjustment_failed";
+                                /** @enum {string} */
+                                outcome: "success" | "failure";
+                                /** Format: uuid */
+                                purchaseId: string | null;
+                                /** Format: uuid */
+                                userId: string | null;
+                                /** Format: uuid */
+                                actorUserId: string | null;
+                                /** Format: uuid */
+                                productId: string | null;
+                                stripeCheckoutId: string | null;
+                                stripePaymentIntent: string | null;
+                                coinsDelta: number;
+                                ticketsDelta: number;
+                                inventoryDelta: {
+                                    [key: string]: unknown;
+                                } | null;
+                                reason: string | null;
+                                errorCode: string | null;
+                                errorMessage: string | null;
+                                requestId: string | null;
+                                metadata: {
+                                    [key: string]: unknown;
+                                } | null;
+                                idempotencyKey: string | null;
+                                /** Format: date-time */
+                                createdAt: string;
+                            }[];
+                            page: number;
+                            limit: number;
+                            total: number;
+                            totalPages: number;
+                        };
+                    };
+                };
+                /** @description Not authenticated */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Insufficient permissions */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/users/me": {
         parameters: {
             query?: never;
@@ -383,6 +1301,8 @@ export interface paths {
                         country?: string;
                         /** Format: uri */
                         avatar_url?: string;
+                        favorite_club?: string;
+                        preferred_language?: string;
                     };
                 };
             };
@@ -459,6 +1379,62 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/users/{userId}/profile": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get public profile for a user */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    userId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Public profile data */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["PublicProfileResponse"];
+                    };
+                };
+                /** @description Not authenticated */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description User not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/categories": {
         parameters: {
             query?: never;
@@ -472,6 +1448,7 @@ export interface paths {
                 query?: {
                     parent_id?: string;
                     is_active?: string;
+                    min_questions?: number;
                     page?: number;
                     limit?: number;
                 };
@@ -1145,7 +2122,7 @@ export interface paths {
                     category_id?: string;
                     status?: "draft" | "published" | "archived";
                     difficulty?: "easy" | "medium" | "hard";
-                    type?: "mcq_single" | "input_text";
+                    type?: "mcq_single" | "input_text" | "countdown_list" | "clue_chain" | "put_in_order";
                     search?: string;
                     page?: string;
                     limit?: string;
@@ -1185,14 +2162,59 @@ export interface paths {
                         /** Format: uuid */
                         category_id: string;
                         /** @enum {string} */
-                        type: "mcq_single" | "input_text";
+                        type: "mcq_single" | "input_text" | "countdown_list" | "clue_chain" | "put_in_order";
                         /** @enum {string} */
                         difficulty: "easy" | "medium" | "hard";
                         /** @enum {string} */
                         status?: "draft" | "published" | "archived";
                         prompt: components["schemas"]["I18nField"];
                         explanation?: components["schemas"]["I18nField"] & unknown;
-                        payload?: unknown;
+                        payload?: {
+                            /** @enum {string} */
+                            type: "mcq_single";
+                            options: {
+                                id: string;
+                                text: components["schemas"]["I18nField"];
+                                is_correct: boolean;
+                            }[];
+                        } | {
+                            /** @enum {string} */
+                            type: "input_text";
+                            accepted_answers: components["schemas"]["I18nField"][];
+                            case_sensitive: boolean;
+                        } | {
+                            /** @enum {string} */
+                            type: "countdown_list";
+                            prompt: components["schemas"]["I18nField"];
+                            answer_groups: {
+                                id: string;
+                                display: components["schemas"]["I18nField"];
+                                accepted_answers: string[];
+                            }[];
+                        } | {
+                            /** @enum {string} */
+                            type: "clue_chain";
+                            display_answer: components["schemas"]["I18nField"];
+                            accepted_answers: string[];
+                            clues: {
+                                /** @enum {string} */
+                                type: "text" | "emoji";
+                                content: components["schemas"]["I18nField"];
+                            }[];
+                        } | {
+                            /** @enum {string} */
+                            type: "put_in_order";
+                            prompt: components["schemas"]["I18nField"];
+                            /** @enum {string} */
+                            direction: "asc";
+                            items: {
+                                id: string;
+                                label: components["schemas"]["I18nField"];
+                                details?: components["schemas"]["I18nField"] & unknown;
+                                emoji?: string | null;
+                                sort_value: number;
+                            }[];
+                        };
                     };
                 };
             };
@@ -1299,14 +2321,59 @@ export interface paths {
                         /** Format: uuid */
                         category_id?: string;
                         /** @enum {string} */
-                        type?: "mcq_single" | "input_text";
+                        type?: "mcq_single" | "input_text" | "countdown_list" | "clue_chain" | "put_in_order";
                         /** @enum {string} */
                         difficulty?: "easy" | "medium" | "hard";
                         /** @enum {string} */
                         status?: "draft" | "published" | "archived";
                         prompt?: components["schemas"]["I18nField"];
                         explanation?: components["schemas"]["I18nField"] & unknown;
-                        payload?: unknown;
+                        payload?: {
+                            /** @enum {string} */
+                            type: "mcq_single";
+                            options: {
+                                id: string;
+                                text: components["schemas"]["I18nField"];
+                                is_correct: boolean;
+                            }[];
+                        } | {
+                            /** @enum {string} */
+                            type: "input_text";
+                            accepted_answers: components["schemas"]["I18nField"][];
+                            case_sensitive: boolean;
+                        } | {
+                            /** @enum {string} */
+                            type: "countdown_list";
+                            prompt: components["schemas"]["I18nField"];
+                            answer_groups: {
+                                id: string;
+                                display: components["schemas"]["I18nField"];
+                                accepted_answers: string[];
+                            }[];
+                        } | {
+                            /** @enum {string} */
+                            type: "clue_chain";
+                            display_answer: components["schemas"]["I18nField"];
+                            accepted_answers: string[];
+                            clues: {
+                                /** @enum {string} */
+                                type: "text" | "emoji";
+                                content: components["schemas"]["I18nField"];
+                            }[];
+                        } | {
+                            /** @enum {string} */
+                            type: "put_in_order";
+                            prompt: components["schemas"]["I18nField"];
+                            /** @enum {string} */
+                            direction: "asc";
+                            items: {
+                                id: string;
+                                label: components["schemas"]["I18nField"];
+                                details?: components["schemas"]["I18nField"] & unknown;
+                                emoji?: string | null;
+                                sort_value: number;
+                            }[];
+                        };
                     };
                 };
             };
@@ -1442,14 +2509,59 @@ export interface paths {
                         category_id: string;
                         questions: {
                             /** @enum {string} */
-                            type: "mcq_single" | "input_text";
+                            type: "mcq_single" | "input_text" | "countdown_list" | "clue_chain" | "put_in_order";
                             /** @enum {string} */
                             difficulty: "easy" | "medium" | "hard";
                             /** @enum {string} */
                             status?: "draft" | "published" | "archived";
                             prompt: components["schemas"]["I18nField"];
                             explanation?: components["schemas"]["I18nField"] & unknown;
-                            payload?: unknown;
+                            payload: {
+                                /** @enum {string} */
+                                type: "mcq_single";
+                                options: {
+                                    id: string;
+                                    text: components["schemas"]["I18nField"];
+                                    is_correct: boolean;
+                                }[];
+                            } | {
+                                /** @enum {string} */
+                                type: "input_text";
+                                accepted_answers: components["schemas"]["I18nField"][];
+                                case_sensitive: boolean;
+                            } | {
+                                /** @enum {string} */
+                                type: "countdown_list";
+                                prompt: components["schemas"]["I18nField"];
+                                answer_groups: {
+                                    id: string;
+                                    display: components["schemas"]["I18nField"];
+                                    accepted_answers: string[];
+                                }[];
+                            } | {
+                                /** @enum {string} */
+                                type: "clue_chain";
+                                display_answer: components["schemas"]["I18nField"];
+                                accepted_answers: string[];
+                                clues: {
+                                    /** @enum {string} */
+                                    type: "text" | "emoji";
+                                    content: components["schemas"]["I18nField"];
+                                }[];
+                            } | {
+                                /** @enum {string} */
+                                type: "put_in_order";
+                                prompt: components["schemas"]["I18nField"];
+                                /** @enum {string} */
+                                direction: "asc";
+                                items: {
+                                    id: string;
+                                    label: components["schemas"]["I18nField"];
+                                    details?: components["schemas"]["I18nField"] & unknown;
+                                    emoji?: string | null;
+                                    sort_value: number;
+                                }[];
+                            };
                         }[];
                     };
                 };
@@ -1635,6 +2747,501 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/daily-challenges": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List active daily challenges for the current user */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Active daily challenge lineup */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            items: {
+                                /** @enum {string} */
+                                challengeType: "moneyDrop" | "footballJeopardy" | "clues" | "countdown" | "putInOrder";
+                                title: string;
+                                description: string;
+                                /** @enum {string} */
+                                iconToken: "dollarSign" | "brain" | "lightbulb" | "timer" | "list";
+                                coinReward: number;
+                                xpReward: number;
+                                showOnHome: boolean;
+                                completedToday: boolean;
+                                availableToday: boolean;
+                            }[];
+                        };
+                    };
+                };
+                /** @description Not authenticated */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/daily-challenges/{challengeType}/session": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create a playable daily challenge session */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    challengeType: "moneyDrop" | "footballJeopardy" | "clues" | "countdown" | "putInOrder";
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Daily challenge session payload */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {string} */
+                            challengeType: "moneyDrop";
+                            title: string;
+                            description: string;
+                            questionCount: number;
+                            secondsPerQuestion: number;
+                            startingMoney: number;
+                            questions: {
+                                /** Format: uuid */
+                                id: string;
+                                category: string;
+                                /** @enum {string} */
+                                difficulty: "easy" | "medium" | "hard";
+                                prompt: string;
+                                options: string[];
+                                correctAnswerIndex: number;
+                                clue: string | null;
+                            }[];
+                        } | {
+                            /** @enum {string} */
+                            challengeType: "footballJeopardy";
+                            title: string;
+                            description: string;
+                            pickCount: number;
+                            categories: {
+                                /** Format: uuid */
+                                id: string;
+                                name: string;
+                                questions: {
+                                    /** Format: uuid */
+                                    id: string;
+                                    value: 100 | 200 | 300;
+                                    /** @enum {string} */
+                                    difficulty: "easy" | "medium" | "hard";
+                                    prompt: string;
+                                    options: string[];
+                                    correctAnswerIndex: number;
+                                    clue: string | null;
+                                }[];
+                            }[];
+                        } | {
+                            /** @enum {string} */
+                            challengeType: "countdown";
+                            title: string;
+                            description: string;
+                            roundCount: number;
+                            secondsPerRound: number;
+                            rounds: {
+                                /** Format: uuid */
+                                id: string;
+                                category: string;
+                                prompt: string;
+                                answerGroups: {
+                                    id: string;
+                                    display: string;
+                                    acceptedAnswers: string[];
+                                }[];
+                            }[];
+                        } | {
+                            /** @enum {string} */
+                            challengeType: "clues";
+                            title: string;
+                            description: string;
+                            questionCount: number;
+                            secondsPerClueStep: number;
+                            questions: {
+                                /** Format: uuid */
+                                id: string;
+                                category: string;
+                                /** @enum {string} */
+                                difficulty: "easy" | "medium" | "hard";
+                                displayAnswer: string;
+                                acceptedAnswers: string[];
+                                clues: {
+                                    /** @enum {string} */
+                                    type: "text" | "emoji";
+                                    content: string;
+                                }[];
+                            }[];
+                        } | {
+                            /** @enum {string} */
+                            challengeType: "putInOrder";
+                            title: string;
+                            description: string;
+                            roundCount: number;
+                            itemsPerRound: number;
+                            rounds: {
+                                /** Format: uuid */
+                                id: string;
+                                category: string;
+                                prompt: string;
+                                /** @enum {string} */
+                                direction: "asc";
+                                items: {
+                                    id: string;
+                                    label: string;
+                                    details: string | null;
+                                    emoji: string | null;
+                                    sortValue: number;
+                                }[];
+                            }[];
+                        };
+                    };
+                };
+                /** @description Not authenticated */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Challenge not available */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Already completed or content unavailable */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/daily-challenges/{challengeType}/complete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Complete a daily challenge for the day */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    challengeType: "moneyDrop" | "footballJeopardy" | "clues" | "countdown" | "putInOrder";
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        /** @default 0 */
+                        score?: number;
+                    };
+                };
+            };
+            responses: {
+                /** @description Completion recorded and rewards granted */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {string} */
+                            challengeType: "moneyDrop" | "footballJeopardy" | "clues" | "countdown" | "putInOrder";
+                            /** @enum {boolean} */
+                            completedToday: true;
+                            coinsAwarded: number;
+                            xpAwarded: number;
+                            wallet?: {
+                                coins: number;
+                                tickets: number;
+                            };
+                        };
+                    };
+                };
+                /** @description Not authenticated */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Challenge not available */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Already completed today */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/daily-challenges": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List daily challenge CMS configs */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Admin daily challenge configs */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            items: {
+                                /** @enum {string} */
+                                challengeType: "moneyDrop" | "footballJeopardy" | "clues" | "countdown" | "putInOrder";
+                                title: string;
+                                description: string;
+                                /** @enum {string} */
+                                iconToken: "dollarSign" | "brain" | "lightbulb" | "timer" | "list";
+                                coinReward: number;
+                                xpReward: number;
+                                showOnHome: boolean;
+                                completedToday: boolean;
+                                availableToday: boolean;
+                                settings: {
+                                    /** @default [] */
+                                    categoryIds: string[];
+                                    questionCount: number;
+                                    secondsPerQuestion: number;
+                                    startingMoney: number;
+                                } | {
+                                    categoryIds: string[];
+                                    pickCount: number;
+                                } | {
+                                    /** @default [] */
+                                    categoryIds: string[];
+                                    roundCount: number;
+                                    secondsPerRound: number;
+                                } | {
+                                    /** @default [] */
+                                    categoryIds: string[];
+                                    questionCount: number;
+                                    secondsPerClueStep: number;
+                                } | {
+                                    /** @default [] */
+                                    categoryIds: string[];
+                                    roundCount: number;
+                                    itemsPerRound: number;
+                                };
+                                sortOrder: number;
+                                isActive: boolean;
+                            }[];
+                        };
+                    };
+                };
+                /** @description Not authenticated */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Insufficient permissions */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/daily-challenges/{challengeType}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Update one daily challenge CMS config */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    challengeType: "moneyDrop" | "footballJeopardy" | "clues" | "countdown" | "putInOrder";
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        isActive: boolean;
+                        sortOrder: number;
+                        showOnHome: boolean;
+                        coinReward: number;
+                        xpReward: number;
+                        settings: {
+                            /** @default [] */
+                            categoryIds?: string[];
+                            questionCount: number;
+                            secondsPerQuestion: number;
+                            startingMoney: number;
+                        } | {
+                            categoryIds: string[];
+                            pickCount: number;
+                        } | {
+                            /** @default [] */
+                            categoryIds?: string[];
+                            roundCount: number;
+                            secondsPerRound: number;
+                        } | {
+                            /** @default [] */
+                            categoryIds?: string[];
+                            questionCount: number;
+                            secondsPerClueStep: number;
+                        } | {
+                            /** @default [] */
+                            categoryIds?: string[];
+                            roundCount: number;
+                            itemsPerRound: number;
+                        };
+                    };
+                };
+            };
+            responses: {
+                /** @description Updated admin daily challenge config */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["AdminDailyChallengeConfigResponse"];
+                    };
+                };
+                /** @description Not authenticated */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Insufficient permissions */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/questions/check-duplicates": {
         parameters: {
             query?: never;
@@ -1760,9 +3367,299 @@ export interface components {
             country: string | null;
             /** Format: uri */
             avatar_url: string | null;
+            favorite_club: string | null;
+            preferred_language: string | null;
             onboarding_complete: boolean;
             /** Format: date-time */
             created_at: string;
+        };
+        HeadToHeadResponse: {
+            /** Format: uuid */
+            userAId: string;
+            /** Format: uuid */
+            userBId: string;
+            winsA: number;
+            winsB: number;
+            draws: number;
+            total: number;
+            /** Format: date-time */
+            lastPlayedAt: string | null;
+        };
+        RecentMatchesResponse: {
+            items: {
+                /** Format: uuid */
+                matchId: string;
+                /** @enum {string} */
+                mode: "friendly" | "ranked";
+                /** @enum {string} */
+                competition: "friendly" | "placement" | "ranked";
+                /** @enum {string} */
+                status: "completed" | "abandoned";
+                /** @enum {string} */
+                result: "win" | "loss" | "draw";
+                /** Format: date-time */
+                endedAt: string | null;
+                playerScore: number;
+                opponentScore: number;
+                playerGoals: number;
+                playerPenaltyGoals: number;
+                opponentGoals: number;
+                opponentPenaltyGoals: number;
+                /** @enum {string|null} */
+                winnerDecisionMethod: "goals" | "penalty_goals" | "total_points" | "total_points_fallback" | "forfeit" | null;
+                rpDelta: number | null;
+                opponent: {
+                    /** Format: uuid */
+                    id: string | null;
+                    username: string;
+                    /** Format: uri */
+                    avatarUrl: string | null;
+                    isAi: boolean;
+                };
+            }[];
+        };
+        StatsSummaryResponse: {
+            overall: {
+                gamesPlayed: number;
+                wins: number;
+                losses: number;
+                draws: number;
+                winRate: number;
+            };
+            ranked: {
+                gamesPlayed: number;
+                wins: number;
+                losses: number;
+                draws: number;
+                winRate: number;
+            };
+            friendly: {
+                gamesPlayed: number;
+                wins: number;
+                losses: number;
+                draws: number;
+                winRate: number;
+            };
+        };
+        RankedProfileResponse: {
+            rp: number;
+            /** @enum {string} */
+            tier: "Academy" | "Youth Prospect" | "Reserve" | "Bench" | "Rotation" | "Starting11" | "Key Player" | "Captain" | "World-Class" | "Legend" | "GOAT";
+            /** @enum {string} */
+            placementStatus: "unplaced" | "in_progress" | "placed";
+            placementPlayed: number;
+            placementRequired: number;
+            placementWins: number;
+            currentWinStreak: number;
+            /** Format: date-time */
+            lastRankedMatchAt: string | null;
+        };
+        StoreProductsResponse: {
+            items: {
+                /** Format: uuid */
+                id: string;
+                slug: string;
+                /** @enum {string} */
+                type: "coin_pack" | "ticket_pack" | "avatar" | "chance_card";
+                /** @default {} */
+                name: {
+                    [key: string]: string;
+                };
+                /** @default {} */
+                description: {
+                    [key: string]: string;
+                };
+                priceCents: number;
+                currency: string;
+                metadata: {
+                    [key: string]: unknown;
+                } | null;
+            }[];
+        };
+        StoreWalletResponse: {
+            coins: number;
+            tickets: number;
+        };
+        StoreInventoryResponse: {
+            items: {
+                /** Format: uuid */
+                inventoryId: string;
+                /** Format: uuid */
+                productId: string;
+                slug: string;
+                /** @enum {string} */
+                type: "coin_pack" | "ticket_pack" | "avatar" | "chance_card";
+                /** @default {} */
+                name: {
+                    [key: string]: string;
+                };
+                /** @default {} */
+                description: {
+                    [key: string]: string;
+                };
+                metadata: {
+                    [key: string]: unknown;
+                } | null;
+                quantity: number;
+                /** Format: date-time */
+                acquiredAt: string;
+            }[];
+        };
+        CreateCheckoutResponse: {
+            /** Format: uri */
+            url: string;
+        };
+        PurchaseWithCoinsResponse: {
+            wallet: {
+                coins: number;
+                tickets: number;
+            };
+        };
+        ManualAdjustmentResponse: {
+            applied: boolean;
+            wallet: {
+                coins: number;
+                tickets: number;
+            };
+            inventoryApplied: {
+                productSlug: string;
+                /** @default 1 */
+                quantity: number;
+            }[];
+        };
+        StoreTransactionLogResponse: {
+            /** Format: uuid */
+            id: string;
+            /** @enum {string} */
+            eventType: "checkout_session_created" | "checkout_session_failed" | "webhook_received" | "webhook_signature_invalid" | "fulfillment_succeeded" | "fulfillment_failed" | "manual_adjustment_succeeded" | "manual_adjustment_failed";
+            /** @enum {string} */
+            outcome: "success" | "failure";
+            /** Format: uuid */
+            purchaseId: string | null;
+            /** Format: uuid */
+            userId: string | null;
+            /** Format: uuid */
+            actorUserId: string | null;
+            /** Format: uuid */
+            productId: string | null;
+            stripeCheckoutId: string | null;
+            stripePaymentIntent: string | null;
+            coinsDelta: number;
+            ticketsDelta: number;
+            inventoryDelta: {
+                [key: string]: unknown;
+            } | null;
+            reason: string | null;
+            errorCode: string | null;
+            errorMessage: string | null;
+            requestId: string | null;
+            metadata: {
+                [key: string]: unknown;
+            } | null;
+            idempotencyKey: string | null;
+            /** Format: date-time */
+            createdAt: string;
+        };
+        ListStoreTransactionsResponse: {
+            items: {
+                /** Format: uuid */
+                id: string;
+                /** @enum {string} */
+                eventType: "checkout_session_created" | "checkout_session_failed" | "webhook_received" | "webhook_signature_invalid" | "fulfillment_succeeded" | "fulfillment_failed" | "manual_adjustment_succeeded" | "manual_adjustment_failed";
+                /** @enum {string} */
+                outcome: "success" | "failure";
+                /** Format: uuid */
+                purchaseId: string | null;
+                /** Format: uuid */
+                userId: string | null;
+                /** Format: uuid */
+                actorUserId: string | null;
+                /** Format: uuid */
+                productId: string | null;
+                stripeCheckoutId: string | null;
+                stripePaymentIntent: string | null;
+                coinsDelta: number;
+                ticketsDelta: number;
+                inventoryDelta: {
+                    [key: string]: unknown;
+                } | null;
+                reason: string | null;
+                errorCode: string | null;
+                errorMessage: string | null;
+                requestId: string | null;
+                metadata: {
+                    [key: string]: unknown;
+                } | null;
+                idempotencyKey: string | null;
+                /** Format: date-time */
+                createdAt: string;
+            }[];
+            page: number;
+            limit: number;
+            total: number;
+            totalPages: number;
+        };
+        PublicProfileResponse: {
+            /** Format: uuid */
+            id: string;
+            nickname: string | null;
+            avatarUrl: string | null;
+            country: string | null;
+            favoriteClub: string | null;
+            ranked: {
+                rp: number;
+                tier: string;
+                placementStatus: string;
+                placementPlayed: number;
+                placementRequired: number;
+                placementWins: number;
+                currentWinStreak: number;
+                /** Format: date-time */
+                lastRankedMatchAt: string | null;
+            } | null;
+            stats: {
+                overall: {
+                    gamesPlayed: number;
+                    wins: number;
+                    losses: number;
+                    draws: number;
+                    winRate: number;
+                };
+                ranked: {
+                    gamesPlayed: number;
+                    wins: number;
+                    losses: number;
+                    draws: number;
+                    winRate: number;
+                };
+                friendly: {
+                    gamesPlayed: number;
+                    wins: number;
+                    losses: number;
+                    draws: number;
+                    winRate: number;
+                };
+            };
+            headToHead: {
+                /** Format: uuid */
+                userAId: string;
+                /** Format: uuid */
+                userBId: string;
+                winsA: number;
+                winsB: number;
+                draws: number;
+                total: number;
+                /** Format: date-time */
+                lastPlayedAt: string | null;
+            } | null;
+            globalRank: {
+                rank: number;
+                total: number;
+            } | null;
+            countryRank: {
+                rank: number;
+                total: number;
+            } | null;
         };
         I18nField: {
             [key: string]: string;
@@ -1813,14 +3710,59 @@ export interface components {
             /** Format: uuid */
             category_id: string;
             /** @enum {string} */
-            type: "mcq_single" | "input_text";
+            type: "mcq_single" | "input_text" | "countdown_list" | "clue_chain" | "put_in_order";
             /** @enum {string} */
             difficulty: "easy" | "medium" | "hard";
             /** @enum {string} */
             status: "draft" | "published" | "archived";
             prompt: components["schemas"]["I18nField"];
             explanation: components["schemas"]["I18nField"] & unknown;
-            payload?: unknown;
+            payload: {
+                /** @enum {string} */
+                type: "mcq_single";
+                options: {
+                    id: string;
+                    text: components["schemas"]["I18nField"];
+                    is_correct: boolean;
+                }[];
+            } | {
+                /** @enum {string} */
+                type: "input_text";
+                accepted_answers: components["schemas"]["I18nField"][];
+                case_sensitive: boolean;
+            } | {
+                /** @enum {string} */
+                type: "countdown_list";
+                prompt: components["schemas"]["I18nField"];
+                answer_groups: {
+                    id: string;
+                    display: components["schemas"]["I18nField"];
+                    accepted_answers: string[];
+                }[];
+            } | {
+                /** @enum {string} */
+                type: "clue_chain";
+                display_answer: components["schemas"]["I18nField"];
+                accepted_answers: string[];
+                clues: {
+                    /** @enum {string} */
+                    type: "text" | "emoji";
+                    content: components["schemas"]["I18nField"];
+                }[];
+            } | {
+                /** @enum {string} */
+                type: "put_in_order";
+                prompt: components["schemas"]["I18nField"];
+                /** @enum {string} */
+                direction: "asc";
+                items: {
+                    id: string;
+                    label: components["schemas"]["I18nField"];
+                    details?: components["schemas"]["I18nField"] & unknown;
+                    emoji?: string | null;
+                    sort_value: number;
+                }[];
+            } | unknown;
             /** Format: date-time */
             created_at: string;
             /** Format: date-time */
@@ -1887,6 +3829,174 @@ export interface components {
                 prompt: components["schemas"]["I18nField"];
                 existingQuestions: components["schemas"]["DuplicateQuestionInfo"][];
             }[];
+        };
+        DailyChallengeMetadata: {
+            /** @enum {string} */
+            challengeType: "moneyDrop" | "footballJeopardy" | "clues" | "countdown" | "putInOrder";
+            title: string;
+            description: string;
+            /** @enum {string} */
+            iconToken: "dollarSign" | "brain" | "lightbulb" | "timer" | "list";
+            coinReward: number;
+            xpReward: number;
+            showOnHome: boolean;
+            completedToday: boolean;
+            availableToday: boolean;
+        };
+        DailyChallengeSessionResponse: {
+            /** @enum {string} */
+            challengeType: "moneyDrop";
+            title: string;
+            description: string;
+            questionCount: number;
+            secondsPerQuestion: number;
+            startingMoney: number;
+            questions: {
+                /** Format: uuid */
+                id: string;
+                category: string;
+                /** @enum {string} */
+                difficulty: "easy" | "medium" | "hard";
+                prompt: string;
+                options: string[];
+                correctAnswerIndex: number;
+                clue: string | null;
+            }[];
+        } | {
+            /** @enum {string} */
+            challengeType: "footballJeopardy";
+            title: string;
+            description: string;
+            pickCount: number;
+            categories: {
+                /** Format: uuid */
+                id: string;
+                name: string;
+                questions: {
+                    /** Format: uuid */
+                    id: string;
+                    value: 100 | 200 | 300;
+                    /** @enum {string} */
+                    difficulty: "easy" | "medium" | "hard";
+                    prompt: string;
+                    options: string[];
+                    correctAnswerIndex: number;
+                    clue: string | null;
+                }[];
+            }[];
+        } | {
+            /** @enum {string} */
+            challengeType: "countdown";
+            title: string;
+            description: string;
+            roundCount: number;
+            secondsPerRound: number;
+            rounds: {
+                /** Format: uuid */
+                id: string;
+                category: string;
+                prompt: string;
+                answerGroups: {
+                    id: string;
+                    display: string;
+                    acceptedAnswers: string[];
+                }[];
+            }[];
+        } | {
+            /** @enum {string} */
+            challengeType: "clues";
+            title: string;
+            description: string;
+            questionCount: number;
+            secondsPerClueStep: number;
+            questions: {
+                /** Format: uuid */
+                id: string;
+                category: string;
+                /** @enum {string} */
+                difficulty: "easy" | "medium" | "hard";
+                displayAnswer: string;
+                acceptedAnswers: string[];
+                clues: {
+                    /** @enum {string} */
+                    type: "text" | "emoji";
+                    content: string;
+                }[];
+            }[];
+        } | {
+            /** @enum {string} */
+            challengeType: "putInOrder";
+            title: string;
+            description: string;
+            roundCount: number;
+            itemsPerRound: number;
+            rounds: {
+                /** Format: uuid */
+                id: string;
+                category: string;
+                prompt: string;
+                /** @enum {string} */
+                direction: "asc";
+                items: {
+                    id: string;
+                    label: string;
+                    details: string | null;
+                    emoji: string | null;
+                    sortValue: number;
+                }[];
+            }[];
+        };
+        CompleteDailyChallengeResponse: {
+            /** @enum {string} */
+            challengeType: "moneyDrop" | "footballJeopardy" | "clues" | "countdown" | "putInOrder";
+            /** @enum {boolean} */
+            completedToday: true;
+            coinsAwarded: number;
+            xpAwarded: number;
+            wallet?: {
+                coins: number;
+                tickets: number;
+            };
+        };
+        AdminDailyChallengeConfigResponse: {
+            /** @enum {string} */
+            challengeType: "moneyDrop" | "footballJeopardy" | "clues" | "countdown" | "putInOrder";
+            title: string;
+            description: string;
+            /** @enum {string} */
+            iconToken: "dollarSign" | "brain" | "lightbulb" | "timer" | "list";
+            coinReward: number;
+            xpReward: number;
+            showOnHome: boolean;
+            completedToday: boolean;
+            availableToday: boolean;
+            sortOrder: number;
+            isActive: boolean;
+            settings: {
+                /** @default [] */
+                categoryIds: string[];
+                questionCount: number;
+                secondsPerQuestion: number;
+                startingMoney: number;
+            } | {
+                categoryIds: string[];
+                pickCount: number;
+            } | {
+                /** @default [] */
+                categoryIds: string[];
+                roundCount: number;
+                secondsPerRound: number;
+            } | {
+                /** @default [] */
+                categoryIds: string[];
+                questionCount: number;
+                secondsPerClueStep: number;
+            } | {
+                /** @default [] */
+                categoryIds: string[];
+                roundCount: number;
+                itemsPerRound: number;
+            };
         };
     };
     responses: never;
