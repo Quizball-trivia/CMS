@@ -8,7 +8,7 @@ interface QuestionPreviewProps {
   prompt: string | undefined;
   categoryName: string;
   difficulty: 'easy' | 'medium' | 'hard' | undefined;
-  type: 'mcq_single' | 'input_text' | 'countdown_list' | 'clue_chain' | 'put_in_order' | undefined;
+  type: 'mcq_single' | 'true_false' | 'input_text' | 'countdown_list' | 'clue_chain' | 'put_in_order' | undefined;
   mcqOptions: McqOption[];
   acceptedAnswers: AnswerWithId[];
   previewLang: 'en' | 'ka';
@@ -52,7 +52,7 @@ export function QuestionPreview({
         </p>
 
         {/* MCQ options OR Text input based on type */}
-        {type === 'mcq_single' ? (
+        {type === 'mcq_single' || type === 'true_false' ? (
           <div className="space-y-3">
             {mcqOptions.length > 0 ? (
               mcqOptions.map((opt, i) => (

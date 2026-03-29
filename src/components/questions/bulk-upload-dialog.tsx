@@ -2,9 +2,9 @@
 
 import { useEffect, useState, useRef } from 'react';
 import { toast } from 'sonner';
-import { parseQuestionFile, type ParsedQuestion, type ParseError } from '@/lib/parsers/question-parser';
+import { parseQuestionFile, toBulkCreateQuestion, type ParsedBulkQuestion, type ParseError } from '@/lib/parsers/question-parser';
 import { useBulkCreateQuestions, useCategories, useCheckDuplicates } from '@/hooks';
-import type { BulkCreateQuestionsRequest, McqPayload, DuplicateQuestionInfo } from '@/types';
+import type { BulkCreateQuestionsRequest, DuplicateQuestionInfo, QuestionType } from '@/types';
 import {
   Dialog,
   DialogContent,
@@ -35,7 +35,6 @@ import {
 } from '@/components/ui/table';
 import { Upload, AlertCircle, Trash2, Info, ChevronLeft, ChevronRight, CheckCircle2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { generateAnswerId } from '@/lib/question-utils';
 import { getDifficultyVariant } from '@/components/ui/difficulty-signal';
 import { Badge } from '@/components/ui/badge';
 import { getLocalizedText } from '@/lib/utils';
@@ -44,25 +43,85 @@ import { TicTacToeGame } from '@/components/games/tic-tac-toe-game';
 import { SnakeGame } from '@/components/games/snake-game';
 import { Checkbox } from '@/components/ui/checkbox';
 
-interface QuestionWithSelection extends ParsedQuestion {
+type UploadQuestionType = Extract<QuestionType, 'mcq_single' | 'true_false' | 'countdown_list' | 'clue_chain' | 'put_in_order'>;
+
+type QuestionWithSelection = ParsedBulkQuestion & {
   id: string;
   isSelected: boolean;
   isDuplicate: boolean;
   duplicateInfo?: {
     existingQuestions: DuplicateQuestionInfo[];
   };
-}
+};
 
 interface UploadState {
   file: File | null;
-  parsedQuestions: ParsedQuestion[];
+  parsedQuestions: ParsedBulkQuestion[];
   parseErrors: ParseError[];
   isUploading: boolean;
+}
+
+const TYPE_OPTIONS: Array<{ value: UploadQuestionType; label: string }> = [
+  { value: 'mcq_single', label: 'Multiple Choice' },
+  { value: 'true_false', label: 'True / False' },
+  { value: 'countdown_list', label: 'Countdown List' },
+  { value: 'clue_chain', label: 'Clue Chain' },
+  { value: 'put_in_order', label: 'Put In Order' },
+];
+
+const FORMAT_EXAMPLES: Record<UploadQuestionType, string> = {
+  mcq_single: `1. Question text here?
+A) Option 1
+B) Option 2*
+C) Option 3
+D) Option 4
+Difficulty: Easy
+Explanation: Optional explanation text`,
+  true_false: `1. Real Madrid has won more Champions League titles than any other club.
+Answer: True
+Difficulty: Easy
+Explanation: Optional explanation`,
+  countdown_list: `1. All the players who scored 50+ goals in Champions League
+Cristiano Ronaldo | Ronaldo | CR7
+Lionel Messi | Messi | Leo Messi
+Robert Lewandowski | Lewandowski
+Difficulty: Hard`,
+  clue_chain: `1.
+Clue 1: I started my career at Malmo BI before joining my hometown club Malmo FF.
+Clue 2: I am the only player to have scored for six different clubs in the UEFA Champions League.
+Answer: Zlatan Ibrahimovic | Zlatan Ibrahimović
+Difficulty: Medium`,
+  put_in_order: `1. Order these players by most Ballon d'Or wins (High to Low)
+Direction: desc
+Items:
+- Cristiano Ronaldo
+- Lionel Messi
+- Michel Platini
+- Zlatan Ibrahimovic
+Answer:
+1. Lionel Messi
+2. Cristiano Ronaldo
+3. Michel Platini
+4. Zlatan Ibrahimovic
+Difficulty: Easy`,
+};
+
+function getQuestionSummary(question: ParsedBulkQuestion): string {
+  switch (question.kind) {
+    case 'mcq_single':
+    case 'true_false':
+    case 'countdown_list':
+    case 'put_in_order':
+      return question.prompt;
+    case 'clue_chain':
+      return question.clues[0] || question.displayAnswer;
+  }
 }
 
 export function BulkUploadDialog() {
   const [open, setOpen] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<string>('');
+  const [selectedQuestionType, setSelectedQuestionType] = useState<UploadQuestionType>('mcq_single');
   const [selectedLocale, setSelectedLocale] = useState<'en' | 'ka'>('en');
   const [state, setState] = useState<UploadState>({
     file: null,
@@ -98,7 +157,7 @@ export function BulkUploadDialog() {
       setDuplicateCheckProgress({ checked: 0, total: questions.length });
 
       try {
-        const prompts = questions.map(q => ({ [locale]: q.prompt }));
+        const prompts = questions.map(q => ({ [locale]: getQuestionSummary(q) }));
         const duplicateResult = await checkDuplicates.mutateAsync({
           locale,
           prompts,
@@ -164,7 +223,7 @@ export function BulkUploadDialog() {
     const reader = new FileReader();
     reader.onload = async (e) => {
       const content = e.target?.result as string;
-      const result = parseQuestionFile(content);
+      const result = parseQuestionFile(content, selectedQuestionType);
 
       setState((prev) => ({
         ...prev,
@@ -244,22 +303,9 @@ export function BulkUploadDialog() {
     });
 
     try {
-      // Convert only selected questions to API request format
-      const questions: BulkCreateQuestionsRequest['questions'] = selectedQuestions.map((q) => ({
-        type: 'mcq_single',
-        difficulty: q.difficulty,
-        status: 'draft',
-        prompt: { [selectedLocale]: q.prompt },
-        explanation: q.explanation ? { [selectedLocale]: q.explanation } : null,
-        payload: {
-          type: 'mcq_single',
-          options: q.options.map((opt) => ({
-            id: generateAnswerId(),
-            text: { [selectedLocale]: opt.text },
-            is_correct: opt.is_correct,
-          })),
-        } as McqPayload,
-      }));
+      const questions: BulkCreateQuestionsRequest['questions'] = selectedQuestions.map((q) =>
+        toBulkCreateQuestion(q, selectedLocale)
+      );
 
       const result = await bulkCreate.mutateAsync({
         category_id: selectedCategory,
@@ -310,6 +356,7 @@ export function BulkUploadDialog() {
       });
       setIsCheckingDuplicates(false);
       setSelectedCategory('');
+      setSelectedQuestionType('mcq_single');
       setPage(1);
       if (fileInputRef.current) {
         fileInputRef.current.value = '';
@@ -336,6 +383,31 @@ export function BulkUploadDialog() {
     if (latestQuestionsRef.current.length === 0) return;
     void runDuplicateCheckRef.current?.(latestQuestionsRef.current, selectedLocale);
   }, [selectedLocale]); // No runDuplicateCheck dependency - use ref to avoid multiple calls
+
+  useEffect(() => {
+    setState({
+      file: null,
+      parsedQuestions: [],
+      parseErrors: [],
+      isUploading: false,
+    });
+    setQuestionsWithState([]);
+    setUploadProgress({
+      successful: 0,
+      failed: 0,
+      total: 0,
+    });
+    setDuplicateCheckProgress({
+      checked: 0,
+      total: 0,
+    });
+    setIsCheckingDuplicates(false);
+    setPreviewIndex(null);
+    setPage(1);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  }, [selectedQuestionType]);
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -400,7 +472,26 @@ export function BulkUploadDialog() {
             </Select>
           </div>
 
-          <div className="grid gap-4 sm:grid-cols-2">
+          <div className="grid gap-4 sm:grid-cols-3">
+            <div className="space-y-2">
+              <Label htmlFor="question-type">Question Type *</Label>
+              <Select value={selectedQuestionType} onValueChange={(value: UploadQuestionType) => setSelectedQuestionType(value)}>
+                <SelectTrigger id="question-type">
+                  <SelectValue placeholder="Select a question type" />
+                </SelectTrigger>
+                <SelectContent>
+                  {TYPE_OPTIONS.map((type) => (
+                    <SelectItem key={type.value} value={type.value}>
+                      {type.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-sm text-muted-foreground">
+                Controls the parser and saved question payload.
+              </p>
+            </div>
+
             {/* File Input */}
             <div className="space-y-2">
               <Label htmlFor="file">Question File *</Label>
@@ -445,20 +536,7 @@ export function BulkUploadDialog() {
                     <div>
                       <p className="font-medium mb-2">Required format for each question:</p>
                       <pre className="bg-muted p-3 rounded-lg text-xs overflow-x-auto border border-border">
-{`1. Question text here?
-A) Option 1
-B) Option 2*
-C) Option 3
-D) Option 4
-Difficulty: Easy
-Explanation: Optional explanation text
-
-2. Next question text?
-A) Option 1
-B) Option 2
-C) Option 3*
-D) Option 4
-Difficulty: Medium`}
+{FORMAT_EXAMPLES[selectedQuestionType]}
                       </pre>
                     </div>
 
@@ -591,7 +669,7 @@ Difficulty: Medium`}
                           />
                         </TableCell>
                         <TableCell className="font-medium">{q.questionNumber}</TableCell>
-                        <TableCell className="max-w-md truncate">{q.prompt}</TableCell>
+                        <TableCell className="max-w-md truncate">{getQuestionSummary(q)}</TableCell>
                         <TableCell>
                           <Badge variant="outline">{q.difficulty}</Badge>
                         </TableCell>
@@ -769,7 +847,7 @@ function ParsedQuestionPreviewDialog({
             <Badge variant="outline" className={cn('border', getDifficultyVariant(question.difficulty))}>
               {question.difficulty}
             </Badge>
-            <Badge variant="outline">mcq_single</Badge>
+            <Badge variant="outline">{question.kind}</Badge>
             {question.isDuplicate ? (
               <Badge variant="destructive">Duplicate</Badge>
             ) : (
@@ -785,34 +863,100 @@ function ParsedQuestionPreviewDialog({
           {/* Question Prompt */}
           <div>
             <Label className="text-xs text-muted-foreground">Question #{question.questionNumber}</Label>
-            <p className="text-sm font-medium mt-1">{question.prompt}</p>
+            <p className="text-sm font-medium mt-1">{getQuestionSummary(question)}</p>
           </div>
 
-          {/* Options */}
-          <div>
-            <Label className="text-xs text-muted-foreground">Options</Label>
-            <div className="space-y-2 mt-1">
-              {question.options.map((option, index) => (
-                <div
-                  key={index}
-                  className={cn(
-                    'flex items-center gap-2 p-3 rounded-lg border text-sm',
-                    option.is_correct
-                      ? 'bg-green-50 border-green-200'
-                      : 'border-gray-200 bg-gray-50'
-                  )}
-                >
-                  <span className="font-semibold">
-                    {String.fromCharCode(65 + index)})
-                  </span>
-                  <span className="flex-1">{option.text}</span>
-                  {option.is_correct && (
-                    <CheckCircle2 className="ml-auto h-4 w-4 text-green-600" />
-                  )}
-                </div>
-              ))}
+          {question.kind === 'mcq_single' && (
+            <div>
+              <Label className="text-xs text-muted-foreground">Options</Label>
+              <div className="space-y-2 mt-1">
+                {question.options.map((option, index) => (
+                  <div
+                    key={index}
+                    className={cn(
+                      'flex items-center gap-2 p-3 rounded-lg border text-sm',
+                      option.is_correct
+                        ? 'bg-green-50 border-green-200'
+                        : 'border-gray-200 bg-gray-50'
+                    )}
+                  >
+                    <span className="font-semibold">{String.fromCharCode(65 + index)})</span>
+                    <span className="flex-1">{option.text}</span>
+                    {option.is_correct && <CheckCircle2 className="ml-auto h-4 w-4 text-green-600" />}
+                  </div>
+                ))}
+              </div>
             </div>
-          </div>
+          )}
+
+          {question.kind === 'true_false' && (
+            <div>
+              <Label className="text-xs text-muted-foreground">Correct Answer</Label>
+              <div className="mt-1 rounded-lg border bg-gray-50 p-3 text-sm font-medium">
+                {question.answer ? 'True' : 'False'}
+              </div>
+            </div>
+          )}
+
+          {question.kind === 'countdown_list' && (
+            <div>
+              <Label className="text-xs text-muted-foreground">Accepted Answers ({question.answers.length})</Label>
+              <div className="space-y-2 mt-1">
+                {question.answers.map((answer, index) => (
+                  <div key={index} className="rounded-lg border bg-gray-50 p-3 text-sm">
+                    <div className="font-medium">{answer.display}</div>
+                    <div className="text-xs text-muted-foreground mt-1">{answer.aliases.join(' | ')}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {question.kind === 'clue_chain' && (
+            <>
+              <div>
+                <Label className="text-xs text-muted-foreground">Clues ({question.clues.length})</Label>
+                <div className="space-y-2 mt-1">
+                  {question.clues.map((clue, index) => (
+                    <div key={index} className="rounded-lg border bg-gray-50 p-3 text-sm">
+                      <span className="font-medium">Clue {index + 1}:</span> {clue}
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <Label className="text-xs text-muted-foreground">Accepted Answers</Label>
+                <p className="text-sm mt-1">{question.acceptedAnswers.join(' | ')}</p>
+              </div>
+            </>
+          )}
+
+          {question.kind === 'put_in_order' && (
+            <>
+              <div>
+                <Label className="text-xs text-muted-foreground">Direction</Label>
+                <p className="text-sm mt-1">{question.direction}</p>
+              </div>
+              <div>
+                <Label className="text-xs text-muted-foreground">Items</Label>
+                <div className="space-y-2 mt-1">
+                  {question.items.map((item, index) => (
+                    <div key={index} className="rounded-lg border bg-gray-50 p-3 text-sm">{item}</div>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <Label className="text-xs text-muted-foreground">Correct Order</Label>
+                <div className="space-y-2 mt-1">
+                  {question.orderedAnswer.map((item, index) => (
+                    <div key={index} className="rounded-lg border bg-green-50 p-3 text-sm">
+                      {index + 1}. {item}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </>
+          )}
 
           {/* Explanation */}
           {question.explanation && (

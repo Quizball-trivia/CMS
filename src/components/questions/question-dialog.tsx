@@ -10,6 +10,7 @@ import type {
   PutInOrderPayload,
   Question,
   QuestionStatus,
+  TrueFalsePayload,
   UpdateQuestionRequest,
 } from '@/types';
 import {
@@ -34,6 +35,7 @@ import {
 import { Eye, EyeOff, Edit, CheckCircle2, ChevronLeft, ChevronRight, Save, X, Loader2, Trash2 } from 'lucide-react';
 import { getLocalizedText, getLocalizedTextByLang, cn } from '@/lib/utils';
 import { TextInputEditor, type AnswerWithId } from './text-input-editor';
+import { TrueFalseEditor } from './true-false-editor';
 import { DifficultySignal, getDifficultyVariant } from '@/components/ui/difficulty-signal';
 import { createDefaultAdvancedPayload, questionToFormData, generateAnswerId, type AdvancedQuestionPayload } from '@/lib/question-utils';
 import { DuplicateConfirmationDialog } from './duplicate-confirmation-dialog';
@@ -106,7 +108,7 @@ export function QuestionDialog({
     locale: 'en' | 'ka';
     difficulty: 'easy' | 'medium' | 'hard';
     status: QuestionStatus;
-    type: 'mcq_single' | 'input_text' | 'countdown_list' | 'clue_chain' | 'put_in_order';
+    type: 'mcq_single' | 'true_false' | 'input_text' | 'countdown_list' | 'clue_chain' | 'put_in_order';
     prompt: string;
     explanation: string;
     options: Array<{ id?: string; text: string; is_correct: boolean }>;
@@ -265,6 +267,22 @@ export function QuestionDialog({
               is_correct: opt.is_correct,
             })),
           }
+        : formData.type === 'true_false'
+          ? {
+              type: 'true_false',
+              options: [
+                {
+                  id: 'true',
+                  text: { [locale]: 'True' },
+                  is_correct: formData.options.find(option => option.id === 'true')?.is_correct ?? true,
+                },
+                {
+                  id: 'false',
+                  text: { [locale]: 'False' },
+                  is_correct: formData.options.find(option => option.id === 'false')?.is_correct ?? false,
+                },
+              ],
+            } satisfies TrueFalsePayload
         : formData.type === 'input_text'
           ? {
               type: 'input_text',
@@ -300,6 +318,12 @@ export function QuestionDialog({
       const emptyOptions = formData.options.filter(o => !o.text.trim());
       if (emptyOptions.length > 0) {
         toast.error('All options must have text');
+        return;
+      }
+    } else if (formData.type === 'true_false') {
+      const correctCount = formData.options.filter(o => o.is_correct).length;
+      if (correctCount !== 1) {
+        toast.error('Please mark exactly one answer as correct');
         return;
       }
     } else if (formData.type === 'input_text') {
@@ -356,6 +380,28 @@ export function QuestionDialog({
                   };
                 }),
               }
+            : formData.type === 'true_false'
+              ? {
+                  type: 'true_false',
+                  options: [
+                    {
+                      id: 'true',
+                      text: {
+                        ...(displayQuestion.payload?.type === 'true_false' ? displayQuestion.payload.options[0]?.text : {}),
+                        [formData.locale]: 'True',
+                      },
+                      is_correct: formData.options.find(option => option.id === 'true')?.is_correct ?? true,
+                    },
+                    {
+                      id: 'false',
+                      text: {
+                        ...(displayQuestion.payload?.type === 'true_false' ? displayQuestion.payload.options[1]?.text : {}),
+                        [formData.locale]: 'False',
+                      },
+                      is_correct: formData.options.find(option => option.id === 'false')?.is_correct ?? false,
+                    },
+                  ],
+                } satisfies TrueFalsePayload
             : formData.type === 'input_text'
               ? {
                   type: 'input_text',
@@ -658,11 +704,17 @@ export function QuestionDialog({
             <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Type *</Label>
             <Select
               value={formData.type}
-              onValueChange={(v: 'mcq_single' | 'input_text' | 'countdown_list' | 'clue_chain' | 'put_in_order') =>
+              onValueChange={(v: 'mcq_single' | 'true_false' | 'input_text' | 'countdown_list' | 'clue_chain' | 'put_in_order') =>
                 setFormData(prev => ({
                   ...prev,
                   type: v,
-                  customPayload: v === 'mcq_single' || v === 'input_text' ? null : createDefaultAdvancedPayload(v),
+                  customPayload: v === 'mcq_single' || v === 'true_false' || v === 'input_text' ? null : createDefaultAdvancedPayload(v),
+                  options: v === 'true_false'
+                    ? [
+                        { id: 'true', text: 'True', is_correct: true },
+                        { id: 'false', text: 'False', is_correct: false },
+                      ]
+                    : prev.options,
                 }))
               }
             >
@@ -671,6 +723,7 @@ export function QuestionDialog({
               </SelectTrigger>
               <SelectContent className="rounded-xl border-slate-200 shadow-xl">
                 <SelectItem value="mcq_single" className="rounded-lg font-medium">Multiple Choice</SelectItem>
+                <SelectItem value="true_false" className="rounded-lg font-medium">True / False</SelectItem>
                 <SelectItem value="input_text" className="rounded-lg font-medium">Text Input</SelectItem>
                 <SelectItem value="countdown_list" className="rounded-lg font-medium">Countdown List</SelectItem>
                 <SelectItem value="clue_chain" className="rounded-lg font-medium">Clue Chain</SelectItem>
@@ -747,6 +800,25 @@ export function QuestionDialog({
               ))}
             </div>
           </div>
+        ) : formData.type === 'true_false' ? (
+          <TrueFalseEditor
+            options={formData.options.map((option) => ({
+              id: option.id,
+              text: { [formData.locale]: option.text, en: option.id === 'true' ? 'True' : 'False' },
+              is_correct: option.is_correct,
+            }))}
+            locale={formData.locale}
+            onChange={(options) => {
+              setFormData(prev => ({
+                ...prev,
+                options: options.map((option) => ({
+                  id: option.id,
+                  text: option.text[formData.locale] || option.text.en || '',
+                  is_correct: option.is_correct,
+                })),
+              }));
+            }}
+          />
         ) : formData.type === 'input_text' ? (
           <TextInputEditor
             acceptedAnswers={formData.acceptedAnswers}

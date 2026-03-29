@@ -6,6 +6,7 @@ import type {
   Question,
   QuestionStatus,
   QuestionType,
+  TrueFalsePayload,
 } from '@/types';
 
 export type AdvancedQuestionPayload = CountdownPayload | ClueChainPayload | PutInOrderPayload;
@@ -15,7 +16,7 @@ export interface QuestionFormData {
   locale: 'en' | 'ka';
   difficulty: 'easy' | 'medium' | 'hard';
   status: QuestionStatus;
-  type: 'mcq_single' | 'input_text' | 'countdown_list' | 'clue_chain' | 'put_in_order';
+  type: 'mcq_single' | 'true_false' | 'input_text' | 'countdown_list' | 'clue_chain' | 'put_in_order';
   prompt: string;
   explanation: string;
   options: Array<{ id?: string; text: string; is_correct: boolean }>;
@@ -57,6 +58,18 @@ export function questionToFormData(question: Question, preferredLocale: 'en' | '
         id: opt.id, // Preserve ID for updates
         text: opt.text?.[locale] || '',
         is_correct: opt.is_correct
+      })) || [],
+      acceptedAnswers: [],
+      customPayload: null,
+    };
+  } else if (question.type === 'true_false') {
+    const payload = question.payload as TrueFalsePayload | null;
+    return {
+      ...baseData,
+      options: payload?.options?.map(opt => ({
+        id: opt.id,
+        text: opt.text?.[locale] || opt.text?.en || '',
+        is_correct: opt.is_correct,
       })) || [],
       acceptedAnswers: [],
       customPayload: null,

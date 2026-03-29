@@ -19,6 +19,7 @@ export const DIFFICULTY_LABELS: Record<string, string> = {
 
 export const QUESTION_TYPE_LABELS: Record<string, string> = {
   mcq_single: 'Multiple Choice',
+  true_false: 'True / False',
   input_text: 'Text Input',
   countdown_list: 'Countdown List',
   clue_chain: 'Clue Chain',

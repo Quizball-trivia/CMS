@@ -6,7 +6,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { toast } from 'sonner';
 import { useCreateQuestion, useUpdateQuestion, useCategories } from '@/hooks';
-import type { ClueChainPayload, CountdownPayload, PutInOrderPayload, Question, McqOption, AnswerWithId } from '@/types';
+import type { ClueChainPayload, CountdownPayload, PutInOrderPayload, Question, McqOption, AnswerWithId, TrueFalsePayload } from '@/types';
 import { createDefaultAdvancedPayload, generateAnswerId, type AdvancedQuestionPayload } from '@/lib/question-utils';
 import { useRouter } from 'next/navigation';
 import { logger } from '@/lib/logger';
@@ -27,7 +27,6 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Textarea } from '@/components/ui/textarea';
 import {
   Settings2,
   FileText,
@@ -40,6 +39,7 @@ import {
 import { cn, getLocalizedText } from '@/lib/utils';
 import { McqEditor } from './mcq-editor';
 import { TextInputEditor } from './text-input-editor';
+import { TrueFalseEditor } from './true-false-editor';
 import { QuestionPreview } from './question-preview';
 import { CountdownListEditor } from './countdown-list-editor';
 import { ClueChainEditor } from './clue-chain-editor';
@@ -47,7 +47,7 @@ import { PutInOrderEditor } from './put-in-order-editor';
 
 const questionSchema = z.object({
   category_id: z.string().uuid('Please select a category'),
-  type: z.enum(['mcq_single', 'input_text', 'countdown_list', 'clue_chain', 'put_in_order']),
+  type: z.enum(['mcq_single', 'true_false', 'input_text', 'countdown_list', 'clue_chain', 'put_in_order']),
   difficulty: z.enum(['easy', 'medium', 'hard']),
   status: z.enum(['draft', 'published', 'archived']),
   prompt_en: z.string().min(1, 'English prompt is required'),
@@ -86,7 +86,7 @@ export function QuestionForm({ question, onSuccess }: QuestionFormProps) {
 
   // MCQ state - initialize from question if editing
   const [mcqOptions, setMcqOptions] = useState<McqOption[]>(() => {
-    if (question?.payload?.type === 'mcq_single') {
+    if (question?.payload?.type === 'mcq_single' || question?.payload?.type === 'true_false') {
       return question.payload.options;
     }
     return [];
@@ -112,6 +112,7 @@ export function QuestionForm({ question, onSuccess }: QuestionFormProps) {
     if (
       question?.payload
       && question.payload.type !== 'mcq_single'
+      && question.payload.type !== 'true_false'
       && question.payload.type !== 'input_text'
     ) {
       return question.payload;
@@ -170,6 +171,14 @@ export function QuestionForm({ question, onSuccess }: QuestionFormProps) {
         setAcceptedAnswers([]);
         setCaseSensitive(false);
         setCustomPayload(null);
+      } else if (questionType === 'true_false') {
+        setAcceptedAnswers([]);
+        setCaseSensitive(false);
+        setCustomPayload(null);
+        setMcqOptions([
+          { id: 'true', text: { en: 'True', ka: 'True' }, is_correct: true },
+          { id: 'false', text: { en: 'False', ka: 'False' }, is_correct: false },
+        ]);
       } else if (questionType === 'input_text') {
         setMcqOptions([]);
         setCustomPayload(null);
@@ -197,6 +206,11 @@ export function QuestionForm({ question, onSuccess }: QuestionFormProps) {
         toast.error('Please mark one option as correct');
         return;
       }
+    } else if (data.type === 'true_false') {
+      if (mcqOptions.length !== 2 || !mcqOptions.some((o) => o.is_correct)) {
+        toast.error('True/False questions need one correct answer selected');
+        return;
+      }
     } else if (data.type === 'input_text') {
       if (acceptedAnswers.length === 0) {
         logger.warn('questions', 'Text input validation failed: no answers');
@@ -215,6 +229,32 @@ export function QuestionForm({ question, onSuccess }: QuestionFormProps) {
       const payload =
         data.type === 'mcq_single'
           ? { type: 'mcq_single' as const, options: mcqOptions }
+          : data.type === 'true_false'
+            ? {
+              type: 'true_false' as const,
+              options: [
+                {
+                  id: 'true',
+                  text: {
+                    en: mcqOptions.find((option) => option.id === 'true')?.text.en || 'True',
+                    ...(mcqOptions.find((option) => option.id === 'true')?.text.ka
+                      ? { ka: mcqOptions.find((option) => option.id === 'true')?.text.ka }
+                      : {}),
+                  },
+                  is_correct: mcqOptions.find((option) => option.id === 'true')?.is_correct ?? true,
+                },
+                {
+                  id: 'false',
+                  text: {
+                    en: mcqOptions.find((option) => option.id === 'false')?.text.en || 'False',
+                    ...(mcqOptions.find((option) => option.id === 'false')?.text.ka
+                      ? { ka: mcqOptions.find((option) => option.id === 'false')?.text.ka }
+                      : {}),
+                  },
+                  is_correct: mcqOptions.find((option) => option.id === 'false')?.is_correct ?? false,
+                },
+              ],
+            } satisfies TrueFalsePayload
           : data.type === 'input_text'
             ? {
               type: 'input_text' as const,
@@ -364,14 +404,14 @@ export function QuestionForm({ question, onSuccess }: QuestionFormProps) {
               <CardHeader className="p-6 pb-4">
                 <div className="flex items-center gap-3">
                   <div className="h-10 w-10 flex items-center justify-center rounded-xl bg-gray-50 border border-gray-100">
-                    {questionType === 'mcq_single' ? <LayoutList className="w-5 h-5 text-gray-400" /> : <FileText className="w-5 h-5 text-gray-400" />}
+                      {questionType === 'mcq_single' || questionType === 'true_false' ? <LayoutList className="w-5 h-5 text-gray-400" /> : <FileText className="w-5 h-5 text-gray-400" />}
                   </div>
                   <div>
                     <CardTitle className="text-sm font-bold tracking-tight text-gray-900">
-                      {questionType === 'mcq_single' ? 'MCQ Options' : questionType === 'input_text' ? 'Answers' : 'Challenge Editor'}
+                      {questionType === 'mcq_single' ? 'MCQ Options' : questionType === 'true_false' ? 'True / False' : questionType === 'input_text' ? 'Answers' : 'Challenge Editor'}
                     </CardTitle>
                     <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mt-0.5 leading-none">
-                      {questionType === 'mcq_single' ? 'Select 1 Correct' : questionType === 'input_text' ? 'Direct Typing' : 'Typed Payload'}
+                      {questionType === 'mcq_single' ? 'Select 1 Correct' : questionType === 'true_false' ? 'Fixed Answers' : questionType === 'input_text' ? 'Direct Typing' : 'Typed Payload'}
                     </p>
                   </div>
                 </div>
@@ -379,6 +419,12 @@ export function QuestionForm({ question, onSuccess }: QuestionFormProps) {
               <CardContent className="p-6 pt-0 overflow-y-auto max-h-[400px] scrollbar-hide">
                 {questionType === 'mcq_single' ? (
                   <McqEditor options={mcqOptions} onChange={setMcqOptions} locale={previewLang} />
+                ) : questionType === 'true_false' ? (
+                  <TrueFalseEditor
+                    options={mcqOptions}
+                    onChange={(options) => setMcqOptions(options.map((option) => ({ ...option, id: option.id ?? generateAnswerId() })))}
+                    locale={previewLang}
+                  />
                 ) : questionType === 'input_text' ? (
                   <TextInputEditor
                     acceptedAnswers={acceptedAnswers}
@@ -433,6 +479,7 @@ export function QuestionForm({ question, onSuccess }: QuestionFormProps) {
                   <div className="space-y-3">
                     {[
                       { value: 'mcq_single', label: 'Multiple Choice', icon: LayoutList, desc: 'Single correct answer from options' },
+                      { value: 'true_false', label: 'True / False', icon: LayoutList, desc: 'Binary statement with fixed True and False answers' },
                       { value: 'input_text', label: 'Text Input', icon: FileText, desc: 'User types the correct answer' },
                       { value: 'countdown_list', label: 'Countdown List', icon: FileText, desc: 'List-building answer groups for countdown mode' },
                       { value: 'clue_chain', label: 'Clue Chain', icon: FileText, desc: 'Progressive clue reveals with accepted answers' },

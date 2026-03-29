@@ -49,6 +49,7 @@ const ICONS = {
 
 function toMoneyDropSettings(settings: DailyChallengeSettings): MoneyDropSettings {
   return {
+    challengeType: 'moneyDrop',
     categoryIds: 'categoryIds' in settings ? settings.categoryIds : [],
     questionCount: 'questionCount' in settings ? settings.questionCount : 5,
     secondsPerQuestion: 'secondsPerQuestion' in settings ? settings.secondsPerQuestion : 30,
@@ -58,6 +59,7 @@ function toMoneyDropSettings(settings: DailyChallengeSettings): MoneyDropSetting
 
 function toFootballJeopardySettings(settings: DailyChallengeSettings): FootballJeopardySettings {
   return {
+    challengeType: 'footballJeopardy',
     categoryIds: 'categoryIds' in settings ? settings.categoryIds.slice(0, 3) : [],
     pickCount: 'pickCount' in settings ? settings.pickCount : 9,
   };
@@ -65,6 +67,7 @@ function toFootballJeopardySettings(settings: DailyChallengeSettings): FootballJ
 
 function toCountdownSettings(settings: DailyChallengeSettings): CountdownSettings {
   return {
+    challengeType: 'countdown',
     categoryIds: 'categoryIds' in settings ? settings.categoryIds : [],
     roundCount: 'roundCount' in settings ? settings.roundCount : 3,
     secondsPerRound: 'secondsPerRound' in settings ? settings.secondsPerRound : 45,
@@ -73,6 +76,7 @@ function toCountdownSettings(settings: DailyChallengeSettings): CountdownSetting
 
 function toCluesSettings(settings: DailyChallengeSettings): CluesSettings {
   return {
+    challengeType: 'clues',
     categoryIds: 'categoryIds' in settings ? settings.categoryIds : [],
     questionCount: 'questionCount' in settings ? settings.questionCount : 5,
     secondsPerClueStep: 'secondsPerClueStep' in settings ? settings.secondsPerClueStep : 8,
@@ -81,6 +85,7 @@ function toCluesSettings(settings: DailyChallengeSettings): CluesSettings {
 
 function toPutInOrderSettings(settings: DailyChallengeSettings): PutInOrderSettings {
   return {
+    challengeType: 'putInOrder',
     categoryIds: 'categoryIds' in settings ? settings.categoryIds : [],
     roundCount: 'roundCount' in settings ? settings.roundCount : 4,
     itemsPerRound: 'itemsPerRound' in settings ? settings.itemsPerRound : 4,

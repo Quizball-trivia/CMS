@@ -5,6 +5,7 @@ import type { I18nField } from './category';
 type QuestionResponseType = components['schemas']['QuestionResponse'];
 export type QuestionType =
   | QuestionResponseType['type']
+  | 'true_false'
   | 'countdown_list'
   | 'clue_chain'
   | 'put_in_order';
@@ -33,6 +34,14 @@ export interface TextInputPayload {
   case_sensitive: boolean;
 }
 
+export interface TrueFalsePayload {
+  type: 'true_false';
+  options: [
+    { id: 'true'; text: I18nField; is_correct: boolean },
+    { id: 'false'; text: I18nField; is_correct: boolean },
+  ];
+}
+
 export interface CountdownPayload {
   type: 'countdown_list';
   prompt: I18nField;
@@ -56,7 +65,7 @@ export interface ClueChainPayload {
 export interface PutInOrderPayload {
   type: 'put_in_order';
   prompt: I18nField;
-  direction: 'asc';
+  direction: 'asc' | 'desc';
   items: Array<{
     id: string;
     label: I18nField;
@@ -68,6 +77,7 @@ export interface PutInOrderPayload {
 
 export type QuestionPayload =
   | McqPayload
+  | TrueFalsePayload
   | TextInputPayload
   | CountdownPayload
   | ClueChainPayload
