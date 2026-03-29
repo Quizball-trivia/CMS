@@ -16,6 +16,7 @@ export type UpdateDailyChallengeConfigRequest =
 export type DailyChallengeSettings = AdminDailyChallengeConfig['settings'];
 export type MoneyDropSettings = Extract<DailyChallengeSettings, { questionCount: number; secondsPerQuestion: number; startingMoney: number }>;
 export type FootballJeopardySettings = Extract<DailyChallengeSettings, { pickCount: number }>;
+export type TrueFalseSettings = Extract<DailyChallengeSettings, { challengeType: 'trueFalse' }>;
 export type CountdownSettings = Extract<DailyChallengeSettings, { roundCount: number; secondsPerRound: number }>;
 export type CluesSettings = Extract<DailyChallengeSettings, { questionCount: number; secondsPerClueStep: number }>;
 export type PutInOrderSettings = Extract<DailyChallengeSettings, { roundCount: number; itemsPerRound: number }>;

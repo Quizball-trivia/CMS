@@ -722,7 +722,7 @@ export function QuestionDialog({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent className="rounded-xl border-slate-200 shadow-xl">
-                <SelectItem value="mcq_single" className="rounded-lg font-medium">Multiple Choice</SelectItem>
+                <SelectItem value="mcq_single" className="rounded-lg font-medium">Multiple Choice (Money Drop / Football Jeopardy)</SelectItem>
                 <SelectItem value="true_false" className="rounded-lg font-medium">True / False</SelectItem>
                 <SelectItem value="input_text" className="rounded-lg font-medium">Text Input</SelectItem>
                 <SelectItem value="countdown_list" className="rounded-lg font-medium">Countdown List</SelectItem>

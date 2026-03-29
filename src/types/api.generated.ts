@@ -3137,11 +3137,11 @@ export interface paths {
                         "application/json": {
                             items: {
                                 /** @enum {string} */
-                                challengeType: "moneyDrop" | "footballJeopardy" | "clues" | "countdown" | "putInOrder";
+                                challengeType: "moneyDrop" | "footballJeopardy" | "trueFalse" | "clues" | "countdown" | "putInOrder";
                                 title: string;
                                 description: string;
                                 /** @enum {string} */
-                                iconToken: "dollarSign" | "brain" | "lightbulb" | "timer" | "list";
+                                iconToken: "dollarSign" | "brain" | "checkCircle" | "lightbulb" | "timer" | "list";
                                 coinReward: number;
                                 xpReward: number;
                                 showOnHome: boolean;
@@ -3185,7 +3185,7 @@ export interface paths {
                 query?: never;
                 header?: never;
                 path: {
-                    challengeType: "moneyDrop" | "footballJeopardy" | "clues" | "countdown" | "putInOrder";
+                    challengeType: "moneyDrop" | "footballJeopardy" | "trueFalse" | "clues" | "countdown" | "putInOrder";
                 };
                 cookie?: never;
             };
@@ -3352,7 +3352,7 @@ export interface paths {
                 query?: never;
                 header?: never;
                 path: {
-                    challengeType: "moneyDrop" | "footballJeopardy" | "clues" | "countdown" | "putInOrder";
+                    challengeType: "moneyDrop" | "footballJeopardy" | "trueFalse" | "clues" | "countdown" | "putInOrder";
                 };
                 cookie?: never;
             };
@@ -3373,7 +3373,7 @@ export interface paths {
                     content: {
                         "application/json": {
                             /** @enum {string} */
-                            challengeType: "moneyDrop" | "footballJeopardy" | "clues" | "countdown" | "putInOrder";
+                            challengeType: "moneyDrop" | "footballJeopardy" | "trueFalse" | "clues" | "countdown" | "putInOrder";
                             /** @enum {boolean} */
                             completedToday: true;
                             coinsAwarded: number;
@@ -3436,7 +3436,7 @@ export interface paths {
                 query?: never;
                 header?: never;
                 path: {
-                    challengeType: "moneyDrop" | "footballJeopardy" | "clues" | "countdown" | "putInOrder";
+                    challengeType: "moneyDrop" | "footballJeopardy" | "trueFalse" | "clues" | "countdown" | "putInOrder";
                 };
                 cookie?: never;
             };
@@ -3450,7 +3450,7 @@ export interface paths {
                     content: {
                         "application/json": {
                             /** @enum {string} */
-                            challengeType: "moneyDrop" | "footballJeopardy" | "clues" | "countdown" | "putInOrder";
+                            challengeType: "moneyDrop" | "footballJeopardy" | "trueFalse" | "clues" | "countdown" | "putInOrder";
                             /** @enum {boolean} */
                             reset: true;
                         };
@@ -3507,11 +3507,11 @@ export interface paths {
                         "application/json": {
                             items: {
                                 /** @enum {string} */
-                                challengeType: "moneyDrop" | "footballJeopardy" | "clues" | "countdown" | "putInOrder";
+                                challengeType: "moneyDrop" | "footballJeopardy" | "trueFalse" | "clues" | "countdown" | "putInOrder";
                                 title: string;
                                 description: string;
                                 /** @enum {string} */
-                                iconToken: "dollarSign" | "brain" | "lightbulb" | "timer" | "list";
+                                iconToken: "dollarSign" | "brain" | "checkCircle" | "lightbulb" | "timer" | "list";
                                 coinReward: number;
                                 xpReward: number;
                                 showOnHome: boolean;
@@ -3531,6 +3531,13 @@ export interface paths {
                                     pickCount: number;
                                     /** @enum {string} */
                                     challengeType: "footballJeopardy";
+                                } | {
+                                    /** @default [] */
+                                    categoryIds: string[];
+                                    questionCount: number;
+                                    secondsPerQuestion: number;
+                                    /** @enum {string} */
+                                    challengeType: "trueFalse";
                                 } | {
                                     /** @default [] */
                                     categoryIds: string[];
@@ -3601,7 +3608,7 @@ export interface paths {
                 query?: never;
                 header?: never;
                 path: {
-                    challengeType: "moneyDrop" | "footballJeopardy" | "clues" | "countdown" | "putInOrder";
+                    challengeType: "moneyDrop" | "footballJeopardy" | "trueFalse" | "clues" | "countdown" | "putInOrder";
                 };
                 cookie?: never;
             };
@@ -4324,11 +4331,11 @@ export interface components {
         };
         DailyChallengeMetadata: {
             /** @enum {string} */
-            challengeType: "moneyDrop" | "footballJeopardy" | "clues" | "countdown" | "putInOrder";
+            challengeType: "moneyDrop" | "footballJeopardy" | "trueFalse" | "clues" | "countdown" | "putInOrder";
             title: string;
             description: string;
             /** @enum {string} */
-            iconToken: "dollarSign" | "brain" | "lightbulb" | "timer" | "list";
+            iconToken: "dollarSign" | "brain" | "checkCircle" | "lightbulb" | "timer" | "list";
             coinReward: number;
             xpReward: number;
             showOnHome: boolean;
@@ -4349,6 +4356,13 @@ export interface components {
             pickCount: number;
             /** @enum {string} */
             challengeType: "footballJeopardy";
+        } | {
+            /** @default [] */
+            categoryIds: string[];
+            questionCount: number;
+            secondsPerQuestion: number;
+            /** @enum {string} */
+            challengeType: "trueFalse";
         } | {
             /** @default [] */
             categoryIds: string[];
@@ -4476,7 +4490,7 @@ export interface components {
         };
         CompleteDailyChallengeResponse: {
             /** @enum {string} */
-            challengeType: "moneyDrop" | "footballJeopardy" | "clues" | "countdown" | "putInOrder";
+            challengeType: "moneyDrop" | "footballJeopardy" | "trueFalse" | "clues" | "countdown" | "putInOrder";
             /** @enum {boolean} */
             completedToday: true;
             coinsAwarded: number;
@@ -4488,17 +4502,17 @@ export interface components {
         };
         ResetDailyChallengeResponse: {
             /** @enum {string} */
-            challengeType: "moneyDrop" | "footballJeopardy" | "clues" | "countdown" | "putInOrder";
+            challengeType: "moneyDrop" | "footballJeopardy" | "trueFalse" | "clues" | "countdown" | "putInOrder";
             /** @enum {boolean} */
             reset: true;
         };
         AdminDailyChallengeConfigResponse: {
             /** @enum {string} */
-            challengeType: "moneyDrop" | "footballJeopardy" | "clues" | "countdown" | "putInOrder";
+            challengeType: "moneyDrop" | "footballJeopardy" | "trueFalse" | "clues" | "countdown" | "putInOrder";
             title: string;
             description: string;
             /** @enum {string} */
-            iconToken: "dollarSign" | "brain" | "lightbulb" | "timer" | "list";
+            iconToken: "dollarSign" | "brain" | "checkCircle" | "lightbulb" | "timer" | "list";
             coinReward: number;
             xpReward: number;
             showOnHome: boolean;

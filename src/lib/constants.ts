@@ -18,7 +18,7 @@ export const DIFFICULTY_LABELS: Record<string, string> = {
 };
 
 export const QUESTION_TYPE_LABELS: Record<string, string> = {
-  mcq_single: 'Multiple Choice',
+  mcq_single: 'Multiple Choice (Money Drop / Football Jeopardy)',
   true_false: 'True / False',
   input_text: 'Text Input',
   countdown_list: 'Countdown List',

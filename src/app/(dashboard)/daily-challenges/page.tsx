@@ -16,6 +16,7 @@ import {
   Sparkles,
   Timer,
   Zap,
+  CircleCheckBig,
 } from 'lucide-react';
 import { useCategories, useDailyChallenges, useUpdateDailyChallenge } from '@/hooks';
 import type {
@@ -28,6 +29,7 @@ import type {
   FootballJeopardySettings,
   MoneyDropSettings,
   PutInOrderSettings,
+  TrueFalseSettings,
 } from '@/types';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -42,6 +44,7 @@ type EditableConfig = AdminDailyChallengeConfig;
 const ICONS = {
   moneyDrop: DollarSign,
   footballJeopardy: Brain,
+  trueFalse: CircleCheckBig,
   clues: Lightbulb,
   countdown: Timer,
   putInOrder: ListOrdered,
@@ -71,6 +74,15 @@ function toCountdownSettings(settings: DailyChallengeSettings): CountdownSetting
     categoryIds: 'categoryIds' in settings ? settings.categoryIds : [],
     roundCount: 'roundCount' in settings ? settings.roundCount : 3,
     secondsPerRound: 'secondsPerRound' in settings ? settings.secondsPerRound : 45,
+  };
+}
+
+function toTrueFalseSettings(settings: DailyChallengeSettings): TrueFalseSettings {
+  return {
+    challengeType: 'trueFalse',
+    categoryIds: 'categoryIds' in settings ? settings.categoryIds : [],
+    questionCount: 'questionCount' in settings ? settings.questionCount : 10,
+    secondsPerQuestion: 'secondsPerQuestion' in settings ? settings.secondsPerQuestion : 15,
   };
 }
 
@@ -279,6 +291,41 @@ function SettingsEditor({
               label="Seconds Per Round"
               value={settings.secondsPerRound}
               onChange={(value) => onChange({ ...config, settings: { ...settings, secondsPerRound: value } })}
+            />
+          </div>
+        </div>
+        <CategorySelector
+          categories={categories}
+          selectedCategoryIds={settings.categoryIds}
+          onToggle={(categoryId, checked) =>
+            onChange({
+              ...config,
+              settings: {
+                ...settings,
+                categoryIds: updateCategoryIds(settings.categoryIds, categoryId, checked),
+              },
+            })}
+        />
+      </div>
+    );
+  }
+
+  if (config.challengeType === 'trueFalse') {
+    const settings = toTrueFalseSettings(config.settings);
+    return (
+      <div className="grid gap-6 lg:grid-cols-[280px_1fr]">
+        <div className="space-y-4">
+          <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Gameplay Logic</p>
+          <div className="grid gap-3">
+            <FieldNumber
+              label="Question Count"
+              value={settings.questionCount}
+              onChange={(value) => onChange({ ...config, settings: { ...settings, questionCount: value } })}
+            />
+            <FieldNumber
+              label="Seconds Per Question"
+              value={settings.secondsPerQuestion}
+              onChange={(value) => onChange({ ...config, settings: { ...settings, secondsPerQuestion: value } })}
             />
           </div>
         </div>
