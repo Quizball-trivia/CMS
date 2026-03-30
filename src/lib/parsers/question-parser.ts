@@ -186,22 +186,12 @@ function shouldStartNewBlock(
   }
 
   const currentLines = current.lines.map((line) => line.trim());
-  const answerIndex = currentLines.findIndex((line) => /^Answer:\s*$/i.test(line));
+  const hasDifficulty = currentLines.some((line) => DIFFICULTY_LINE.test(line));
 
-  if (answerIndex === -1) {
-    return true;
-  }
-
-  const linesAfterAnswer = currentLines.slice(answerIndex + 1);
-  const hasMetadataAfterAnswer = linesAfterAnswer.some((line) =>
-    DIFFICULTY_LINE.test(line) || EXPLANATION_LINE.test(line)
-  );
-
-  if (hasMetadataAfterAnswer) {
-    return true;
-  }
-
-  if (/^\d+\.\s+/.test(trimmed)) {
+  // In Put In Order files, numbered answer rows appear after `Answer:` and before
+  // the block's final `Difficulty:` line. Treat any numbered rows before that
+  // difficulty marker as part of the current block, not a new question.
+  if (!hasDifficulty) {
     return false;
   }
 

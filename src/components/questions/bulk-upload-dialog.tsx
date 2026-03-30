@@ -42,6 +42,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { TicTacToeGame } from '@/components/games/tic-tac-toe-game';
 import { SnakeGame } from '@/components/games/snake-game';
 import { Checkbox } from '@/components/ui/checkbox';
+import { logger } from '@/lib/logger';
 
 type UploadQuestionType = Extract<QuestionType, 'mcq_single' | 'true_false' | 'countdown_list' | 'clue_chain' | 'put_in_order'>;
 
@@ -60,6 +61,15 @@ interface UploadState {
   parseErrors: ParseError[];
   isUploading: boolean;
 }
+
+const DAILY_CHALLENGE_CATEGORY_TYPE_MAP: Record<string, UploadQuestionType> = {
+  'daily-challenges-money-drop': 'mcq_single',
+  'daily-challenges-football-jeopardy': 'mcq_single',
+  'daily-challenges-true-false': 'true_false',
+  'daily-challenges-countdown': 'countdown_list',
+  'daily-challenges-clues': 'clue_chain',
+  'daily-challenges-put-in-order': 'put_in_order',
+};
 
 const TYPE_OPTIONS: Array<{ value: UploadQuestionType; label: string }> = [
   { value: 'mcq_single', label: 'Multiple Choice' },
@@ -149,6 +159,10 @@ export function BulkUploadDialog() {
   const { data: categories } = useCategories();
   const bulkCreate = useBulkCreateQuestions();
   const checkDuplicates = useCheckDuplicates();
+  const selectedCategoryObject = categories?.find((category) => category.id === selectedCategory);
+  const inferredQuestionType = selectedCategoryObject
+    ? DAILY_CHALLENGE_CATEGORY_TYPE_MAP[selectedCategoryObject.slug]
+    : undefined;
 
   // Store stable function reference in ref to prevent useEffect re-triggers
   useEffect(() => {
@@ -223,7 +237,35 @@ export function BulkUploadDialog() {
     const reader = new FileReader();
     reader.onload = async (e) => {
       const content = e.target?.result as string;
+      const numberedLines = content
+        .split(/\r?\n/)
+        .map((line, index) => ({ lineNumber: index + 1, text: line.trim() }))
+        .filter((line) => /^\d+\.\s+/.test(line.text));
+
+      logger.info('questions', 'Bulk upload parser starting', {
+        fileName: file.name,
+        selectedCategory,
+        selectedCategorySlug: selectedCategoryObject?.slug,
+        inferredQuestionType,
+        selectedQuestionType,
+        numberedLineCount: numberedLines.length,
+        numberedLineSample: numberedLines.slice(0, 12),
+      });
+
       const result = parseQuestionFile(content, selectedQuestionType);
+
+      logger.info('questions', 'Bulk upload parser result', {
+        fileName: file.name,
+        selectedQuestionType,
+        parsedQuestionCount: result.questions.length,
+        parseErrorCount: result.errors.length,
+        parseErrorSample: result.errors.slice(0, 10),
+        parsedQuestionSample: result.questions.slice(0, 5).map((question) => ({
+          kind: question.kind,
+          questionNumber: question.questionNumber,
+          lineNumber: question.lineNumber,
+        })),
+      });
 
       setState((prev) => ({
         ...prev,
@@ -249,6 +291,18 @@ export function BulkUploadDialog() {
       setPage(1);
 
       if (result.errors.length > 0) {
+        const looksLikeOldPutInOrderParser = selectedQuestionType === 'put_in_order'
+          && result.errors.some((error) => error.message.includes('Duplicate question number'));
+
+        if (looksLikeOldPutInOrderParser) {
+          logger.warn('questions', 'Put in Order parse failure looks like stale browser bundle or wrong parser type', {
+            fileName: file.name,
+            selectedCategorySlug: selectedCategoryObject?.slug,
+            selectedQuestionType,
+            parseErrorSample: result.errors.slice(0, 20),
+          });
+        }
+
         toast.warning(`Parsed ${result.questions.length} questions with ${result.errors.length} errors`);
       } else {
         toast.success(`Parsed ${result.questions.length} questions`);
@@ -409,6 +463,12 @@ export function BulkUploadDialog() {
     }
   }, [selectedQuestionType]);
 
+  useEffect(() => {
+    if (inferredQuestionType && selectedQuestionType !== inferredQuestionType) {
+      setSelectedQuestionType(inferredQuestionType);
+    }
+  }, [inferredQuestionType, selectedQuestionType]);
+
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
@@ -475,7 +535,11 @@ export function BulkUploadDialog() {
           <div className="grid gap-4 sm:grid-cols-3">
             <div className="space-y-2">
               <Label htmlFor="question-type">Question Type *</Label>
-              <Select value={selectedQuestionType} onValueChange={(value: UploadQuestionType) => setSelectedQuestionType(value)}>
+              <Select
+                value={selectedQuestionType}
+                onValueChange={(value: UploadQuestionType) => setSelectedQuestionType(value)}
+                disabled={Boolean(inferredQuestionType)}
+              >
                 <SelectTrigger id="question-type">
                   <SelectValue placeholder="Select a question type" />
                 </SelectTrigger>
@@ -488,7 +552,9 @@ export function BulkUploadDialog() {
                 </SelectContent>
               </Select>
               <p className="text-sm text-muted-foreground">
-                Controls the parser and saved question payload.
+                {inferredQuestionType
+                  ? `Auto-selected from the "${getLocalizedText(selectedCategoryObject?.name)}" daily challenge category.`
+                  : 'Controls the parser and saved question payload.'}
               </p>
             </div>
 
@@ -554,6 +620,12 @@ export function BulkUploadDialog() {
                 <div className="font-medium mb-2">
                   Found {state.parseErrors.length} error(s) in file:
                 </div>
+                {selectedQuestionType === 'put_in_order' && state.parseErrors.some((err) => err.message.includes('Duplicate question number')) && (
+                  <p className="mb-2 text-sm">
+                    This duplicate-number pattern usually means the browser is still using an old parser bundle.
+                    Hard refresh the CMS page and retry this upload.
+                  </p>
+                )}
                 <ul className="list-disc list-inside space-y-1 text-sm">
                   {state.parseErrors.slice(0, 5).map((err, i) => (
                     <li key={i}>
