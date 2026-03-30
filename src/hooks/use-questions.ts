@@ -28,7 +28,7 @@ export function useQuestions(params?: ListQuestionsParams) {
   });
 }
 
-export function useQuestion(id: string) {
+export function useQuestion(id: string, enabled = true) {
   return useQuery({
     queryKey: questionKeys.detail(id),
     queryFn: async () => {
@@ -37,7 +37,7 @@ export function useQuestion(id: string) {
       logger.info('questions', 'Question fetched', { id, type: result.type, payload: result.payload });
       return result;
     },
-    enabled: !!id,
+    enabled: enabled && !!id,
   });
 }
 

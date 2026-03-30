@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { toast } from 'sonner';
-import { useUpdateQuestionStatus, useDeleteQuestion } from '@/hooks';
+import { useUpdateQuestionStatus, useDeleteQuestion, useQuestion } from '@/hooks';
 import type { Question, QuestionStatus } from '@/types';
 import {
   Dialog,
@@ -56,6 +56,8 @@ export function QuestionPreviewDialog({
   const displayQuestion = allQuestions.length > 0
     ? allQuestions[clampIndex(activeIndex)] ?? question
     : question;
+  const { data: freshQuestion } = useQuestion(displayQuestion?.id ?? '', open && !!displayQuestion?.id);
+  const hydratedQuestion = freshQuestion ?? displayQuestion;
 
   // Reset activeIndex when dialog opens
   const handleOpenChange = (isOpen: boolean) => {
@@ -95,10 +97,10 @@ export function QuestionPreviewDialog({
 
   const handleToggleStatus = async (e: React.MouseEvent) => {
     e.stopPropagation();
-    const newStatus: QuestionStatus = displayQuestion.status === 'published' ? 'draft' : 'published';
+    const newStatus: QuestionStatus = hydratedQuestion.status === 'published' ? 'draft' : 'published';
 
     try {
-      await updateStatus.mutateAsync({ id: displayQuestion.id, data: { status: newStatus } });
+      await updateStatus.mutateAsync({ id: hydratedQuestion.id, data: { status: newStatus } });
       toast.success(`Question ${newStatus === 'published' ? 'published' : 'unpublished'}`);
     } catch {
       toast.error('Failed to update status');
@@ -108,7 +110,7 @@ export function QuestionPreviewDialog({
   const handleEdit = (e: React.MouseEvent) => {
     e.stopPropagation();
     setOpen(false);
-    router.push(`/questions/${displayQuestion.id}`);
+    router.push(`/questions/${hydratedQuestion.id}`);
   };
 
   const handleDelete = async (e: React.MouseEvent) => {
@@ -119,7 +121,7 @@ export function QuestionPreviewDialog({
     }
 
     try {
-      await deleteQuestion.mutateAsync(displayQuestion.id);
+      await deleteQuestion.mutateAsync(hydratedQuestion.id);
       toast.success('Question deleted');
       setConfirmDelete(false);
 
@@ -199,13 +201,13 @@ export function QuestionPreviewDialog({
           <div className="flex items-center justify-between flex-wrap gap-2">
             <div className="flex items-center gap-2 flex-wrap">
               <Badge variant="outline" className={cn('border', getDifficultyVariant(displayQuestion.difficulty))}>
-                {displayQuestion.difficulty}
+                {hydratedQuestion.difficulty}
               </Badge>
-              <Badge variant="outline">{displayQuestion.type}</Badge>
+              <Badge variant="outline">{hydratedQuestion.type}</Badge>
               <Badge
-                variant={displayQuestion.status === 'published' ? 'default' : 'secondary'}
+                variant={hydratedQuestion.status === 'published' ? 'default' : 'secondary'}
               >
-                {displayQuestion.status}
+                {hydratedQuestion.status}
               </Badge>
             </div>
             <div className="flex rounded-lg border overflow-hidden text-xs font-semibold">
@@ -234,16 +236,16 @@ export function QuestionPreviewDialog({
           <div>
             <Label className="text-xs text-muted-foreground">Question</Label>
             <p className="text-sm font-medium mt-1">
-              {getLocalizedTextByLang(displayQuestion.prompt, lang, 'Untitled Question')}
+              {getLocalizedTextByLang(hydratedQuestion.prompt, lang, 'Untitled Question')}
             </p>
           </div>
 
           {/* Options (for MCQ) */}
-          {displayQuestion.type === 'mcq_single' && displayQuestion.payload?.type === 'mcq_single' && (
+          {hydratedQuestion.type === 'mcq_single' && hydratedQuestion.payload?.type === 'mcq_single' && (
             <div>
               <Label className="text-xs text-muted-foreground">Options</Label>
               <div className="space-y-2 mt-1">
-                {displayQuestion.payload.options.map((option, index) => (
+                {hydratedQuestion.payload.options.map((option, index) => (
                   <div
                     key={option.id}
                     className={cn(
@@ -267,11 +269,11 @@ export function QuestionPreviewDialog({
           )}
 
           {/* Accepted Answers (for Text Input) */}
-          {displayQuestion.type === 'input_text' && displayQuestion.payload?.type === 'input_text' && (
+          {hydratedQuestion.type === 'input_text' && hydratedQuestion.payload?.type === 'input_text' && (
             <div>
               <Label className="text-xs text-muted-foreground">Accepted Answers</Label>
               <div className="space-y-1 mt-1">
-                {displayQuestion.payload.accepted_answers.map((answer, index) => (
+                {hydratedQuestion.payload.accepted_answers.map((answer, index) => (
                   <div
                     key={index}
                     className="flex items-center gap-2 p-2 rounded-lg border border-gray-200 bg-gray-50 text-sm"
@@ -282,17 +284,17 @@ export function QuestionPreviewDialog({
                 ))}
               </div>
               <p className="text-xs text-muted-foreground mt-2">
-                Case sensitive: {displayQuestion.payload.case_sensitive ? 'Yes' : 'No'}
+                Case sensitive: {hydratedQuestion.payload.case_sensitive ? 'Yes' : 'No'}
               </p>
             </div>
           )}
 
           {/* Explanation */}
-          {displayQuestion.explanation && (
+          {hydratedQuestion.explanation && (
             <div>
               <Label className="text-xs text-muted-foreground">Explanation</Label>
               <p className="text-sm text-muted-foreground mt-1">
-                {getLocalizedTextByLang(displayQuestion.explanation, lang)}
+                {getLocalizedTextByLang(hydratedQuestion.explanation, lang)}
               </p>
             </div>
           )}
@@ -301,12 +303,12 @@ export function QuestionPreviewDialog({
           <div className="flex gap-2 pt-2 border-t">
             <Button
               size="sm"
-              variant={displayQuestion.status === 'published' ? 'outline' : 'default'}
+              variant={hydratedQuestion.status === 'published' ? 'outline' : 'default'}
               onClick={handleToggleStatus}
               className="flex-1"
               disabled={updateStatus.isPending}
             >
-              {displayQuestion.status === 'published' ? (
+              {hydratedQuestion.status === 'published' ? (
                 <>
                   <EyeOff className="mr-2 h-3 w-3" />
                   Unpublish

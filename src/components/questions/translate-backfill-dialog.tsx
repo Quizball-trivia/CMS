@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import {
   Dialog,
@@ -14,10 +15,13 @@ import {
 import { Button } from '@/components/ui/button';
 import { Languages, CheckCircle2, Loader2 } from 'lucide-react';
 import { questionsService } from '@/services/questions.service';
+import { questionKeys } from '@/hooks/use-questions';
+import { categoryKeys } from '@/hooks/use-categories';
 
 const POLL_INTERVAL_MS = 3000;
 
 export function TranslateBackfillDialog() {
+  const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
   const [isStarting, setIsStarting] = useState(false);
   const [total, setTotal] = useState(0);
@@ -48,13 +52,15 @@ export function TranslateBackfillDialog() {
         if (status.questions === 0) {
           stopPolling();
           setIsDone(true);
+          queryClient.invalidateQueries({ queryKey: questionKeys.all });
+          queryClient.invalidateQueries({ queryKey: categoryKeys.all });
           toast.success(`Successfully translated ${totalCount} questions to Georgian`);
         }
       } catch {
         // Silently retry on next interval
       }
     }, POLL_INTERVAL_MS);
-  }, [stopPolling]);
+  }, [queryClient, stopPolling]);
 
   // Cleanup on unmount
   useEffect(() => {
@@ -73,6 +79,8 @@ export function TranslateBackfillDialog() {
 
       if (res.status === 'done') {
         setNothingToTranslate(true);
+        queryClient.invalidateQueries({ queryKey: questionKeys.all });
+        queryClient.invalidateQueries({ queryKey: categoryKeys.all });
         toast.info('All questions are already translated');
       } else {
         startPolling(res.total);

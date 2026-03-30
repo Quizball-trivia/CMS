@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { toast } from 'sonner';
-import { useUpdateQuestionStatus, useUpdateQuestion, useCreateQuestion, useDeleteQuestion, useCategories, useCheckDuplicates } from '@/hooks';
+import { useUpdateQuestionStatus, useUpdateQuestion, useCreateQuestion, useDeleteQuestion, useCategories, useCheckDuplicates, useQuestion } from '@/hooks';
 import type {
   ClueChainPayload,
   CountdownPayload,
@@ -101,6 +101,8 @@ export function QuestionDialog({
 
   // Use the question at activeIndex if we're navigating, otherwise use the prop
   const displayQuestion = allQuestions.length > 0 ? allQuestions[activeIndex] : question;
+  const { data: freshQuestion } = useQuestion(displayQuestion?.id ?? '', open && !!displayQuestion?.id);
+  const hydratedQuestion = freshQuestion ?? displayQuestion;
 
   // Form state for edit/create mode
   const [formData, setFormData] = useState<{
@@ -143,7 +145,7 @@ export function QuestionDialog({
       setConfirmDelete(false);
 
       if (initialMode === 'edit') {
-        const selectedQuestion = allQuestions.length > 0 ? allQuestions[currentIndex] : question;
+        const selectedQuestion = freshQuestion ?? (allQuestions.length > 0 ? allQuestions[currentIndex] : question);
         if (selectedQuestion) {
           // Load question data into form using utility function
           setFormData(questionToFormData(selectedQuestion, 'en'));
@@ -202,12 +204,12 @@ export function QuestionDialog({
 
   const handleToggleStatus = async (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (!displayQuestion) return;
+    if (!hydratedQuestion) return;
 
-    const newStatus: QuestionStatus = displayQuestion.status === 'published' ? 'draft' : 'published';
+    const newStatus: QuestionStatus = hydratedQuestion.status === 'published' ? 'draft' : 'published';
 
     try {
-      await updateStatus.mutateAsync({ id: displayQuestion.id, data: { status: newStatus } });
+      await updateStatus.mutateAsync({ id: hydratedQuestion.id, data: { status: newStatus } });
       toast.success(`Question ${newStatus === 'published' ? 'published' : 'unpublished'}`);
     } catch {
       toast.error('Failed to update status');
@@ -215,16 +217,16 @@ export function QuestionDialog({
   };
 
   const handleEdit = () => {
-    if (displayQuestion) {
+    if (hydratedQuestion) {
       // Use current locale from form data, or default to 'en'
-      setFormData(questionToFormData(displayQuestion, formData.locale || 'en'));
+      setFormData(questionToFormData(hydratedQuestion, formData.locale || 'en'));
     }
     setMode('edit');
   };
 
   const handleDelete = async (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (!displayQuestion) return;
+    if (!hydratedQuestion) return;
 
     if (!confirmDelete) {
       setConfirmDelete(true);
@@ -232,7 +234,7 @@ export function QuestionDialog({
     }
 
     try {
-      await deleteQuestionMutation.mutateAsync(displayQuestion.id);
+      await deleteQuestionMutation.mutateAsync(hydratedQuestion.id);
       toast.success('Question deleted');
       setConfirmDelete(false);
 
@@ -355,23 +357,23 @@ export function QuestionDialog({
         await createQuestion.mutateAsync(data);
         toast.success('Question created successfully');
         setOpen(false);
-      } else if (mode === 'edit' && displayQuestion) {
+      } else if (mode === 'edit' && hydratedQuestion) {
         const data: UpdateQuestionRequest = {
           category_id: formData.category_id,
           difficulty: formData.difficulty,
           status: formData.status,
-          prompt: { ...displayQuestion.prompt, [formData.locale]: formData.prompt },
+          prompt: { ...hydratedQuestion.prompt, [formData.locale]: formData.prompt },
           explanation: formData.explanation
-            ? { ...displayQuestion.explanation, [formData.locale]: formData.explanation }
-            : displayQuestion.explanation,
+            ? { ...hydratedQuestion.explanation, [formData.locale]: formData.explanation }
+            : hydratedQuestion.explanation,
           payload: formData.type === 'mcq_single'
             ? {
                 type: 'mcq_single',
                 options: formData.options.map((opt, idx) => {
                   const optionId = opt.id || generateAnswerId();
-                  const existingOption = displayQuestion.payload?.type === 'mcq_single'
-                    ? displayQuestion.payload.options.find(o => o.id === optionId)
-                      ?? displayQuestion.payload.options[idx]
+                  const existingOption = hydratedQuestion.payload?.type === 'mcq_single'
+                    ? hydratedQuestion.payload.options.find(o => o.id === optionId)
+                      ?? hydratedQuestion.payload.options[idx]
                     : undefined;
                   return {
                     id: optionId,
@@ -387,7 +389,7 @@ export function QuestionDialog({
                     {
                       id: 'true',
                       text: {
-                        ...(displayQuestion.payload?.type === 'true_false' ? displayQuestion.payload.options[0]?.text : {}),
+                        ...(hydratedQuestion.payload?.type === 'true_false' ? hydratedQuestion.payload.options[0]?.text : {}),
                         [formData.locale]: 'True',
                       },
                       is_correct: formData.options.find(option => option.id === 'true')?.is_correct ?? true,
@@ -395,7 +397,7 @@ export function QuestionDialog({
                     {
                       id: 'false',
                       text: {
-                        ...(displayQuestion.payload?.type === 'true_false' ? displayQuestion.payload.options[1]?.text : {}),
+                        ...(hydratedQuestion.payload?.type === 'true_false' ? hydratedQuestion.payload.options[1]?.text : {}),
                         [formData.locale]: 'False',
                       },
                       is_correct: formData.options.find(option => option.id === 'false')?.is_correct ?? false,
@@ -408,10 +410,10 @@ export function QuestionDialog({
                   accepted_answers: formData.acceptedAnswers
                     .filter(a => (a[formData.locale] || '').trim())
                     .map((a, idx) => {
-                      const existingAnswer = displayQuestion.payload?.type === 'input_text'
-                        ? (displayQuestion.payload.accepted_answers as Array<Record<string, string> & { id?: string }>)
+                      const existingAnswer = hydratedQuestion.payload?.type === 'input_text'
+                        ? (hydratedQuestion.payload.accepted_answers as Array<Record<string, string> & { id?: string }>)
                           .find(answer => answer.id === a.id)
-                          ?? displayQuestion.payload.accepted_answers[idx]
+                          ?? hydratedQuestion.payload.accepted_answers[idx]
                         : undefined;
                       return { ...existingAnswer, [formData.locale]: a[formData.locale] };
                     }),
@@ -420,7 +422,7 @@ export function QuestionDialog({
               : formData.customPayload!,
         };
 
-        await updateQuestion.mutateAsync({ id: displayQuestion.id, data });
+        await updateQuestion.mutateAsync({ id: hydratedQuestion.id, data });
         toast.success('Question updated successfully');
         setMode('view');
       }
@@ -438,7 +440,7 @@ export function QuestionDialog({
   };
 
   const renderViewMode = () => {
-    if (!displayQuestion) return null;
+    if (!hydratedQuestion) return null;
 
     return (
       <div className="space-y-6 font-inter">
@@ -446,23 +448,23 @@ export function QuestionDialog({
         <div className="flex items-center justify-between flex-wrap gap-2">
           <div className="flex items-center gap-3 flex-wrap">
             <div className="flex items-center gap-2 bg-slate-50 px-3 py-1.5 rounded-full border border-slate-100">
-              <DifficultySignal difficulty={displayQuestion.difficulty} />
-              <span className={cn("text-[10px] font-black uppercase tracking-widest", getDifficultyVariant(displayQuestion.difficulty).split(' ')[1])}>
-                {displayQuestion.difficulty}
+              <DifficultySignal difficulty={hydratedQuestion.difficulty} />
+              <span className={cn("text-[10px] font-black uppercase tracking-widest", getDifficultyVariant(hydratedQuestion.difficulty).split(' ')[1])}>
+                {hydratedQuestion.difficulty}
               </span>
             </div>
 
             <Badge variant="outline" className="rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-widest border-slate-200 bg-slate-50/50">
-              {displayQuestion.type}
+              {hydratedQuestion.type}
             </Badge>
             <Badge
-              variant={displayQuestion.status === 'published' ? 'default' : 'secondary'}
+              variant={hydratedQuestion.status === 'published' ? 'default' : 'secondary'}
               className={cn(
                 "rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-widest transition-all",
-                displayQuestion.status === 'published' ? "bg-slate-900 shadow-sm" : "bg-slate-100 text-slate-500"
+                hydratedQuestion.status === 'published' ? "bg-slate-900 shadow-sm" : "bg-slate-100 text-slate-500"
               )}
             >
-              {displayQuestion.status}
+              {hydratedQuestion.status}
             </Badge>
           </div>
 
@@ -493,16 +495,16 @@ export function QuestionDialog({
         <div className="space-y-2">
           <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Question</Label>
           <p className="text-lg font-semibold text-slate-900 leading-snug">
-            {getLocalizedTextByLang(displayQuestion.prompt, viewLang, 'Untitled Question')}
+            {getLocalizedTextByLang(hydratedQuestion.prompt, viewLang, 'Untitled Question')}
           </p>
         </div>
 
         {/* Options (for MCQ) */}
-        {displayQuestion.type === 'mcq_single' && displayQuestion.payload?.type === 'mcq_single' && (
+        {hydratedQuestion.type === 'mcq_single' && hydratedQuestion.payload?.type === 'mcq_single' && (
           <div className="space-y-3">
             <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Options</Label>
             <div className="grid gap-2 mt-1">
-              {displayQuestion.payload.options.map((option, index) => (
+              {hydratedQuestion.payload.options.map((option, index) => (
                 <div
                   key={option.id}
                   className={cn(
@@ -536,11 +538,11 @@ export function QuestionDialog({
         )}
 
         {/* Accepted Answers (for Text Input) */}
-        {displayQuestion.type === 'input_text' && displayQuestion.payload?.type === 'input_text' && (
+        {hydratedQuestion.type === 'input_text' && hydratedQuestion.payload?.type === 'input_text' && (
           <div className="space-y-3">
             <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Accepted Answers</Label>
             <div className="grid gap-2 mt-1">
-              {displayQuestion.payload.accepted_answers.map((answer, index) => (
+              {hydratedQuestion.payload.accepted_answers.map((answer, index) => (
                 <div
                   key={index}
                   className="flex items-center gap-4 p-4 rounded-xl border bg-emerald-50 border-emerald-500 shadow-[0_2px_10px_rgba(16,185,129,0.1)]"
@@ -557,7 +559,7 @@ export function QuestionDialog({
                 </div>
               ))}
             </div>
-            {displayQuestion.payload.case_sensitive && (
+            {hydratedQuestion.payload.case_sensitive && (
               <p className="text-xs text-slate-500 font-medium">
                 Case sensitive matching enabled
               </p>
@@ -566,11 +568,11 @@ export function QuestionDialog({
         )}
 
         {/* Explanation */}
-        {displayQuestion.explanation && (
+        {hydratedQuestion.explanation && (
           <div className="space-y-2 p-4 bg-slate-50 rounded-2xl border border-slate-100">
             <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Explanation</Label>
             <p className="text-sm text-slate-600 leading-relaxed font-medium">
-              {getLocalizedTextByLang(displayQuestion.explanation, viewLang)}
+              {getLocalizedTextByLang(hydratedQuestion.explanation, viewLang)}
             </p>
           </div>
         )}
@@ -582,13 +584,13 @@ export function QuestionDialog({
             onClick={handleToggleStatus}
             className={cn(
               "flex-1 h-11 rounded-xl font-bold transition-all text-sm",
-              displayQuestion.status === 'published'
+              hydratedQuestion.status === 'published'
                 ? "text-slate-500 hover:bg-slate-100 hover:text-slate-900"
                 : "text-emerald-600 hover:bg-emerald-50 hover:text-emerald-700"
             )}
             disabled={updateStatus.isPending}
           >
-            {displayQuestion.status === 'published' ? (
+            {hydratedQuestion.status === 'published' ? (
               <>
                 <EyeOff className="mr-2 h-4 w-4" />
                 Unpublish
@@ -684,8 +686,8 @@ export function QuestionDialog({
           <div className="space-y-1.5">
             <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Language *</Label>
             <Select value={formData.locale} onValueChange={(v: 'en' | 'ka') => {
-              if (mode === 'edit' && displayQuestion) {
-                setFormData(questionToFormData(displayQuestion, v));
+              if (mode === 'edit' && hydratedQuestion) {
+                setFormData(questionToFormData(hydratedQuestion, v));
               } else {
                 setFormData(prev => ({ ...prev, locale: v }));
               }
