@@ -62,7 +62,7 @@ interface UploadState {
 }
 
 const TYPE_OPTIONS: Array<{ value: UploadQuestionType; label: string }> = [
-  { value: 'mcq_single', label: 'Multiple Choice (Money Drop / Football Jeopardy)' },
+  { value: 'mcq_single', label: 'Multiple Choice' },
   { value: 'true_false', label: 'True / False' },
   { value: 'countdown_list', label: 'Countdown List' },
   { value: 'clue_chain', label: 'Clue Chain' },

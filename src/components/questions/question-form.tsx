@@ -478,7 +478,7 @@ export function QuestionForm({ question, onSuccess }: QuestionFormProps) {
                 render={({ field }) => (
                   <div className="space-y-3">
                     {[
-                      { value: 'mcq_single', label: 'Multiple Choice', icon: LayoutList, desc: 'Used by Money Drop and Football Jeopardy' },
+                      { value: 'mcq_single', label: 'Multiple Choice', icon: LayoutList, desc: 'Single correct answer from options' },
                       { value: 'true_false', label: 'True / False', icon: LayoutList, desc: 'Binary statement with fixed True and False answers' },
                       { value: 'input_text', label: 'Text Input', icon: FileText, desc: 'User types the correct answer' },
                       { value: 'countdown_list', label: 'Countdown List', icon: FileText, desc: 'List-building answer groups for countdown mode' },

@@ -172,7 +172,43 @@ function finalizeMetadata(
   };
 }
 
-function splitIntoBlocks(content: string): { blocks: ParsedBlock[]; errors: ParseError[] } {
+function shouldStartNewBlock(
+  type: UploadQuestionType,
+  current: ParsedBlock | null,
+  trimmed: string
+): boolean {
+  if (!current) {
+    return true;
+  }
+
+  if (type !== 'put_in_order') {
+    return true;
+  }
+
+  const currentLines = current.lines.map((line) => line.trim());
+  const answerIndex = currentLines.findIndex((line) => /^Answer:\s*$/i.test(line));
+
+  if (answerIndex === -1) {
+    return true;
+  }
+
+  const linesAfterAnswer = currentLines.slice(answerIndex + 1);
+  const hasMetadataAfterAnswer = linesAfterAnswer.some((line) =>
+    DIFFICULTY_LINE.test(line) || EXPLANATION_LINE.test(line)
+  );
+
+  if (hasMetadataAfterAnswer) {
+    return true;
+  }
+
+  if (/^\d+\.\s+/.test(trimmed)) {
+    return false;
+  }
+
+  return true;
+}
+
+function splitIntoBlocks(content: string, type: UploadQuestionType): { blocks: ParsedBlock[]; errors: ParseError[] } {
   const lines = normalizeLineBreaks(content);
   const blocks: ParsedBlock[] = [];
   const errors: ParseError[] = [];
@@ -185,7 +221,7 @@ function splitIntoBlocks(content: string): { blocks: ParsedBlock[]; errors: Pars
     const trimmed = line.trim();
     const match = trimmed.match(QUESTION_START);
 
-    if (match) {
+    if (match && shouldStartNewBlock(type, current, trimmed)) {
       const questionNumber = parseInt(match[1] ?? '0', 10);
       if (seenQuestionNumbers.has(questionNumber)) {
         errors.push({
@@ -559,7 +595,7 @@ function parsePutInOrderBlock(block: ParsedBlock): { question?: ParsedPutInOrder
 }
 
 export function parseQuestionFile(content: string, type: UploadQuestionType): ParseResult {
-  const { blocks, errors } = splitIntoBlocks(content);
+  const { blocks, errors } = splitIntoBlocks(content, type);
   const questions: ParsedBulkQuestion[] = [];
 
   for (const block of blocks) {
