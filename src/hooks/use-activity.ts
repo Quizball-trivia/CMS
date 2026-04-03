@@ -6,7 +6,8 @@ export const activityKeys = {
   activity: (params: { from: string; to: string; user_id: string }) =>
     [...activityKeys.all, 'daily', params] as const,
   users: () => [...activityKeys.all, 'users'] as const,
-  byCategory: (userId: string) => [...activityKeys.all, 'by-category', userId] as const,
+  byCategory: (params: { user_id: string; from: string; to: string }) =>
+    [...activityKeys.all, 'by-category', params] as const,
   recent: (userId: string) => [...activityKeys.all, 'recent', userId] as const,
 };
 
@@ -25,11 +26,11 @@ export function useActivityUsers() {
   });
 }
 
-export function useActivityByCategory(userId: string) {
+export function useActivityByCategory(params: { user_id: string; from: string; to: string }) {
   return useQuery({
-    queryKey: activityKeys.byCategory(userId),
-    queryFn: () => activityService.getByCategory(userId),
-    enabled: !!userId,
+    queryKey: activityKeys.byCategory(params),
+    queryFn: () => activityService.getByCategory(params),
+    enabled: !!params.user_id,
   });
 }
 

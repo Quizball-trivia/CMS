@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/providers';
 import {
@@ -64,22 +64,23 @@ export default function ActivityPage() {
   }, [authLoading, user, router]);
 
   const { data: usersData, isLoading: usersLoading } = useActivityUsers();
-
-  // Auto-select first user when users load
-  useEffect(() => {
-    if (usersData?.users?.length && !selectedUserId) {
-      setSelectedUserId(usersData.users[0].id);
-    }
-  }, [usersData, selectedUserId]);
+  const effectiveSelectedUserId = useMemo(
+    () => selectedUserId || usersData?.users?.[0]?.id || '',
+    [selectedUserId, usersData]
+  );
 
   const { data: activityData, isLoading: activityLoading } = useActivity({
     from,
     to,
-    user_id: selectedUserId,
+    user_id: effectiveSelectedUserId,
   });
 
-  const { data: categoryData } = useActivityByCategory(selectedUserId);
-  const { data: recentData } = useRecentActivity(selectedUserId);
+  const { data: categoryData } = useActivityByCategory({
+    user_id: effectiveSelectedUserId,
+    from,
+    to,
+  });
+  const { data: recentData } = useRecentActivity(effectiveSelectedUserId);
 
   if (authLoading || user?.email !== ACTIVITY_ALLOWED_EMAIL) {
     return (
@@ -96,7 +97,7 @@ export default function ActivityPage() {
         <h1 className="text-2xl font-bold">Activity Dashboard</h1>
         <div className="flex items-center gap-3">
           {/* User selector */}
-          <Select value={selectedUserId} onValueChange={setSelectedUserId}>
+          <Select value={effectiveSelectedUserId} onValueChange={setSelectedUserId}>
             <SelectTrigger className="w-[220px]">
               <SelectValue placeholder={usersLoading ? 'Loading...' : 'Select user'} />
             </SelectTrigger>

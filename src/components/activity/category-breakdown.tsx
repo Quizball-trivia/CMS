@@ -2,9 +2,29 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import type { CategoryBreakdownItem } from '@/types';
+import { Badge } from '@/components/ui/badge';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
 
 interface CategoryBreakdownProps {
   categories: CategoryBreakdownItem[];
+}
+
+function formatDateTime(value: string | null): string {
+  if (!value) return 'No activity';
+
+  return new Date(value).toLocaleString([], {
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  });
 }
 
 export function CategoryBreakdown({ categories }: CategoryBreakdownProps) {
@@ -21,50 +41,63 @@ export function CategoryBreakdown({ categories }: CategoryBreakdownProps) {
     );
   }
 
-  const maxCount = Math.max(...categories.map((c) => c.question_count));
+  const totalQuestions = categories.reduce((sum, category) => sum + category.question_count, 0);
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Questions by Category (Top 10)</CardTitle>
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <CardTitle>Question Adds by Category</CardTitle>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Shows where this admin added questions in the selected range.
+            </p>
+          </div>
+          <Badge variant="outline">{totalQuestions} questions</Badge>
+        </div>
       </CardHeader>
       <CardContent>
-        <div className="space-y-3">
-          {categories.map((cat) => (
-            <div key={cat.id} className="flex items-center gap-3">
-              <div className="w-32 text-sm text-right truncate shrink-0 flex items-center justify-end gap-1.5" title={cat.name}>
-                <span className="truncate">{cat.name}</span>
-                <span
-                  className={`inline-block w-2 h-2 rounded-full shrink-0 ${
-                    cat.is_active ? 'bg-green-500' : 'bg-gray-300'
-                  }`}
-                  title={cat.is_active ? 'Active' : 'Inactive'}
-                />
-              </div>
-              <div className="flex-1 h-6 bg-gray-100 rounded-full overflow-hidden">
-                <div
-                  className={`h-full rounded-full transition-all duration-500 ${
-                    cat.is_active ? 'bg-blue-500' : 'bg-gray-400'
-                  }`}
-                  style={{ width: `${(cat.question_count / maxCount) * 100}%` }}
-                />
-              </div>
-              <div className="w-10 text-sm font-medium text-right tabular-nums">
-                {cat.question_count}
-              </div>
-            </div>
-          ))}
-        </div>
-        <div className="flex items-center gap-4 mt-4 text-xs text-muted-foreground">
-          <div className="flex items-center gap-1.5">
-            <span className="inline-block w-2 h-2 rounded-full bg-green-500" />
-            Active
-          </div>
-          <div className="flex items-center gap-1.5">
-            <span className="inline-block w-2 h-2 rounded-full bg-gray-300" />
-            Inactive
-          </div>
-        </div>
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Category</TableHead>
+              <TableHead className="w-[120px] text-right">Questions</TableHead>
+              <TableHead className="w-[90px] text-right">Share</TableHead>
+              <TableHead className="w-[170px]">Last Added</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {categories.map((category) => {
+              const share = totalQuestions === 0 ? 0 : Math.round((category.question_count / totalQuestions) * 100);
+              return (
+                <TableRow key={category.id}>
+                  <TableCell className="max-w-[280px]">
+                    <div className="flex items-center gap-2">
+                      <span
+                        className={`inline-block h-2.5 w-2.5 rounded-full ${
+                          category.is_active ? 'bg-emerald-500' : 'bg-slate-300'
+                        }`}
+                        title={category.is_active ? 'Active' : 'Inactive'}
+                      />
+                      <span className="truncate font-medium" title={category.name}>
+                        {category.name}
+                      </span>
+                    </div>
+                  </TableCell>
+                  <TableCell className="text-right font-semibold tabular-nums">
+                    {category.question_count}
+                  </TableCell>
+                  <TableCell className="text-right text-muted-foreground tabular-nums">
+                    {share}%
+                  </TableCell>
+                  <TableCell className="text-muted-foreground">
+                    {formatDateTime(category.last_question_created_at)}
+                  </TableCell>
+                </TableRow>
+              );
+            })}
+          </TableBody>
+        </Table>
       </CardContent>
     </Card>
   );

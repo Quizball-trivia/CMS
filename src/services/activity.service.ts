@@ -15,8 +15,8 @@ export const activityService = {
     return apiClient.get<ActivityUsersResponse>('/admin/activity/users');
   },
 
-  async getByCategory(userId: string): Promise<CategoryBreakdownResponse> {
-    return apiClient.get<CategoryBreakdownResponse>('/admin/activity/by-category', { user_id: userId });
+  async getByCategory(params: { user_id: string; from: string; to: string }): Promise<CategoryBreakdownResponse> {
+    return apiClient.get<CategoryBreakdownResponse>('/admin/activity/by-category', params);
   },
 
   async getRecent(userId: string, limit = 50): Promise<RecentActivityResponse> {

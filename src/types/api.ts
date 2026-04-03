@@ -39,6 +39,13 @@ export interface DayActivity {
   questions_created: number;
   categories_created: number;
   total: number;
+  question_categories: DailyQuestionCategoryCount[];
+}
+
+export interface DailyQuestionCategoryCount {
+  id: string | null;
+  name: string;
+  count: number;
 }
 
 export interface ActionCounts {
@@ -71,6 +78,7 @@ export interface CategoryBreakdownItem {
   name: string;
   question_count: number;
   is_active: boolean;
+  last_question_created_at: string | null;
 }
 
 export interface CategoryBreakdownResponse {

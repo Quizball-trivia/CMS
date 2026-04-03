@@ -35,10 +35,20 @@ const ACTION_CONFIG: Record<string, { icon: typeof Plus; bg: string; text: strin
 
 const DEFAULT_CONFIG = { icon: Plus, bg: 'bg-gray-50 text-gray-600', text: 'Action on' };
 
+function formatQuestionType(type: string | null): string | null {
+  if (!type) return null;
+
+  return type
+    .split('_')
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ');
+}
+
 function getTitle(item: RecentActivityItem): string {
   const config = ACTION_CONFIG[item.action] ?? DEFAULT_CONFIG;
   const meta = item.metadata;
   const title = (meta?.title as string) ?? (meta?.name as string) ?? '';
+  const questionType = (meta?.type as string) ?? '';
   const entityLabel = item.entity_type;
 
   if (item.action === 'bulk_create') {
@@ -52,7 +62,10 @@ function getTitle(item: RecentActivityItem): string {
     const oldStatus = (meta?.old_status as string) ?? '';
     const newStatus = (meta?.new_status as string) ?? '';
     if (newStatus === 'published') {
-      return title ? `Published "${title}"` : `Published ${entityLabel}`;
+      if (title && title.trim() && title !== 'Untitled') {
+        return `Published "${title}"`;
+      }
+      return questionType ? `Published ${questionType} question` : `Published ${entityLabel}`;
     }
     const label = oldStatus && newStatus ? `${oldStatus} → ${newStatus}` : config.text;
     return title ? `${label}: "${title}"` : `${config.text} ${entityLabel}`;
@@ -73,17 +86,24 @@ function getTitle(item: RecentActivityItem): string {
 function getSubtitle(item: RecentActivityItem): string | null {
   const meta = item.metadata;
   const categoryName = (meta?.category_name as string) ?? null;
+  const questionType = formatQuestionType((meta?.type as string) ?? null);
 
   if (item.action === 'create' && item.entity_type === 'question' && categoryName) {
-    return `in ${categoryName}`;
+    return questionType ? `in ${categoryName} · ${questionType}` : `in ${categoryName}`;
   }
 
   if (item.action === 'bulk_create' && categoryName) {
     return `in ${categoryName}`;
   }
 
+  if (item.action === 'status_change' && item.entity_type === 'question') {
+    if (categoryName && questionType) return `in ${categoryName} · ${questionType}`;
+    if (categoryName) return `in ${categoryName}`;
+    if (questionType) return questionType;
+  }
+
   if (item.action === 'delete' && item.entity_type === 'question' && categoryName) {
-    return `from ${categoryName}`;
+    return questionType ? `from ${categoryName} · ${questionType}` : `from ${categoryName}`;
   }
 
   if (item.action === 'delete' && item.entity_type === 'category') {
@@ -102,6 +122,16 @@ function getSubtitle(item: RecentActivityItem): string | null {
 }
 
 export function RecentActivityFeed({ items }: RecentActivityFeedProps) {
+  const grouped = useMemo(() => {
+    const map = new Map<string, RecentActivityItem[]>();
+    for (const item of items) {
+      const dayKey = new Date(item.created_at).toISOString().split('T')[0];
+      if (!map.has(dayKey)) map.set(dayKey, []);
+      map.get(dayKey)!.push(item);
+    }
+    return [...map.entries()];
+  }, [items]);
+
   if (items.length === 0) {
     return (
       <Card>
@@ -114,17 +144,6 @@ export function RecentActivityFeed({ items }: RecentActivityFeedProps) {
       </Card>
     );
   }
-
-  // Group items by day
-  const grouped = useMemo(() => {
-    const map = new Map<string, RecentActivityItem[]>();
-    for (const item of items) {
-      const dayKey = new Date(item.created_at).toISOString().split('T')[0];
-      if (!map.has(dayKey)) map.set(dayKey, []);
-      map.get(dayKey)!.push(item);
-    }
-    return [...map.entries()];
-  }, [items]);
 
   return (
     <Card>
