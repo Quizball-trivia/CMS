@@ -293,6 +293,9 @@ export function QuestionList() {
     return category ? getLocalizedText(category.name, category.slug) : 'Unknown';
   };
 
+  const getQuestionTypeLabel = (type: NonNullable<ListQuestionsParams['type']>) =>
+    QUESTION_TYPE_LABELS[type];
+
 
   const visibleIds = useMemo(() => data?.data.map((question) => question.id) ?? [], [data]);
   const allVisibleSelected = visibleIds.length > 0 && visibleIds.every((id) => selectedIds.includes(id));
@@ -402,6 +405,23 @@ export function QuestionList() {
                 <SelectItem value="hard" className="text-xs font-medium text-rose-600">Hard</SelectItem>
               </SelectContent>
             </Select>
+
+            <Select
+              value={params.type || 'all'}
+              onValueChange={(v) => handleFilterChange('type', v)}
+            >
+              <SelectTrigger className="w-[150px] h-10 bg-white border-gray-200 rounded-xl text-xs font-bold text-gray-600 hover:bg-gray-50 transition-colors">
+                <SelectValue placeholder="Type" />
+              </SelectTrigger>
+              <SelectContent className="rounded-xl border-gray-200 bg-white shadow-xl">
+                <SelectItem value="all" className="text-xs font-medium">Type</SelectItem>
+                {Object.entries(QUESTION_TYPE_LABELS).map(([value, label]) => (
+                  <SelectItem key={value} value={value} className="text-xs font-medium">
+                    {label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
           {selectedIds.length > 0 && (
@@ -490,6 +510,15 @@ export function QuestionList() {
               className="flex items-center gap-1.5 px-3 py-1 bg-slate-900 text-white rounded-full text-[11px] font-bold transition-all hover:bg-slate-800"
             >
               Difficulty: {params.difficulty}
+              <X className="w-3 h-3" />
+            </button>
+          )}
+          {params.type && (params.type as string) !== 'all' && (
+            <button
+              onClick={() => handleFilterChange('type', 'all')}
+              className="flex items-center gap-1.5 px-3 py-1 bg-slate-900 text-white rounded-full text-[11px] font-bold transition-all hover:bg-slate-800"
+            >
+              Type: {getQuestionTypeLabel(params.type)}
               <X className="w-3 h-3" />
             </button>
           )}
