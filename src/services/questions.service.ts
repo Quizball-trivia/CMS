@@ -13,6 +13,7 @@ import type {
   CheckDuplicatesRequest,
   CheckDuplicatesResponse,
   I18nField,
+  DeleteQuestionResult,
 } from '@/types';
 import { logger } from '@/lib/logger';
 
@@ -52,9 +53,9 @@ export const questionsService = {
     return result;
   },
 
-  async delete(id: string): Promise<void> {
+  async delete(id: string): Promise<DeleteQuestionResult> {
     logger.debug('api', `DELETE /questions/${id}`);
-    return apiClient.delete<void>(`/questions/${id}`);
+    return apiClient.delete<DeleteQuestionResult>(`/questions/${id}`);
   },
 
   async updateStatus(id: string, data: UpdateQuestionStatusRequest): Promise<Question> {

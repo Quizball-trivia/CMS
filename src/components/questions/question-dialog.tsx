@@ -234,8 +234,8 @@ export function QuestionDialog({
     }
 
     try {
-      await deleteQuestionMutation.mutateAsync(hydratedQuestion.id);
-      toast.success('Question deleted');
+      const result = await deleteQuestionMutation.mutateAsync(hydratedQuestion.id);
+      toast.success(result.message);
       setConfirmDelete(false);
 
       if (hasNext) {

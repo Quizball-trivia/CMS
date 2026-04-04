@@ -58,3 +58,11 @@ export interface CategoryDependencies {
   questions: { id: string; prompt: I18nField; type: string; difficulty: string }[];
   featured: boolean;
 }
+
+export interface DeleteCategoryResult {
+  action: 'deleted' | 'archived';
+  entity_type: 'category';
+  entity_id: string;
+  message: string;
+  archived_questions?: number;
+}

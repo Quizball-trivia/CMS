@@ -121,8 +121,8 @@ export function QuestionPreviewDialog({
     }
 
     try {
-      await deleteQuestion.mutateAsync(hydratedQuestion.id);
-      toast.success('Question deleted');
+      const result = await deleteQuestion.mutateAsync(hydratedQuestion.id);
+      toast.success(result.message);
       setConfirmDelete(false);
 
       // Navigate to next question or close if none left

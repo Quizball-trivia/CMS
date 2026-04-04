@@ -122,6 +122,13 @@ export interface UpdateQuestionStatusRequest {
   status: QuestionStatus;
 }
 
+export interface DeleteQuestionResult {
+  action: 'deleted' | 'archived';
+  entity_type: 'question';
+  entity_id: string;
+  message: string;
+}
+
 // Paginated response from generated types
 export type PaginatedQuestionsResponse = components['schemas']['PaginatedQuestionsResponse'];
 

@@ -41,8 +41,8 @@ export function DuplicateQuestionsList({ type, onTypeChange }: DuplicateQuestion
 
     try {
       setDeletingQuestionId(questionId);
-      await deleteQuestion.mutateAsync(questionId);
-      toast.success('Question deleted');
+      const result = await deleteQuestion.mutateAsync(questionId);
+      toast.success(result.message);
     } catch (error) {
       logger.error('questions', 'Failed to delete duplicate question', {
         error: error instanceof Error ? error.message : error,

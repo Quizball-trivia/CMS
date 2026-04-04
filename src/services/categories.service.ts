@@ -6,6 +6,7 @@ import type {
   ListCategoriesParams,
   CategoryDependencies,
   PaginatedCategoriesResponse,
+  DeleteCategoryResult,
 } from '@/types';
 
 export const categoriesService = {
@@ -29,15 +30,15 @@ export const categoriesService = {
     return apiClient.put<Category>(`/categories/${id}`, data);
   },
 
-  async delete(id: string): Promise<void> {
-    return apiClient.delete<void>(`/categories/${id}`);
+  async delete(id: string): Promise<DeleteCategoryResult> {
+    return apiClient.delete<DeleteCategoryResult>(`/categories/${id}`);
   },
 
   async getDependencies(id: string): Promise<CategoryDependencies> {
     return apiClient.get<CategoryDependencies>(`/categories/${id}/dependencies`);
   },
 
-  async deleteWithCascade(id: string): Promise<void> {
-    return apiClient.delete<void>(`/categories/${id}?cascade=true`);
+  async deleteWithCascade(id: string): Promise<DeleteCategoryResult> {
+    return apiClient.delete<DeleteCategoryResult>(`/categories/${id}?cascade=true`);
   },
 };

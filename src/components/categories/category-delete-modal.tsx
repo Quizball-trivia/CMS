@@ -48,8 +48,8 @@ export function CategoryDeleteModal({
   const handleDeleteQuestion = async (questionId: string) => {
     setDeletingQuestionId(questionId);
     try {
-      await deleteQuestion.mutateAsync(questionId);
-      toast.success('Question deleted');
+      const result = await deleteQuestion.mutateAsync(questionId);
+      toast.success(result.message);
       refetch();
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to delete question';
@@ -61,8 +61,8 @@ export function CategoryDeleteModal({
 
   const handleDeleteCategory = async () => {
     try {
-      await deleteCategory.mutateAsync(category.id);
-      toast.success('Category deleted successfully');
+      const result = await deleteCategory.mutateAsync(category.id);
+      toast.success(result.message);
       onOpenChange(false);
       onDeleted?.();
     } catch (error) {
@@ -73,8 +73,8 @@ export function CategoryDeleteModal({
 
   const handleCascadeDelete = async () => {
     try {
-      await cascadeDeleteCategory.mutateAsync(category.id);
-      toast.success(`Category and ${questionCount} question${questionCount !== 1 ? 's' : ''} deleted`);
+      const result = await cascadeDeleteCategory.mutateAsync(category.id);
+      toast.success(result.message);
       onOpenChange(false);
       onDeleted?.();
     } catch (error) {

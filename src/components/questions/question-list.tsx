@@ -189,8 +189,8 @@ export function QuestionList() {
   const handleDelete = async () => {
     if (!deleteState || deleteState.type !== 'single') return;
     try {
-      await deleteQuestion.mutateAsync(deleteState.id);
-      toast.success('Question deleted successfully');
+      const result = await deleteQuestion.mutateAsync(deleteState.id);
+      toast.success(result.message);
       setDeleteState(null);
     } catch {
       toast.error('Failed to delete question');
@@ -208,7 +208,10 @@ export function QuestionList() {
     try {
       const result = await processBatch(
         selectedIds,
-        (id) => deleteQuestion.mutateAsync(id),
+        async (id) => {
+          const deleteResult = await deleteQuestion.mutateAsync(id);
+          return deleteResult;
+        },
         {
           batchSize: 5,
           delayBetweenBatches: 500,
