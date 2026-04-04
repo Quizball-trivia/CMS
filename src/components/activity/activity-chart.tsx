@@ -16,6 +16,7 @@ import {
 import type { DayActivity } from '@/types';
 import { Badge } from '@/components/ui/badge';
 import type { DailyQuestionCategoryCount } from '@/types';
+import type { DailyQuestionTypeCount } from '@/types';
 
 interface ActivityChartProps {
   days: DayActivity[];
@@ -44,6 +45,33 @@ function mergeCategoryCounts(categories: DailyQuestionCategoryCount[]): DailyQue
   });
 }
 
+function mergeTypeCounts(types: DailyQuestionTypeCount[]): DailyQuestionTypeCount[] {
+  const merged = new Map<string, DailyQuestionTypeCount>();
+
+  for (const typeItem of types) {
+    const key = typeItem.type.trim().toLocaleLowerCase();
+    const existing = merged.get(key);
+
+    if (existing) {
+      existing.count += typeItem.count;
+    } else {
+      merged.set(key, { ...typeItem });
+    }
+  }
+
+  return [...merged.values()].sort((a, b) => {
+    if (b.count !== a.count) return b.count - a.count;
+    return a.type.localeCompare(b.type);
+  });
+}
+
+function formatQuestionType(type: string): string {
+  return type
+    .split('_')
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ');
+}
+
 function aggregateWeekly(days: DayActivity[]): DayActivity[] {
   const weeks = new Map<string, DayActivity>();
 
@@ -64,11 +92,16 @@ function aggregateWeekly(days: DayActivity[]): DayActivity[] {
         ...existing.question_categories,
         ...day.question_categories,
       ]);
+      existing.question_types = mergeTypeCounts([
+        ...existing.question_types,
+        ...day.question_types,
+      ]);
     } else {
       weeks.set(weekKey, {
         ...day,
         date: weekKey,
         question_categories: mergeCategoryCounts(day.question_categories),
+        question_types: mergeTypeCounts(day.question_types),
       });
     }
   }
@@ -78,6 +111,7 @@ function aggregateWeekly(days: DayActivity[]): DayActivity[] {
     .map((week) => ({
       ...week,
       question_categories: mergeCategoryCounts(week.question_categories),
+      question_types: mergeTypeCounts(week.question_types),
     }));
 }
 
@@ -96,7 +130,8 @@ function getDayFromTooltipPayload(
     typeof maybeDay.questions_created !== 'number' ||
     typeof maybeDay.categories_created !== 'number' ||
     typeof maybeDay.total !== 'number' ||
-    !Array.isArray(maybeDay.question_categories)
+    !Array.isArray(maybeDay.question_categories) ||
+    !Array.isArray(maybeDay.question_types)
   ) {
     return null;
   }
@@ -110,9 +145,11 @@ function ActivityTooltip({ active, payload, label }: TooltipContentProps) {
   const day = getDayFromTooltipPayload(payload);
   if (!day) return null;
   const categories = mergeCategoryCounts(day.question_categories);
+  const questionTypes = mergeTypeCounts(day.question_types);
 
   const [y, m, d] = String(label).split('-');
   const hiddenCount = Math.max(categories.length - 5, 0);
+  const hiddenTypeCount = Math.max(questionTypes.length - 5, 0);
 
   return (
     <div className="min-w-[240px] rounded-xl border bg-white/95 p-3 shadow-xl backdrop-blur">
@@ -148,6 +185,32 @@ function ActivityTooltip({ active, payload, label }: TooltipContentProps) {
             {hiddenCount > 0 && (
               <p className="pt-1 text-[11px] text-muted-foreground">
                 +{hiddenCount} more categories that day
+              </p>
+            )}
+          </div>
+        </div>
+      )}
+
+      {questionTypes.length > 0 && (
+        <div className="mt-3 border-t pt-3">
+          <div className="mb-2 flex items-center justify-between gap-2">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+              Question Types
+            </p>
+            <Badge variant="outline" className="text-[10px]">
+              {questionTypes.length} total
+            </Badge>
+          </div>
+          <div className="space-y-1.5">
+            {questionTypes.slice(0, 5).map((typeItem) => (
+              <div key={`${label}-${typeItem.type}`} className="flex items-center justify-between gap-3 text-xs">
+                <span className="truncate text-foreground">{formatQuestionType(typeItem.type)}</span>
+                <span className="font-semibold text-slate-700">{typeItem.count}</span>
+              </div>
+            ))}
+            {hiddenTypeCount > 0 && (
+              <p className="pt-1 text-[11px] text-muted-foreground">
+                +{hiddenTypeCount} more question types that day
               </p>
             )}
           </div>
