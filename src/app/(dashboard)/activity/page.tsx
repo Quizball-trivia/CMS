@@ -18,7 +18,6 @@ import {
 } from '@/components/ui/select';
 import { StatsCards } from '@/components/activity/stats-cards';
 import { ActivityChart } from '@/components/activity/activity-chart';
-import { ContributionHeatmap } from '@/components/activity/contribution-heatmap';
 import { CategoryBreakdown } from '@/components/activity/category-breakdown';
 import { RecentActivityFeed } from '@/components/activity/recent-activity-feed';
 import { Loader2 } from 'lucide-react';
@@ -136,9 +135,6 @@ export default function ActivityPage() {
 
           {/* Activity bar chart */}
           <ActivityChart days={activityData.days} />
-
-          {/* GitHub-style heatmap (always shows last 365 days) */}
-          <ContributionHeatmap days={activityData.days} />
 
           {/* Bottom row: category breakdown + recent activity */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">

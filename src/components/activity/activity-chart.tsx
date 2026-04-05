@@ -17,6 +17,13 @@ import type { DayActivity } from '@/types';
 import { Badge } from '@/components/ui/badge';
 import type { DailyQuestionCategoryCount } from '@/types';
 import type { DailyQuestionTypeCount } from '@/types';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 
 interface ActivityChartProps {
   days: DayActivity[];
@@ -66,6 +73,10 @@ function mergeTypeCounts(types: DailyQuestionTypeCount[]): DailyQuestionTypeCoun
 }
 
 function formatQuestionType(type: string): string {
+  if (type.trim().toLocaleLowerCase() === 'unknown') {
+    return 'Unknown type';
+  }
+
   return type
     .split('_')
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
@@ -116,9 +127,14 @@ function aggregateWeekly(days: DayActivity[]): DayActivity[] {
 }
 
 function getDayFromTooltipPayload(
-  payload: TooltipContentProps['payload']
+  payload: TooltipContentProps['payload'] | undefined
 ): DayActivity | null {
   const candidate = payload?.[0]?.payload;
+
+  return getDayFromUnknownCandidate(candidate);
+}
+
+function getDayFromUnknownCandidate(candidate: unknown): DayActivity | null {
 
   if (!candidate || typeof candidate !== 'object') {
     return null;
@@ -137,6 +153,28 @@ function getDayFromTooltipPayload(
   }
 
   return maybeDay as DayActivity;
+}
+
+function getDayFromChartClickState(value: unknown): DayActivity | null {
+  if (!value || typeof value !== 'object') {
+    return null;
+  }
+
+  const maybeState = value as { activePayload?: TooltipContentProps['payload'] };
+  return getDayFromTooltipPayload(maybeState.activePayload);
+}
+
+function getDayFromBarClickEntry(value: unknown): DayActivity | null {
+  if (!value || typeof value !== 'object') {
+    return null;
+  }
+
+  const maybeEntry = value as { payload?: unknown };
+  if (!maybeEntry.payload || typeof maybeEntry.payload !== 'object') {
+    return null;
+  }
+
+  return getDayFromUnknownCandidate(maybeEntry.payload);
 }
 
 function ActivityTooltip({ active, payload, label }: TooltipContentProps) {
@@ -184,7 +222,7 @@ function ActivityTooltip({ active, payload, label }: TooltipContentProps) {
             ))}
             {hiddenCount > 0 && (
               <p className="pt-1 text-[11px] text-muted-foreground">
-                +{hiddenCount} more categories that day
+                +{hiddenCount} more categories. Click the bar to view all.
               </p>
             )}
           </div>
@@ -222,72 +260,166 @@ function ActivityTooltip({ active, payload, label }: TooltipContentProps) {
 
 export function ActivityChart({ days }: ActivityChartProps) {
   const [viewMode, setViewMode] = useState<ViewMode>('daily');
+  const [detailsDay, setDetailsDay] = useState<DayActivity | null>(null);
 
   const data = useMemo(
     () => (viewMode === 'weekly' ? aggregateWeekly(days) : days),
     [days, viewMode]
   );
 
+  const detailCategories = useMemo(
+    () => (detailsDay ? mergeCategoryCounts(detailsDay.question_categories) : []),
+    [detailsDay]
+  );
+
+  const detailQuestionTypes = useMemo(
+    () => (detailsDay ? mergeTypeCounts(detailsDay.question_types) : []),
+    [detailsDay]
+  );
+
+  const detailDateLabel = useMemo(() => {
+    if (!detailsDay) return '';
+    const [y, m, d] = detailsDay.date.split('-');
+    return `${Number(m)}/${Number(d)}/${y}`;
+  }, [detailsDay]);
+
   return (
-    <Card>
-      <CardHeader className="flex-row items-center justify-between">
-        <CardTitle>Activity Over Time</CardTitle>
-        <div className="flex gap-1 bg-gray-100 rounded-lg p-0.5">
-          {(['daily', 'weekly'] as const).map((mode) => (
-            <button
-              key={mode}
-              onClick={() => setViewMode(mode)}
-              className={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${
-                viewMode === mode
-                  ? 'bg-white shadow-sm text-foreground'
-                  : 'text-muted-foreground hover:text-foreground'
-              }`}
-            >
-              {mode.charAt(0).toUpperCase() + mode.slice(1)}
-            </button>
-          ))}
-        </div>
-      </CardHeader>
-      <CardContent>
-        <div className="h-[300px]">
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={data} margin={{ top: 5, right: 5, left: -20, bottom: 5 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-              <XAxis
-                dataKey="date"
-                tick={{ fontSize: 11 }}
-                tickFormatter={(val: string) => {
-                  const [, m, d] = val.split('-');
-                  return `${Number(m)}/${Number(d)}`;
+    <>
+      <Card>
+        <CardHeader className="flex-row items-center justify-between">
+          <CardTitle>Activity Over Time</CardTitle>
+          <div className="flex gap-1 bg-gray-100 rounded-lg p-0.5">
+            {(['daily', 'weekly'] as const).map((mode) => (
+              <button
+                key={mode}
+                onClick={() => setViewMode(mode)}
+                className={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${
+                  viewMode === mode
+                    ? 'bg-white shadow-sm text-foreground'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                {mode.charAt(0).toUpperCase() + mode.slice(1)}
+              </button>
+            ))}
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="h-[300px]">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart
+                data={data}
+                margin={{ top: 5, right: 5, left: -20, bottom: 5 }}
+                onClick={(state) => {
+                  const day = getDayFromChartClickState(state);
+                  if (day) {
+                    setDetailsDay(day);
+                  }
                 }}
-              />
-              <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
-              <Tooltip
-                labelFormatter={(val) => {
-                  const [y, m, d] = String(val).split('-');
-                  return `${Number(m)}/${Number(d)}/${y}`;
-                }}
-                content={ActivityTooltip}
-              />
-              <Legend wrapperStyle={{ fontSize: 12 }} />
-              <Bar
-                dataKey="questions_created"
-                name="Questions"
-                fill="#3b82f6"
-                radius={[2, 2, 0, 0]}
-                stackId="stack"
-              />
-              <Bar
-                dataKey="categories_created"
-                name="Categories"
-                fill="#22c55e"
-                radius={[2, 2, 0, 0]}
-                stackId="stack"
-              />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-      </CardContent>
-    </Card>
+              >
+                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                <XAxis
+                  dataKey="date"
+                  tick={{ fontSize: 11 }}
+                  tickFormatter={(val: string) => {
+                    const [, m, d] = val.split('-');
+                    return `${Number(m)}/${Number(d)}`;
+                  }}
+                />
+                <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
+                <Tooltip
+                  labelFormatter={(val) => {
+                    const [y, m, d] = String(val).split('-');
+                    return `${Number(m)}/${Number(d)}/${y}`;
+                  }}
+                  content={(props) => <ActivityTooltip {...props} />}
+                />
+                <Legend wrapperStyle={{ fontSize: 12 }} />
+                <Bar
+                  dataKey="questions_created"
+                  name="Questions"
+                  fill="#3b82f6"
+                  radius={[2, 2, 0, 0]}
+                  stackId="stack"
+                  cursor="pointer"
+                  onClick={(entry) => {
+                    const day = getDayFromBarClickEntry(entry);
+                    if (day) {
+                      setDetailsDay(day);
+                    }
+                  }}
+                />
+                <Bar
+                  dataKey="categories_created"
+                  name="Categories"
+                  fill="#22c55e"
+                  radius={[2, 2, 0, 0]}
+                  stackId="stack"
+                  cursor="pointer"
+                  onClick={(entry) => {
+                    const day = getDayFromBarClickEntry(entry);
+                    if (day) {
+                      setDetailsDay(day);
+                    }
+                  }}
+                />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+          <p className="mt-3 text-xs text-muted-foreground">
+            Click any bar to open the full-day breakdown in a modal.
+          </p>
+        </CardContent>
+      </Card>
+
+      <Dialog open={detailsDay !== null} onOpenChange={(open) => !open && setDetailsDay(null)}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Activity Details for {detailDateLabel}</DialogTitle>
+            <DialogDescription>
+              Full question category and question type breakdown for this day.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="grid gap-6 md:grid-cols-2">
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-semibold">Question Categories</p>
+                <Badge variant="outline">{detailCategories.length} total</Badge>
+              </div>
+              <div className="max-h-[420px] space-y-2 overflow-y-auto pr-1">
+                {detailCategories.map((category) => (
+                  <div
+                    key={`${detailDateLabel}-${category.id ?? category.name}`}
+                    className="flex items-center justify-between gap-3 rounded-lg border px-3 py-2 text-sm"
+                  >
+                    <span className="truncate text-foreground">{category.name}</span>
+                    <span className="font-semibold text-slate-700">{category.count}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-semibold">Question Types</p>
+                <Badge variant="outline">{detailQuestionTypes.length} total</Badge>
+              </div>
+              <div className="max-h-[420px] space-y-2 overflow-y-auto pr-1">
+                {detailQuestionTypes.map((typeItem) => (
+                  <div
+                    key={`${detailDateLabel}-${typeItem.type}`}
+                    className="flex items-center justify-between gap-3 rounded-lg border px-3 py-2 text-sm"
+                  >
+                    <span className="truncate text-foreground">{formatQuestionType(typeItem.type)}</span>
+                    <span className="font-semibold text-slate-700">{typeItem.count}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
