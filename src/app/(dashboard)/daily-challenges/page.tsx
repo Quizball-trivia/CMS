@@ -18,10 +18,10 @@ import {
   Zap,
   CircleCheckBig,
 } from 'lucide-react';
-import { useCategories, useDailyChallenges, useUpdateDailyChallenge } from '@/hooks';
+import { useDailyChallenges, useUpdateDailyChallenge } from '@/hooks';
 import type {
   AdminDailyChallengeConfig,
-  Category,
+  AdminDailyChallengeCategoryOption,
   CluesSettings,
   CountdownSettings,
   DailyChallengeSettings,
@@ -116,21 +116,41 @@ function updateCategoryIds(
   return typeof maxCount === 'number' ? next.slice(0, maxCount) : next;
 }
 
-function getCategoryName(category: Category) {
-  return category.name.en || category.slug || 'Category';
+function getCategoryName(category: AdminDailyChallengeCategoryOption) {
+  return category.name.en || Object.values(category.name)[0] || category.slug || 'Category';
 }
 
 function CategorySelector({
+  challengeType,
   categories,
   selectedCategoryIds,
   onToggle,
   maxCount,
 }: {
-  categories: Category[];
+  challengeType: DailyChallengeType;
+  categories: AdminDailyChallengeCategoryOption[];
   selectedCategoryIds: string[];
   onToggle: (categoryId: string, checked: boolean) => void;
   maxCount?: number;
 }) {
+  const challengeLabel = getChallengeQuestionLabel(challengeType);
+
+  if (categories.length === 0) {
+    return (
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Content Source Pool</p>
+          <Badge variant="outline" className="rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-black text-slate-500">
+            0 Available
+          </Badge>
+        </div>
+        <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-5 text-sm font-semibold text-slate-500">
+          No active categories currently have published {challengeLabel} questions.
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
@@ -169,9 +189,24 @@ function CategorySelector({
                   onCheckedChange={(value) => onToggle(category.id, value === true)}
                   className={cn(checked && "border-white/40 data-[state=checked]:bg-white data-[state=checked]:text-black")}
                 />
-                <div className="min-w-0 flex flex-col">
+                <div className="min-w-0 flex-1 flex flex-col">
                   <span className="truncate text-xs font-bold leading-tight">{getCategoryName(category)}</span>
-                  <span className={cn("truncate text-[9px] leading-tight", checked ? "text-white/60" : "text-slate-400")}>{category.slug}</span>
+                  <span className={cn("truncate text-[9px] leading-tight", checked ? "text-white/60" : "text-slate-400")}>
+                    {category.slug}
+                  </span>
+                  {challengeType === 'footballJeopardy' ? (
+                    <span className={cn("truncate text-[9px] leading-tight", checked ? "text-white/60" : "text-slate-400")}>
+                      E {category.easyCount} / M {category.mediumCount} / H {category.hardCount}
+                    </span>
+                  ) : null}
+                </div>
+                <div className={cn(
+                  'shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-black',
+                  checked
+                    ? 'border-white/20 bg-white/10 text-white'
+                    : 'border-slate-200 bg-slate-50 text-slate-600'
+                )}>
+                  {category.questionCount}
                 </div>
               </label>
             );
@@ -184,13 +219,17 @@ function CategorySelector({
 
 function SettingsEditor({
   config,
-  categories,
   onChange,
 }: {
   config: EditableConfig;
-  categories: Category[];
   onChange: (config: EditableConfig) => void;
 }) {
+  const availableCategories = config.availableCategories;
+  const availableCategoryIds = new Set(availableCategories.map((category) => category.id));
+  const selectedCategoryIds = 'categoryIds' in config.settings
+    ? config.settings.categoryIds.filter((categoryId) => availableCategoryIds.has(categoryId))
+    : [];
+
   if (config.challengeType === 'moneyDrop') {
     const settings = toMoneyDropSettings(config.settings);
     return (
@@ -216,14 +255,15 @@ function SettingsEditor({
           </div>
         </div>
         <CategorySelector
-          categories={categories}
-          selectedCategoryIds={settings.categoryIds}
+          challengeType={config.challengeType}
+          categories={availableCategories}
+          selectedCategoryIds={selectedCategoryIds}
           onToggle={(categoryId, checked) =>
             onChange({
               ...config,
               settings: {
                 ...settings,
-                categoryIds: updateCategoryIds(settings.categoryIds, categoryId, checked),
+                categoryIds: updateCategoryIds(selectedCategoryIds, categoryId, checked),
               },
             })}
         />
@@ -259,15 +299,16 @@ function SettingsEditor({
           </div>
         </div>
         <CategorySelector
-          categories={categories}
-          selectedCategoryIds={settings.categoryIds}
+          challengeType={config.challengeType}
+          categories={availableCategories}
+          selectedCategoryIds={selectedCategoryIds}
           maxCount={3}
           onToggle={(categoryId, checked) =>
             onChange({
               ...config,
               settings: {
                 ...settings,
-                categoryIds: updateCategoryIds(settings.categoryIds, categoryId, checked, 3),
+                categoryIds: updateCategoryIds(selectedCategoryIds, categoryId, checked, 3),
               },
             })}
         />
@@ -295,14 +336,15 @@ function SettingsEditor({
           </div>
         </div>
         <CategorySelector
-          categories={categories}
-          selectedCategoryIds={settings.categoryIds}
+          challengeType={config.challengeType}
+          categories={availableCategories}
+          selectedCategoryIds={selectedCategoryIds}
           onToggle={(categoryId, checked) =>
             onChange({
               ...config,
               settings: {
                 ...settings,
-                categoryIds: updateCategoryIds(settings.categoryIds, categoryId, checked),
+                categoryIds: updateCategoryIds(selectedCategoryIds, categoryId, checked),
               },
             })}
         />
@@ -330,14 +372,15 @@ function SettingsEditor({
           </div>
         </div>
         <CategorySelector
-          categories={categories}
-          selectedCategoryIds={settings.categoryIds}
+          challengeType={config.challengeType}
+          categories={availableCategories}
+          selectedCategoryIds={selectedCategoryIds}
           onToggle={(categoryId, checked) =>
             onChange({
               ...config,
               settings: {
                 ...settings,
-                categoryIds: updateCategoryIds(settings.categoryIds, categoryId, checked),
+                categoryIds: updateCategoryIds(selectedCategoryIds, categoryId, checked),
               },
             })}
         />
@@ -365,14 +408,15 @@ function SettingsEditor({
           </div>
         </div>
         <CategorySelector
-          categories={categories}
-          selectedCategoryIds={settings.categoryIds}
+          challengeType={config.challengeType}
+          categories={availableCategories}
+          selectedCategoryIds={selectedCategoryIds}
           onToggle={(categoryId, checked) =>
             onChange({
               ...config,
               settings: {
                 ...settings,
-                categoryIds: updateCategoryIds(settings.categoryIds, categoryId, checked),
+                categoryIds: updateCategoryIds(selectedCategoryIds, categoryId, checked),
               },
             })}
         />
@@ -399,14 +443,15 @@ function SettingsEditor({
         </div>
       </div>
       <CategorySelector
-        categories={categories}
-        selectedCategoryIds={settings.categoryIds}
+        challengeType={config.challengeType}
+        categories={availableCategories}
+        selectedCategoryIds={selectedCategoryIds}
         onToggle={(categoryId, checked) =>
           onChange({
             ...config,
             settings: {
               ...settings,
-              categoryIds: updateCategoryIds(settings.categoryIds, categoryId, checked),
+              categoryIds: updateCategoryIds(selectedCategoryIds, categoryId, checked),
             },
           })}
       />
@@ -436,8 +481,52 @@ function FieldNumber({
   );
 }
 
-function getSelectedCategoryCount(config: EditableConfig): number {
-  return 'categoryIds' in config.settings ? config.settings.categoryIds.length : 0;
+function getChallengeQuestionLabel(challengeType: DailyChallengeType): string {
+  switch (challengeType) {
+    case 'moneyDrop':
+    case 'footballJeopardy':
+      return 'multiple choice';
+    case 'trueFalse':
+      return 'true or false';
+    case 'countdown':
+      return 'countdown list';
+    case 'clues':
+      return 'clue chain';
+    case 'putInOrder':
+      return 'put in order';
+  }
+}
+
+function getAvailableCategoryIds(config: EditableConfig): Set<string> {
+  return new Set(config.availableCategories.map((category) => category.id));
+}
+
+function getEffectiveSelectedCategoryIds(config: EditableConfig): string[] {
+  if (!('categoryIds' in config.settings)) {
+    return [];
+  }
+
+  const availableCategoryIds = getAvailableCategoryIds(config);
+  return config.settings.categoryIds.filter((categoryId) => availableCategoryIds.has(categoryId));
+}
+
+function sanitizeConfig(config: EditableConfig): EditableConfig {
+  if (!('categoryIds' in config.settings)) {
+    return config;
+  }
+
+  const effectiveCategoryIds = getEffectiveSelectedCategoryIds(config);
+  if (effectiveCategoryIds.length === config.settings.categoryIds.length) {
+    return config;
+  }
+
+  return {
+    ...config,
+    settings: {
+      ...config.settings,
+      categoryIds: effectiveCategoryIds,
+    },
+  };
 }
 
 function isConfigDirty(config: EditableConfig, original?: EditableConfig): boolean {
@@ -451,11 +540,11 @@ function validateConfig(config: EditableConfig): string | null {
   }
 
   if (config.challengeType === 'footballJeopardy') {
-    const settings = toFootballJeopardySettings(config.settings);
+    const settings = toFootballJeopardySettings(sanitizeConfig(config).settings);
     if (settings.categoryIds.length !== 3) {
       return 'Football Jeopardy requires exactly 3 categories.';
     }
-  } else if ('categoryIds' in config.settings && config.settings.categoryIds.length === 0) {
+  } else if ('categoryIds' in config.settings && getEffectiveSelectedCategoryIds(config).length === 0) {
     return 'Select at least one category.';
   }
 
@@ -464,7 +553,6 @@ function validateConfig(config: EditableConfig): string | null {
 
 export default function DailyChallengesPage() {
   const { data: configs, isLoading, isError } = useDailyChallenges();
-  const { data: categories = [] } = useCategories({ is_active: 'true', limit: 100 });
   const updateMutation = useUpdateDailyChallenge();
   const [drafts, setDrafts] = useState<Record<DailyChallengeType, EditableConfig>>({} as Record<DailyChallengeType, EditableConfig>);
   const [expandedTypes, setExpandedTypes] = useState<Set<DailyChallengeType>>(new Set());
@@ -513,26 +601,27 @@ export default function DailyChallengesPage() {
   };
 
   const handleSave = async (config: EditableConfig) => {
-    const validationError = validateConfig(config);
+    const nextConfig = sanitizeConfig(config);
+    const validationError = validateConfig(nextConfig);
     if (validationError) {
       toast.error(validationError);
       return;
     }
 
-    setSavingType(config.challengeType);
+    setSavingType(nextConfig.challengeType);
     try {
       await updateMutation.mutateAsync({
-        challengeType: config.challengeType,
+        challengeType: nextConfig.challengeType,
         data: {
-          isActive: config.isActive,
-          sortOrder: config.sortOrder,
-          showOnHome: config.showOnHome,
-          coinReward: config.coinReward,
-          xpReward: config.xpReward,
-          settings: config.settings,
+          isActive: nextConfig.isActive,
+          sortOrder: nextConfig.sortOrder,
+          showOnHome: nextConfig.showOnHome,
+          coinReward: nextConfig.coinReward,
+          xpReward: nextConfig.xpReward,
+          settings: nextConfig.settings,
         },
       });
-      toast.success(`${config.title} updated`);
+      toast.success(`${nextConfig.title} updated`);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to update daily challenge';
       toast.error(message);
@@ -699,7 +788,6 @@ export default function DailyChallengesPage() {
                     <div className="mt-6 border-t border-slate-100 pt-6 animate-in fade-in slide-in-from-top-2 duration-300">
                       <SettingsEditor
                         config={config}
-                        categories={categories}
                         onChange={handleDraftChange}
                       />
                     </div>
