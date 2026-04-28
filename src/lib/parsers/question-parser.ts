@@ -1,5 +1,9 @@
 import type {
   BulkCreateQuestionsRequest,
+  CareerPathPayload,
+  FootballLogicPayload,
+  HighLowPayload,
+  ImposterMultiSelectPayload,
   QuestionType,
   TrueFalsePayload,
 } from '@/types';
@@ -52,19 +56,70 @@ export interface ParsedPutInOrderQuestion extends ParsedBaseQuestion {
   orderedAnswer: string[];
 }
 
+export interface ParsedImposterQuestion extends ParsedBaseQuestion {
+  kind: 'imposter_multi_select';
+  prompt: string;
+  options: Array<{ text: string; is_correct: boolean }>;
+}
+
+export interface ParsedCareerPathQuestion extends ParsedBaseQuestion {
+  kind: 'career_path';
+  prompt: string;
+  clubs: string[];
+  displayAnswer: string;
+  acceptedAnswers: string[];
+}
+
+export interface ParsedHighLowQuestion extends ParsedBaseQuestion {
+  kind: 'high_low';
+  prompt: string;
+  statLabel: string;
+  matchups: Array<{
+    leftName: string;
+    leftValue: number;
+    rightName: string;
+    rightValue: number;
+  }>;
+}
+
+export interface ParsedFootballLogicQuestion extends ParsedBaseQuestion {
+  kind: 'football_logic';
+  prompt?: string;
+  imageAUrl: string;
+  imageBUrl: string;
+  displayAnswer: string;
+  acceptedAnswers: string[];
+}
+
 export type ParsedBulkQuestion =
   | ParsedMcqQuestion
   | ParsedTrueFalseQuestion
   | ParsedCountdownQuestion
   | ParsedClueChainQuestion
-  | ParsedPutInOrderQuestion;
+  | ParsedPutInOrderQuestion
+  | ParsedImposterQuestion
+  | ParsedCareerPathQuestion
+  | ParsedHighLowQuestion
+  | ParsedFootballLogicQuestion;
 
 export interface ParseResult {
   questions: ParsedBulkQuestion[];
   errors: ParseError[];
 }
 
-type UploadQuestionType = Extract<QuestionType, 'mcq_single' | 'true_false' | 'countdown_list' | 'clue_chain' | 'put_in_order'>;
+type UploadQuestionType = Extract<
+  QuestionType,
+  | 'mcq_single'
+  | 'true_false'
+  | 'countdown_list'
+  | 'clue_chain'
+  | 'put_in_order'
+  | 'imposter_multi_select'
+  | 'career_path'
+  | 'high_low'
+  | 'football_logic'
+>;
+
 type Difficulty = ParsedBaseQuestion['difficulty'];
 
 interface ParsedBlock {
@@ -96,6 +151,7 @@ function splitAliases(line: string): { display: string; aliases: string[] } {
   const display = tokens[0] ?? line.trim();
   const seen = new Set<string>();
   const aliases = tokens.length > 0 ? tokens : [display];
+
   return {
     display,
     aliases: aliases.filter((alias) => {
@@ -187,15 +243,7 @@ function shouldStartNewBlock(
 
   const currentLines = current.lines.map((line) => line.trim());
   const hasDifficulty = currentLines.some((line) => DIFFICULTY_LINE.test(line));
-
-  // In Put In Order files, numbered answer rows appear after `Answer:` and before
-  // the block's final `Difficulty:` line. Treat any numbered rows before that
-  // difficulty marker as part of the current block, not a new question.
-  if (!hasDifficulty) {
-    return false;
-  }
-
-  return true;
+  return hasDifficulty;
 }
 
 function splitIntoBlocks(content: string, type: UploadQuestionType): { blocks: ParsedBlock[]; errors: ParseError[] } {
@@ -212,7 +260,7 @@ function splitIntoBlocks(content: string, type: UploadQuestionType): { blocks: P
     const match = trimmed.match(QUESTION_START);
 
     if (match && shouldStartNewBlock(type, current, trimmed)) {
-      const questionNumber = parseInt(match[1] ?? '0', 10);
+      const questionNumber = Number.parseInt(match[1] ?? '0', 10);
       if (seenQuestionNumbers.has(questionNumber)) {
         errors.push({
           lineNumber,
@@ -229,6 +277,7 @@ function splitIntoBlocks(content: string, type: UploadQuestionType): { blocks: P
           severity: 'warning',
         });
       }
+
       seenQuestionNumbers.add(questionNumber);
       lastQuestionNumber = questionNumber;
 
@@ -273,7 +322,9 @@ function splitIntoBlocks(content: string, type: UploadQuestionType): { blocks: P
 function parseMcqBlock(block: ParsedBlock): { question?: ParsedMcqQuestion; errors: ParseError[] } {
   const metadata = finalizeMetadata(block);
   const errors = [...metadata.errors];
-  if (metadata.contentLines.length === 0) {
+  const [prompt, ...optionLines] = metadata.contentLines;
+
+  if (!prompt) {
     errors.push({
       lineNumber: block.lineNumber,
       questionNumber: block.questionNumber,
@@ -283,7 +334,6 @@ function parseMcqBlock(block: ParsedBlock): { question?: ParsedMcqQuestion; erro
     return { errors };
   }
 
-  const [prompt, ...optionLines] = metadata.contentLines;
   const options = optionLines
     .map((line) => line.match(/^([A-D])\)\s+(.+?)(\*?)$/))
     .filter((match): match is RegExpMatchArray => Boolean(match))
@@ -307,9 +357,10 @@ function parseMcqBlock(block: ParsedBlock): { question?: ParsedMcqQuestion; erro
     errors.push({
       lineNumber: block.lineNumber,
       questionNumber: block.questionNumber,
-      message: correctCount === 0
-        ? 'No correct answer marked (use * after correct option)'
-        : 'Multiple correct answers marked (only one allowed)',
+      message:
+        correctCount === 0
+          ? 'No correct answer marked (use * after correct option)'
+          : 'Multiple correct answers marked (only one allowed)',
       severity: 'error',
     });
   }
@@ -435,7 +486,7 @@ function parseClueChainBlock(block: ParsedBlock): { question?: ParsedClueChainQu
     });
   }
 
-  const clueNumbers = clueLines.map((line) => parseInt(line.match(/^Clue\s+(\d+):/i)?.[1] ?? '0', 10));
+  const clueNumbers = clueLines.map((line) => Number.parseInt(line.match(/^Clue\s+(\d+):/i)?.[1] ?? '0', 10));
   clueNumbers.forEach((number, index) => {
     if (number !== index + 1) {
       errors.push({
@@ -460,9 +511,7 @@ function parseClueChainBlock(block: ParsedBlock): { question?: ParsedClueChainQu
     return { errors };
   }
 
-  const answerValue = answerLine!.replace(/^Answer:\s*/i, '');
-  const parsedAnswer = splitAliases(answerValue);
-
+  const parsedAnswer = splitAliases(answerLine!.replace(/^Answer:\s*/i, ''));
   return {
     question: {
       kind: 'clue_chain',
@@ -482,8 +531,10 @@ function parsePutInOrderBlock(block: ParsedBlock): { question?: ParsedPutInOrder
   const metadata = finalizeMetadata(block);
   const errors = [...metadata.errors];
   const [prompt, ...rest] = metadata.contentLines;
-
   const directionLine = rest.find((line) => /^Direction:\s*(asc|desc)\s*$/i.test(line));
+  const itemsIndex = rest.findIndex((line) => /^Items:\s*$/i.test(line));
+  const answerIndex = rest.findIndex((line) => /^Answer:\s*$/i.test(line));
+
   if (!prompt) {
     errors.push({
       lineNumber: block.lineNumber,
@@ -500,9 +551,6 @@ function parsePutInOrderBlock(block: ParsedBlock): { question?: ParsedPutInOrder
       severity: 'error',
     });
   }
-
-  const itemsIndex = rest.findIndex((line) => /^Items:\s*$/i.test(line));
-  const answerIndex = rest.findIndex((line) => /^Answer:\s*$/i.test(line));
   if (itemsIndex === -1) {
     errors.push({
       lineNumber: block.lineNumber,
@@ -528,7 +576,6 @@ function parsePutInOrderBlock(block: ParsedBlock): { question?: ParsedPutInOrder
     .slice(itemsIndex + 1, answerIndex)
     .map((line) => line.match(/^-\s+(.+)$/)?.[1]?.trim() ?? '')
     .filter(Boolean);
-
   const orderedAnswer = rest
     .slice(answerIndex + 1)
     .map((line) => line.match(/^\d+\.\s+(.+)$/)?.[1]?.trim() ?? '')
@@ -584,20 +631,285 @@ function parsePutInOrderBlock(block: ParsedBlock): { question?: ParsedPutInOrder
   };
 }
 
+function parseImposterBlock(block: ParsedBlock): { question?: ParsedImposterQuestion; errors: ParseError[] } {
+  const metadata = finalizeMetadata(block);
+  const errors = [...metadata.errors];
+  const correctAnswersLine = metadata.contentLines.find((line) => /^Correct Answers:/i.test(line));
+  const linesWithoutCorrect = metadata.contentLines.filter((line) => !/^Correct Answers:/i.test(line));
+  const [firstLine, ...optionLines] = linesWithoutCorrect;
+  const prompt = firstLine?.replace(/^Question:\s*/i, '').trim() || '';
+
+  if (!prompt) {
+    errors.push({
+      lineNumber: block.lineNumber,
+      questionNumber: block.questionNumber,
+      message: 'Missing question prompt',
+      severity: 'error',
+    });
+  }
+
+  const correctAnswers = new Set(
+    correctAnswersLine
+      ? correctAnswersLine
+          .replace(/^Correct Answers:\s*/i, '')
+          .split(',')
+          .map((value) => normalizeAlias(value))
+          .filter(Boolean)
+      : []
+  );
+
+  const options = optionLines
+    .map((line) => line.replace(/^[-*]\s*/, '').trim())
+    .filter(Boolean)
+    .map((line) => {
+      const isMarkedCorrect = line.endsWith('*');
+      const text = isMarkedCorrect ? line.slice(0, -1).trim() : line;
+      return {
+        text,
+        is_correct: isMarkedCorrect || correctAnswers.has(normalizeAlias(text)),
+      };
+    });
+
+  if (options.length < 4 || options.length > 12) {
+    errors.push({
+      lineNumber: block.lineNumber,
+      questionNumber: block.questionNumber,
+      message: 'Imposter questions require between 4 and 12 options',
+      severity: 'error',
+    });
+  }
+
+  if (!options.some((option) => option.is_correct) || !options.some((option) => !option.is_correct)) {
+    errors.push({
+      lineNumber: block.lineNumber,
+      questionNumber: block.questionNumber,
+      message: 'Imposter questions need at least one correct option and one incorrect option',
+      severity: 'error',
+    });
+  }
+
+  if (errors.some((error) => error.severity === 'error')) {
+    return { errors };
+  }
+
+  return {
+    question: {
+      kind: 'imposter_multi_select',
+      questionNumber: block.questionNumber,
+      prompt,
+      options,
+      difficulty: metadata.difficulty!,
+      explanation: metadata.explanation,
+      lineNumber: block.lineNumber,
+    },
+    errors,
+  };
+}
+
+function parseCareerPathBlock(block: ParsedBlock): { question?: ParsedCareerPathQuestion; errors: ParseError[] } {
+  const metadata = finalizeMetadata(block);
+  const errors = [...metadata.errors];
+  const answerLine = metadata.contentLines.find((line) => /^Answer:/i.test(line));
+  const promptLine = metadata.contentLines.find((line) => !/^Answer:/i.test(line)) ?? '';
+  const prompt = promptLine.replace(/^Question:\s*/i, '').trim();
+  const clubs = prompt
+    .split(/(?:➔|->|→)/)
+    .map((club) => club.trim())
+    .filter(Boolean);
+
+  if (clubs.length < 2) {
+    errors.push({
+      lineNumber: block.lineNumber,
+      questionNumber: block.questionNumber,
+      message: 'Career Path questions need at least 2 clubs separated by arrows',
+      severity: 'error',
+    });
+  }
+
+  if (!answerLine) {
+    errors.push({
+      lineNumber: block.lineNumber,
+      questionNumber: block.questionNumber,
+      message: 'Missing answer line',
+      severity: 'error',
+    });
+  }
+
+  if (errors.some((error) => error.severity === 'error')) {
+    return { errors };
+  }
+
+  const parsedAnswer = splitAliases(answerLine!.replace(/^Answer:\s*/i, ''));
+
+  return {
+    question: {
+      kind: 'career_path',
+      questionNumber: block.questionNumber,
+      prompt,
+      clubs,
+      displayAnswer: parsedAnswer.display,
+      acceptedAnswers: parsedAnswer.aliases,
+      difficulty: metadata.difficulty!,
+      explanation: metadata.explanation,
+      lineNumber: block.lineNumber,
+    },
+    errors,
+  };
+}
+
+function parseHighLowSide(value: string): { name: string; stat: number } | null {
+  const match = value.trim().match(/^(.*?)\s*\(([-\d.]+)\)\s*$/);
+  if (!match) return null;
+  return {
+    name: match[1]?.trim() || '',
+    stat: Number(match[2]),
+  };
+}
+
+function parseHighLowBlock(block: ParsedBlock): { question?: ParsedHighLowQuestion; errors: ParseError[] } {
+  const metadata = finalizeMetadata(block);
+  const errors = [...metadata.errors];
+  const questionLine = metadata.contentLines.find((line) => /^Question:/i.test(line)) ?? metadata.contentLines[0] ?? '';
+  const prompt = questionLine.replace(/^Question:\s*/i, '').trim();
+  const statLabelLine = metadata.contentLines.find((line) => /^Stat Label:/i.test(line));
+  const statLabel = statLabelLine?.replace(/^Stat Label:\s*/i, '').trim() || prompt;
+  const matchups: ParsedHighLowQuestion['matchups'] = [];
+
+  let index = 0;
+  while (index < metadata.contentLines.length) {
+    const line = metadata.contentLines[index] ?? '';
+    if (!/^Matchup\s+\d+/i.test(line)) {
+      index += 1;
+      continue;
+    }
+
+    const correctLine = metadata.contentLines[index + 1] ?? '';
+    const wrongLine = metadata.contentLines[index + 2] ?? '';
+    const correctParsed = /^Correct Answer:/i.test(correctLine)
+      ? parseHighLowSide(correctLine.replace(/^Correct Answer:\s*/i, ''))
+      : null;
+    const wrongParsed = /^Wrong Answer:/i.test(wrongLine)
+      ? parseHighLowSide(wrongLine.replace(/^Wrong Answer:\s*/i, ''))
+      : null;
+
+    if (!correctParsed || !wrongParsed) {
+      errors.push({
+        lineNumber: block.lineNumber,
+        questionNumber: block.questionNumber,
+        message: 'Each High Low matchup needs Correct Answer and Wrong Answer lines with numeric values in parentheses',
+        severity: 'error',
+      });
+      break;
+    }
+
+    matchups.push({
+      leftName: correctParsed.name,
+      leftValue: correctParsed.stat,
+      rightName: wrongParsed.name,
+      rightValue: wrongParsed.stat,
+    });
+    index += 3;
+  }
+
+  if (!prompt) {
+    errors.push({
+      lineNumber: block.lineNumber,
+      questionNumber: block.questionNumber,
+      message: 'Missing question prompt',
+      severity: 'error',
+    });
+  }
+
+  if (matchups.length === 0) {
+    errors.push({
+      lineNumber: block.lineNumber,
+      questionNumber: block.questionNumber,
+      message: 'High Low questions need at least one matchup block',
+      severity: 'error',
+    });
+  }
+
+  if (errors.some((error) => error.severity === 'error')) {
+    return { errors };
+  }
+
+  return {
+    question: {
+      kind: 'high_low',
+      questionNumber: block.questionNumber,
+      prompt,
+      statLabel,
+      matchups,
+      difficulty: metadata.difficulty!,
+      explanation: metadata.explanation,
+      lineNumber: block.lineNumber,
+    },
+    errors,
+  };
+}
+
+function parseFootballLogicBlock(block: ParsedBlock): { question?: ParsedFootballLogicQuestion; errors: ParseError[] } {
+  const metadata = finalizeMetadata(block);
+  const errors = [...metadata.errors];
+  const promptLine =
+    metadata.contentLines.find((line) => /^Prompt:/i.test(line))
+    ?? metadata.contentLines.find((line) => !/^(Image A|Image B|Answer):/i.test(line));
+  const imageALine = metadata.contentLines.find((line) => /^Image A:/i.test(line));
+  const imageBLine = metadata.contentLines.find((line) => /^Image B:/i.test(line));
+  const answerLine = metadata.contentLines.find((line) => /^Answer:/i.test(line));
+
+  if (!imageALine || !imageBLine || !answerLine) {
+    errors.push({
+      lineNumber: block.lineNumber,
+      questionNumber: block.questionNumber,
+      message: 'Football Logic questions need Image A, Image B, and Answer lines',
+      severity: 'error',
+    });
+    return { errors };
+  }
+
+  const parsedAnswer = splitAliases(answerLine.replace(/^Answer:\s*/i, ''));
+
+  return {
+    question: {
+      kind: 'football_logic',
+      questionNumber: block.questionNumber,
+      prompt: promptLine ? promptLine.replace(/^Prompt:\s*/i, '').trim() : undefined,
+      imageAUrl: imageALine.replace(/^Image A:\s*/i, '').trim(),
+      imageBUrl: imageBLine.replace(/^Image B:\s*/i, '').trim(),
+      displayAnswer: parsedAnswer.display,
+      acceptedAnswers: parsedAnswer.aliases,
+      difficulty: metadata.difficulty!,
+      explanation: metadata.explanation,
+      lineNumber: block.lineNumber,
+    },
+    errors,
+  };
+}
+
 export function parseQuestionFile(content: string, type: UploadQuestionType): ParseResult {
   const { blocks, errors } = splitIntoBlocks(content, type);
   const questions: ParsedBulkQuestion[] = [];
 
   for (const block of blocks) {
-    const parsed = type === 'mcq_single'
-      ? parseMcqBlock(block)
-      : type === 'true_false'
-        ? parseTrueFalseBlock(block)
-        : type === 'countdown_list'
-          ? parseCountdownBlock(block)
-          : type === 'clue_chain'
-            ? parseClueChainBlock(block)
-            : parsePutInOrderBlock(block);
+    const parsed =
+      type === 'mcq_single'
+        ? parseMcqBlock(block)
+        : type === 'true_false'
+          ? parseTrueFalseBlock(block)
+          : type === 'countdown_list'
+            ? parseCountdownBlock(block)
+            : type === 'clue_chain'
+              ? parseClueChainBlock(block)
+              : type === 'put_in_order'
+                ? parsePutInOrderBlock(block)
+                : type === 'imposter_multi_select'
+                  ? parseImposterBlock(block)
+                  : type === 'career_path'
+                    ? parseCareerPathBlock(block)
+                    : type === 'high_low'
+                      ? parseHighLowBlock(block)
+                      : parseFootballLogicBlock(block);
 
     errors.push(...parsed.errors);
     if (parsed.question) {
@@ -646,16 +958,8 @@ export function toBulkCreateQuestion(
       payload: {
         type: 'true_false',
         options: [
-          {
-            id: 'true',
-            text: localized(locale, 'True'),
-            is_correct: question.answer,
-          },
-          {
-            id: 'false',
-            text: localized(locale, 'False'),
-            is_correct: !question.answer,
-          },
+          { id: 'true', text: localized(locale, 'True'), is_correct: question.answer },
+          { id: 'false', text: localized(locale, 'False'), is_correct: !question.answer },
         ],
       } satisfies TrueFalsePayload,
     };
@@ -695,22 +999,88 @@ export function toBulkCreateQuestion(
     };
   }
 
-  const orderMap = new Map(question.orderedAnswer.map((answer, index) => [normalizeAlias(answer), index + 1]));
-  return {
-    ...base,
-    type: 'put_in_order',
-    prompt: localized(locale, question.prompt),
-    payload: {
+  if (question.kind === 'put_in_order') {
+    const orderMap = new Map(question.orderedAnswer.map((answer, index) => [normalizeAlias(answer), index + 1]));
+    return {
+      ...base,
       type: 'put_in_order',
       prompt: localized(locale, question.prompt),
-      direction: question.direction,
-      items: question.items.map((item) => ({
-        id: generateAnswerId(),
-        label: localized(locale, item),
-        details: null,
-        emoji: null,
-        sort_value: orderMap.get(normalizeAlias(item)) ?? 0,
-      })),
-    },
+      payload: {
+        type: 'put_in_order',
+        prompt: localized(locale, question.prompt),
+        direction: question.direction,
+        items: question.items.map((item) => ({
+          id: generateAnswerId(),
+          label: localized(locale, item),
+          details: null,
+          emoji: null,
+          sort_value: orderMap.get(normalizeAlias(item)) ?? 0,
+        })),
+      },
+    };
+  }
+
+  if (question.kind === 'imposter_multi_select') {
+    return {
+      ...base,
+      type: 'imposter_multi_select',
+      prompt: localized(locale, question.prompt),
+      payload: {
+        type: 'imposter_multi_select',
+        options: question.options.map((option) => ({
+          id: generateAnswerId(),
+          text: localized(locale, option.text),
+          is_correct: option.is_correct,
+        })),
+      } satisfies ImposterMultiSelectPayload,
+    };
+  }
+
+  if (question.kind === 'career_path') {
+    return {
+      ...base,
+      type: 'career_path',
+      prompt: localized(locale, question.prompt),
+      payload: {
+        type: 'career_path',
+        clubs: question.clubs.map((club) => localized(locale, club)),
+        display_answer: localized(locale, question.displayAnswer),
+        accepted_answers: question.acceptedAnswers,
+      } satisfies CareerPathPayload,
+    };
+  }
+
+  if (question.kind === 'high_low') {
+    return {
+      ...base,
+      type: 'high_low',
+      prompt: localized(locale, question.prompt),
+      payload: {
+        type: 'high_low',
+        stat_label: localized(locale, question.statLabel),
+        matchups: question.matchups.map((matchup) => ({
+          id: generateAnswerId(),
+          left_name: localized(locale, matchup.leftName),
+          left_value: matchup.leftValue,
+          right_name: localized(locale, matchup.rightName),
+          right_value: matchup.rightValue,
+        })),
+      } satisfies HighLowPayload,
+    };
+  }
+
+  return {
+    ...base,
+    type: 'football_logic',
+    prompt: localized(locale, question.prompt || question.displayAnswer),
+    payload: {
+      type: 'football_logic',
+      image_a_url: question.imageAUrl,
+      image_b_url: question.imageBUrl,
+      display_answer: localized(locale, question.displayAnswer),
+      accepted_answers: question.acceptedAnswers,
+      prompt: question.prompt ? localized(locale, question.prompt) : undefined,
+      explanation: question.explanation ? localized(locale, question.explanation) : null,
+    } satisfies FootballLogicPayload,
   };
 }

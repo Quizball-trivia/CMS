@@ -1893,6 +1893,74 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/friends/requests/{requestId}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Cancel a sent friend request */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    requestId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Friend request cancelled */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {boolean} */
+                            success: true;
+                        };
+                    };
+                };
+                /** @description Not authenticated */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Friend request not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Validation error */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/friends/{friendUserId}": {
         parameters: {
             query?: never;
@@ -2209,12 +2277,23 @@ export interface paths {
             };
             requestBody?: never;
             responses: {
-                /** @description Category deleted */
-                204: {
+                /** @description Category deleted or archived */
+                200: {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": {
+                            /** @enum {string} */
+                            action: "deleted" | "archived";
+                            /** @enum {string} */
+                            entity_type: "category";
+                            /** Format: uuid */
+                            entity_id: string;
+                            message: string;
+                            archived_questions?: number;
+                        };
+                    };
                 };
                 /** @description Not authenticated */
                 401: {
@@ -2657,7 +2736,7 @@ export interface paths {
                     category_id?: string;
                     status?: "draft" | "published" | "archived";
                     difficulty?: "easy" | "medium" | "hard";
-                    type?: "mcq_single" | "true_false" | "input_text" | "countdown_list" | "clue_chain" | "put_in_order";
+                    type?: "mcq_single" | "true_false" | "input_text" | "countdown_list" | "clue_chain" | "put_in_order" | "imposter_multi_select" | "career_path" | "high_low" | "football_logic";
                     search?: string;
                     page?: string;
                     limit?: string;
@@ -2697,7 +2776,7 @@ export interface paths {
                         /** Format: uuid */
                         category_id: string;
                         /** @enum {string} */
-                        type: "mcq_single" | "true_false" | "input_text" | "countdown_list" | "clue_chain" | "put_in_order";
+                        type: "mcq_single" | "true_false" | "input_text" | "countdown_list" | "clue_chain" | "put_in_order" | "imposter_multi_select" | "career_path" | "high_low" | "football_logic";
                         /** @enum {string} */
                         difficulty: "easy" | "medium" | "hard";
                         /** @enum {string} */
@@ -2811,7 +2890,7 @@ export interface paths {
                         /** Format: uuid */
                         category_id?: string;
                         /** @enum {string} */
-                        type?: "mcq_single" | "true_false" | "input_text" | "countdown_list" | "clue_chain" | "put_in_order";
+                        type?: "mcq_single" | "true_false" | "input_text" | "countdown_list" | "clue_chain" | "put_in_order" | "imposter_multi_select" | "career_path" | "high_low" | "football_logic";
                         /** @enum {string} */
                         difficulty?: "easy" | "medium" | "hard";
                         /** @enum {string} */
@@ -2886,12 +2965,22 @@ export interface paths {
             };
             requestBody?: never;
             responses: {
-                /** @description Question deleted */
-                204: {
+                /** @description Question deleted or archived */
+                200: {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": {
+                            /** @enum {string} */
+                            action: "deleted" | "archived";
+                            /** @enum {string} */
+                            entity_type: "question";
+                            /** Format: uuid */
+                            entity_id: string;
+                            message: string;
+                        };
+                    };
                 };
                 /** @description Not authenticated */
                 401: {
@@ -2954,7 +3043,7 @@ export interface paths {
                         category_id: string;
                         questions: {
                             /** @enum {string} */
-                            type: "mcq_single" | "true_false" | "input_text" | "countdown_list" | "clue_chain" | "put_in_order";
+                            type: "mcq_single" | "true_false" | "input_text" | "countdown_list" | "clue_chain" | "put_in_order" | "imposter_multi_select" | "career_path" | "high_low" | "football_logic";
                             /** @enum {string} */
                             difficulty: "easy" | "medium" | "hard";
                             /** @enum {string} */
@@ -3157,7 +3246,9 @@ export interface paths {
         /** List active daily challenges for the current user */
         get: {
             parameters: {
-                query?: never;
+                query?: {
+                    locale?: string;
+                };
                 header?: never;
                 path?: never;
                 cookie?: never;
@@ -3173,11 +3264,11 @@ export interface paths {
                         "application/json": {
                             items: {
                                 /** @enum {string} */
-                                challengeType: "moneyDrop" | "footballJeopardy" | "trueFalse" | "clues" | "countdown" | "putInOrder";
+                                challengeType: "moneyDrop" | "trueFalse" | "clues" | "countdown" | "putInOrder" | "imposter" | "careerPath" | "highLow" | "footballLogic";
                                 title: string;
                                 description: string;
                                 /** @enum {string} */
-                                iconToken: "dollarSign" | "brain" | "checkCircle" | "lightbulb" | "timer" | "list";
+                                iconToken: "dollarSign" | "checkCircle" | "lightbulb" | "timer" | "list" | "users" | "route" | "trendingUp" | "image";
                                 coinReward: number;
                                 xpReward: number;
                                 showOnHome: boolean;
@@ -3218,10 +3309,12 @@ export interface paths {
         /** Create a playable daily challenge session */
         post: {
             parameters: {
-                query?: never;
+                query?: {
+                    locale?: string;
+                };
                 header?: never;
                 path: {
-                    challengeType: "moneyDrop" | "footballJeopardy" | "trueFalse" | "clues" | "countdown" | "putInOrder";
+                    challengeType: "moneyDrop" | "trueFalse" | "clues" | "countdown" | "putInOrder" | "imposter" | "careerPath" | "highLow" | "footballLogic";
                 };
                 cookie?: never;
             };
@@ -3254,25 +3347,21 @@ export interface paths {
                             }[];
                         } | {
                             /** @enum {string} */
-                            challengeType: "footballJeopardy";
+                            challengeType: "trueFalse";
                             title: string;
                             description: string;
-                            pickCount: number;
-                            categories: {
+                            questionCount: number;
+                            secondsPerQuestion: number;
+                            questions: {
                                 /** Format: uuid */
                                 id: string;
-                                name: string;
-                                questions: {
-                                    /** Format: uuid */
-                                    id: string;
-                                    value: 100 | 200 | 300;
-                                    /** @enum {string} */
-                                    difficulty: "easy" | "medium" | "hard";
-                                    prompt: string;
-                                    options: string[];
-                                    correctAnswerIndex: number;
-                                    clue: string | null;
-                                }[];
+                                category: string;
+                                /** @enum {string} */
+                                difficulty: "easy" | "medium" | "hard";
+                                prompt: string;
+                                trueLabel: string;
+                                falseLabel: string;
+                                correctAnswer: boolean;
                             }[];
                         } | {
                             /** @enum {string} */
@@ -3335,6 +3424,89 @@ export interface paths {
                                     sortValue: number;
                                 }[];
                             }[];
+                        } | {
+                            /** @enum {string} */
+                            challengeType: "imposter";
+                            title: string;
+                            description: string;
+                            questionCount: number;
+                            secondsPerQuestion: number;
+                            questions: {
+                                /** Format: uuid */
+                                id: string;
+                                category: string;
+                                /** @enum {string} */
+                                difficulty: "easy" | "medium" | "hard";
+                                prompt: string;
+                                options: {
+                                    id: string;
+                                    text: string;
+                                }[];
+                                correctOptionIds: string[];
+                            }[];
+                        } | {
+                            /** @enum {string} */
+                            challengeType: "careerPath";
+                            title: string;
+                            description: string;
+                            questionCount: number;
+                            secondsPerQuestion: number;
+                            questions: {
+                                /** Format: uuid */
+                                id: string;
+                                category: string;
+                                /** @enum {string} */
+                                difficulty: "easy" | "medium" | "hard";
+                                prompt: string;
+                                clubs: string[];
+                                displayAnswer: string;
+                                acceptedAnswers: string[];
+                            }[];
+                        } | {
+                            /** @enum {string} */
+                            challengeType: "highLow";
+                            title: string;
+                            description: string;
+                            roundCount: number;
+                            secondsPerRound: number;
+                            rounds: {
+                                /** Format: uuid */
+                                id: string;
+                                category: string;
+                                /** @enum {string} */
+                                difficulty: "easy" | "medium" | "hard";
+                                prompt: string;
+                                statLabel: string;
+                                matchups: {
+                                    id: string;
+                                    leftName: string;
+                                    leftValue: number;
+                                    rightName: string;
+                                    rightValue: number;
+                                }[];
+                            }[];
+                        } | {
+                            /** @enum {string} */
+                            challengeType: "footballLogic";
+                            title: string;
+                            description: string;
+                            questionCount: number;
+                            secondsPerQuestion: number;
+                            questions: {
+                                /** Format: uuid */
+                                id: string;
+                                category: string;
+                                /** @enum {string} */
+                                difficulty: "easy" | "medium" | "hard";
+                                prompt: string | null;
+                                /** Format: uri */
+                                imageAUrl: string;
+                                /** Format: uri */
+                                imageBUrl: string;
+                                displayAnswer: string;
+                                acceptedAnswers: string[];
+                                explanation: string | null;
+                            }[];
                         };
                     };
                 };
@@ -3388,7 +3560,7 @@ export interface paths {
                 query?: never;
                 header?: never;
                 path: {
-                    challengeType: "moneyDrop" | "footballJeopardy" | "trueFalse" | "clues" | "countdown" | "putInOrder";
+                    challengeType: "moneyDrop" | "trueFalse" | "clues" | "countdown" | "putInOrder" | "imposter" | "careerPath" | "highLow" | "footballLogic";
                 };
                 cookie?: never;
             };
@@ -3409,7 +3581,7 @@ export interface paths {
                     content: {
                         "application/json": {
                             /** @enum {string} */
-                            challengeType: "moneyDrop" | "footballJeopardy" | "trueFalse" | "clues" | "countdown" | "putInOrder";
+                            challengeType: "moneyDrop" | "trueFalse" | "clues" | "countdown" | "putInOrder" | "imposter" | "careerPath" | "highLow" | "footballLogic";
                             /** @enum {boolean} */
                             completedToday: true;
                             coinsAwarded: number;
@@ -3472,7 +3644,7 @@ export interface paths {
                 query?: never;
                 header?: never;
                 path: {
-                    challengeType: "moneyDrop" | "footballJeopardy" | "trueFalse" | "clues" | "countdown" | "putInOrder";
+                    challengeType: "moneyDrop" | "trueFalse" | "clues" | "countdown" | "putInOrder" | "imposter" | "careerPath" | "highLow" | "footballLogic";
                 };
                 cookie?: never;
             };
@@ -3486,7 +3658,7 @@ export interface paths {
                     content: {
                         "application/json": {
                             /** @enum {string} */
-                            challengeType: "moneyDrop" | "footballJeopardy" | "trueFalse" | "clues" | "countdown" | "putInOrder";
+                            challengeType: "moneyDrop" | "trueFalse" | "clues" | "countdown" | "putInOrder" | "imposter" | "careerPath" | "highLow" | "footballLogic";
                             /** @enum {boolean} */
                             reset: true;
                         };
@@ -3543,11 +3715,11 @@ export interface paths {
                         "application/json": {
                             items: {
                                 /** @enum {string} */
-                                challengeType: "moneyDrop" | "footballJeopardy" | "trueFalse" | "clues" | "countdown" | "putInOrder";
+                                challengeType: "moneyDrop" | "trueFalse" | "clues" | "countdown" | "putInOrder" | "imposter" | "careerPath" | "highLow" | "footballLogic";
                                 title: string;
                                 description: string;
                                 /** @enum {string} */
-                                iconToken: "dollarSign" | "brain" | "checkCircle" | "lightbulb" | "timer" | "list";
+                                iconToken: "dollarSign" | "checkCircle" | "lightbulb" | "timer" | "list" | "users" | "route" | "trendingUp" | "image";
                                 coinReward: number;
                                 xpReward: number;
                                 showOnHome: boolean;
@@ -3561,12 +3733,6 @@ export interface paths {
                                     startingMoney: number;
                                     /** @enum {string} */
                                     challengeType: "moneyDrop";
-                                } | {
-                                    /** @default [] */
-                                    categoryIds: string[];
-                                    pickCount: number;
-                                    /** @enum {string} */
-                                    challengeType: "footballJeopardy";
                                 } | {
                                     /** @default [] */
                                     categoryIds: string[];
@@ -3595,9 +3761,49 @@ export interface paths {
                                     itemsPerRound: number;
                                     /** @enum {string} */
                                     challengeType: "putInOrder";
+                                } | {
+                                    /** @default [] */
+                                    categoryIds: string[];
+                                    questionCount: number;
+                                    secondsPerQuestion: number;
+                                    /** @enum {string} */
+                                    challengeType: "imposter";
+                                } | {
+                                    /** @default [] */
+                                    categoryIds: string[];
+                                    questionCount: number;
+                                    secondsPerQuestion: number;
+                                    /** @enum {string} */
+                                    challengeType: "careerPath";
+                                } | {
+                                    /** @default [] */
+                                    categoryIds: string[];
+                                    roundCount: number;
+                                    secondsPerRound: number;
+                                    /** @enum {string} */
+                                    challengeType: "highLow";
+                                } | {
+                                    /** @default [] */
+                                    categoryIds: string[];
+                                    questionCount: number;
+                                    secondsPerQuestion: number;
+                                    /** @enum {string} */
+                                    challengeType: "footballLogic";
                                 };
                                 sortOrder: number;
                                 isActive: boolean;
+                                availableCategories: {
+                                    /** Format: uuid */
+                                    id: string;
+                                    slug: string;
+                                    name: {
+                                        [key: string]: string;
+                                    };
+                                    questionCount: number;
+                                    easyCount: number;
+                                    mediumCount: number;
+                                    hardCount: number;
+                                }[];
                             }[];
                         };
                     };
@@ -3644,7 +3850,7 @@ export interface paths {
                 query?: never;
                 header?: never;
                 path: {
-                    challengeType: "moneyDrop" | "footballJeopardy" | "trueFalse" | "clues" | "countdown" | "putInOrder";
+                    challengeType: "moneyDrop" | "trueFalse" | "clues" | "countdown" | "putInOrder" | "imposter" | "careerPath" | "highLow" | "footballLogic";
                 };
                 cookie?: never;
             };
@@ -4201,6 +4407,16 @@ export interface components {
             /** Format: date-time */
             updated_at: string;
         };
+        DeleteCategoryResult: {
+            /** @enum {string} */
+            action: "deleted" | "archived";
+            /** @enum {string} */
+            entity_type: "category";
+            /** Format: uuid */
+            entity_id: string;
+            message: string;
+            archived_questions?: number;
+        };
         PaginatedCategoriesResponse: {
             data: components["schemas"]["CategoryResponse"][];
             page: number;
@@ -4248,6 +4464,14 @@ export interface components {
             })[];
         } | {
             /** @enum {string} */
+            type: "imposter_multi_select";
+            options: {
+                id: string;
+                text: components["schemas"]["I18nField"];
+                is_correct: boolean;
+            }[];
+        } | {
+            /** @enum {string} */
             type: "input_text";
             accepted_answers: components["schemas"]["I18nField"][];
             case_sensitive: boolean;
@@ -4283,6 +4507,34 @@ export interface components {
                 emoji?: string | null;
                 sort_value: number;
             }[];
+        } | {
+            /** @enum {string} */
+            type: "career_path";
+            clubs: components["schemas"]["I18nField"][];
+            display_answer: components["schemas"]["I18nField"];
+            accepted_answers: string[];
+        } | {
+            /** @enum {string} */
+            type: "high_low";
+            stat_label: components["schemas"]["I18nField"];
+            matchups: {
+                id: string;
+                left_name: components["schemas"]["I18nField"];
+                left_value: number;
+                right_name: components["schemas"]["I18nField"];
+                right_value: number;
+            }[];
+        } | {
+            /** @enum {string} */
+            type: "football_logic";
+            /** Format: uri */
+            image_a_url: string;
+            /** Format: uri */
+            image_b_url: string;
+            display_answer: components["schemas"]["I18nField"];
+            accepted_answers: string[];
+            prompt?: components["schemas"]["I18nField"];
+            explanation?: components["schemas"]["I18nField"] & unknown;
         };
         QuestionResponse: {
             /** Format: uuid */
@@ -4290,7 +4542,7 @@ export interface components {
             /** Format: uuid */
             category_id: string;
             /** @enum {string} */
-            type: "mcq_single" | "true_false" | "input_text" | "countdown_list" | "clue_chain" | "put_in_order";
+            type: "mcq_single" | "true_false" | "input_text" | "countdown_list" | "clue_chain" | "put_in_order" | "imposter_multi_select" | "career_path" | "high_low" | "football_logic";
             /** @enum {string} */
             difficulty: "easy" | "medium" | "hard";
             /** @enum {string} */
@@ -4302,6 +4554,15 @@ export interface components {
             created_at: string;
             /** Format: date-time */
             updated_at: string;
+        };
+        DeleteQuestionResult: {
+            /** @enum {string} */
+            action: "deleted" | "archived";
+            /** @enum {string} */
+            entity_type: "question";
+            /** Format: uuid */
+            entity_id: string;
+            message: string;
         };
         PaginatedQuestionsResponse: {
             data: components["schemas"]["QuestionResponse"][];
@@ -4367,11 +4628,11 @@ export interface components {
         };
         DailyChallengeMetadata: {
             /** @enum {string} */
-            challengeType: "moneyDrop" | "footballJeopardy" | "trueFalse" | "clues" | "countdown" | "putInOrder";
+            challengeType: "moneyDrop" | "trueFalse" | "clues" | "countdown" | "putInOrder" | "imposter" | "careerPath" | "highLow" | "footballLogic";
             title: string;
             description: string;
             /** @enum {string} */
-            iconToken: "dollarSign" | "brain" | "checkCircle" | "lightbulb" | "timer" | "list";
+            iconToken: "dollarSign" | "checkCircle" | "lightbulb" | "timer" | "list" | "users" | "route" | "trendingUp" | "image";
             coinReward: number;
             xpReward: number;
             showOnHome: boolean;
@@ -4386,12 +4647,6 @@ export interface components {
             startingMoney: number;
             /** @enum {string} */
             challengeType: "moneyDrop";
-        } | {
-            /** @default [] */
-            categoryIds: string[];
-            pickCount: number;
-            /** @enum {string} */
-            challengeType: "footballJeopardy";
         } | {
             /** @default [] */
             categoryIds: string[];
@@ -4420,6 +4675,46 @@ export interface components {
             itemsPerRound: number;
             /** @enum {string} */
             challengeType: "putInOrder";
+        } | {
+            /** @default [] */
+            categoryIds: string[];
+            questionCount: number;
+            secondsPerQuestion: number;
+            /** @enum {string} */
+            challengeType: "imposter";
+        } | {
+            /** @default [] */
+            categoryIds: string[];
+            questionCount: number;
+            secondsPerQuestion: number;
+            /** @enum {string} */
+            challengeType: "careerPath";
+        } | {
+            /** @default [] */
+            categoryIds: string[];
+            roundCount: number;
+            secondsPerRound: number;
+            /** @enum {string} */
+            challengeType: "highLow";
+        } | {
+            /** @default [] */
+            categoryIds: string[];
+            questionCount: number;
+            secondsPerQuestion: number;
+            /** @enum {string} */
+            challengeType: "footballLogic";
+        };
+        AdminDailyChallengeCategoryOption: {
+            /** Format: uuid */
+            id: string;
+            slug: string;
+            name: {
+                [key: string]: string;
+            };
+            questionCount: number;
+            easyCount: number;
+            mediumCount: number;
+            hardCount: number;
         };
         DailyChallengeSessionResponse: {
             /** @enum {string} */
@@ -4442,25 +4737,21 @@ export interface components {
             }[];
         } | {
             /** @enum {string} */
-            challengeType: "footballJeopardy";
+            challengeType: "trueFalse";
             title: string;
             description: string;
-            pickCount: number;
-            categories: {
+            questionCount: number;
+            secondsPerQuestion: number;
+            questions: {
                 /** Format: uuid */
                 id: string;
-                name: string;
-                questions: {
-                    /** Format: uuid */
-                    id: string;
-                    value: 100 | 200 | 300;
-                    /** @enum {string} */
-                    difficulty: "easy" | "medium" | "hard";
-                    prompt: string;
-                    options: string[];
-                    correctAnswerIndex: number;
-                    clue: string | null;
-                }[];
+                category: string;
+                /** @enum {string} */
+                difficulty: "easy" | "medium" | "hard";
+                prompt: string;
+                trueLabel: string;
+                falseLabel: string;
+                correctAnswer: boolean;
             }[];
         } | {
             /** @enum {string} */
@@ -4523,10 +4814,93 @@ export interface components {
                     sortValue: number;
                 }[];
             }[];
+        } | {
+            /** @enum {string} */
+            challengeType: "imposter";
+            title: string;
+            description: string;
+            questionCount: number;
+            secondsPerQuestion: number;
+            questions: {
+                /** Format: uuid */
+                id: string;
+                category: string;
+                /** @enum {string} */
+                difficulty: "easy" | "medium" | "hard";
+                prompt: string;
+                options: {
+                    id: string;
+                    text: string;
+                }[];
+                correctOptionIds: string[];
+            }[];
+        } | {
+            /** @enum {string} */
+            challengeType: "careerPath";
+            title: string;
+            description: string;
+            questionCount: number;
+            secondsPerQuestion: number;
+            questions: {
+                /** Format: uuid */
+                id: string;
+                category: string;
+                /** @enum {string} */
+                difficulty: "easy" | "medium" | "hard";
+                prompt: string;
+                clubs: string[];
+                displayAnswer: string;
+                acceptedAnswers: string[];
+            }[];
+        } | {
+            /** @enum {string} */
+            challengeType: "highLow";
+            title: string;
+            description: string;
+            roundCount: number;
+            secondsPerRound: number;
+            rounds: {
+                /** Format: uuid */
+                id: string;
+                category: string;
+                /** @enum {string} */
+                difficulty: "easy" | "medium" | "hard";
+                prompt: string;
+                statLabel: string;
+                matchups: {
+                    id: string;
+                    leftName: string;
+                    leftValue: number;
+                    rightName: string;
+                    rightValue: number;
+                }[];
+            }[];
+        } | {
+            /** @enum {string} */
+            challengeType: "footballLogic";
+            title: string;
+            description: string;
+            questionCount: number;
+            secondsPerQuestion: number;
+            questions: {
+                /** Format: uuid */
+                id: string;
+                category: string;
+                /** @enum {string} */
+                difficulty: "easy" | "medium" | "hard";
+                prompt: string | null;
+                /** Format: uri */
+                imageAUrl: string;
+                /** Format: uri */
+                imageBUrl: string;
+                displayAnswer: string;
+                acceptedAnswers: string[];
+                explanation: string | null;
+            }[];
         };
         CompleteDailyChallengeResponse: {
             /** @enum {string} */
-            challengeType: "moneyDrop" | "footballJeopardy" | "trueFalse" | "clues" | "countdown" | "putInOrder";
+            challengeType: "moneyDrop" | "trueFalse" | "clues" | "countdown" | "putInOrder" | "imposter" | "careerPath" | "highLow" | "footballLogic";
             /** @enum {boolean} */
             completedToday: true;
             coinsAwarded: number;
@@ -4538,25 +4912,101 @@ export interface components {
         };
         ResetDailyChallengeResponse: {
             /** @enum {string} */
-            challengeType: "moneyDrop" | "footballJeopardy" | "trueFalse" | "clues" | "countdown" | "putInOrder";
+            challengeType: "moneyDrop" | "trueFalse" | "clues" | "countdown" | "putInOrder" | "imposter" | "careerPath" | "highLow" | "footballLogic";
             /** @enum {boolean} */
             reset: true;
         };
         AdminDailyChallengeConfigResponse: {
             /** @enum {string} */
-            challengeType: "moneyDrop" | "footballJeopardy" | "trueFalse" | "clues" | "countdown" | "putInOrder";
+            challengeType: "moneyDrop" | "trueFalse" | "clues" | "countdown" | "putInOrder" | "imposter" | "careerPath" | "highLow" | "footballLogic";
             title: string;
             description: string;
             /** @enum {string} */
-            iconToken: "dollarSign" | "brain" | "checkCircle" | "lightbulb" | "timer" | "list";
+            iconToken: "dollarSign" | "checkCircle" | "lightbulb" | "timer" | "list" | "users" | "route" | "trendingUp" | "image";
             coinReward: number;
             xpReward: number;
             showOnHome: boolean;
             completedToday: boolean;
             availableToday: boolean;
+            settings: {
+                /** @default [] */
+                categoryIds: string[];
+                questionCount: number;
+                secondsPerQuestion: number;
+                startingMoney: number;
+                /** @enum {string} */
+                challengeType: "moneyDrop";
+            } | {
+                /** @default [] */
+                categoryIds: string[];
+                questionCount: number;
+                secondsPerQuestion: number;
+                /** @enum {string} */
+                challengeType: "trueFalse";
+            } | {
+                /** @default [] */
+                categoryIds: string[];
+                roundCount: number;
+                secondsPerRound: number;
+                /** @enum {string} */
+                challengeType: "countdown";
+            } | {
+                /** @default [] */
+                categoryIds: string[];
+                questionCount: number;
+                secondsPerClueStep: number;
+                /** @enum {string} */
+                challengeType: "clues";
+            } | {
+                /** @default [] */
+                categoryIds: string[];
+                roundCount: number;
+                itemsPerRound: number;
+                /** @enum {string} */
+                challengeType: "putInOrder";
+            } | {
+                /** @default [] */
+                categoryIds: string[];
+                questionCount: number;
+                secondsPerQuestion: number;
+                /** @enum {string} */
+                challengeType: "imposter";
+            } | {
+                /** @default [] */
+                categoryIds: string[];
+                questionCount: number;
+                secondsPerQuestion: number;
+                /** @enum {string} */
+                challengeType: "careerPath";
+            } | {
+                /** @default [] */
+                categoryIds: string[];
+                roundCount: number;
+                secondsPerRound: number;
+                /** @enum {string} */
+                challengeType: "highLow";
+            } | {
+                /** @default [] */
+                categoryIds: string[];
+                questionCount: number;
+                secondsPerQuestion: number;
+                /** @enum {string} */
+                challengeType: "footballLogic";
+            };
             sortOrder: number;
             isActive: boolean;
-            settings: components["schemas"]["DailyChallengeSettings"];
+            availableCategories: {
+                /** Format: uuid */
+                id: string;
+                slug: string;
+                name: {
+                    [key: string]: string;
+                };
+                questionCount: number;
+                easyCount: number;
+                mediumCount: number;
+                hardCount: number;
+            }[];
         };
     };
     responses: never;

@@ -1,465 +1,409 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { toast } from 'sonner';
 import {
-  AlertCircle,
-  Brain,
+  CalendarDays,
   CheckCircle2,
-  ChevronDown,
-  ChevronUp,
   DollarSign,
-  Home,
+  Image as ImageIcon,
   Lightbulb,
-  ListOrdered,
-  Loader2,
-  Sparkles,
+  List,
+  Route,
+  Search,
   Timer,
-  Zap,
-  CircleCheckBig,
+  TrendingUp,
+  Users,
 } from 'lucide-react';
+import { toast } from 'sonner';
 import { useDailyChallenges, useUpdateDailyChallenge } from '@/hooks';
 import type {
-  AdminDailyChallengeConfig,
   AdminDailyChallengeCategoryOption,
-  CluesSettings,
-  CountdownSettings,
-  DailyChallengeSettings,
+  AdminDailyChallengeConfig,
+  DailyChallengeIconToken,
   DailyChallengeType,
-  FootballJeopardySettings,
-  MoneyDropSettings,
-  PutInOrderSettings,
-  TrueFalseSettings,
+  UpdateDailyChallengeConfigRequest,
 } from '@/types';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
-import { Checkbox } from '@/components/ui/checkbox';
+import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { cn } from '@/lib/utils';
+import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Badge } from '@/components/ui/badge';
+import { cn, getLocalizedText } from '@/lib/utils';
 
-type EditableConfig = AdminDailyChallengeConfig;
+const ICONS: Record<DailyChallengeIconToken, typeof DollarSign> = {
+  dollarSign: DollarSign,
+  checkCircle: CheckCircle2,
+  lightbulb: Lightbulb,
+  timer: Timer,
+  list: List,
+  users: Users,
+  route: Route,
+  trendingUp: TrendingUp,
+  image: ImageIcon,
+};
 
-const ICONS = {
-  moneyDrop: DollarSign,
-  footballJeopardy: Brain,
-  trueFalse: CircleCheckBig,
-  clues: Lightbulb,
-  countdown: Timer,
-  putInOrder: ListOrdered,
-} satisfies Record<DailyChallengeType, React.ComponentType<{ className?: string }>>;
-
-function toMoneyDropSettings(settings: DailyChallengeSettings): MoneyDropSettings {
+function cloneConfig(config: AdminDailyChallengeConfig): UpdateDailyChallengeConfigRequest {
   return {
-    challengeType: 'moneyDrop',
-    categoryIds: 'categoryIds' in settings ? settings.categoryIds : [],
-    questionCount: 'questionCount' in settings ? settings.questionCount : 5,
-    secondsPerQuestion: 'secondsPerQuestion' in settings ? settings.secondsPerQuestion : 30,
-    startingMoney: 'startingMoney' in settings ? settings.startingMoney : 100000,
+    isActive: config.isActive,
+    sortOrder: config.sortOrder,
+    showOnHome: config.showOnHome,
+    coinReward: config.coinReward,
+    xpReward: config.xpReward,
+    settings: JSON.parse(JSON.stringify(config.settings)) as UpdateDailyChallengeConfigRequest['settings'],
   };
 }
 
-function toFootballJeopardySettings(settings: DailyChallengeSettings): FootballJeopardySettings {
-  return {
-    challengeType: 'footballJeopardy',
-    categoryIds: 'categoryIds' in settings ? settings.categoryIds.slice(0, 3) : [],
-    pickCount: 'pickCount' in settings ? settings.pickCount : 9,
-  };
-}
-
-function toCountdownSettings(settings: DailyChallengeSettings): CountdownSettings {
-  return {
-    challengeType: 'countdown',
-    categoryIds: 'categoryIds' in settings ? settings.categoryIds : [],
-    roundCount: 'roundCount' in settings ? settings.roundCount : 3,
-    secondsPerRound: 'secondsPerRound' in settings ? settings.secondsPerRound : 45,
-  };
-}
-
-function toTrueFalseSettings(settings: DailyChallengeSettings): TrueFalseSettings {
-  return {
-    challengeType: 'trueFalse',
-    categoryIds: 'categoryIds' in settings ? settings.categoryIds : [],
-    questionCount: 'questionCount' in settings ? settings.questionCount : 10,
-    secondsPerQuestion: 'secondsPerQuestion' in settings ? settings.secondsPerQuestion : 15,
-  };
-}
-
-function toCluesSettings(settings: DailyChallengeSettings): CluesSettings {
-  return {
-    challengeType: 'clues',
-    categoryIds: 'categoryIds' in settings ? settings.categoryIds : [],
-    questionCount: 'questionCount' in settings ? settings.questionCount : 5,
-    secondsPerClueStep: 'secondsPerClueStep' in settings ? settings.secondsPerClueStep : 8,
-  };
-}
-
-function toPutInOrderSettings(settings: DailyChallengeSettings): PutInOrderSettings {
-  return {
-    challengeType: 'putInOrder',
-    categoryIds: 'categoryIds' in settings ? settings.categoryIds : [],
-    roundCount: 'roundCount' in settings ? settings.roundCount : 4,
-    itemsPerRound: 'itemsPerRound' in settings ? settings.itemsPerRound : 4,
-  };
-}
-
-function updateCategoryIds(
-  categoryIds: string[],
-  categoryId: string,
-  checked: boolean,
-  maxCount?: number
-) {
-  const next = checked
-    ? [...new Set([...categoryIds, categoryId])]
-    : categoryIds.filter((id) => id !== categoryId);
-  return typeof maxCount === 'number' ? next.slice(0, maxCount) : next;
-}
-
-function getCategoryName(category: AdminDailyChallengeCategoryOption) {
-  return category.name.en || Object.values(category.name)[0] || category.slug || 'Category';
-}
-
-function CategorySelector({
-  challengeType,
-  categories,
-  selectedCategoryIds,
-  onToggle,
-  maxCount,
-}: {
-  challengeType: DailyChallengeType;
-  categories: AdminDailyChallengeCategoryOption[];
-  selectedCategoryIds: string[];
-  onToggle: (categoryId: string, checked: boolean) => void;
-  maxCount?: number;
-}) {
-  const challengeLabel = getChallengeQuestionLabel(challengeType);
-
-  if (categories.length === 0) {
-    return (
-      <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Content Source Pool</p>
-          <Badge variant="outline" className="rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-black text-slate-500">
-            0 Available
-          </Badge>
-        </div>
-        <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-5 text-sm font-semibold text-slate-500">
-          No active categories currently have published {challengeLabel} questions.
-        </div>
-      </div>
-    );
+function getChallengeQuestionLabel(type: DailyChallengeType): string {
+  switch (type) {
+    case 'moneyDrop':
+      return 'Multiple Choice';
+    case 'trueFalse':
+      return 'True / False';
+    case 'clues':
+      return 'Clue Chain';
+    case 'countdown':
+      return 'Countdown List';
+    case 'putInOrder':
+      return 'Put In Order';
+    case 'imposter':
+      return 'Imposter Multi Select';
+    case 'careerPath':
+      return 'Career Path';
+    case 'highLow':
+      return 'High Low';
+    case 'footballLogic':
+      return 'Football Logic';
   }
+}
+
+function updateNumber(
+  value: string,
+  fallback = 0
+): number {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function ChallengeCategories({
+  categories,
+  selectedIds,
+  questionTypeLabel,
+  onToggle,
+  onSelectAll,
+  onClear,
+}: {
+  categories: AdminDailyChallengeCategoryOption[];
+  selectedIds: string[];
+  questionTypeLabel: string;
+  onToggle: (categoryId: string, checked: boolean) => void;
+  onSelectAll: () => void;
+  onClear: () => void;
+}) {
+  const [query, setQuery] = useState('');
+  const normalizedQuery = query.trim().toLowerCase();
+  const selectedIdSet = useMemo(() => new Set(selectedIds), [selectedIds]);
+  const filteredCategories = useMemo(() => {
+    const categoriesToShow = normalizedQuery.length === 0
+      ? categories
+      : categories.filter((category) => {
+          const name = getLocalizedText(category.name, category.slug).toLowerCase();
+          return name.includes(normalizedQuery) || category.slug.toLowerCase().includes(normalizedQuery);
+        });
+
+    return [...categoriesToShow].sort((left, right) => {
+      const leftSelected = selectedIdSet.has(left.id) ? 0 : 1;
+      const rightSelected = selectedIdSet.has(right.id) ? 0 : 1;
+      if (leftSelected !== rightSelected) return leftSelected - rightSelected;
+      return right.questionCount - left.questionCount;
+    });
+  }, [categories, normalizedQuery, selectedIdSet]);
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Content Source Pool</p>
-        <Badge
-          variant="outline"
-          className={cn(
-            'rounded-full border px-2 py-0.5 text-[10px] font-black',
-            selectedCategoryIds.length > 0
-              ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
-              : 'border-slate-200 bg-white text-slate-500'
-          )}
-        >
-          {selectedCategoryIds.length} {typeof maxCount === 'number' ? `/ ${maxCount}` : ''} Selected
-        </Badge>
+    <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-3">
+      <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+        <div className="relative md:w-80">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+          <Input
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="Search categories..."
+            className="h-9 bg-white pl-9"
+          />
+        </div>
+        <div className="flex items-center gap-2">
+          <Button type="button" variant="outline" size="sm" onClick={onClear} disabled={selectedIds.length === 0}>
+            Clear
+          </Button>
+          <Button type="button" variant="outline" size="sm" onClick={onSelectAll} disabled={categories.length === selectedIds.length}>
+            Select all
+          </Button>
+        </div>
       </div>
-      <div className="max-h-[22rem] overflow-y-auto pr-1">
-        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-          {categories.map((category) => {
-            const checked = selectedCategoryIds.includes(category.id);
-            const disabled = !checked && maxCount !== undefined && selectedCategoryIds.length >= maxCount;
+
+      <div className="mt-3 max-h-64 overflow-y-auto pr-1">
+        <div className="grid gap-2 sm:grid-cols-2 2xl:grid-cols-3">
+          {filteredCategories.map((category) => {
+            const isSelected = selectedIdSet.has(category.id);
             return (
               <label
                 key={category.id}
                 className={cn(
-                  'flex items-center gap-2.5 rounded-xl border px-3 py-2 transition-all cursor-pointer',
-                  checked
-                    ? 'border-slate-900 bg-slate-950 text-white shadow-md'
-                    : 'border-slate-200 bg-white hover:border-slate-300',
-                  disabled && 'opacity-30 cursor-not-allowed'
+                  'flex cursor-pointer items-start gap-2 rounded-xl border bg-white px-3 py-2 transition-colors',
+                  isSelected ? 'border-slate-900 ring-1 ring-slate-900' : 'border-slate-200 hover:border-slate-300'
                 )}
               >
                 <Checkbox
-                  checked={checked}
-                  disabled={disabled}
-                  onCheckedChange={(value) => onToggle(category.id, value === true)}
-                  className={cn(checked && "border-white/40 data-[state=checked]:bg-white data-[state=checked]:text-black")}
+                  checked={isSelected}
+                  onCheckedChange={(checked) => onToggle(category.id, checked === true)}
+                  className="mt-0.5"
                 />
-                <div className="min-w-0 flex-1 flex flex-col">
-                  <span className="truncate text-xs font-bold leading-tight">{getCategoryName(category)}</span>
-                  <span className={cn("truncate text-[9px] leading-tight", checked ? "text-white/60" : "text-slate-400")}>
-                    {category.slug}
-                  </span>
-                  {challengeType === 'footballJeopardy' ? (
-                    <span className={cn("truncate text-[9px] leading-tight", checked ? "text-white/60" : "text-slate-400")}>
-                      E {category.easyCount} / M {category.mediumCount} / H {category.hardCount}
-                    </span>
-                  ) : null}
-                </div>
-                <div className={cn(
-                  'shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-black',
-                  checked
-                    ? 'border-white/20 bg-white/10 text-white'
-                    : 'border-slate-200 bg-slate-50 text-slate-600'
-                )}>
-                  {category.questionCount}
+                <div className="min-w-0">
+                  <div className="truncate text-sm font-semibold text-slate-900">
+                    {getLocalizedText(category.name, category.slug)}
+                  </div>
+                  <div className="mt-0.5 text-xs text-slate-500">
+                    {category.questionCount} total · E {category.easyCount} · M {category.mediumCount} · H {category.hardCount}
+                  </div>
                 </div>
               </label>
             );
           })}
         </div>
+        {filteredCategories.length === 0 ? (
+          <div className="rounded-xl border border-dashed border-slate-300 bg-white p-6 text-center text-sm text-slate-500">
+            {categories.length === 0
+              ? `No categories have published ${questionTypeLabel} questions yet. Upload questions, then publish them from the Questions table.`
+              : 'No categories match this search.'}
+          </div>
+        ) : null}
       </div>
+
+      <p className="mt-3 text-xs text-slate-500">
+        Empty selection means the challenge can pull from every category with published content for this question type.
+      </p>
     </div>
   );
 }
 
-function SettingsEditor({
+function ChallengeEditor({
   config,
-  onChange,
+  draft,
+  isSaving,
+  onDraftChange,
+  onSave,
 }: {
-  config: EditableConfig;
-  onChange: (config: EditableConfig) => void;
+  config: AdminDailyChallengeConfig;
+  draft: UpdateDailyChallengeConfigRequest;
+  isSaving: boolean;
+  onDraftChange: (updater: (current: UpdateDailyChallengeConfigRequest) => UpdateDailyChallengeConfigRequest) => void;
+  onSave: () => void;
 }) {
-  const availableCategories = config.availableCategories;
-  const availableCategoryIds = new Set(availableCategories.map((category) => category.id));
-  const selectedCategoryIds = 'categoryIds' in config.settings
-    ? config.settings.categoryIds.filter((categoryId) => availableCategoryIds.has(categoryId))
-    : [];
+  const Icon = ICONS[config.iconToken];
 
-  if (config.challengeType === 'moneyDrop') {
-    const settings = toMoneyDropSettings(config.settings);
-    return (
-      <div className="grid gap-6 lg:grid-cols-[280px_1fr]">
-        <div className="space-y-4">
-          <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Gameplay Logic</p>
-          <div className="grid gap-3">
-            <FieldNumber
-              label="Question Count"
-              value={settings.questionCount}
-              onChange={(value) => onChange({ ...config, settings: { ...settings, questionCount: value } })}
-            />
-            <FieldNumber
-              label="Seconds Per Question"
-              value={settings.secondsPerQuestion}
-              onChange={(value) => onChange({ ...config, settings: { ...settings, secondsPerQuestion: value } })}
-            />
-            <FieldNumber
-              label="Starting Money"
-              value={settings.startingMoney}
-              onChange={(value) => onChange({ ...config, settings: { ...settings, startingMoney: value } })}
-            />
-          </div>
-        </div>
-        <CategorySelector
-          challengeType={config.challengeType}
-          categories={availableCategories}
-          selectedCategoryIds={selectedCategoryIds}
-          onToggle={(categoryId, checked) =>
-            onChange({
-              ...config,
-              settings: {
-                ...settings,
-                categoryIds: updateCategoryIds(selectedCategoryIds, categoryId, checked),
-              },
-            })}
-        />
-      </div>
-    );
-  }
-
-  if (config.challengeType === 'footballJeopardy') {
-    const settings = toFootballJeopardySettings(config.settings);
-    const remaining = Math.max(0, 3 - settings.categoryIds.length);
-    return (
-      <div className="grid gap-6 lg:grid-cols-[280px_1fr]">
-        <div className="space-y-4">
-          <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Gameplay Logic</p>
-          <div className="space-y-3">
-            <FieldNumber
-              label="Pick Count"
-              value={settings.pickCount}
-              onChange={(value) => onChange({ ...config, settings: { ...settings, pickCount: value } })}
-            />
-            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-              <p className="text-[10px] font-black uppercase tracking-[0.15em] text-slate-400 mb-2">Rules</p>
-              <p className="text-xs font-semibold leading-relaxed text-slate-600">
-                Pick exactly 3 categories. Each must have easy, medium, and hard questions.
-              </p>
-              <div className={cn(
-                "mt-4 inline-flex items-center gap-2 rounded-full px-3 py-1 text-[10px] font-black border",
-                remaining === 0 ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-amber-200 bg-amber-50 text-amber-700"
-              )}>
-                {settings.categoryIds.length}/3 SELECTED
+  return (
+    <Card className="border-slate-200 shadow-sm">
+      <CardContent className="space-y-5 p-5">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+          <div className="flex items-start gap-3">
+            <div className="rounded-2xl bg-slate-100 p-3">
+              <Icon className="h-5 w-5 text-slate-700" />
+            </div>
+            <div className="min-w-0 space-y-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <h2 className="text-xl font-bold tracking-tight text-slate-950">{config.title}</h2>
+                <Badge variant="outline" className="border-slate-300 text-slate-600">
+                  {config.challengeType}
+                </Badge>
+                <Badge variant="outline" className="border-slate-300 text-slate-600">
+                  {getChallengeQuestionLabel(config.challengeType)}
+                </Badge>
               </div>
+              <p className="max-w-3xl text-sm text-slate-500">{config.description}</p>
             </div>
           </div>
-        </div>
-        <CategorySelector
-          challengeType={config.challengeType}
-          categories={availableCategories}
-          selectedCategoryIds={selectedCategoryIds}
-          maxCount={3}
-          onToggle={(categoryId, checked) =>
-            onChange({
-              ...config,
-              settings: {
-                ...settings,
-                categoryIds: updateCategoryIds(selectedCategoryIds, categoryId, checked, 3),
-              },
-            })}
-        />
-      </div>
-    );
-  }
 
-  if (config.challengeType === 'countdown') {
-    const settings = toCountdownSettings(config.settings);
-    return (
-      <div className="grid gap-6 lg:grid-cols-[280px_1fr]">
-        <div className="space-y-4">
-          <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Gameplay Logic</p>
-          <div className="grid gap-3">
-            <FieldNumber
-              label="Round Count"
-              value={settings.roundCount}
-              onChange={(value) => onChange({ ...config, settings: { ...settings, roundCount: value } })}
-            />
-            <FieldNumber
-              label="Seconds Per Round"
-              value={settings.secondsPerRound}
-              onChange={(value) => onChange({ ...config, settings: { ...settings, secondsPerRound: value } })}
-            />
+          <div className="flex flex-wrap items-center gap-3">
+            <label className="flex items-center gap-2 text-sm font-medium text-slate-700">
+              <Checkbox
+                checked={draft.isActive}
+                onCheckedChange={(checked) => onDraftChange((current) => ({
+                  ...current,
+                  isActive: checked === true,
+                }))}
+              />
+              Active
+            </label>
+            <label className="flex items-center gap-2 text-sm font-medium text-slate-700">
+              <Checkbox
+                checked={draft.showOnHome}
+                onCheckedChange={(checked) => onDraftChange((current) => ({
+                  ...current,
+                  showOnHome: checked === true,
+                }))}
+              />
+              Show on home
+            </label>
+            <Button onClick={onSave} disabled={isSaving}>
+              Save
+            </Button>
           </div>
         </div>
-        <CategorySelector
-          challengeType={config.challengeType}
-          categories={availableCategories}
-          selectedCategoryIds={selectedCategoryIds}
-          onToggle={(categoryId, checked) =>
-            onChange({
-              ...config,
-              settings: {
-                ...settings,
-                categoryIds: updateCategoryIds(selectedCategoryIds, categoryId, checked),
-              },
-            })}
-        />
-      </div>
-    );
-  }
 
-  if (config.challengeType === 'trueFalse') {
-    const settings = toTrueFalseSettings(config.settings);
-    return (
-      <div className="grid gap-6 lg:grid-cols-[280px_1fr]">
-        <div className="space-y-4">
-          <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Gameplay Logic</p>
-          <div className="grid gap-3">
-            <FieldNumber
-              label="Question Count"
-              value={settings.questionCount}
-              onChange={(value) => onChange({ ...config, settings: { ...settings, questionCount: value } })}
-            />
-            <FieldNumber
-              label="Seconds Per Question"
-              value={settings.secondsPerQuestion}
-              onChange={(value) => onChange({ ...config, settings: { ...settings, secondsPerQuestion: value } })}
-            />
-          </div>
+        <div className="grid gap-3 md:grid-cols-3">
+          <NumberField label="Sort Order" value={draft.sortOrder} onChange={(value) => onDraftChange((current) => ({
+            ...current,
+            sortOrder: value,
+          }))} />
+          <NumberField label="Coin Reward" value={draft.coinReward} onChange={(value) => onDraftChange((current) => ({
+            ...current,
+            coinReward: value,
+          }))} />
+          <NumberField label="XP Reward" value={draft.xpReward} onChange={(value) => onDraftChange((current) => ({
+            ...current,
+            xpReward: value,
+          }))} />
         </div>
-        <CategorySelector
-          challengeType={config.challengeType}
-          categories={availableCategories}
-          selectedCategoryIds={selectedCategoryIds}
-          onToggle={(categoryId, checked) =>
-            onChange({
-              ...config,
-              settings: {
-                ...settings,
-                categoryIds: updateCategoryIds(selectedCategoryIds, categoryId, checked),
-              },
-            })}
-        />
-      </div>
-    );
-  }
 
-  if (config.challengeType === 'clues') {
-    const settings = toCluesSettings(config.settings);
-    return (
-      <div className="grid gap-6 lg:grid-cols-[280px_1fr]">
-        <div className="space-y-4">
-          <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Gameplay Logic</p>
-          <div className="grid gap-3">
-            <FieldNumber
-              label="Question Count"
-              value={settings.questionCount}
-              onChange={(value) => onChange({ ...config, settings: { ...settings, questionCount: value } })}
-            />
-            <FieldNumber
-              label="Seconds Per Clue Step"
-              value={settings.secondsPerClueStep}
-              onChange={(value) => onChange({ ...config, settings: { ...settings, secondsPerClueStep: value } })}
-            />
+        <SettingsFields draft={draft} onChange={onDraftChange} />
+
+        <div className="space-y-2">
+          <div className="flex items-end justify-between gap-3">
+            <div>
+              <Label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Question pool categories</Label>
+              <p className="mt-1 text-xs text-slate-500">
+                Pick categories to restrict which uploaded questions this daily challenge can use.
+              </p>
+            </div>
+            <span className={cn(
+              'shrink-0 text-xs font-semibold',
+              draft.settings.categoryIds.length > 0 ? 'text-slate-600' : 'text-amber-600'
+            )}>
+              {draft.settings.categoryIds.length} selected
+            </span>
           </div>
-        </div>
-        <CategorySelector
-          challengeType={config.challengeType}
-          categories={availableCategories}
-          selectedCategoryIds={selectedCategoryIds}
-          onToggle={(categoryId, checked) =>
-            onChange({
-              ...config,
+          <ChallengeCategories
+            categories={config.availableCategories}
+            selectedIds={draft.settings.categoryIds}
+            questionTypeLabel={getChallengeQuestionLabel(config.challengeType)}
+            onSelectAll={() => onDraftChange((current) => ({
+              ...current,
               settings: {
-                ...settings,
-                categoryIds: updateCategoryIds(selectedCategoryIds, categoryId, checked),
+                ...current.settings,
+                categoryIds: config.availableCategories.map((category) => category.id),
               },
-            })}
-        />
-      </div>
-    );
-  }
-
-  const settings = toPutInOrderSettings(config.settings);
-  return (
-    <div className="grid gap-6 lg:grid-cols-[280px_1fr]">
-      <div className="space-y-4">
-        <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Gameplay Logic</p>
-        <div className="grid gap-3">
-          <FieldNumber
-            label="Round Count"
-            value={settings.roundCount}
-            onChange={(value) => onChange({ ...config, settings: { ...settings, roundCount: value } })}
-          />
-          <FieldNumber
-            label="Items Per Round"
-            value={settings.itemsPerRound}
-            onChange={(value) => onChange({ ...config, settings: { ...settings, itemsPerRound: value } })}
+            }))}
+            onClear={() => onDraftChange((current) => ({
+              ...current,
+              settings: {
+                ...current.settings,
+                categoryIds: [],
+              },
+            }))}
+            onToggle={(categoryId, checked) =>
+              onDraftChange((current) => ({
+                ...current,
+                settings: {
+                  ...current.settings,
+                  categoryIds: checked
+                    ? [...current.settings.categoryIds, categoryId]
+                    : current.settings.categoryIds.filter((id) => id !== categoryId),
+                },
+              }))}
           />
         </div>
-      </div>
-      <CategorySelector
-        challengeType={config.challengeType}
-        categories={availableCategories}
-        selectedCategoryIds={selectedCategoryIds}
-        onToggle={(categoryId, checked) =>
-          onChange({
-            ...config,
-            settings: {
-              ...settings,
-              categoryIds: updateCategoryIds(selectedCategoryIds, categoryId, checked),
-            },
-          })}
-      />
-    </div>
+      </CardContent>
+    </Card>
   );
 }
 
-function FieldNumber({
+function SettingsFields({
+  draft,
+  onChange,
+}: {
+  draft: UpdateDailyChallengeConfigRequest;
+  onChange: (updater: (current: UpdateDailyChallengeConfigRequest) => UpdateDailyChallengeConfigRequest) => void;
+}) {
+  switch (draft.settings.challengeType) {
+    case 'moneyDrop': {
+      const settings = draft.settings;
+      return (
+        <div className="grid gap-4 md:grid-cols-3">
+          <NumberField label="Question Count" value={draft.settings.questionCount} onChange={(value) => onChange((current) => ({
+            ...current,
+            settings: { ...settings, questionCount: value },
+          }))} />
+          <NumberField label="Seconds / Question" value={draft.settings.secondsPerQuestion} onChange={(value) => onChange((current) => ({
+            ...current,
+            settings: { ...settings, secondsPerQuestion: value },
+          }))} />
+          <NumberField label="Starting Money" value={draft.settings.startingMoney} onChange={(value) => onChange((current) => ({
+            ...current,
+            settings: { ...settings, startingMoney: value },
+          }))} />
+        </div>
+      );
+    }
+    case 'trueFalse':
+    case 'imposter':
+    case 'careerPath':
+    case 'footballLogic':
+      return (
+        <div className="grid gap-4 md:grid-cols-2">
+          <NumberField label="Question Count" value={draft.settings.questionCount} onChange={(value) => onChange((current) => ({
+            ...current,
+            settings: { ...current.settings, questionCount: value },
+          }))} />
+          <NumberField label="Seconds / Question" value={draft.settings.secondsPerQuestion} onChange={(value) => onChange((current) => ({
+            ...current,
+            settings: { ...current.settings, secondsPerQuestion: value },
+          }))} />
+        </div>
+      );
+    case 'countdown':
+    case 'highLow':
+      return (
+        <div className="grid gap-4 md:grid-cols-2">
+          <NumberField label="Round Count" value={draft.settings.roundCount} onChange={(value) => onChange((current) => ({
+            ...current,
+            settings: { ...current.settings, roundCount: value },
+          }))} />
+          <NumberField label="Seconds / Round" value={draft.settings.secondsPerRound} onChange={(value) => onChange((current) => ({
+            ...current,
+            settings: { ...current.settings, secondsPerRound: value },
+          }))} />
+        </div>
+      );
+    case 'clues':
+      return (
+        <div className="grid gap-4 md:grid-cols-2">
+          <NumberField label="Question Count" value={draft.settings.questionCount} onChange={(value) => onChange((current) => ({
+            ...current,
+            settings: { ...current.settings, questionCount: value },
+          }))} />
+          <NumberField label="Seconds / Clue Step" value={draft.settings.secondsPerClueStep} onChange={(value) => onChange((current) => ({
+            ...current,
+            settings: { ...current.settings, secondsPerClueStep: value },
+          }))} />
+        </div>
+      );
+    case 'putInOrder':
+      return (
+        <div className="grid gap-4 md:grid-cols-2">
+          <NumberField label="Round Count" value={draft.settings.roundCount} onChange={(value) => onChange((current) => ({
+            ...current,
+            settings: { ...current.settings, roundCount: value },
+          }))} />
+          <NumberField label="Items / Round" value={draft.settings.itemsPerRound} onChange={(value) => onChange((current) => ({
+            ...current,
+            settings: { ...current.settings, itemsPerRound: value },
+          }))} />
+        </div>
+      );
+  }
+}
+
+function NumberField({
   label,
   value,
   onChange,
@@ -469,424 +413,146 @@ function FieldNumber({
   onChange: (value: number) => void;
 }) {
   return (
-    <div className="flex items-center justify-between gap-4 rounded-xl border border-slate-200 bg-slate-50/50 p-2.5 px-3">
-      <Label className="text-[10px] font-black uppercase tracking-[0.1em] text-slate-500">{label}</Label>
+    <div className="space-y-2">
+      <Label className="text-[10px] font-black uppercase tracking-widest text-slate-400">{label}</Label>
       <Input
         type="number"
-        value={String(value)}
-        onChange={(event) => onChange(Number(event.target.value))}
-        className="h-8 w-24 rounded-lg border-slate-200 bg-white px-2 text-right text-xs font-bold"
+        value={value}
+        onChange={(event) => onChange(updateNumber(event.target.value, value))}
+        className="h-10"
       />
     </div>
   );
-}
-
-function getChallengeQuestionLabel(challengeType: DailyChallengeType): string {
-  switch (challengeType) {
-    case 'moneyDrop':
-    case 'footballJeopardy':
-      return 'multiple choice';
-    case 'trueFalse':
-      return 'true or false';
-    case 'countdown':
-      return 'countdown list';
-    case 'clues':
-      return 'clue chain';
-    case 'putInOrder':
-      return 'put in order';
-  }
-}
-
-function getAvailableCategoryIds(config: EditableConfig): Set<string> {
-  return new Set(config.availableCategories.map((category) => category.id));
-}
-
-function getEffectiveSelectedCategoryIds(config: EditableConfig): string[] {
-  if (!('categoryIds' in config.settings)) {
-    return [];
-  }
-
-  const availableCategoryIds = getAvailableCategoryIds(config);
-  return config.settings.categoryIds.filter((categoryId) => availableCategoryIds.has(categoryId));
-}
-
-function sanitizeConfig(config: EditableConfig): EditableConfig {
-  if (!('categoryIds' in config.settings)) {
-    return config;
-  }
-
-  const effectiveCategoryIds = getEffectiveSelectedCategoryIds(config);
-  if (effectiveCategoryIds.length === config.settings.categoryIds.length) {
-    return config;
-  }
-
-  return {
-    ...config,
-    settings: {
-      ...config.settings,
-      categoryIds: effectiveCategoryIds,
-    },
-  };
-}
-
-function isConfigDirty(config: EditableConfig, original?: EditableConfig): boolean {
-  if (!original) return false;
-  return JSON.stringify(config) !== JSON.stringify(original);
-}
-
-function validateConfig(config: EditableConfig): string | null {
-  if (!config.isActive) {
-    return null;
-  }
-
-  if (config.challengeType === 'footballJeopardy') {
-    const settings = toFootballJeopardySettings(sanitizeConfig(config).settings);
-    if (settings.categoryIds.length !== 3) {
-      return 'Football Jeopardy requires exactly 3 categories.';
-    }
-  } else if ('categoryIds' in config.settings && getEffectiveSelectedCategoryIds(config).length === 0) {
-    return 'Select at least one category.';
-  }
-
-  return null;
 }
 
 export default function DailyChallengesPage() {
-  const { data: configs, isLoading, isError } = useDailyChallenges();
-  const updateMutation = useUpdateDailyChallenge();
-  const [drafts, setDrafts] = useState<Record<DailyChallengeType, EditableConfig>>({} as Record<DailyChallengeType, EditableConfig>);
-  const [expandedTypes, setExpandedTypes] = useState<Set<DailyChallengeType>>(new Set());
-  const [savingType, setSavingType] = useState<DailyChallengeType | null>(null);
-
-  const originalConfigMap = useMemo(() => {
-    return new Map((configs ?? []).map((config) => [config.challengeType, config]));
-  }, [configs]);
+  const { data, isLoading } = useDailyChallenges();
+  const updateDailyChallenge = useUpdateDailyChallenge();
+  const [drafts, setDrafts] = useState<Partial<Record<DailyChallengeType, UpdateDailyChallengeConfigRequest>>>({});
+  const [selectedChallengeType, setSelectedChallengeType] = useState<DailyChallengeType | null>(null);
 
   useEffect(() => {
-    if (!configs) return;
-    setDrafts(
-      configs.reduce<Record<DailyChallengeType, EditableConfig>>((acc, config) => {
-        acc[config.challengeType] = config;
-        return acc;
-      }, {} as Record<DailyChallengeType, EditableConfig>)
-    );
-  }, [configs]);
-
-  const orderedConfigs = useMemo(() => {
-    const items = Object.values(drafts);
-    return items.sort((a, b) => a.sortOrder - b.sortOrder || a.title.localeCompare(b.title));
-  }, [drafts]);
-
-  const dashboardStats = useMemo(() => {
-    const items = Object.values(drafts);
-    const activeCount = items.filter((item) => item.isActive).length;
-    const homeCount = items.filter((item) => item.isActive && item.showOnHome).length;
-    const invalidCount = items.filter((item) => validateConfig(item) !== null).length;
-    const dirtyCount = items.filter((item) => isConfigDirty(item, originalConfigMap.get(item.challengeType))).length;
-
-    return { total: items.length, activeCount, homeCount, invalidCount, dirtyCount };
-  }, [drafts, originalConfigMap]);
-
-  const handleDraftChange = (config: EditableConfig) => {
-    setDrafts((current) => ({ ...current, [config.challengeType]: config }));
-  };
-
-  const toggleExpand = (type: DailyChallengeType) => {
-    setExpandedTypes((prev) => {
-      const next = new Set(prev);
-      if (next.has(type)) next.delete(type);
-      else next.add(type);
+    if (!data) return;
+    setDrafts((current) => {
+      const next: Partial<Record<DailyChallengeType, UpdateDailyChallengeConfigRequest>> = { ...current };
+      for (const config of data) {
+        next[config.challengeType] ??= cloneConfig(config);
+      }
       return next;
+    });
+    setSelectedChallengeType((current) => current ?? data[0]?.challengeType ?? null);
+  }, [data]);
+
+  const orderedChallenges = useMemo(
+    () => [...(data ?? [])].sort((left, right) => left.sortOrder - right.sortOrder),
+    [data]
+  );
+
+  const setDraft = (
+    challengeType: DailyChallengeType,
+    updater: (current: UpdateDailyChallengeConfigRequest) => UpdateDailyChallengeConfigRequest
+  ) => {
+    setDrafts((current) => {
+      const existing = current[challengeType];
+      if (!existing) return current;
+      return { ...current, [challengeType]: updater(existing) };
     });
   };
 
-  const handleSave = async (config: EditableConfig) => {
-    const nextConfig = sanitizeConfig(config);
-    const validationError = validateConfig(nextConfig);
-    if (validationError) {
-      toast.error(validationError);
-      return;
-    }
+  const handleSave = async (config: AdminDailyChallengeConfig) => {
+    const draft = drafts[config.challengeType];
+    if (!draft) return;
 
-    setSavingType(nextConfig.challengeType);
     try {
-      await updateMutation.mutateAsync({
-        challengeType: nextConfig.challengeType,
-        data: {
-          isActive: nextConfig.isActive,
-          sortOrder: nextConfig.sortOrder,
-          showOnHome: nextConfig.showOnHome,
-          coinReward: nextConfig.coinReward,
-          xpReward: nextConfig.xpReward,
-          settings: nextConfig.settings,
-        },
+      await updateDailyChallenge.mutateAsync({
+        challengeType: config.challengeType,
+        data: draft,
       });
-      toast.success(`${nextConfig.title} updated`);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to update daily challenge';
-      toast.error(message);
-    } finally {
-      setSavingType(null);
+      toast.success(`${config.title} updated`);
+    } catch {
+      toast.error(`Failed to update ${config.title}`);
     }
   };
 
+  const selectedConfig = useMemo(
+    () => orderedChallenges.find((config) => config.challengeType === selectedChallengeType) ?? orderedChallenges[0] ?? null,
+    [orderedChallenges, selectedChallengeType]
+  );
+  const selectedDraft = selectedConfig ? drafts[selectedConfig.challengeType] : undefined;
+
   return (
-    <div className="min-h-screen bg-[#f8f9fb] py-8 text-foreground selection:bg-slate-900 selection:text-white">
-      <div className="mx-auto max-w-[1300px] px-6 space-y-8">
-        <header className="flex flex-col gap-6 xl:flex-row xl:items-center xl:justify-between px-2">
-          <div className="space-y-1.5">
-            <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-slate-950 text-white">
-                <Zap className="h-5 w-5" />
-              </div>
-              <div>
-                <h1 className="text-3xl font-black tracking-tight text-slate-950">Daily Challenges</h1>
-                <p className="text-sm font-semibold text-slate-500">Global configuration and live status</p>
-              </div>
-            </div>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-4">
-            <SummaryTile label="Configured" value={dashboardStats.total} tone="slate" icon={Sparkles} />
-            <SummaryTile label="Active" value={dashboardStats.activeCount} tone="emerald" icon={Zap} />
-            <SummaryTile label="Home" value={dashboardStats.homeCount} tone="blue" icon={Home} />
-            {(dashboardStats.invalidCount > 0 || dashboardStats.dirtyCount > 0) && (
-              <SummaryTile label="Needs Save" value={dashboardStats.invalidCount || dashboardStats.dirtyCount} tone="amber" icon={AlertCircle} />
-            )}
-          </div>
-        </header>
-
-        {isLoading ? (
-          <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white px-6 py-5 text-slate-600 shadow-sm">
-            <Loader2 className="h-4 w-4 animate-spin" />
-            Loading daily challenge configs...
-          </div>
-        ) : null}
-
-        {isError ? (
-          <div className="rounded-2xl border border-rose-200 bg-rose-50 px-6 py-5 text-sm font-medium text-rose-700">
-            Failed to load daily challenge configs.
-          </div>
-        ) : null}
-
-        <div className="grid gap-6">
-          {orderedConfigs.map((config) => {
-            const Icon = ICONS[config.challengeType];
-            const validationError = validateConfig(config);
-            const original = originalConfigMap.get(config.challengeType);
-            const isDirty = isConfigDirty(config, original);
-            const isExpanded = expandedTypes.has(config.challengeType);
-            const isSaving = savingType === config.challengeType;
-            
-            return (
-              <Card key={config.challengeType} className="overflow-hidden rounded-[24px] border-slate-200/80 bg-white shadow-sm transition-all hover:shadow-md">
-                <div className="px-5 py-5 sm:px-6">
-                  <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
-                    <div className="flex items-center gap-4 min-w-0">
-                      <button 
-                        onClick={() => toggleExpand(config.challengeType)}
-                        className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-slate-100 text-slate-900 transition-colors hover:bg-slate-200"
-                      >
-                        <Icon className="h-6 w-6" />
-                      </button>
-                      <div className="min-w-0">
-                        <div className="flex flex-wrap items-center gap-2 mb-1">
-                          <h3 
-                            className="text-lg font-black tracking-tight text-slate-900 cursor-pointer hover:underline"
-                            onClick={() => toggleExpand(config.challengeType)}
-                          >
-                            {config.title}
-                          </h3>
-                          {config.isActive ? (
-                            <StatusPill tone="emerald" icon={CheckCircle2}>ACTIVE</StatusPill>
-                          ) : (
-                            <StatusPill tone="slate" icon={AlertCircle}>INACTIVE</StatusPill>
-                          )}
-                          {config.showOnHome && (
-                            <StatusPill tone="blue" icon={Home}>HOME</StatusPill>
-                          )}
-                          {isDirty && (
-                            <StatusPill tone="amber" icon={Sparkles}>UNSAVED</StatusPill>
-                          )}
-                        </div>
-                        <p className="text-xs font-semibold text-slate-500 line-clamp-1">{config.description}</p>
-                      </div>
-                    </div>
-
-                    <div className="flex flex-wrap items-center gap-6 lg:gap-8">
-                       <div className="flex items-center gap-4">
-                        <div className="space-y-1">
-                          <Label className="text-[10px] font-black uppercase tracking-wider text-slate-400">Order</Label>
-                          <Input
-                            type="number"
-                            value={String(config.sortOrder)}
-                            onChange={(event) => handleDraftChange({ ...config, sortOrder: Number(event.target.value) })}
-                            className="h-8 w-16 border-slate-200 bg-slate-50/50 text-xs font-bold text-center"
-                          />
-                        </div>
-                        <div className="space-y-1">
-                          <Label className="text-[10px] font-black uppercase tracking-wider text-slate-400">Coins</Label>
-                          <Input
-                            type="number"
-                            value={String(config.coinReward)}
-                            onChange={(event) => handleDraftChange({ ...config, coinReward: Number(event.target.value) })}
-                            className="h-8 w-20 border-slate-200 bg-slate-50/50 text-xs font-bold text-center"
-                          />
-                        </div>
-                        <div className="space-y-1">
-                          <Label className="text-[10px] font-black uppercase tracking-wider text-slate-400">XP</Label>
-                          <Input
-                            type="number"
-                            value={String(config.xpReward)}
-                            onChange={(event) => handleDraftChange({ ...config, xpReward: Number(event.target.value) })}
-                            className="h-8 w-20 border-slate-200 bg-slate-50/50 text-xs font-bold text-center"
-                          />
-                        </div>
-                      </div>
-
-                      <div className="flex items-center gap-4 border-l border-slate-100 pl-6 lg:pl-8">
-                        <div className="flex flex-col gap-1.5">
-                           <CheckboxRow 
-                            label="Active" 
-                            checked={config.isActive} 
-                            onCheckedChange={(checked) => handleDraftChange({ ...config, isActive: checked })} 
-                          />
-                           <CheckboxRow 
-                            label="Show Home" 
-                            checked={config.showOnHome} 
-                            onCheckedChange={(checked) => handleDraftChange({ ...config, showOnHome: checked })} 
-                          />
-                        </div>
-
-                        <div className="flex items-center gap-2">
-                          <Button
-                            size="sm"
-                            onClick={() => handleSave(config)}
-                            disabled={isSaving || validationError !== null || !isDirty}
-                            className={cn(
-                              "rounded-xl px-5 h-9 font-black transition-all",
-                              isDirty 
-                                ? "bg-slate-950 hover:bg-slate-800 text-white shadow-sm" 
-                                : "bg-slate-100 text-slate-400 hover:bg-slate-100"
-                            )}
-                          >
-                            {isSaving ? <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" /> : null}
-                            {isDirty ? 'SAVE' : 'SAVED'}
-                          </Button>
-                          <button 
-                            onClick={() => toggleExpand(config.challengeType)}
-                            className="flex h-9 w-9 items-center justify-center rounded-xl bg-slate-50 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-900"
-                          >
-                            {isExpanded ? <ChevronUp className="h-5 w-5" /> : <ChevronDown className="h-5 w-5" />}
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  {isExpanded && (
-                    <div className="mt-6 border-t border-slate-100 pt-6 animate-in fade-in slide-in-from-top-2 duration-300">
-                      <SettingsEditor
-                        config={config}
-                        onChange={handleDraftChange}
-                      />
-                    </div>
-                  )}
-
-                  {validationError && (
-                    <div className="mt-4 flex items-center gap-2.5 rounded-xl border border-amber-200 bg-amber-50 px-4 py-2.5 text-xs font-bold text-amber-800">
-                      <AlertCircle className="h-4 w-4 shrink-0" />
-                      {validationError}
-                    </div>
-                  )}
-                </div>
-              </Card>
-            );
-          })}
+    <div className="space-y-6 p-6">
+      <div className="flex items-center gap-3">
+        <div className="rounded-2xl bg-white p-3 shadow-sm ring-1 ring-slate-200">
+          <CalendarDays className="h-6 w-6 text-slate-700" />
+        </div>
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight text-slate-900">Daily Challenges</h1>
+          <p className="text-sm text-slate-500">Manage the live daily challenge lineup and content pools.</p>
         </div>
       </div>
-    </div>
-  );
-}
 
-function SummaryTile({
-  label,
-  value,
-  tone,
-  icon: Icon,
-}: {
-  label: string;
-  value: number;
-  tone: 'slate' | 'emerald' | 'blue' | 'amber';
-  icon: React.ComponentType<{ className?: string }>;
-}) {
-  const tones = {
-    slate: 'border-slate-200 bg-white text-slate-900',
-    emerald: 'border-emerald-100 bg-white text-emerald-700',
-    blue: 'border-sky-100 bg-white text-sky-700',
-    amber: 'border-amber-100 bg-white text-amber-700',
-  } as const;
+      {isLoading ? (
+        <Card>
+          <CardContent className="p-8 text-sm text-slate-500">Loading daily challenges…</CardContent>
+        </Card>
+      ) : null}
 
-  return (
-    <div className={cn('flex items-center gap-3 rounded-2xl border px-4 py-2.5 shadow-sm', tones[tone])}>
-      <div className={cn(
-        "flex h-8 w-8 items-center justify-center rounded-xl",
-        tone === 'slate' && "bg-slate-100 text-slate-600",
-        tone === 'emerald' && "bg-emerald-50 text-emerald-600",
-        tone === 'blue' && "bg-sky-50 text-sky-600",
-        tone === 'amber' && "bg-amber-50 text-amber-600",
-      )}>
-        <Icon className="h-4 w-4" />
+      <div className="grid gap-4 xl:grid-cols-[360px_minmax(0,1fr)]">
+        <Card className="border-slate-200 shadow-sm">
+          <CardContent className="p-2">
+            <div className="space-y-1">
+              {orderedChallenges.map((config) => {
+                const Icon = ICONS[config.iconToken];
+                const draft = drafts[config.challengeType];
+                const isSelected = selectedConfig?.challengeType === config.challengeType;
+                return (
+                  <button
+                    key={config.challengeType}
+                    type="button"
+                    onClick={() => setSelectedChallengeType(config.challengeType)}
+                    className={cn(
+                      'w-full rounded-2xl border px-3 py-3 text-left transition-colors',
+                      isSelected
+                        ? 'border-slate-900 bg-slate-950 text-white shadow-sm'
+                        : 'border-transparent hover:border-slate-200 hover:bg-slate-50'
+                    )}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className={cn('rounded-xl p-2', isSelected ? 'bg-white/10' : 'bg-slate-100')}>
+                        <Icon className={cn('h-4 w-4', isSelected ? 'text-white' : 'text-slate-600')} />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="truncate text-sm font-bold">{config.title}</div>
+                          <div className={cn('h-2 w-2 rounded-full', draft?.isActive ? 'bg-emerald-500' : 'bg-slate-300')} />
+                        </div>
+                        <div className={cn('mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px]', isSelected ? 'text-slate-300' : 'text-slate-500')}>
+                          <span>{getChallengeQuestionLabel(config.challengeType)}</span>
+                          <span>·</span>
+                          <span>{draft?.settings.categoryIds.length ?? 0} cats</span>
+                          <span>·</span>
+                          <span>{draft?.coinReward ?? config.coinReward} coins</span>
+                        </div>
+                      </div>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
+
+        {selectedConfig && selectedDraft ? (
+          <ChallengeEditor
+            config={selectedConfig}
+            draft={selectedDraft}
+            isSaving={updateDailyChallenge.isPending}
+            onDraftChange={(updater) => setDraft(selectedConfig.challengeType, updater)}
+            onSave={() => void handleSave(selectedConfig)}
+          />
+        ) : null}
       </div>
-      <div>
-        <p className="text-[10px] font-black uppercase tracking-wider opacity-60 leading-none mb-1">{label}</p>
-        <p className="text-lg font-black leading-none">{value}</p>
-      </div>
     </div>
-  );
-}
-
-function StatusPill({
-  children,
-  tone,
-  icon: Icon,
-}: {
-  children: React.ReactNode;
-  tone: 'slate' | 'emerald' | 'blue' | 'amber';
-  icon: React.ComponentType<{ className?: string }>;
-}) {
-  const tones = {
-    slate: 'border-slate-200 bg-slate-50 text-slate-600',
-    emerald: 'border-emerald-200 bg-emerald-50 text-emerald-700',
-    blue: 'border-sky-200 bg-sky-50 text-sky-700',
-    amber: 'border-amber-200 bg-amber-50 text-amber-700',
-  } as const;
-
-  return (
-    <div className={cn('inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[9px] font-black tracking-tight', tones[tone])}>
-      <Icon className="h-3 w-3" />
-      {children}
-    </div>
-  );
-}
-
-function CheckboxRow({
-  label,
-  checked,
-  onCheckedChange,
-}: {
-  label: string;
-  checked: boolean;
-  onCheckedChange: (checked: boolean) => void;
-}) {
-  return (
-    <label className="flex items-center gap-2 cursor-pointer group">
-      <Checkbox 
-        checked={checked} 
-        onCheckedChange={(value) => onCheckedChange(value === true)} 
-        className="h-3.5 w-3.5 rounded border-slate-300 data-[state=checked]:bg-slate-900"
-      />
-      <span className="text-[10px] font-black uppercase tracking-tight text-slate-500 group-hover:text-slate-900 transition-colors">{label}</span>
-    </label>
   );
 }

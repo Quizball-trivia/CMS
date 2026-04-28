@@ -1,7 +1,11 @@
 import type {
   AnswerWithId,
+  CareerPathPayload,
   ClueChainPayload,
   CountdownPayload,
+  FootballLogicPayload,
+  HighLowPayload,
+  ImposterMultiSelectPayload,
   PutInOrderPayload,
   Question,
   QuestionStatus,
@@ -9,14 +13,31 @@ import type {
   TrueFalsePayload,
 } from '@/types';
 
-export type AdvancedQuestionPayload = CountdownPayload | ClueChainPayload | PutInOrderPayload;
+export type AdvancedQuestionPayload =
+  | CountdownPayload
+  | ClueChainPayload
+  | PutInOrderPayload
+  | ImposterMultiSelectPayload
+  | CareerPathPayload
+  | HighLowPayload
+  | FootballLogicPayload;
 
 export interface QuestionFormData {
   category_id: string;
   locale: 'en' | 'ka';
   difficulty: 'easy' | 'medium' | 'hard';
   status: QuestionStatus;
-  type: 'mcq_single' | 'true_false' | 'input_text' | 'countdown_list' | 'clue_chain' | 'put_in_order';
+  type:
+    | 'mcq_single'
+    | 'true_false'
+    | 'input_text'
+    | 'countdown_list'
+    | 'clue_chain'
+    | 'put_in_order'
+    | 'imposter_multi_select'
+    | 'career_path'
+    | 'high_low'
+    | 'football_logic';
   prompt: string;
   explanation: string;
   options: Array<{ id?: string; text: string; is_correct: boolean }>;
@@ -45,7 +66,7 @@ export function questionToFormData(question: Question, preferredLocale: 'en' | '
     explanation: question.explanation?.[locale] || '',
     caseSensitive: false,
     customPayload:
-      question.type !== 'mcq_single' && question.type !== 'input_text' && question.payload
+      question.type !== 'mcq_single' && question.type !== 'input_text' && question.type !== 'true_false' && question.payload
         ? question.payload
         : null,
   };
@@ -139,6 +160,55 @@ export function createDefaultAdvancedPayload(type: QuestionType): AdvancedQuesti
         { id: generateAnswerId(), label: { en: '' }, sort_value: 2, details: null, emoji: null },
         { id: generateAnswerId(), label: { en: '' }, sort_value: 3, details: null, emoji: null },
       ],
+    };
+  }
+
+  if (type === 'imposter_multi_select') {
+    return {
+      type: 'imposter_multi_select',
+      options: [
+        { id: generateAnswerId(), text: { en: '' }, is_correct: true },
+        { id: generateAnswerId(), text: { en: '' }, is_correct: false },
+        { id: generateAnswerId(), text: { en: '' }, is_correct: false },
+        { id: generateAnswerId(), text: { en: '' }, is_correct: false },
+      ],
+    };
+  }
+
+  if (type === 'career_path') {
+    return {
+      type: 'career_path',
+      clubs: [{ en: '' }, { en: '' }, { en: '' }],
+      display_answer: { en: '' },
+      accepted_answers: [''],
+    };
+  }
+
+  if (type === 'high_low') {
+    return {
+      type: 'high_low',
+      stat_label: { en: '' },
+      matchups: [
+        {
+          id: generateAnswerId(),
+          left_name: { en: '' },
+          left_value: 0,
+          right_name: { en: '' },
+          right_value: 1,
+        },
+      ],
+    };
+  }
+
+  if (type === 'football_logic') {
+    return {
+      type: 'football_logic',
+      image_a_url: '',
+      image_b_url: '',
+      display_answer: { en: '' },
+      accepted_answers: [''],
+      prompt: { en: '' },
+      explanation: null,
     };
   }
 

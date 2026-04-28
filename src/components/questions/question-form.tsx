@@ -6,7 +6,19 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { toast } from 'sonner';
 import { useCreateQuestion, useUpdateQuestion, useCategories } from '@/hooks';
-import type { ClueChainPayload, CountdownPayload, PutInOrderPayload, Question, McqOption, AnswerWithId, TrueFalsePayload } from '@/types';
+import type {
+  CareerPathPayload,
+  ClueChainPayload,
+  CountdownPayload,
+  FootballLogicPayload,
+  HighLowPayload,
+  ImposterMultiSelectPayload,
+  McqOption,
+  PutInOrderPayload,
+  Question,
+  AnswerWithId,
+  TrueFalsePayload,
+} from '@/types';
 import { createDefaultAdvancedPayload, generateAnswerId, type AdvancedQuestionPayload } from '@/lib/question-utils';
 import { useRouter } from 'next/navigation';
 import { logger } from '@/lib/logger';
@@ -44,10 +56,27 @@ import { QuestionPreview } from './question-preview';
 import { CountdownListEditor } from './countdown-list-editor';
 import { ClueChainEditor } from './clue-chain-editor';
 import { PutInOrderEditor } from './put-in-order-editor';
+import { ImposterEditor } from './imposter-editor';
+import { CareerPathEditor } from './career-path-editor';
+import { HighLowEditor } from './high-low-editor';
+import { FootballLogicEditor } from './football-logic-editor';
+
+const questionTypes = [
+  'mcq_single',
+  'true_false',
+  'input_text',
+  'countdown_list',
+  'clue_chain',
+  'put_in_order',
+  'imposter_multi_select',
+  'career_path',
+  'high_low',
+  'football_logic',
+] as const;
 
 const questionSchema = z.object({
   category_id: z.string().uuid('Please select a category'),
-  type: z.enum(['mcq_single', 'true_false', 'input_text', 'countdown_list', 'clue_chain', 'put_in_order']),
+  type: z.enum(questionTypes),
   difficulty: z.enum(['easy', 'medium', 'hard']),
   status: z.enum(['draft', 'published', 'archived']),
   prompt_en: z.string().min(1, 'English prompt is required'),
@@ -150,6 +179,10 @@ export function QuestionForm({ question, onSuccess }: QuestionFormProps) {
   const previewCategoryName = previewCategory
     ? (previewCategory.name[previewLang] || previewCategory.name.en || '')
     : '';
+  const previewMcqOptions =
+    questionType === 'imposter_multi_select' && customPayload?.type === 'imposter_multi_select'
+      ? customPayload.options
+      : mcqOptions;
 
   // Log when form is populated (state is now initialized via defaultValues and useState initializers)
   useEffect(() => {
@@ -304,7 +337,7 @@ export function QuestionForm({ question, onSuccess }: QuestionFormProps) {
 
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="max-w-[1200px] mx-auto space-y-8 pb-20 px-4">
+      <form onSubmit={form.handleSubmit(onSubmit)} className="mx-auto max-w-[1200px] space-y-8 px-4 pb-20">
         {/* Top Configuration Card - Floating Header */}
         <div className="bg-white border border-gray-200/60 rounded-[1.5rem] p-4 shadow-sm flex items-center justify-between gap-6">
           <div className="flex items-center gap-4">
@@ -393,10 +426,10 @@ export function QuestionForm({ question, onSuccess }: QuestionFormProps) {
                 categoryName={previewCategoryName}
                 difficulty={difficulty}
                 type={questionType}
-              mcqOptions={mcqOptions}
-              acceptedAnswers={acceptedAnswers}
-              previewLang={previewLang}
-            />
+                mcqOptions={previewMcqOptions}
+                acceptedAnswers={acceptedAnswers}
+                previewLang={previewLang}
+              />
           </div>
 
           <div className="lg:col-span-4 h-full">
@@ -404,14 +437,32 @@ export function QuestionForm({ question, onSuccess }: QuestionFormProps) {
               <CardHeader className="p-6 pb-4">
                 <div className="flex items-center gap-3">
                   <div className="h-10 w-10 flex items-center justify-center rounded-xl bg-gray-50 border border-gray-100">
-                      {questionType === 'mcq_single' || questionType === 'true_false' ? <LayoutList className="w-5 h-5 text-gray-400" /> : <FileText className="w-5 h-5 text-gray-400" />}
+                      {questionType === 'mcq_single' || questionType === 'true_false' || questionType === 'imposter_multi_select'
+                        ? <LayoutList className="w-5 h-5 text-gray-400" />
+                        : <FileText className="w-5 h-5 text-gray-400" />}
                   </div>
                   <div>
                     <CardTitle className="text-sm font-bold tracking-tight text-gray-900">
-                      {questionType === 'mcq_single' ? 'MCQ Options' : questionType === 'true_false' ? 'True / False' : questionType === 'input_text' ? 'Answers' : 'Challenge Editor'}
+                      {questionType === 'mcq_single'
+                        ? 'MCQ Options'
+                        : questionType === 'true_false'
+                          ? 'True / False'
+                          : questionType === 'input_text'
+                            ? 'Answers'
+                            : questionType === 'imposter_multi_select'
+                              ? 'Imposter Options'
+                              : 'Challenge Editor'}
                     </CardTitle>
                     <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mt-0.5 leading-none">
-                      {questionType === 'mcq_single' ? 'Select 1 Correct' : questionType === 'true_false' ? 'Fixed Answers' : questionType === 'input_text' ? 'Direct Typing' : 'Typed Payload'}
+                      {questionType === 'mcq_single'
+                        ? 'Select 1 Correct'
+                        : questionType === 'true_false'
+                          ? 'Fixed Answers'
+                          : questionType === 'input_text'
+                            ? 'Direct Typing'
+                            : questionType === 'imposter_multi_select'
+                              ? 'Multi Select'
+                              : 'Typed Payload'}
                     </p>
                   </div>
                 </div>
@@ -453,6 +504,30 @@ export function QuestionForm({ question, onSuccess }: QuestionFormProps) {
                     locale={previewLang}
                     onChange={(payload) => setCustomPayload(payload)}
                   />
+                ) : questionType === 'imposter_multi_select' && customPayload?.type === 'imposter_multi_select' ? (
+                  <ImposterEditor
+                    payload={customPayload as ImposterMultiSelectPayload}
+                    locale={previewLang}
+                    onChange={(payload) => setCustomPayload(payload)}
+                  />
+                ) : questionType === 'career_path' && customPayload?.type === 'career_path' ? (
+                  <CareerPathEditor
+                    payload={customPayload as CareerPathPayload}
+                    locale={previewLang}
+                    onChange={(payload) => setCustomPayload(payload)}
+                  />
+                ) : questionType === 'high_low' && customPayload?.type === 'high_low' ? (
+                  <HighLowEditor
+                    payload={customPayload as HighLowPayload}
+                    locale={previewLang}
+                    onChange={(payload) => setCustomPayload(payload)}
+                  />
+                ) : questionType === 'football_logic' && customPayload?.type === 'football_logic' ? (
+                  <FootballLogicEditor
+                    payload={customPayload as FootballLogicPayload}
+                    locale={previewLang}
+                    onChange={(payload) => setCustomPayload(payload)}
+                  />
                 ) : (
                   <p className="text-[11px] text-gray-400 leading-relaxed">
                     Select a supported challenge question type to edit its payload.
@@ -484,6 +559,10 @@ export function QuestionForm({ question, onSuccess }: QuestionFormProps) {
                       { value: 'countdown_list', label: 'Countdown List', icon: FileText, desc: 'List-building answer groups for countdown mode' },
                       { value: 'clue_chain', label: 'Clue Chain', icon: FileText, desc: 'Progressive clue reveals with accepted answers' },
                       { value: 'put_in_order', label: 'Put In Order', icon: FileText, desc: 'Sortable football timeline or ranking data' },
+                      { value: 'imposter_multi_select', label: 'Imposter', icon: LayoutList, desc: 'Pick all correct answers from a mixed list' },
+                      { value: 'career_path', label: 'Career Path', icon: FileText, desc: 'Guess the player from an ordered club path' },
+                      { value: 'high_low', label: 'High Low', icon: FileText, desc: 'Winner-stays-on higher-stat challenge chains' },
+                      { value: 'football_logic', label: 'Football Logic', icon: FileText, desc: 'Image-pair football logic challenge with text answer' },
                     ].map((t) => {
                       const Icon = t.icon;
                       const isSelected = field.value === t.value;

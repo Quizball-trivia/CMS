@@ -4,12 +4,17 @@ import { useState, useEffect, useCallback } from 'react';
 import { toast } from 'sonner';
 import { useUpdateQuestionStatus, useUpdateQuestion, useCreateQuestion, useDeleteQuestion, useCategories, useCheckDuplicates, useQuestion } from '@/hooks';
 import type {
+  CareerPathPayload,
   ClueChainPayload,
   CountdownPayload,
   CreateQuestionRequest,
+  FootballLogicPayload,
+  HighLowPayload,
+  ImposterMultiSelectPayload,
   PutInOrderPayload,
   Question,
   QuestionStatus,
+  QuestionType,
   TrueFalsePayload,
   UpdateQuestionRequest,
 } from '@/types';
@@ -42,8 +47,26 @@ import { DuplicateConfirmationDialog } from './duplicate-confirmation-dialog';
 import { CountdownListEditor } from './countdown-list-editor';
 import { ClueChainEditor } from './clue-chain-editor';
 import { PutInOrderEditor } from './put-in-order-editor';
+import { ImposterEditor } from './imposter-editor';
+import { CareerPathEditor } from './career-path-editor';
+import { HighLowEditor } from './high-low-editor';
+import { FootballLogicEditor } from './football-logic-editor';
 
 type DialogMode = 'view' | 'edit' | 'create';
+
+type EditableQuestionType = Extract<
+  QuestionType,
+  | 'mcq_single'
+  | 'true_false'
+  | 'input_text'
+  | 'countdown_list'
+  | 'clue_chain'
+  | 'put_in_order'
+  | 'imposter_multi_select'
+  | 'career_path'
+  | 'high_low'
+  | 'football_logic'
+>;
 
 interface QuestionDialogProps {
   mode?: DialogMode;
@@ -110,7 +133,7 @@ export function QuestionDialog({
     locale: 'en' | 'ka';
     difficulty: 'easy' | 'medium' | 'hard';
     status: QuestionStatus;
-    type: 'mcq_single' | 'true_false' | 'input_text' | 'countdown_list' | 'clue_chain' | 'put_in_order';
+    type: EditableQuestionType;
     prompt: string;
     explanation: string;
     options: Array<{ id?: string; text: string; is_correct: boolean }>;
@@ -706,7 +729,7 @@ export function QuestionDialog({
             <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Type *</Label>
             <Select
               value={formData.type}
-              onValueChange={(v: 'mcq_single' | 'true_false' | 'input_text' | 'countdown_list' | 'clue_chain' | 'put_in_order') =>
+              onValueChange={(v: EditableQuestionType) =>
                 setFormData(prev => ({
                   ...prev,
                   type: v,
@@ -730,6 +753,10 @@ export function QuestionDialog({
                 <SelectItem value="countdown_list" className="rounded-lg font-medium">Countdown List</SelectItem>
                 <SelectItem value="clue_chain" className="rounded-lg font-medium">Clue Chain</SelectItem>
                 <SelectItem value="put_in_order" className="rounded-lg font-medium">Put In Order</SelectItem>
+                <SelectItem value="imposter_multi_select" className="rounded-lg font-medium">Imposter</SelectItem>
+                <SelectItem value="career_path" className="rounded-lg font-medium">Career Path</SelectItem>
+                <SelectItem value="high_low" className="rounded-lg font-medium">High Low</SelectItem>
+                <SelectItem value="football_logic" className="rounded-lg font-medium">Football Logic</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -849,6 +876,30 @@ export function QuestionDialog({
         ) : formData.type === 'put_in_order' && formData.customPayload?.type === 'put_in_order' ? (
           <PutInOrderEditor
             payload={formData.customPayload as PutInOrderPayload}
+            locale={formData.locale}
+            onChange={(payload) => setFormData(prev => ({ ...prev, customPayload: payload }))}
+          />
+        ) : formData.type === 'imposter_multi_select' && formData.customPayload?.type === 'imposter_multi_select' ? (
+          <ImposterEditor
+            payload={formData.customPayload as ImposterMultiSelectPayload}
+            locale={formData.locale}
+            onChange={(payload) => setFormData(prev => ({ ...prev, customPayload: payload }))}
+          />
+        ) : formData.type === 'career_path' && formData.customPayload?.type === 'career_path' ? (
+          <CareerPathEditor
+            payload={formData.customPayload as CareerPathPayload}
+            locale={formData.locale}
+            onChange={(payload) => setFormData(prev => ({ ...prev, customPayload: payload }))}
+          />
+        ) : formData.type === 'high_low' && formData.customPayload?.type === 'high_low' ? (
+          <HighLowEditor
+            payload={formData.customPayload as HighLowPayload}
+            locale={formData.locale}
+            onChange={(payload) => setFormData(prev => ({ ...prev, customPayload: payload }))}
+          />
+        ) : formData.type === 'football_logic' && formData.customPayload?.type === 'football_logic' ? (
+          <FootballLogicEditor
+            payload={formData.customPayload as FootballLogicPayload}
             locale={formData.locale}
             onChange={(payload) => setFormData(prev => ({ ...prev, customPayload: payload }))}
           />

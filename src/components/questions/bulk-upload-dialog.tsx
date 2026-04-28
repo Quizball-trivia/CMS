@@ -43,8 +43,20 @@ import { TicTacToeGame } from '@/components/games/tic-tac-toe-game';
 import { SnakeGame } from '@/components/games/snake-game';
 import { Checkbox } from '@/components/ui/checkbox';
 import { logger } from '@/lib/logger';
+import type { Category } from '@/types';
 
-type UploadQuestionType = Extract<QuestionType, 'mcq_single' | 'true_false' | 'countdown_list' | 'clue_chain' | 'put_in_order'>;
+type UploadQuestionType = Extract<
+  QuestionType,
+  | 'mcq_single'
+  | 'true_false'
+  | 'countdown_list'
+  | 'clue_chain'
+  | 'put_in_order'
+  | 'imposter_multi_select'
+  | 'career_path'
+  | 'high_low'
+  | 'football_logic'
+>;
 
 type QuestionWithSelection = ParsedBulkQuestion & {
   id: string;
@@ -64,12 +76,53 @@ interface UploadState {
 
 const DAILY_CHALLENGE_CATEGORY_TYPE_MAP: Record<string, UploadQuestionType> = {
   'daily-challenges-money-drop': 'mcq_single',
-  'daily-challenges-football-jeopardy': 'mcq_single',
   'daily-challenges-true-false': 'true_false',
   'daily-challenges-countdown': 'countdown_list',
   'daily-challenges-clues': 'clue_chain',
   'daily-challenges-put-in-order': 'put_in_order',
+  'daily-challenges-imposter': 'imposter_multi_select',
+  'daily-challenges-career-path': 'career_path',
+  'daily-challenges-high-low': 'high_low',
+  'daily-challenges-football-logic': 'football_logic',
 };
+
+const DAILY_CHALLENGE_CATEGORY_ALIASES: Record<string, UploadQuestionType> = {
+  moneydrop: 'mcq_single',
+  moneydropp: 'mcq_single',
+  moneydropchallenge: 'mcq_single',
+  truefalse: 'true_false',
+  trueorfalse: 'true_false',
+  clues: 'clue_chain',
+  cluechain: 'clue_chain',
+  clueschallenge: 'clue_chain',
+  countdown: 'countdown_list',
+  countdownchallenge: 'countdown_list',
+  putinorder: 'put_in_order',
+  puttingorder: 'put_in_order',
+  imposter: 'imposter_multi_select',
+  impostermultiselect: 'imposter_multi_select',
+  careerpath: 'career_path',
+  highlow: 'high_low',
+  footballlogic: 'football_logic',
+};
+
+function normalizeDailyChallengeCategoryKey(value: string): string {
+  return value.toLowerCase().replace(/[^a-z0-9]/g, '');
+}
+
+function getDailyChallengeQuestionTypeForCategory(category: Category | undefined): UploadQuestionType | undefined {
+  if (!category) return undefined;
+
+  const exactSlugMatch = DAILY_CHALLENGE_CATEGORY_TYPE_MAP[category.slug];
+  if (exactSlugMatch) return exactSlugMatch;
+
+  const normalizedSlug = normalizeDailyChallengeCategoryKey(category.slug.replace(/^daily-challenges-/, ''));
+  const slugMatch = DAILY_CHALLENGE_CATEGORY_ALIASES[normalizedSlug];
+  if (slugMatch) return slugMatch;
+
+  const name = getLocalizedText(category.name, category.slug);
+  return DAILY_CHALLENGE_CATEGORY_ALIASES[normalizeDailyChallengeCategoryKey(name)];
+}
 
 const TYPE_OPTIONS: Array<{ value: UploadQuestionType; label: string }> = [
   { value: 'mcq_single', label: 'Multiple Choice' },
@@ -77,6 +130,10 @@ const TYPE_OPTIONS: Array<{ value: UploadQuestionType; label: string }> = [
   { value: 'countdown_list', label: 'Countdown List' },
   { value: 'clue_chain', label: 'Clue Chain' },
   { value: 'put_in_order', label: 'Put In Order' },
+  { value: 'imposter_multi_select', label: 'Imposter' },
+  { value: 'career_path', label: 'Career Path' },
+  { value: 'high_low', label: 'High Low' },
+  { value: 'football_logic', label: 'Football Logic' },
 ];
 
 const FORMAT_EXAMPLES: Record<UploadQuestionType, string> = {
@@ -114,6 +171,33 @@ Answer:
 3. Michel Platini
 4. Zlatan Ibrahimovic
 Difficulty: Easy`,
+  imposter_multi_select: `1. Question: Which of these players have won the Ballon d'Or?
+Lionel Messi
+Andres Iniesta
+Cristiano Ronaldo
+Thierry Henry
+Luka Modric
+Karim Benzema
+Correct Answers: Lionel Messi, Cristiano Ronaldo, Luka Modric, Karim Benzema
+Difficulty: Medium`,
+  career_path: `1. Question: AS Monaco ➔ Paris Saint-Germain ➔ Real Madrid
+Answer: Kylian Mbappé | Kylian Mbappe | Mbappe
+Difficulty: Easy`,
+  high_low: `1. Question: Who has scored more all-time Premier League goals? (Winner stays on)
+Stat Label: All-time Premier League goals
+Matchup 1
+Correct Answer: Michael Owen (150)
+Wrong Answer: Robin van Persie (144)
+Matchup 2
+Correct Answer: Jermain Defoe (162)
+Wrong Answer: Michael Owen (150)
+Difficulty: Medium`,
+  football_logic: `1. Prompt: Name the player from the visual logic
+Image A: https://example.com/stopwatch-9-minutes.png
+Image B: https://example.com/five-fingers.png
+Answer: Robert Lewandowski | Lewandowski
+Explanation: Famous Bundesliga match where he scored 5 goals in 9 minutes.
+Difficulty: Hard`,
 };
 
 function getQuestionSummary(question: ParsedBulkQuestion): string {
@@ -125,6 +209,12 @@ function getQuestionSummary(question: ParsedBulkQuestion): string {
       return question.prompt;
     case 'clue_chain':
       return question.clues[0] || question.displayAnswer;
+    case 'imposter_multi_select':
+    case 'career_path':
+    case 'high_low':
+      return question.prompt;
+    case 'football_logic':
+      return question.prompt || question.displayAnswer;
   }
 }
 
@@ -160,9 +250,7 @@ export function BulkUploadDialog() {
   const bulkCreate = useBulkCreateQuestions();
   const checkDuplicates = useCheckDuplicates();
   const selectedCategoryObject = categories?.find((category) => category.id === selectedCategory);
-  const inferredQuestionType = selectedCategoryObject
-    ? DAILY_CHALLENGE_CATEGORY_TYPE_MAP[selectedCategoryObject.slug]
-    : undefined;
+  const inferredQuestionType = getDailyChallengeQuestionTypeForCategory(selectedCategoryObject);
 
   // Store stable function reference in ref to prevent useEffect re-triggers
   useEffect(() => {
@@ -389,6 +477,15 @@ export function BulkUploadDialog() {
     }
   };
 
+  const handleCategoryChange = (categoryId: string) => {
+    setSelectedCategory(categoryId);
+    const category = categories?.find((item) => item.id === categoryId);
+    const nextQuestionType = getDailyChallengeQuestionTypeForCategory(category);
+    if (nextQuestionType) {
+      setSelectedQuestionType(nextQuestionType);
+    }
+  };
+
   const handleClose = () => {
     setOpen(false);
     setTimeout(() => {
@@ -512,7 +609,7 @@ export function BulkUploadDialog() {
           {/* Category Selection */}
           <div className="space-y-2">
             <Label htmlFor="category">Category *</Label>
-            <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+            <Select value={selectedCategory} onValueChange={handleCategoryChange}>
               <SelectTrigger id="category">
                 <SelectValue placeholder="Select a category" />
               </SelectTrigger>

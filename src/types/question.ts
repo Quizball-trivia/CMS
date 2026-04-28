@@ -8,7 +8,11 @@ export type QuestionType =
   | 'true_false'
   | 'countdown_list'
   | 'clue_chain'
-  | 'put_in_order';
+  | 'put_in_order'
+  | 'imposter_multi_select'
+  | 'career_path'
+  | 'high_low'
+  | 'football_logic';
 export type Difficulty = QuestionResponseType['difficulty'];
 export type QuestionStatus = QuestionResponseType['status'];
 
@@ -75,13 +79,51 @@ export interface PutInOrderPayload {
   }>;
 }
 
+export interface ImposterMultiSelectPayload {
+  type: 'imposter_multi_select';
+  options: McqOption[];
+}
+
+export interface CareerPathPayload {
+  type: 'career_path';
+  clubs: I18nField[];
+  display_answer: I18nField;
+  accepted_answers: string[];
+}
+
+export interface HighLowPayload {
+  type: 'high_low';
+  stat_label: I18nField;
+  matchups: Array<{
+    id: string;
+    left_name: I18nField;
+    left_value: number;
+    right_name: I18nField;
+    right_value: number;
+  }>;
+}
+
+export interface FootballLogicPayload {
+  type: 'football_logic';
+  image_a_url: string;
+  image_b_url: string;
+  display_answer: I18nField;
+  accepted_answers: string[];
+  prompt?: I18nField;
+  explanation?: I18nField | null;
+}
+
 export type QuestionPayload =
   | McqPayload
   | TrueFalsePayload
   | TextInputPayload
   | CountdownPayload
   | ClueChainPayload
-  | PutInOrderPayload;
+  | PutInOrderPayload
+  | ImposterMultiSelectPayload
+  | CareerPathPayload
+  | HighLowPayload
+  | FootballLogicPayload;
 
 // Extend the generated type with proper payload typing
 export interface Question extends Omit<components['schemas']['QuestionResponse'], 'payload'> {

@@ -24,6 +24,10 @@ export const QUESTION_TYPE_LABELS: Record<string, string> = {
   countdown_list: 'Countdown List',
   clue_chain: 'Clue Chain',
   put_in_order: 'Put In Order',
+  imposter_multi_select: 'Imposter Multi Select',
+  career_path: 'Career Path',
+  high_low: 'High Low',
+  football_logic: 'Football Logic',
 };
 
 export const ACTIVITY_ALLOWED_EMAIL = 'bighead@quizball.com';
