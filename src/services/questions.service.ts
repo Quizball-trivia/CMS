@@ -109,7 +109,7 @@ export const questionsService = {
       total: number;
       remaining: number;
       categories: number;
-    }>('/questions/translate/backfill');
+    }>('/questions/translate/backfill', {});
     logger.debug('api', 'POST /questions/translate/backfill response', result);
     return result;
   },
