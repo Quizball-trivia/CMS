@@ -41,7 +41,6 @@ import { DifficultySignal, getDifficultyTextColor } from '@/components/ui/diffic
 import { processBatch } from '@/lib/batch-utils';
 import { logger } from '@/lib/logger';
 import {
-  DAILY_CHALLENGE_PARENT_SLUG,
   getDailyChallengeQuestionTypeForCategory,
 } from '@/lib/daily-challenge-question-types';
 import {
@@ -200,12 +199,11 @@ export function QuestionList() {
 
     const category = categories?.find((cat) => cat.id === value);
     const dailyChallengeType = getDailyChallengeQuestionTypeForCategory(category);
-    const dailyChallengeParent = categories?.find((cat) => cat.slug === DAILY_CHALLENGE_PARENT_SLUG);
 
-    if (dailyChallengeType && dailyChallengeParent) {
+    if (dailyChallengeType) {
       setParams((prev) => ({
         ...prev,
-        category_id: dailyChallengeParent.id,
+        category_id: value,
         type: dailyChallengeType,
         page: 1,
       }));
