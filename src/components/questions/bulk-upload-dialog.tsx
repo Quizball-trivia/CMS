@@ -4,7 +4,7 @@ import { useEffect, useState, useRef } from 'react';
 import { toast } from 'sonner';
 import { parseQuestionFile, toBulkCreateQuestion, type ParsedBulkQuestion, type ParseError } from '@/lib/parsers/question-parser';
 import { useBulkCreateQuestions, useCategories, useCheckDuplicates } from '@/hooks';
-import type { BulkCreateQuestionsRequest, DuplicateQuestionInfo, QuestionType } from '@/types';
+import type { BulkCreateQuestionsRequest, DuplicateQuestionInfo } from '@/types';
 import {
   Dialog,
   DialogContent,
@@ -34,29 +34,20 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Upload, AlertCircle, Trash2, Info, ChevronLeft, ChevronRight, CheckCircle2 } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { cn, getLocalizedText } from '@/lib/utils';
 import { getDifficultyVariant } from '@/components/ui/difficulty-signal';
 import { Badge } from '@/components/ui/badge';
-import { getLocalizedText } from '@/lib/utils';
 import { Card, CardContent } from '@/components/ui/card';
 import { TicTacToeGame } from '@/components/games/tic-tac-toe-game';
 import { SnakeGame } from '@/components/games/snake-game';
 import { Checkbox } from '@/components/ui/checkbox';
 import { logger } from '@/lib/logger';
-import type { Category } from '@/types';
+import {
+  type DailyChallengeQuestionType,
+  getDailyChallengeQuestionTypeForCategory,
+} from '@/lib/daily-challenge-question-types';
 
-type UploadQuestionType = Extract<
-  QuestionType,
-  | 'mcq_single'
-  | 'true_false'
-  | 'countdown_list'
-  | 'clue_chain'
-  | 'put_in_order'
-  | 'imposter_multi_select'
-  | 'career_path'
-  | 'high_low'
-  | 'football_logic'
->;
+type UploadQuestionType = DailyChallengeQuestionType;
 
 type QuestionWithSelection = ParsedBulkQuestion & {
   id: string;
@@ -74,61 +65,11 @@ interface UploadState {
   isUploading: boolean;
 }
 
-const DAILY_CHALLENGE_CATEGORY_TYPE_MAP: Record<string, UploadQuestionType> = {
-  'daily-challenges-money-drop': 'mcq_single',
-  'daily-challenges-true-false': 'true_false',
-  'daily-challenges-countdown': 'countdown_list',
-  'daily-challenges-clues': 'clue_chain',
-  'daily-challenges-put-in-order': 'put_in_order',
-  'daily-challenges-imposter': 'imposter_multi_select',
-  'daily-challenges-career-path': 'career_path',
-  'daily-challenges-high-low': 'high_low',
-  'daily-challenges-football-logic': 'football_logic',
-};
-
-const DAILY_CHALLENGE_CATEGORY_ALIASES: Record<string, UploadQuestionType> = {
-  moneydrop: 'mcq_single',
-  moneydropp: 'mcq_single',
-  moneydropchallenge: 'mcq_single',
-  truefalse: 'true_false',
-  trueorfalse: 'true_false',
-  clues: 'clue_chain',
-  cluechain: 'clue_chain',
-  clueschallenge: 'clue_chain',
-  countdown: 'countdown_list',
-  countdownchallenge: 'countdown_list',
-  putinorder: 'put_in_order',
-  puttingorder: 'put_in_order',
-  imposter: 'imposter_multi_select',
-  impostermultiselect: 'imposter_multi_select',
-  careerpath: 'career_path',
-  highlow: 'high_low',
-  footballlogic: 'football_logic',
-};
-
-function normalizeDailyChallengeCategoryKey(value: string): string {
-  return value.toLowerCase().replace(/[^a-z0-9]/g, '');
-}
-
-function getDailyChallengeQuestionTypeForCategory(category: Category | undefined): UploadQuestionType | undefined {
-  if (!category) return undefined;
-
-  const exactSlugMatch = DAILY_CHALLENGE_CATEGORY_TYPE_MAP[category.slug];
-  if (exactSlugMatch) return exactSlugMatch;
-
-  const normalizedSlug = normalizeDailyChallengeCategoryKey(category.slug.replace(/^daily-challenges-/, ''));
-  const slugMatch = DAILY_CHALLENGE_CATEGORY_ALIASES[normalizedSlug];
-  if (slugMatch) return slugMatch;
-
-  const name = getLocalizedText(category.name, category.slug);
-  return DAILY_CHALLENGE_CATEGORY_ALIASES[normalizeDailyChallengeCategoryKey(name)];
-}
-
 const TYPE_OPTIONS: Array<{ value: UploadQuestionType; label: string }> = [
   { value: 'mcq_single', label: 'Multiple Choice' },
   { value: 'true_false', label: 'True / False' },
-  { value: 'countdown_list', label: 'Countdown List' },
-  { value: 'clue_chain', label: 'Clue Chain' },
+  { value: 'countdown_list', label: 'Countdown' },
+  { value: 'clue_chain', label: 'Who Am I' },
   { value: 'put_in_order', label: 'Put In Order' },
   { value: 'imposter_multi_select', label: 'Imposter' },
   { value: 'career_path', label: 'Career Path' },

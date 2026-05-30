@@ -75,6 +75,7 @@ interface QuestionDialogProps {
   currentIndex?: number;
   onNavigate?: (index: number) => void;
   totalAvailable?: number;
+  initialLocale?: 'en' | 'ka';
   trigger?: React.ReactNode;
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
@@ -87,6 +88,7 @@ export function QuestionDialog({
   currentIndex = 0,
   onNavigate,
   totalAvailable = 0,
+  initialLocale = 'en',
   trigger,
   open: controlledOpen,
   onOpenChange: controlledOnOpenChange,
@@ -99,7 +101,7 @@ export function QuestionDialog({
   const open = controlledOpen !== undefined ? controlledOpen : internalOpen;
   const setOpen = controlledOnOpenChange || setInternalOpen;
 
-  const [viewLang, setViewLang] = useState<'en' | 'ka'>('en');
+  const [viewLang, setViewLang] = useState<'en' | 'ka'>(initialLocale);
   const [confirmDelete, setConfirmDelete] = useState(false);
 
   const { data: categories } = useCategories();
@@ -166,6 +168,7 @@ export function QuestionDialog({
       setActiveIndex(currentIndex);
       setMode(initialMode);
       setConfirmDelete(false);
+      setViewLang(initialLocale);
 
       if (initialMode === 'edit') {
         const selectedQuestion = freshQuestion ?? (allQuestions.length > 0 ? allQuestions[currentIndex] : question);
@@ -241,8 +244,7 @@ export function QuestionDialog({
 
   const handleEdit = () => {
     if (hydratedQuestion) {
-      // Use current locale from form data, or default to 'en'
-      setFormData(questionToFormData(hydratedQuestion, formData.locale || 'en'));
+      setFormData(questionToFormData(hydratedQuestion, viewLang));
     }
     setMode('edit');
   };
@@ -957,7 +959,7 @@ export function QuestionDialog({
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       {trigger && <DialogTrigger asChild>{trigger}</DialogTrigger>}
-      <DialogContent className="max-w-2xl bg-white border border-slate-200 shadow-2xl rounded-[1.5rem] p-6 overflow-hidden font-inter focus:outline-none" onClick={(e) => e.stopPropagation()}>
+      <DialogContent className="max-h-[calc(100vh-2rem)] max-w-2xl overflow-y-auto bg-white border border-slate-200 shadow-2xl rounded-[1.5rem] p-5 sm:p-6 font-inter focus:outline-none" onClick={(e) => e.stopPropagation()}>
         <DialogHeader className="pr-12 pb-4">
           <div className="flex items-center justify-between">
             <DialogTitle className="text-2xl font-black text-slate-900 tracking-tight">

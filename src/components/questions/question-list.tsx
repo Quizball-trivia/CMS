@@ -7,7 +7,7 @@ import { questionsService } from '@/services/questions.service';
 import {
   QUESTION_TYPE_LABELS,
 } from '@/lib/constants';
-import { getLocalizedText } from '@/lib/utils';
+import { cn, getLocalizedTextByLang } from '@/lib/utils';
 import type { ListQuestionsParams, QuestionStatus, Question } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -33,13 +33,17 @@ import {
   LayoutList,
   AlertCircle,
   Layers,
+  Languages,
   X
 } from 'lucide-react';
-import { cn } from '@/lib/utils';
 import { QuestionDialog } from './question-dialog';
 import { DifficultySignal, getDifficultyTextColor } from '@/components/ui/difficulty-signal';
 import { processBatch } from '@/lib/batch-utils';
 import { logger } from '@/lib/logger';
+import {
+  DAILY_CHALLENGE_PARENT_SLUG,
+  getDailyChallengeQuestionTypeForCategory,
+} from '@/lib/daily-challenge-question-types';
 import {
   Dialog,
   DialogContent,
@@ -57,12 +61,22 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 
+type DisplayLocale = 'en' | 'ka';
+
+const DISPLAY_LOCALES: Array<{ value: DisplayLocale; label: string; name: string }> = [
+  { value: 'en', label: 'EN', name: 'English' },
+  { value: 'ka', label: 'KA', name: 'Georgian' },
+];
+
+const GEORGIAN_TEXT_PATTERN = /[\u10A0-\u10FF]/;
+
 export function QuestionList() {
   const [params, setParams] = useState<ListQuestionsParams>({
     page: 1,
     limit: 10,
   });
   const [searchQuery, setSearchQuery] = useState('');
+  const [displayLocale, setDisplayLocale] = useState<DisplayLocale>('en');
   const [deleteState, setDeleteState] = useState<{ type: 'single'; id: string } | { type: 'bulk' } | null>(null);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [openQuestionId, setOpenQuestionId] = useState<string | null>(null);
@@ -178,13 +192,57 @@ export function QuestionList() {
     }));
   };
 
+  const handleCategoryFilterChange = (value: string) => {
+    if (value === 'all') {
+      handleFilterChange('category_id', value);
+      return;
+    }
+
+    const category = categories?.find((cat) => cat.id === value);
+    const dailyChallengeType = getDailyChallengeQuestionTypeForCategory(category);
+    const dailyChallengeParent = categories?.find((cat) => cat.slug === DAILY_CHALLENGE_PARENT_SLUG);
+
+    if (dailyChallengeType && dailyChallengeParent) {
+      setParams((prev) => ({
+        ...prev,
+        category_id: dailyChallengeParent.id,
+        type: dailyChallengeType,
+        page: 1,
+      }));
+      return;
+    }
+
+    handleFilterChange('category_id', value);
+  };
+
   const handleSearch = () => {
+    const nextSearch = searchQuery.trim();
     setParams((prev) => ({
       ...prev,
-      search: searchQuery || undefined,
+      search: nextSearch || undefined,
       page: 1,
     }));
   };
+
+  const handleSearchQueryChange = (value: string) => {
+    setSearchQuery(value);
+    if (GEORGIAN_TEXT_PATTERN.test(value)) {
+      setDisplayLocale('ka');
+    }
+  };
+
+  useEffect(() => {
+    const timeoutId = window.setTimeout(() => {
+      const nextSearch = searchQuery.trim() || undefined;
+      setParams((prev) => (
+        prev.search === nextSearch
+          ? prev
+          : { ...prev, search: nextSearch, page: 1 }
+      ));
+    }, 350);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [searchQuery]);
 
   const handleDelete = async () => {
     if (!deleteState || deleteState.type !== 'single') return;
@@ -290,11 +348,51 @@ export function QuestionList() {
 
   const getCategoryName = (categoryId: string) => {
     const category = categories?.find((c) => c.id === categoryId);
-    return category ? getLocalizedText(category.name, category.slug) : 'Unknown';
+    return category ? getLocalizedTextByLang(category.name, displayLocale, category.slug) : 'Unknown';
   };
 
   const getQuestionTypeLabel = (type: NonNullable<ListQuestionsParams['type']>) =>
     QUESTION_TYPE_LABELS[type];
+
+  const getQuestionTitle = (question: Question) => {
+    const getText = (field: Question['prompt'] | null | undefined, fallback = '') =>
+      getLocalizedTextByLang(field, displayLocale, fallback).trim();
+    const promptTitle = getText(question.prompt);
+    const payload = question.payload;
+
+    if (payload?.type === 'countdown_list') {
+      return getText(payload.prompt, promptTitle || 'Untitled Question');
+    }
+
+    if (payload?.type === 'put_in_order') {
+      return getText(payload.prompt, promptTitle || 'Untitled Question');
+    }
+
+    if (payload?.type === 'football_logic' && payload.prompt) {
+      return getText(payload.prompt, promptTitle || 'Untitled Question');
+    }
+
+    if (promptTitle) {
+      return promptTitle;
+    }
+
+    if (payload?.type === 'clue_chain') {
+      return getText(payload.clues[0]?.content, getText(payload.display_answer, 'Untitled Question'));
+    }
+
+    if (payload?.type === 'career_path') {
+      const clubs = payload.clubs
+        .map((club) => getText(club))
+        .filter(Boolean);
+      return clubs.length > 0 ? clubs.join(' -> ') : getText(payload.display_answer, 'Untitled Question');
+    }
+
+    if (payload?.type === 'high_low') {
+      return getText(payload.stat_label, 'Untitled Question');
+    }
+
+    return 'Untitled Question';
+  };
 
 
   const visibleIds = useMemo(() => data?.data.map((question) => question.id) ?? [], [data]);
@@ -350,18 +448,39 @@ export function QuestionList() {
           <div className="flex-1 min-w-[300px] relative group">
             <Search className="absolute left-3.5 top-2.5 h-4 w-4 text-gray-400 transition-colors group-focus-within:text-gray-900" />
             <Input
-              placeholder="Search questions..."
+              placeholder={displayLocale === 'ka' ? 'Search Georgian or English text...' : 'Search questions...'}
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              onChange={(e) => handleSearchQueryChange(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
               className="pl-10 h-10 bg-gray-200/30 border-transparent rounded-xl text-sm focus-visible:ring-2 focus-visible:ring-gray-900/5 focus:bg-white focus:border-gray-200 transition-all font-medium"
             />
           </div>
 
+          <div className="flex h-10 items-center rounded-xl border border-gray-200 bg-white p-1 shadow-sm">
+            <Languages className="ml-2 mr-1.5 h-4 w-4 text-slate-400" />
+            {DISPLAY_LOCALES.map((locale) => (
+              <button
+                key={locale.value}
+                type="button"
+                aria-pressed={displayLocale === locale.value}
+                title={`Show ${locale.name} text`}
+                onClick={() => setDisplayLocale(locale.value)}
+                className={cn(
+                  'h-8 rounded-lg px-3 text-xs font-black uppercase tracking-widest transition-all',
+                  displayLocale === locale.value
+                    ? 'bg-slate-900 text-white shadow-sm'
+                    : 'text-slate-400 hover:bg-slate-50 hover:text-slate-700'
+                )}
+              >
+                {locale.label}
+              </button>
+            ))}
+          </div>
+
           <div className="flex items-center gap-2">
             <Select
               value={params.category_id || 'all'}
-              onValueChange={(v) => handleFilterChange('category_id', v)}
+              onValueChange={handleCategoryFilterChange}
             >
               <SelectTrigger className="w-[160px] h-10 bg-white border-gray-200 rounded-xl text-xs font-bold text-gray-600 hover:bg-gray-50 transition-colors">
                 <SelectValue placeholder="Category" />
@@ -370,7 +489,7 @@ export function QuestionList() {
                 <SelectItem value="all" className="text-xs font-medium">Categories</SelectItem>
                 {categories?.map((cat) => (
                   <SelectItem key={cat.id} value={cat.id} className="text-xs font-medium">
-                    {getLocalizedText(cat.name, cat.slug)}
+                    {getLocalizedTextByLang(cat.name, displayLocale, cat.slug)}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -608,7 +727,7 @@ export function QuestionList() {
 
                   <div className="flex flex-col min-w-0">
                     <span className="text-[16px] font-semibold text-slate-900 truncate leading-tight">
-                      {getLocalizedText(question.prompt, 'Untitled Question')}
+                      {getQuestionTitle(question)}
                     </span>
                     <div className="flex items-center gap-4 mt-2">
                       <div className="flex items-center gap-1.5">
@@ -693,6 +812,7 @@ export function QuestionList() {
             currentIndex={questionIndex !== -1 ? questionIndex : fallbackIndex}
             onNavigate={handlePreviewNavigate}
             totalAvailable={data?.total || 0}
+            initialLocale={displayLocale}
             open={true}
             onOpenChange={(isOpen) => {
               if (!isOpen) setOpenQuestionId(null);
