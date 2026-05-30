@@ -6,6 +6,7 @@ import { Label } from '@/components/ui/label';
 import type { CountdownPayload } from '@/types';
 import { generateAnswerId } from '@/lib/question-utils';
 import { Plus, Trash2 } from 'lucide-react';
+import { AnswersInput } from './answers-input';
 
 interface CountdownListEditorProps {
   payload: CountdownPayload;
@@ -90,13 +91,13 @@ export function CountdownListEditor({ payload, locale, onChange }: CountdownList
               </div>
               <div className="space-y-1">
                 <Label className="text-[10px] font-black uppercase tracking-wider text-slate-400">Accepted Answers</Label>
-                <Input
+                <AnswersInput
                   className="h-8 rounded-lg bg-white text-sm"
-                  value={group.accepted_answers.join(', ')}
-                  onChange={(e) =>
+                  value={group.accepted_answers}
+                  onCommit={(answers) =>
                     updateGroup(group.id, (current) => ({
                       ...current,
-                      accepted_answers: e.target.value.split(',').map((item) => item.trim()).filter(Boolean),
+                      accepted_answers: answers,
                     }))}
                   placeholder="arsenal, chelsea, liverpool"
                 />

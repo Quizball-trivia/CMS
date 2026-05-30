@@ -5,6 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import type { CareerPathPayload } from '@/types';
 import { Plus, Trash2 } from 'lucide-react';
+import { AnswersInput } from './answers-input';
 
 interface CareerPathEditorProps {
   payload: CareerPathPayload;
@@ -82,12 +83,12 @@ export function CareerPathEditor({ payload, locale, onChange }: CareerPathEditor
 
       <div className="space-y-2">
         <Label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Accepted Answers</Label>
-        <Input
-          value={payload.accepted_answers.join(', ')}
-          onChange={(event) =>
+        <AnswersInput
+          value={payload.accepted_answers}
+          onCommit={(answers) =>
             onChange({
               ...payload,
-              accepted_answers: event.target.value.split(',').map((value) => value.trim()).filter(Boolean),
+              accepted_answers: answers,
             })}
           placeholder="Kylian Mbappé, Mbappe"
           className="h-10"

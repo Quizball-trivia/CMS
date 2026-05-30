@@ -4,6 +4,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import type { FootballLogicPayload } from '@/types';
+import { AnswersInput } from './answers-input';
 
 interface FootballLogicEditorProps {
   payload: FootballLogicPayload;
@@ -65,12 +66,12 @@ export function FootballLogicEditor({ payload, locale, onChange }: FootballLogic
 
       <div className="space-y-2">
         <Label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Accepted Answers</Label>
-        <Input
-          value={payload.accepted_answers.join(', ')}
-          onChange={(event) =>
+        <AnswersInput
+          value={payload.accepted_answers}
+          onCommit={(answers) =>
             onChange({
               ...payload,
-              accepted_answers: event.target.value.split(',').map((value) => value.trim()).filter(Boolean),
+              accepted_answers: answers,
             })}
           placeholder="Robert Lewandowski, Lewandowski"
           className="h-10"

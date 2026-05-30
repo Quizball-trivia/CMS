@@ -19,7 +19,7 @@ import type {
   AnswerWithId,
   TrueFalsePayload,
 } from '@/types';
-import { createDefaultAdvancedPayload, generateAnswerId, type AdvancedQuestionPayload } from '@/lib/question-utils';
+import { createDefaultAdvancedPayload, generateAnswerId, stripEmptyTranslations, type AdvancedQuestionPayload } from '@/lib/question-utils';
 import { useRouter } from 'next/navigation';
 import { logger } from '@/lib/logger';
 import { Button } from '@/components/ui/button';
@@ -313,7 +313,7 @@ export function QuestionForm({ question, onSuccess }: QuestionFormProps) {
                 ...(data.explanation_ka && { ka: data.explanation_ka }),
               }
             : null,
-        payload,
+        payload: stripEmptyTranslations(payload),
       };
 
       logger.info('questions', 'Sending question to API', { questionData, isEditing });

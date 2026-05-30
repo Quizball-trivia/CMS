@@ -5,6 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import type { ClueChainPayload } from '@/types';
 import { Plus, Trash2 } from 'lucide-react';
+import { AnswersInput } from './answers-input';
 
 interface ClueChainEditorProps {
   payload: ClueChainPayload;
@@ -33,12 +34,12 @@ export function ClueChainEditor({ payload, locale, onChange }: ClueChainEditorPr
 
       <div className="space-y-2">
         <Label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Accepted Answers *</Label>
-        <Input
-          value={payload.accepted_answers.join(', ')}
-          onChange={(e) =>
+        <AnswersInput
+          value={payload.accepted_answers}
+          onCommit={(answers) =>
             onChange({
               ...payload,
-              accepted_answers: e.target.value.split(',').map((item) => item.trim()).filter(Boolean),
+              accepted_answers: answers,
             })}
           placeholder="lionel messi, messi"
         />

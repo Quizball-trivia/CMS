@@ -227,3 +227,40 @@ export function generateAnswerId(): string {
   // Fallback for older browsers or server-side (shouldn't happen in practice)
   return `temp-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
 }
+
+const I18N_LOCALE_KEY = /^[a-z]{2}$/;
+
+/**
+ * Recursively drop empty/whitespace-only locale values from i18n fields in a
+ * payload before sending it to the API.
+ *
+ * The backend `i18nFieldSchema` rejects any present locale key whose value is
+ * an empty string ("Translation cannot be empty"). The editor, however, leaves
+ * a `{ en: '...', ka: '' }` shape behind when only one language is filled in
+ * (e.g. typing a display label in English but not Georgian). This prunes those
+ * empty entries so single-language content validates, while preserving every
+ * non-empty translation.
+ */
+export function stripEmptyTranslations<T>(value: T): T {
+  if (Array.isArray(value)) {
+    return value.map((item) => stripEmptyTranslations(item)) as unknown as T;
+  }
+  if (value && typeof value === 'object') {
+    const entries = Object.entries(value as Record<string, unknown>);
+    const looksLikeI18nField =
+      entries.length > 0 &&
+      entries.every(([key, val]) => I18N_LOCALE_KEY.test(key) && typeof val === 'string');
+
+    if (looksLikeI18nField) {
+      const pruned = Object.fromEntries(
+        entries.filter(([, val]) => (val as string).trim().length > 0)
+      );
+      return pruned as T;
+    }
+
+    return Object.fromEntries(
+      entries.map(([key, val]) => [key, stripEmptyTranslations(val)])
+    ) as T;
+  }
+  return value;
+}
