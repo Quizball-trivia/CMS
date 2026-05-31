@@ -17,6 +17,10 @@ import { Languages, CheckCircle2, Loader2 } from 'lucide-react';
 import { questionsService } from '@/services/questions.service';
 import { questionKeys } from '@/hooks/use-questions';
 import { categoryKeys } from '@/hooks/use-categories';
+import { logger } from '@/lib/logger';
+import { getErrorLogDetails } from '@/lib/error-feedback';
+import { useErrorFeedbackDialog } from '@/hooks/use-error-feedback-dialog';
+import { ErrorFeedbackDialog } from '@/components/error-feedback-dialog';
 
 const POLL_INTERVAL_MS = 3000;
 
@@ -30,6 +34,8 @@ export function TranslateBackfillDialog() {
   const [isDone, setIsDone] = useState(false);
   const [nothingToTranslate, setNothingToTranslate] = useState(false);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const pollErrorCountRef = useRef(0);
+  const { errorFeedback, showErrorFeedback, closeErrorFeedback } = useErrorFeedbackDialog();
 
   const stopPolling = useCallback(() => {
     if (pollRef.current) {
@@ -47,6 +53,7 @@ export function TranslateBackfillDialog() {
     pollRef.current = setInterval(async () => {
       try {
         const status = await questionsService.translateStatus();
+        pollErrorCountRef.current = 0;
         setRemaining(status.questions);
 
         if (status.questions === 0) {
@@ -56,11 +63,29 @@ export function TranslateBackfillDialog() {
           queryClient.invalidateQueries({ queryKey: categoryKeys.all });
           toast.success(`Successfully translated ${totalCount} questions to Georgian`);
         }
-      } catch {
-        // Silently retry on next interval
+      } catch (error) {
+        pollErrorCountRef.current += 1;
+        logger.error('questions', 'Translation status poll failed', {
+          attempt: pollErrorCountRef.current,
+          ...getErrorLogDetails(error),
+        });
+
+        if (pollErrorCountRef.current >= 3) {
+          stopPolling();
+          showErrorFeedback(error, {
+            fallbackTitle: 'Translation status check failed',
+            logModule: 'questions',
+            logMessage: 'Translation status polling stopped after repeated failures',
+            logData: {
+              attempts: pollErrorCountRef.current,
+              totalCount,
+              remaining,
+            },
+          });
+        }
       }
     }, POLL_INTERVAL_MS);
-  }, [queryClient, stopPolling]);
+  }, [queryClient, remaining, showErrorFeedback, stopPolling]);
 
   // Cleanup on unmount
   useEffect(() => {
@@ -73,9 +98,11 @@ export function TranslateBackfillDialog() {
     setIsStarting(true);
     setIsDone(false);
     setNothingToTranslate(false);
+    pollErrorCountRef.current = 0;
 
     try {
       const res = await questionsService.translateBackfill();
+      logger.info('questions', 'Translation backfill started', res);
 
       if (res.status === 'done') {
         setNothingToTranslate(true);
@@ -86,9 +113,11 @@ export function TranslateBackfillDialog() {
         startPolling(res.total);
       }
     } catch (error) {
-      toast.error(
-        error instanceof Error ? error.message : 'Failed to start translation'
-      );
+      showErrorFeedback(error, {
+        fallbackTitle: 'Failed to start translation',
+        logModule: 'questions',
+        logMessage: 'Failed to start translation backfill',
+      });
     } finally {
       setIsStarting(false);
     }
@@ -113,6 +142,9 @@ export function TranslateBackfillDialog() {
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
+      <ErrorFeedbackDialog feedback={errorFeedback} onOpenChange={(isOpen) => {
+        if (!isOpen) closeErrorFeedback();
+      }} />
       <DialogTrigger asChild>
         <Button variant="outline">
           <Languages className="mr-2 h-4 w-4" />

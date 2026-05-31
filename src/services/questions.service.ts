@@ -118,7 +118,9 @@ export const questionsService = {
     questions: number;
     categories: number;
   }> {
-    return apiClient.get<{ questions: number; categories: number }>('/questions/translate/status');
+    return apiClient.get<{ questions: number; categories: number }>('/questions/translate/status', {
+      cache_bust: Date.now(),
+    });
   },
 
   async findDuplicates(params?: FindDuplicatesParams): Promise<DuplicatesResponse> {
