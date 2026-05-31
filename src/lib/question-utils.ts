@@ -264,3 +264,79 @@ export function stripEmptyTranslations<T>(value: T): T {
   }
   return value;
 }
+
+function cleanAcceptedAnswerList(answers: string[]): string[] {
+  return answers.map((answer) => answer.trim()).filter(Boolean);
+}
+
+function hasTranslation(value: Record<string, string> | null | undefined): boolean {
+  return Boolean(value && Object.values(value).some((text) => text.trim().length > 0));
+}
+
+/**
+ * Prepare advanced payloads before save so draft UI placeholders such as `['']`
+ * do not get sent to the backend validator as real answers.
+ */
+export function prepareAdvancedPayloadForSave(payload: AdvancedQuestionPayload): AdvancedQuestionPayload {
+  const stripped = stripEmptyTranslations(payload);
+
+  if (stripped.type === 'countdown_list') {
+    return {
+      ...stripped,
+      answer_groups: stripped.answer_groups.map((group) => ({
+        ...group,
+        accepted_answers: cleanAcceptedAnswerList(group.accepted_answers),
+      })),
+    };
+  }
+
+  if (
+    stripped.type === 'clue_chain'
+    || stripped.type === 'career_path'
+    || stripped.type === 'football_logic'
+  ) {
+    return {
+      ...stripped,
+      accepted_answers: cleanAcceptedAnswerList(stripped.accepted_answers),
+    };
+  }
+
+  return stripped;
+}
+
+export function getAdvancedPayloadSaveError(payload: AdvancedQuestionPayload): string | null {
+  if (payload.type === 'countdown_list') {
+    if (!hasTranslation(payload.prompt)) {
+      return 'Countdown list needs a round prompt.';
+    }
+    if (payload.answer_groups.length === 0) {
+      return 'Countdown list needs at least one answer group.';
+    }
+
+    const ids = payload.answer_groups.map((group) => group.id);
+    if (new Set(ids).size !== ids.length) {
+      return 'Countdown answer group IDs must be unique.';
+    }
+
+    const invalidIndex = payload.answer_groups.findIndex(
+      (group) => !hasTranslation(group.display) || group.accepted_answers.length === 0
+    );
+    if (invalidIndex !== -1) {
+      return `Countdown group ${invalidIndex + 1} needs a display label and at least one accepted answer.`;
+    }
+  }
+
+  if (payload.type === 'clue_chain' && payload.accepted_answers.length === 0) {
+    return 'Clue chain needs at least one accepted answer.';
+  }
+
+  if (payload.type === 'career_path' && payload.accepted_answers.length === 0) {
+    return 'Career path needs at least one accepted answer.';
+  }
+
+  if (payload.type === 'football_logic' && payload.accepted_answers.length === 0) {
+    return 'Football logic needs at least one accepted answer.';
+  }
+
+  return null;
+}

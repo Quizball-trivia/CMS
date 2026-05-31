@@ -18,6 +18,8 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Trash2, AlertTriangle, Loader2, FileQuestion, FolderTree } from 'lucide-react';
+import { useErrorFeedbackDialog } from '@/hooks/use-error-feedback-dialog';
+import { ErrorFeedbackDialog } from '@/components/error-feedback-dialog';
 
 export interface CategoryDeleteModalProps {
   category: Category;
@@ -38,6 +40,7 @@ export function CategoryDeleteModal({
   const deleteCategory = useDeleteCategory();
   const cascadeDeleteCategory = useCascadeDeleteCategory();
   const deleteQuestion = useDeleteQuestion();
+  const { errorFeedback, showErrorFeedback, closeErrorFeedback } = useErrorFeedbackDialog();
 
   const categoryName = getLocalizedText(category.name, 'Untitled');
 
@@ -52,8 +55,15 @@ export function CategoryDeleteModal({
       toast.success(result.message);
       refetch();
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to delete question';
-      toast.error(message);
+      showErrorFeedback(error, {
+        fallbackTitle: 'Failed to delete question',
+        logModule: 'categories',
+        logMessage: 'Failed to delete category dependency question',
+        logData: {
+          categoryId: category.id,
+          questionId,
+        },
+      });
     } finally {
       setDeletingQuestionId(null);
     }
@@ -66,8 +76,14 @@ export function CategoryDeleteModal({
       onOpenChange(false);
       onDeleted?.();
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to delete category';
-      toast.error(message);
+      showErrorFeedback(error, {
+        fallbackTitle: 'Failed to delete category',
+        logModule: 'categories',
+        logMessage: 'Failed to delete category',
+        logData: {
+          categoryId: category.id,
+        },
+      });
     }
   };
 
@@ -78,8 +94,15 @@ export function CategoryDeleteModal({
       onOpenChange(false);
       onDeleted?.();
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to delete category';
-      toast.error(message);
+      showErrorFeedback(error, {
+        fallbackTitle: 'Failed to delete category',
+        logModule: 'categories',
+        logMessage: 'Failed to cascade-delete category',
+        logData: {
+          categoryId: category.id,
+          questionCount,
+        },
+      });
     }
   };
 
@@ -92,8 +115,12 @@ export function CategoryDeleteModal({
   // If category has children, show blocking modal
   if (hasChildren) {
     return (
-      <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="sm:max-w-[500px]">
+      <>
+        <ErrorFeedbackDialog feedback={errorFeedback} onOpenChange={(isOpen) => {
+          if (!isOpen) closeErrorFeedback();
+        }} />
+        <Dialog open={open} onOpenChange={onOpenChange}>
+          <DialogContent className="sm:max-w-[500px]">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-destructive">
               <AlertTriangle className="h-5 w-5" />
@@ -123,14 +150,19 @@ export function CategoryDeleteModal({
               Close
             </Button>
           </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          </DialogContent>
+        </Dialog>
+      </>
     );
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[550px]">
+    <>
+      <ErrorFeedbackDialog feedback={errorFeedback} onOpenChange={(isOpen) => {
+        if (!isOpen) closeErrorFeedback();
+      }} />
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent className="sm:max-w-[550px]">
         <DialogHeader>
           <DialogTitle>Delete Category: &quot;{categoryName}&quot;</DialogTitle>
           <DialogDescription>
@@ -235,7 +267,8 @@ export function CategoryDeleteModal({
             </Button>
           )}
         </DialogFooter>
-      </DialogContent>
-    </Dialog>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }

@@ -40,6 +40,9 @@ import { QuestionDialog } from './question-dialog';
 import { DifficultySignal, getDifficultyTextColor } from '@/components/ui/difficulty-signal';
 import { processBatch } from '@/lib/batch-utils';
 import { logger } from '@/lib/logger';
+import { getErrorLogDetails } from '@/lib/error-feedback';
+import { useErrorFeedbackDialog } from '@/hooks/use-error-feedback-dialog';
+import { ErrorFeedbackDialog } from '@/components/error-feedback-dialog';
 import {
   getDailyChallengeQuestionTypeForCategory,
 } from '@/lib/daily-challenge-question-types';
@@ -81,6 +84,7 @@ export function QuestionList() {
   const [openQuestionId, setOpenQuestionId] = useState<string | null>(null);
   const [isBulkOperating, setIsBulkOperating] = useState(false);
   const [bulkProgress, setBulkProgress] = useState<{ completed: number; total: number; successful: number; failed: number } | null>(null);
+  const { errorFeedback, showErrorFeedback, closeErrorFeedback } = useErrorFeedbackDialog();
   const [isSelectingAll, setIsSelectingAll] = useState(false);
 
   // Progressive loading for preview navigation
@@ -248,8 +252,15 @@ export function QuestionList() {
       const result = await deleteQuestion.mutateAsync(deleteState.id);
       toast.success(result.message);
       setDeleteState(null);
-    } catch {
-      toast.error('Failed to delete question');
+    } catch (error) {
+      showErrorFeedback(error, {
+        fallbackTitle: 'Failed to delete question',
+        logModule: 'questions',
+        logMessage: 'Failed to delete question from list',
+        logData: {
+          questionId: deleteState.id,
+        },
+      });
     }
   };
 
@@ -284,12 +295,35 @@ export function QuestionList() {
       }
 
       if (result.failed.length > 0) {
+        logger.error('questions', 'Bulk delete had failed items', {
+          failedCount: result.failed.length,
+          failed: result.failed.map(({ item, error }) => ({
+            questionId: item,
+            ...getErrorLogDetails(error),
+          })),
+        });
         toast.error(
           `Failed to delete ${result.failed.length} question${result.failed.length > 1 ? 's' : ''}`
         );
+        showErrorFeedback(result.failed[0].error, {
+          fallbackTitle: `Failed to delete ${result.failed.length} question${result.failed.length > 1 ? 's' : ''}`,
+          logModule: 'questions',
+          logMessage: 'Bulk delete failed',
+          logData: {
+            failedCount: result.failed.length,
+            firstFailedQuestionId: result.failed[0].item,
+          },
+        });
       }
-    } catch {
-      toast.error('Bulk delete operation failed');
+    } catch (error) {
+      showErrorFeedback(error, {
+        fallbackTitle: 'Bulk delete operation failed',
+        logModule: 'questions',
+        logMessage: 'Bulk delete operation failed',
+        logData: {
+          selectedCount: selectedIds.length,
+        },
+      });
     } finally {
       setIsBulkOperating(false);
       setBulkProgress(null);
@@ -300,8 +334,16 @@ export function QuestionList() {
     try {
       await updateStatus.mutateAsync({ id, data: { status } });
       toast.success('Status updated');
-    } catch {
-      toast.error('Failed to update status');
+    } catch (error) {
+      showErrorFeedback(error, {
+        fallbackTitle: 'Failed to update status',
+        logModule: 'questions',
+        logMessage: 'Failed to update question status from list',
+        logData: {
+          questionId: id,
+          nextStatus: status,
+        },
+      });
     }
   };
 
@@ -332,12 +374,38 @@ export function QuestionList() {
       }
 
       if (result.failed.length > 0) {
+        logger.error('questions', 'Bulk status update had failed items', {
+          nextStatus: status,
+          failedCount: result.failed.length,
+          failed: result.failed.map(({ item, error }) => ({
+            questionId: item,
+            ...getErrorLogDetails(error),
+          })),
+        });
         toast.error(
           `Failed to update ${result.failed.length} question${result.failed.length > 1 ? 's' : ''}`
         );
+        showErrorFeedback(result.failed[0].error, {
+          fallbackTitle: `Failed to update ${result.failed.length} question${result.failed.length > 1 ? 's' : ''}`,
+          logModule: 'questions',
+          logMessage: 'Bulk status update failed',
+          logData: {
+            nextStatus: status,
+            failedCount: result.failed.length,
+            firstFailedQuestionId: result.failed[0].item,
+          },
+        });
       }
-    } catch {
-      toast.error('Bulk status change operation failed');
+    } catch (error) {
+      showErrorFeedback(error, {
+        fallbackTitle: 'Bulk status change operation failed',
+        logModule: 'questions',
+        logMessage: 'Bulk status change operation failed',
+        logData: {
+          nextStatus: status,
+          selectedCount: selectedIds.length,
+        },
+      });
     } finally {
       setIsBulkOperating(false);
       setBulkProgress(null);
@@ -422,8 +490,15 @@ export function QuestionList() {
       });
       setSelectedIds(allIds);
       toast.success(`Selected all ${allIds.length} questions`);
-    } catch {
-      toast.error('Failed to select all questions');
+    } catch (error) {
+      showErrorFeedback(error, {
+        fallbackTitle: 'Failed to select all questions',
+        logModule: 'questions',
+        logMessage: 'Failed to select all questions',
+        logData: {
+          params,
+        },
+      });
     } finally {
       setIsSelectingAll(false);
     }
@@ -440,6 +515,9 @@ export function QuestionList() {
 
   return (
     <div className="space-y-8 animate-in fade-in duration-700">
+      <ErrorFeedbackDialog feedback={errorFeedback} onOpenChange={(isOpen) => {
+        if (!isOpen) closeErrorFeedback();
+      }} />
       {/* Search & Filter Bar - Lightweight Toolbar style */}
       <div className="space-y-4">
         <div className="flex flex-wrap gap-3 items-center">

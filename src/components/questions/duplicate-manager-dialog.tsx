@@ -21,11 +21,16 @@ import { Copy, Trash2, AlertCircle, Search } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { getDifficultyVariant } from '@/components/ui/difficulty-signal';
 import { getLocalizedText } from '@/lib/utils';
+import { logger } from '@/lib/logger';
+import { getErrorLogDetails } from '@/lib/error-feedback';
+import { useErrorFeedbackDialog } from '@/hooks/use-error-feedback-dialog';
+import { ErrorFeedbackDialog } from '@/components/error-feedback-dialog';
 
 export function DuplicateManagerDialog() {
   const [open, setOpen] = useState(false);
   const [selectedForDeletion, setSelectedForDeletion] = useState<Set<string>>(new Set());
   const [isDeleting, setIsDeleting] = useState(false);
+  const { errorFeedback, showErrorFeedback, closeErrorFeedback } = useErrorFeedbackDialog();
 
   const { data: duplicatesData, isLoading, refetch } = useDuplicateQuestions(
     { include_drafts: true },
@@ -79,6 +84,7 @@ export function DuplicateManagerDialog() {
     const idsToDelete = Array.from(selectedForDeletion);
     let successCount = 0;
     let errorCount = 0;
+    let firstError: { id: string; error: unknown } | null = null;
 
     try {
       // Delete questions one by one
@@ -88,7 +94,11 @@ export function DuplicateManagerDialog() {
           successCount++;
         } catch (error) {
           errorCount++;
-          console.error(`Failed to delete question ${id}:`, error);
+          firstError ??= { id, error };
+          logger.error('questions', 'Failed to delete duplicate-manager question', {
+            questionId: id,
+            ...getErrorLogDetails(error),
+          });
         }
       }
 
@@ -97,16 +107,33 @@ export function DuplicateManagerDialog() {
       } else {
         toast.warning(
           `Deleted ${successCount} question(s), ${errorCount} failed`,
-          { description: 'Check console for details' }
+          { description: 'Open the error details for the first failure and retry the failed items.' }
         );
+        if (firstError) {
+          showErrorFeedback(firstError.error, {
+            fallbackTitle: `Failed to delete ${errorCount} question${errorCount > 1 ? 's' : ''}`,
+            logModule: 'questions',
+            logMessage: 'Duplicate-manager delete had failed items',
+            logData: {
+              failedCount: errorCount,
+              firstFailedQuestionId: firstError.id,
+            },
+          });
+        }
       }
 
       // Clear selection and refetch
       setSelectedForDeletion(new Set());
       await refetch();
     } catch (error) {
-      toast.error('Failed to delete questions');
-      console.error(error);
+      showErrorFeedback(error, {
+        fallbackTitle: 'Failed to delete questions',
+        logModule: 'questions',
+        logMessage: 'Failed to delete duplicate-manager questions',
+        logData: {
+          selectedCount: idsToDelete.length,
+        },
+      });
     } finally {
       setIsDeleting(false);
     }
@@ -119,6 +146,9 @@ export function DuplicateManagerDialog() {
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
+      <ErrorFeedbackDialog feedback={errorFeedback} onOpenChange={(isOpen) => {
+        if (!isOpen) closeErrorFeedback();
+      }} />
       <DialogTrigger asChild>
         <Button variant="outline">
           <Search className="mr-2 h-4 w-4" />

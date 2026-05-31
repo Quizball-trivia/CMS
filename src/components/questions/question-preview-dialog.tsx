@@ -19,6 +19,8 @@ import { getLocalizedTextByLang } from '@/lib/utils';
 import { cn } from '@/lib/utils';
 import { useRouter } from 'next/navigation';
 import { getDifficultyVariant } from '@/components/ui/difficulty-signal';
+import { useErrorFeedbackDialog } from '@/hooks/use-error-feedback-dialog';
+import { ErrorFeedbackDialog } from '@/components/error-feedback-dialog';
 
 interface QuestionPreviewDialogProps {
   question: Question;
@@ -42,6 +44,7 @@ export function QuestionPreviewDialog({
   const router = useRouter();
   const updateStatus = useUpdateQuestionStatus();
   const deleteQuestion = useDeleteQuestion();
+  const { errorFeedback, showErrorFeedback, closeErrorFeedback } = useErrorFeedbackDialog();
 
   const totalQuestions = allQuestions.length;
   const hasPrevious = activeIndex > 0;
@@ -72,6 +75,7 @@ export function QuestionPreviewDialog({
   const handleNavigate = useCallback((newIndex: number) => {
     const clampedIndex = clampIndex(newIndex);
     setActiveIndex(clampedIndex);
+    setConfirmDelete(false);
     if (onNavigate) {
       onNavigate(clampedIndex);
     }
@@ -102,8 +106,16 @@ export function QuestionPreviewDialog({
     try {
       await updateStatus.mutateAsync({ id: hydratedQuestion.id, data: { status: newStatus } });
       toast.success(`Question ${newStatus === 'published' ? 'published' : 'unpublished'}`);
-    } catch {
-      toast.error('Failed to update status');
+    } catch (error) {
+      showErrorFeedback(error, {
+        fallbackTitle: 'Failed to update status',
+        logModule: 'questions',
+        logMessage: 'Failed to update question status from preview',
+        logData: {
+          questionId: hydratedQuestion.id,
+          nextStatus: newStatus,
+        },
+      });
     }
   };
 
@@ -134,18 +146,23 @@ export function QuestionPreviewDialog({
       } else {
         setOpen(false);
       }
-    } catch {
-      toast.error('Failed to delete question');
+    } catch (error) {
+      showErrorFeedback(error, {
+        fallbackTitle: 'Failed to delete question',
+        logModule: 'questions',
+        logMessage: 'Failed to delete question from preview',
+        logData: {
+          questionId: hydratedQuestion.id,
+        },
+      });
     }
   };
 
-  // Reset confirmDelete when navigating
-  useEffect(() => {
-    setConfirmDelete(false);
-  }, [activeIndex]);
-
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
+      <ErrorFeedbackDialog feedback={errorFeedback} onOpenChange={(isOpen) => {
+        if (!isOpen) closeErrorFeedback();
+      }} />
       <DialogTrigger asChild>
         <Button
           variant="ghost"

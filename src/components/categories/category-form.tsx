@@ -33,6 +33,8 @@ import {
 import { getLocalizedText } from '@/lib/utils';
 import { CategoryPreview } from './category-preview';
 import { CategoryQuestions } from './category-questions';
+import { useErrorFeedbackDialog } from '@/hooks/use-error-feedback-dialog';
+import { ErrorFeedbackDialog } from '@/components/error-feedback-dialog';
 
 const categorySchema = z.object({
   slug: z
@@ -63,6 +65,7 @@ export function CategoryForm({ category, onSuccess }: CategoryFormProps) {
   const createCategory = useCreateCategory();
   const updateCategory = useUpdateCategory();
   const createFeatured = useCreateFeaturedCategory();
+  const { errorFeedback, showErrorFeedback, closeErrorFeedback } = useErrorFeedbackDialog();
 
   const [activeLang, setActiveLang] = useState<'en' | 'ka'>('en');
 
@@ -154,14 +157,26 @@ export function CategoryForm({ category, onSuccess }: CategoryFormProps) {
       }
 
       onSuccess?.();
-    } catch {
-      toast.error(isEditing ? 'Failed to update category' : 'Failed to create category');
+    } catch (error) {
+      showErrorFeedback(error, {
+        fallbackTitle: isEditing ? 'Failed to update category' : 'Failed to create category',
+        logModule: 'categories',
+        logMessage: 'Failed to save category',
+        logData: {
+          action: isEditing ? 'update' : 'create',
+          categoryId: category?.id,
+        },
+      });
     }
   }
 
   return (
-    <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+    <>
+      <ErrorFeedbackDialog feedback={errorFeedback} onOpenChange={(open) => {
+        if (!open) closeErrorFeedback();
+      }} />
+      <Form {...form}>
+        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
         <CategoryPreview
           name={previewName}
           description={previewDescription}
@@ -374,7 +389,8 @@ export function CategoryForm({ category, onSuccess }: CategoryFormProps) {
             </div>
           )}
         </div>
-      </form>
-    </Form>
+        </form>
+      </Form>
+    </>
   );
 }

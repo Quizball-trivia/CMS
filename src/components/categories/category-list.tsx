@@ -23,8 +23,8 @@ export function CategoryList({
   const { data: categories, isLoading, error } = useCategories();
 
   // Build parent name map and filter/sort categories
-  const { filteredCategories, parentNames } = useMemo(() => {
-    if (!categories) return { filteredCategories: [], parentNames: {} };
+  const filteredCategories = useMemo(() => {
+    if (!categories) return [];
 
     // Build a map of category ID to name for parent lookups
     const nameMap: Record<string, string> = {};
@@ -65,7 +65,7 @@ export function CategoryList({
       return parentNameA.localeCompare(parentNameB);
     });
 
-    return { filteredCategories: sorted, parentNames: nameMap };
+    return sorted;
   }, [categories, searchTerm]);
 
   if (isLoading) {

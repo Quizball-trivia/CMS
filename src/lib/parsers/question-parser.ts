@@ -230,8 +230,7 @@ function finalizeMetadata(
 
 function shouldStartNewBlock(
   type: UploadQuestionType,
-  current: ParsedBlock | null,
-  trimmed: string
+  current: ParsedBlock | null
 ): boolean {
   if (!current) {
     return true;
@@ -259,7 +258,7 @@ function splitIntoBlocks(content: string, type: UploadQuestionType): { blocks: P
     const trimmed = line.trim();
     const match = trimmed.match(QUESTION_START);
 
-    if (match && shouldStartNewBlock(type, current, trimmed)) {
+    if (match && shouldStartNewBlock(type, current)) {
       const questionNumber = Number.parseInt(match[1] ?? '0', 10);
       if (seenQuestionNumbers.has(questionNumber)) {
         errors.push({

@@ -11,7 +11,7 @@
 
 type LogLevel = 'debug' | 'info' | 'warn' | 'error';
 
-type LogModule = 
+export type LogModule = 
   | 'questions'
   | 'categories'
   | 'featured'
@@ -55,7 +55,7 @@ const formatLog = (entry: LogEntry): string => {
 
 const createLogFn = (level: LogLevel) => {
   return (module: LogModule, message: string, data?: Record<string, unknown>) => {
-    if (!isEnabled(module)) return;
+    if (level !== 'error' && !isEnabled(module)) return;
 
     const entry: LogEntry = {
       timestamp: new Date().toISOString().split('T')[1].slice(0, 12),

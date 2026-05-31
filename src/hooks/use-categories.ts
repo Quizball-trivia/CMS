@@ -7,6 +7,8 @@ import type {
   FeaturedCategory,
 } from '@/types';
 import { featuredKeys } from './use-featured';
+import { logger } from '@/lib/logger';
+import { getErrorLogDetails } from '@/lib/error-feedback';
 
 export const categoryKeys = {
   all: ['categories'] as const,
@@ -38,6 +40,9 @@ export function useCreateCategory() {
     mutationFn: (data: CreateCategoryRequest) => categoriesService.create(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: categoryKeys.all });
+    },
+    onError: (error) => {
+      logger.error('categories', 'Failed to create category', getErrorLogDetails(error));
     },
   });
 }
@@ -79,6 +84,12 @@ export function useUpdateCategory() {
         }
       );
     },
+    onError: (error, variables) => {
+      logger.error('categories', 'Failed to update category', {
+        id: variables.id,
+        ...getErrorLogDetails(error),
+      });
+    },
   });
 }
 
@@ -89,6 +100,12 @@ export function useDeleteCategory() {
     mutationFn: (id: string) => categoriesService.delete(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: categoryKeys.all });
+    },
+    onError: (error, id) => {
+      logger.error('categories', 'Failed to delete category', {
+        id,
+        ...getErrorLogDetails(error),
+      });
     },
   });
 }
@@ -108,6 +125,12 @@ export function useCascadeDeleteCategory() {
     mutationFn: (id: string) => categoriesService.deleteWithCascade(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: categoryKeys.all });
+    },
+    onError: (error, id) => {
+      logger.error('categories', 'Failed to cascade-delete category', {
+        id,
+        ...getErrorLogDetails(error),
+      });
     },
   });
 }

@@ -19,9 +19,18 @@ import type {
   AnswerWithId,
   TrueFalsePayload,
 } from '@/types';
-import { createDefaultAdvancedPayload, generateAnswerId, stripEmptyTranslations, type AdvancedQuestionPayload } from '@/lib/question-utils';
+import {
+  createDefaultAdvancedPayload,
+  generateAnswerId,
+  getAdvancedPayloadSaveError,
+  prepareAdvancedPayloadForSave,
+  stripEmptyTranslations,
+  type AdvancedQuestionPayload,
+} from '@/lib/question-utils';
 import { useRouter } from 'next/navigation';
 import { logger } from '@/lib/logger';
+import { useErrorFeedbackDialog } from '@/hooks/use-error-feedback-dialog';
+import { ErrorFeedbackDialog } from '@/components/error-feedback-dialog';
 import { Button } from '@/components/ui/button';
 import {
   Form,
@@ -97,6 +106,7 @@ export function QuestionForm({ question, onSuccess }: QuestionFormProps) {
   const { data: categories } = useCategories();
   const createQuestion = useCreateQuestion();
   const updateQuestion = useUpdateQuestion();
+  const { errorFeedback, showErrorFeedback, closeErrorFeedback } = useErrorFeedbackDialog();
 
   const isEditing = !!question;
 
@@ -295,7 +305,19 @@ export function QuestionForm({ question, onSuccess }: QuestionFormProps) {
               accepted_answers: acceptedAnswers.map(({ id: _unusedId, ...rest }) => rest),
               case_sensitive: caseSensitive,
             }
-            : customPayload!;
+          : prepareAdvancedPayloadForSave(customPayload!);
+
+      if (
+        payload.type !== 'mcq_single'
+        && payload.type !== 'true_false'
+        && payload.type !== 'input_text'
+      ) {
+        const payloadError = getAdvancedPayloadSaveError(payload);
+        if (payloadError) {
+          toast.error(payloadError);
+          return;
+        }
+      }
 
       const questionData = {
         category_id: data.category_id,
@@ -330,14 +352,26 @@ export function QuestionForm({ question, onSuccess }: QuestionFormProps) {
 
       onSuccess?.();
     } catch (error) {
-      logger.error('questions', 'Failed to save question', { error: error instanceof Error ? error.message : error });
-      toast.error(isEditing ? 'Failed to update question' : 'Failed to create question');
+      const fallbackTitle = isEditing ? 'Failed to update question' : 'Failed to create question';
+      showErrorFeedback(error, {
+        fallbackTitle,
+        logModule: 'questions',
+        logMessage: 'Failed to save question',
+        logData: {
+          action: isEditing ? 'update' : 'create',
+          questionId: question?.id,
+        },
+      });
     }
   }
 
   return (
-    <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="mx-auto max-w-[1200px] space-y-8 px-4 pb-20">
+    <>
+      <ErrorFeedbackDialog feedback={errorFeedback} onOpenChange={(open) => {
+        if (!open) closeErrorFeedback();
+      }} />
+      <Form {...form}>
+        <form onSubmit={form.handleSubmit(onSubmit)} className="mx-auto max-w-[1200px] space-y-8 px-4 pb-20">
         {/* Top Configuration Card - Floating Header */}
         <div className="bg-white border border-gray-200/60 rounded-[1.5rem] p-4 shadow-sm flex items-center justify-between gap-6">
           <div className="flex items-center gap-4">
@@ -676,7 +710,8 @@ export function QuestionForm({ question, onSuccess }: QuestionFormProps) {
             </div>
           </div>
         </div>
-      </form>
-    </Form>
+        </form>
+      </Form>
+    </>
   );
 }

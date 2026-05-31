@@ -10,6 +10,7 @@ import type {
   CheckDuplicatesRequest,
 } from '@/types';
 import { logger } from '@/lib/logger';
+import { getErrorLogDetails } from '@/lib/error-feedback';
 import { toast } from 'sonner';
 
 export const questionKeys = {
@@ -55,7 +56,7 @@ export function useCreateQuestion() {
       queryClient.invalidateQueries({ queryKey: questionKeys.all });
     },
     onError: (error) => {
-      logger.error('questions', 'Failed to create question', { error: error instanceof Error ? error.message : error });
+      logger.error('questions', 'Failed to create question', getErrorLogDetails(error));
     },
   });
 }
@@ -75,7 +76,7 @@ export function useUpdateQuestion() {
       queryClient.invalidateQueries({ queryKey: questionKeys.detail(variables.id) });
     },
     onError: (error, variables) => {
-      logger.error('questions', 'Failed to update question', { id: variables.id, error: error instanceof Error ? error.message : error });
+      logger.error('questions', 'Failed to update question', { id: variables.id, ...getErrorLogDetails(error) });
     },
   });
 }
@@ -87,6 +88,9 @@ export function useDeleteQuestion() {
     mutationFn: (id: string) => questionsService.delete(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: questionKeys.all });
+    },
+    onError: (error, id) => {
+      logger.error('questions', 'Failed to delete question', { id, ...getErrorLogDetails(error) });
     },
   });
 }
@@ -100,6 +104,13 @@ export function useUpdateQuestionStatus() {
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: questionKeys.all });
       queryClient.invalidateQueries({ queryKey: questionKeys.detail(variables.id) });
+    },
+    onError: (error, variables) => {
+      logger.error('questions', 'Failed to update question status', {
+        id: variables.id,
+        nextStatus: variables.data.status,
+        ...getErrorLogDetails(error),
+      });
     },
   });
 }
@@ -136,9 +147,7 @@ export function useBulkCreateQuestions() {
     },
     onError: (error) => {
       toast.error('Bulk upload failed. Please try again.');
-      logger.error('questions', 'Failed to bulk create questions', {
-        error: error instanceof Error ? error.message : error,
-      });
+      logger.error('questions', 'Failed to bulk create questions', getErrorLogDetails(error));
     },
   });
 }
@@ -161,9 +170,7 @@ export function useCheckDuplicates() {
     mutationFn: (data: CheckDuplicatesRequest & { onProgress?: (checked: number, total: number) => void }) =>
       questionsService.checkDuplicates(data, data.onProgress),
     onError: (error) => {
-      logger.error('questions', 'Failed to check duplicates', {
-        error: error instanceof Error ? error.message : error,
-      });
+      logger.error('questions', 'Failed to check duplicates', getErrorLogDetails(error));
     },
   });
 }

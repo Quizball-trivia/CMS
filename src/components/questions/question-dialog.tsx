@@ -39,10 +39,19 @@ import {
 } from '@/components/ui/select';
 import { Eye, EyeOff, Edit, CheckCircle2, ChevronLeft, ChevronRight, Save, X, Loader2, Trash2 } from 'lucide-react';
 import { getLocalizedText, getLocalizedTextByLang, cn } from '@/lib/utils';
+import { useErrorFeedbackDialog } from '@/hooks/use-error-feedback-dialog';
+import { ErrorFeedbackDialog } from '@/components/error-feedback-dialog';
 import { TextInputEditor, type AnswerWithId } from './text-input-editor';
 import { TrueFalseEditor } from './true-false-editor';
 import { DifficultySignal, getDifficultyVariant } from '@/components/ui/difficulty-signal';
-import { createDefaultAdvancedPayload, questionToFormData, generateAnswerId, type AdvancedQuestionPayload } from '@/lib/question-utils';
+import {
+  createDefaultAdvancedPayload,
+  generateAnswerId,
+  getAdvancedPayloadSaveError,
+  prepareAdvancedPayloadForSave,
+  questionToFormData,
+  type AdvancedQuestionPayload,
+} from '@/lib/question-utils';
 import { DuplicateConfirmationDialog } from './duplicate-confirmation-dialog';
 import { CountdownListEditor } from './countdown-list-editor';
 import { ClueChainEditor } from './clue-chain-editor';
@@ -110,6 +119,7 @@ export function QuestionDialog({
   const createQuestion = useCreateQuestion();
   const deleteQuestionMutation = useDeleteQuestion();
   const checkDuplicates = useCheckDuplicates();
+  const { errorFeedback, showErrorFeedback, closeErrorFeedback } = useErrorFeedbackDialog();
 
   const isSubmitting = createQuestion.isPending || checkDuplicates.isPending;
 
@@ -237,8 +247,16 @@ export function QuestionDialog({
     try {
       await updateStatus.mutateAsync({ id: hydratedQuestion.id, data: { status: newStatus } });
       toast.success(`Question ${newStatus === 'published' ? 'published' : 'unpublished'}`);
-    } catch {
-      toast.error('Failed to update status');
+    } catch (error) {
+      showErrorFeedback(error, {
+        fallbackTitle: 'Failed to update status',
+        logModule: 'questions',
+        logMessage: 'Failed to update question status',
+        logData: {
+          questionId: hydratedQuestion.id,
+          nextStatus: newStatus,
+        },
+      });
     }
   };
 
@@ -270,8 +288,15 @@ export function QuestionDialog({
       } else {
         setOpen(false);
       }
-    } catch {
-      toast.error('Failed to delete question');
+    } catch (error) {
+      showErrorFeedback(error, {
+        fallbackTitle: 'Failed to delete question',
+        logModule: 'questions',
+        logMessage: 'Failed to delete question',
+        logData: {
+          questionId: hydratedQuestion.id,
+        },
+      });
     }
   };
 
@@ -318,7 +343,7 @@ export function QuestionDialog({
                 .map(a => ({ [locale]: a[locale] })),
               case_sensitive: formData.caseSensitive,
             }
-          : formData.customPayload!,
+        : prepareAdvancedPayloadForSave(formData.customPayload!),
     };
   };
 
@@ -367,6 +392,19 @@ export function QuestionDialog({
     try {
       if (mode === 'create') {
         const data = buildCreatePayload();
+        const createPayload = data.payload;
+        if (
+          createPayload
+          && createPayload.type !== 'mcq_single'
+          && createPayload.type !== 'true_false'
+          && createPayload.type !== 'input_text'
+        ) {
+          const payloadError = getAdvancedPayloadSaveError(createPayload);
+          if (payloadError) {
+            toast.error(payloadError);
+            return;
+          }
+        }
         const duplicateResult = await checkDuplicates.mutateAsync({
           locale: formData.locale,
           prompts: [data.prompt],
@@ -444,15 +482,39 @@ export function QuestionDialog({
                     }),
                   case_sensitive: formData.caseSensitive,
                 }
-              : formData.customPayload!,
+            : prepareAdvancedPayloadForSave(formData.customPayload!),
         };
+
+        const updatePayload = data.payload;
+        if (
+          updatePayload
+          && updatePayload.type !== 'mcq_single'
+          && updatePayload.type !== 'true_false'
+          && updatePayload.type !== 'input_text'
+        ) {
+          const payloadError = getAdvancedPayloadSaveError(updatePayload);
+          if (payloadError) {
+            toast.error(payloadError);
+            return;
+          }
+        }
 
         await updateQuestion.mutateAsync({ id: hydratedQuestion.id, data });
         toast.success('Question updated successfully');
         setMode('view');
       }
-    } catch {
-      toast.error(mode === 'create' ? 'Failed to create question' : 'Failed to update question');
+    } catch (error) {
+      const fallbackTitle = mode === 'create' ? 'Failed to create question' : 'Failed to update question';
+      showErrorFeedback(error, {
+        fallbackTitle,
+        logModule: 'questions',
+        logMessage: 'Failed to save question from dialog',
+        logData: {
+          mode,
+          questionId: hydratedQuestion?.id,
+          questionType: formData.type,
+        },
+      });
     }
   };
 
@@ -958,6 +1020,9 @@ export function QuestionDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
+      <ErrorFeedbackDialog feedback={errorFeedback} onOpenChange={(isOpen) => {
+        if (!isOpen) closeErrorFeedback();
+      }} />
       {trigger && <DialogTrigger asChild>{trigger}</DialogTrigger>}
       <DialogContent className="max-h-[calc(100vh-2rem)] max-w-2xl overflow-y-auto bg-white border border-slate-200 shadow-2xl rounded-[1.5rem] p-5 sm:p-6 font-inter focus:outline-none" onClick={(e) => e.stopPropagation()}>
         <DialogHeader className="pr-12 pb-4">
@@ -1017,8 +1082,15 @@ export function QuestionDialog({
             toast.success('Question created successfully');
             setDuplicateModalOpen(false);
             setOpen(false);
-          } catch {
-            toast.error('Failed to create question');
+          } catch (error) {
+            showErrorFeedback(error, {
+              fallbackTitle: 'Failed to create question',
+              logModule: 'questions',
+              logMessage: 'Failed to create duplicate-confirmed question',
+              logData: {
+                questionType: pendingCreate.type,
+              },
+            });
           }
         }}
         onCancel={() => setDuplicateModalOpen(false)}

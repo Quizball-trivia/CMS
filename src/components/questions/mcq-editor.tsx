@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -16,12 +16,9 @@ interface McqEditorProps {
 }
 
 export function McqEditor({ options, onChange, locale }: McqEditorProps) {
-  const [activeLang, setActiveLang] = useState<'en' | 'ka'>(locale ?? 'en');
+  const [selectedLang, setSelectedLang] = useState<'en' | 'ka'>('en');
+  const activeLang = locale ?? selectedLang;
 
-  // Sync with parent locale toggle
-  useEffect(() => {
-    if (locale) setActiveLang(locale);
-  }, [locale]);
   const addOption = () => {
     const newOption: McqOption = {
       id: generateAnswerId(),
@@ -130,7 +127,7 @@ export function McqEditor({ options, onChange, locale }: McqEditorProps) {
                     <div className="flex flex-col bg-white/5 p-0.5 rounded-lg border border-white/5 self-start">
                     <button
                       type="button"
-                      onClick={() => setActiveLang('en')}
+                      onClick={() => setSelectedLang('en')}
                       className={cn(
                         "px-1.5 py-1 text-[8px] font-black rounded-md transition-colors",
                         activeLang === 'en'
@@ -142,7 +139,7 @@ export function McqEditor({ options, onChange, locale }: McqEditorProps) {
                     </button>
                     <button
                       type="button"
-                      onClick={() => setActiveLang('ka')}
+                      onClick={() => setSelectedLang('ka')}
                       className={cn(
                         "px-1.5 py-1 text-[8px] font-black rounded-md transition-colors",
                         activeLang === 'ka'

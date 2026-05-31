@@ -5,7 +5,8 @@ import { motion } from 'framer-motion';
 import { toast } from 'sonner';
 import { useDuplicateQuestions, useDeleteQuestion } from '@/hooks';
 import { cn } from '@/lib/utils';
-import { logger } from '@/lib/logger';
+import { useErrorFeedbackDialog } from '@/hooks/use-error-feedback-dialog';
+import { ErrorFeedbackDialog } from '@/components/error-feedback-dialog';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -27,6 +28,7 @@ export interface DuplicateQuestionsListProps {
 export function DuplicateQuestionsList({ type, onTypeChange }: DuplicateQuestionsListProps) {
   const [selectedQuestionId, setSelectedQuestionId] = useState<string | null>(null);
   const [deletingQuestionId, setDeletingQuestionId] = useState<string | null>(null);
+  const { errorFeedback, showErrorFeedback, closeErrorFeedback } = useErrorFeedbackDialog();
   const deleteQuestion = useDeleteQuestion();
 
   const { data: duplicatesData, isLoading, error } = useDuplicateQuestions(
@@ -44,11 +46,14 @@ export function DuplicateQuestionsList({ type, onTypeChange }: DuplicateQuestion
       const result = await deleteQuestion.mutateAsync(questionId);
       toast.success(result.message);
     } catch (error) {
-      logger.error('questions', 'Failed to delete duplicate question', {
-        error: error instanceof Error ? error.message : error,
-        questionId,
+      showErrorFeedback(error, {
+        fallbackTitle: 'Failed to delete question',
+        logModule: 'questions',
+        logMessage: 'Failed to delete duplicate question',
+        logData: {
+          questionId,
+        },
       });
-      toast.error('Failed to delete question');
     } finally {
       setDeletingQuestionId(null);
     }
@@ -103,8 +108,11 @@ export function DuplicateQuestionsList({ type, onTypeChange }: DuplicateQuestion
   const selectedQuestion = allQuestions.find(q => q.id === selectedQuestionId);
   const selectedIndex = allQuestions.findIndex(q => q.id === selectedQuestionId);
 
-  return (
-    <div className="space-y-6">
+    return (
+      <div className="space-y-6">
+        <ErrorFeedbackDialog feedback={errorFeedback} onOpenChange={(isOpen) => {
+          if (!isOpen) closeErrorFeedback();
+        }} />
       {/* Type Filter */}
       <div className="flex items-center gap-4">
         <p className="text-sm font-medium text-gray-700">Filter by type:</p>
