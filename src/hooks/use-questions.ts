@@ -6,11 +6,13 @@ import type {
   ListQuestionsParams,
   UpdateQuestionStatusRequest,
   BulkCreateQuestionsRequest,
+  GenerateImageMcqPreviewRequest,
   FindDuplicatesParams,
   CheckDuplicatesRequest,
+  SaveImageMcqDraftsRequest,
 } from '@/types';
 import { logger } from '@/lib/logger';
-import { getErrorLogDetails } from '@/lib/error-feedback';
+import { getErrorFeedback, getErrorLogDetails } from '@/lib/error-feedback';
 import { toast } from 'sonner';
 
 export const questionKeys = {
@@ -148,6 +150,41 @@ export function useBulkCreateQuestions() {
     onError: (error) => {
       toast.error('Bulk upload failed. Please try again.');
       logger.error('questions', 'Failed to bulk create questions', getErrorLogDetails(error));
+    },
+  });
+}
+
+export function useGenerateImageMcqPreview() {
+  return useMutation({
+    mutationFn: (data: GenerateImageMcqPreviewRequest) =>
+      questionsService.generateImageMcqPreview(data),
+    onError: (error) => {
+      const feedback = getErrorFeedback(error, 'Image question generation failed.');
+      toast.error(feedback.title, {
+        description: feedback.description,
+      });
+      logger.error('questions', 'Failed to generate image MCQ preview', getErrorLogDetails(error));
+    },
+  });
+}
+
+export function useSaveImageMcqDrafts() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (data: SaveImageMcqDraftsRequest) =>
+      questionsService.saveImageMcqDrafts(data),
+    onSuccess: (result) => {
+      queryClient.invalidateQueries({ queryKey: questionKeys.all });
+      if (result.failed === 0) {
+        toast.success(`Saved ${result.successful} image question draft${result.successful === 1 ? '' : 's'}`);
+      } else {
+        toast.warning(`Saved ${result.successful}, ${result.failed} failed`);
+      }
+    },
+    onError: (error) => {
+      toast.error('Failed to save image question drafts.');
+      logger.error('questions', 'Failed to save image MCQ drafts', getErrorLogDetails(error));
     },
   });
 }

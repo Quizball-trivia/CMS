@@ -26,6 +26,7 @@ interface ParsedBaseQuestion {
 export interface ParsedMcqQuestion extends ParsedBaseQuestion {
   kind: 'mcq_single';
   prompt: string;
+  imageUrl?: string;
   options: Array<{ letter: string; text: string; is_correct: boolean }>;
 }
 
@@ -131,6 +132,7 @@ interface ParsedBlock {
 const QUESTION_START = /^(\d+)\.\s*(.*)$/;
 const DIFFICULTY_LINE = /^Difficulty:\s*(Easy|Medium|Hard)\s*$/i;
 const EXPLANATION_LINE = /^Explanation:\s*(.*)$/i;
+const IMAGE_LINE = /^Image:\s*(.+)$/i;
 
 function normalizeLineBreaks(content: string): string[] {
   return content.replace(/\r\n/g, '\n').split('\n');
@@ -161,6 +163,15 @@ function splitAliases(line: string): { display: string; aliases: string[] } {
       return true;
     }),
   };
+}
+
+function isValidUrl(value: string): boolean {
+  try {
+    new URL(value);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 function finalizeMetadata(
@@ -321,7 +332,9 @@ function splitIntoBlocks(content: string, type: UploadQuestionType): { blocks: P
 function parseMcqBlock(block: ParsedBlock): { question?: ParsedMcqQuestion; errors: ParseError[] } {
   const metadata = finalizeMetadata(block);
   const errors = [...metadata.errors];
-  const [prompt, ...optionLines] = metadata.contentLines;
+  const [prompt, ...contentLines] = metadata.contentLines;
+  const optionLines: string[] = [];
+  let imageUrl: string | undefined;
 
   if (!prompt) {
     errors.push({
@@ -331,6 +344,33 @@ function parseMcqBlock(block: ParsedBlock): { question?: ParsedMcqQuestion; erro
       severity: 'error',
     });
     return { errors };
+  }
+
+  for (const line of contentLines) {
+    const imageMatch = line.match(IMAGE_LINE);
+    if (imageMatch) {
+      const nextImageUrl = imageMatch[1]?.trim() ?? '';
+      if (imageUrl) {
+        errors.push({
+          lineNumber: block.lineNumber,
+          questionNumber: block.questionNumber,
+          message: 'Duplicate image line',
+          severity: 'error',
+        });
+      } else if (!isValidUrl(nextImageUrl)) {
+        errors.push({
+          lineNumber: block.lineNumber,
+          questionNumber: block.questionNumber,
+          message: 'Image line must contain a valid URL',
+          severity: 'error',
+        });
+      } else {
+        imageUrl = nextImageUrl;
+      }
+      continue;
+    }
+
+    optionLines.push(line);
   }
 
   const options = optionLines
@@ -373,6 +413,7 @@ function parseMcqBlock(block: ParsedBlock): { question?: ParsedMcqQuestion; erro
       kind: 'mcq_single',
       questionNumber: block.questionNumber,
       prompt,
+      imageUrl,
       options,
       difficulty: metadata.difficulty!,
       explanation: metadata.explanation,
@@ -940,6 +981,22 @@ export function toBulkCreateQuestion(
       prompt: localized(locale, question.prompt),
       payload: {
         type: 'mcq_single',
+        ...(question.imageUrl
+          ? {
+              image: {
+                url: question.imageUrl,
+                width: 1440,
+                height: 1080,
+                aspect_ratio: '4:3',
+                source_url: question.imageUrl,
+                title: null,
+                author: null,
+                license: null,
+                license_url: null,
+                provider: 'bulk_upload',
+              },
+            }
+          : {}),
         options: question.options.map((option) => ({
           id: generateAnswerId(),
           text: localized(locale, option.text),

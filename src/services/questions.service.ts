@@ -1,5 +1,6 @@
-import { apiClient } from './api-client';
+import { ApiClientError, apiClient } from './api-client';
 import type {
+  ApiError,
   Question,
   CreateQuestionRequest,
   UpdateQuestionRequest,
@@ -8,14 +9,36 @@ import type {
   PaginatedResponse,
   BulkCreateQuestionsRequest,
   BulkCreateResponse,
+  GenerateImageMcqPreviewRequest,
+  GenerateImageMcqProgressEvent,
+  GenerateImageMcqPreviewResponse,
   FindDuplicatesParams,
   DuplicatesResponse,
   CheckDuplicatesRequest,
   CheckDuplicatesResponse,
   I18nField,
   DeleteQuestionResult,
+  SaveImageMcqDraftsRequest,
+  SaveImageMcqDraftsResponse,
 } from '@/types';
 import { logger } from '@/lib/logger';
+import { API_BASE_URL, AUTH_TOKEN_KEY } from '@/lib/constants';
+
+type ImageMcqStreamEvent =
+  | GenerateImageMcqProgressEvent
+  | { type: 'done'; data: GenerateImageMcqPreviewResponse }
+  | { type: 'error'; error: ApiError };
+
+function getAuthToken(): string | null {
+  if (typeof window === 'undefined') return null;
+  return localStorage.getItem(AUTH_TOKEN_KEY);
+}
+
+function parseImageMcqStreamLine(line: string): ImageMcqStreamEvent | null {
+  const trimmed = line.trim();
+  if (!trimmed) return null;
+  return JSON.parse(trimmed) as ImageMcqStreamEvent;
+}
 
 export const questionsService = {
   async list(
@@ -77,6 +100,91 @@ export const questionsService = {
       total: result.total
     });
     return result;
+  },
+
+  async generateImageMcqPreview(data: GenerateImageMcqPreviewRequest): Promise<GenerateImageMcqPreviewResponse> {
+    logger.debug('api', 'POST /questions/image-mcq/generate-preview', { ...data });
+    return apiClient.post<GenerateImageMcqPreviewResponse>('/questions/image-mcq/generate-preview', data, {
+      timeoutMs: 900000,
+    });
+  },
+
+  async generateImageMcqPreviewStream(
+    data: GenerateImageMcqPreviewRequest,
+    onProgress: (event: GenerateImageMcqProgressEvent) => void
+  ): Promise<GenerateImageMcqPreviewResponse> {
+    logger.debug('api', 'POST /questions/image-mcq/generate-preview-stream', { ...data });
+
+    const response = await fetch(`${API_BASE_URL}/questions/image-mcq/generate-preview-stream`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(getAuthToken() ? { Authorization: `Bearer ${getAuthToken()}` } : {}),
+      },
+      body: JSON.stringify(data),
+    });
+
+    if (!response.ok) {
+      let error: ApiError;
+      try {
+        error = await response.json() as ApiError;
+      } catch {
+        error = {
+          code: 'NETWORK_ERROR',
+          message: `Request failed with status ${response.status}`,
+          details: null,
+          request_id: null,
+        };
+      }
+      throw new ApiClientError(error, response.status);
+    }
+
+    if (!response.body) {
+      throw new Error('Image question generation stream did not return a readable body.');
+    }
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+
+    while (true) {
+      const { value, done } = await reader.read();
+      buffer += decoder.decode(value, { stream: !done });
+      const lines = buffer.split('\n');
+      buffer = lines.pop() ?? '';
+
+      for (const line of lines) {
+        const event = parseImageMcqStreamLine(line);
+        if (!event) continue;
+
+        if (event.type === 'progress') {
+          onProgress(event);
+        } else if (event.type === 'done') {
+          return event.data;
+        } else if (event.type === 'error') {
+          throw new ApiClientError(event.error, 200);
+        }
+      }
+
+      if (done) break;
+    }
+
+    const trailingEvent = parseImageMcqStreamLine(buffer);
+    if (trailingEvent?.type === 'done') {
+      return trailingEvent.data;
+    }
+    if (trailingEvent?.type === 'error') {
+      throw new ApiClientError(trailingEvent.error, 200);
+    }
+
+    throw new Error('Image question generation stream ended before returning results.');
+  },
+
+  async saveImageMcqDrafts(data: SaveImageMcqDraftsRequest): Promise<SaveImageMcqDraftsResponse> {
+    logger.debug('api', 'POST /questions/image-mcq/save-drafts', { count: data.cards.length, translate_to_ka: data.translate_to_ka });
+    return apiClient.post<SaveImageMcqDraftsResponse>('/questions/image-mcq/save-drafts', data, {
+      timeoutMs: 900000,
+    });
   },
 
   async getAllIds(params?: Omit<ListQuestionsParams, 'page' | 'limit'>): Promise<string[]> {

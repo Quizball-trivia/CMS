@@ -2,6 +2,7 @@
 
 import { QuestionList, DuplicateManagerDialog, TranslateBackfillDialog } from '@/components/questions';
 import { BulkUploadDialog } from '@/components/questions/bulk-upload-dialog';
+import { ImageMcqGeneratorDialog } from '@/components/questions/image-mcq-generator-dialog';
 import { QuestionDialog } from '@/components/questions/question-dialog';
 import { Button } from '@/components/ui/button';
 import { Plus } from 'lucide-react';
@@ -20,6 +21,7 @@ export default function QuestionsPage() {
           <div className="flex items-center gap-2 shrink-0">
             <TranslateBackfillDialog />
             <DuplicateManagerDialog />
+            <ImageMcqGeneratorDialog />
             <BulkUploadDialog />
             <QuestionDialog
               mode="create"

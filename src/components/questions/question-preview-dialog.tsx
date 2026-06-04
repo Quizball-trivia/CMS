@@ -61,6 +61,9 @@ export function QuestionPreviewDialog({
     : question;
   const { data: freshQuestion } = useQuestion(displayQuestion?.id ?? '', open && !!displayQuestion?.id);
   const hydratedQuestion = freshQuestion ?? displayQuestion;
+  const mcqImage = hydratedQuestion.payload?.type === 'mcq_single'
+    ? hydratedQuestion.payload.image
+    : undefined;
 
   // Reset activeIndex when dialog opens
   const handleOpenChange = (isOpen: boolean) => {
@@ -220,7 +223,7 @@ export function QuestionPreviewDialog({
               <Badge variant="outline" className={cn('border', getDifficultyVariant(displayQuestion.difficulty))}>
                 {hydratedQuestion.difficulty}
               </Badge>
-              <Badge variant="outline">{hydratedQuestion.type}</Badge>
+              <Badge variant="outline">{mcqImage ? 'mcq + image' : hydratedQuestion.type}</Badge>
               <Badge
                 variant={hydratedQuestion.status === 'published' ? 'default' : 'secondary'}
               >
@@ -256,6 +259,23 @@ export function QuestionPreviewDialog({
               {getLocalizedTextByLang(hydratedQuestion.prompt, lang, 'Untitled Question')}
             </p>
           </div>
+
+          {mcqImage?.url && (
+            <div>
+              <Label className="text-xs text-muted-foreground">Image</Label>
+              <div className="mt-1 flex max-h-72 w-full items-center justify-center overflow-hidden rounded-lg border bg-gray-50">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={mcqImage.url}
+                  alt={mcqImage.title || 'Question image'}
+                  className="block max-h-72 max-w-full object-contain"
+                />
+              </div>
+              <p className="mt-1 truncate text-xs text-muted-foreground">
+                {mcqImage.source_url || mcqImage.url}
+              </p>
+            </div>
+          )}
 
           {/* Options (for MCQ) */}
           {hydratedQuestion.type === 'mcq_single' && hydratedQuestion.payload?.type === 'mcq_single' && (

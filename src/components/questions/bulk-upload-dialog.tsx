@@ -79,6 +79,7 @@ const TYPE_OPTIONS: Array<{ value: UploadQuestionType; label: string }> = [
 
 const FORMAT_EXAMPLES: Record<UploadQuestionType, string> = {
   mcq_single: `1. Question text here?
+Image: https://example.com/question-image.png (optional)
 A) Option 1
 B) Option 2*
 C) Option 3
@@ -913,8 +914,11 @@ function ParsedQuestionPreviewDialog({
 
   return (
     <Dialog open onOpenChange={(isOpen) => !isOpen && onClose()}>
-      <DialogContent className="max-w-2xl" onClick={(e) => e.stopPropagation()}>
-        <DialogHeader className="pr-10">
+      <DialogContent
+        className="flex max-h-[92vh] w-[min(92vw,760px)] max-w-none flex-col overflow-hidden p-0"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <DialogHeader className="shrink-0 border-b px-5 py-4 pr-12">
           <div className="flex items-center justify-between">
             <DialogTitle>Question Preview</DialogTitle>
             <div className="flex items-center gap-2">
@@ -951,7 +955,7 @@ function ParsedQuestionPreviewDialog({
           </div>
         </DialogHeader>
 
-        <div className="space-y-4">
+        <div className="min-w-0 flex-1 space-y-4 overflow-y-auto overflow-x-hidden px-5 py-4">
           {/* Header with badges */}
           <div className="flex items-center gap-2 flex-wrap">
             <Badge variant="outline" className={cn('border', getDifficultyVariant(question.difficulty))}>
@@ -977,26 +981,43 @@ function ParsedQuestionPreviewDialog({
           </div>
 
           {question.kind === 'mcq_single' && (
-            <div>
-              <Label className="text-xs text-muted-foreground">Options</Label>
-              <div className="space-y-2 mt-1">
-                {question.options.map((option, index) => (
-                  <div
-                    key={index}
-                    className={cn(
-                      'flex items-center gap-2 p-3 rounded-lg border text-sm',
-                      option.is_correct
-                        ? 'bg-green-50 border-green-200'
-                        : 'border-gray-200 bg-gray-50'
-                    )}
-                  >
-                    <span className="font-semibold">{String.fromCharCode(65 + index)})</span>
-                    <span className="flex-1">{option.text}</span>
-                    {option.is_correct && <CheckCircle2 className="ml-auto h-4 w-4 text-green-600" />}
+            <>
+              {question.imageUrl && (
+                <div>
+                  <Label className="text-xs text-muted-foreground">Image</Label>
+                  <div className="mt-1 flex max-h-80 w-full min-w-0 items-center justify-center overflow-hidden rounded-lg border bg-gray-50">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={question.imageUrl}
+                      alt={`Question ${question.questionNumber} image`}
+                      className="block max-h-80 max-w-full object-contain"
+                    />
                   </div>
-                ))}
+                  <p className="mt-1 min-w-0 truncate text-xs text-muted-foreground">{question.imageUrl}</p>
+                </div>
+              )}
+
+              <div>
+                <Label className="text-xs text-muted-foreground">Options</Label>
+                <div className="space-y-2 mt-1">
+                  {question.options.map((option, index) => (
+                    <div
+                      key={index}
+                      className={cn(
+                        'flex min-w-0 items-center gap-2 rounded-lg border p-3 text-sm',
+                        option.is_correct
+                          ? 'bg-green-50 border-green-200'
+                          : 'border-gray-200 bg-gray-50'
+                      )}
+                    >
+                      <span className="font-semibold">{String.fromCharCode(65 + index)})</span>
+                      <span className="min-w-0 flex-1 break-words">{option.text}</span>
+                      {option.is_correct && <CheckCircle2 className="ml-auto h-4 w-4 text-green-600" />}
+                    </div>
+                  ))}
+                </div>
               </div>
-            </div>
+            </>
           )}
 
           {question.kind === 'true_false' && (

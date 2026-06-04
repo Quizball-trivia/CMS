@@ -34,6 +34,7 @@ import {
   AlertCircle,
   Layers,
   Languages,
+  Image as ImageIcon,
   X
 } from 'lucide-react';
 import { QuestionDialog } from './question-dialog';
@@ -64,6 +65,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 
 type DisplayLocale = 'en' | 'ka';
+type TypeFilterValue = NonNullable<ListQuestionsParams['type']> | 'mcq_single_image' | 'all';
 
 const DISPLAY_LOCALES: Array<{ value: DisplayLocale; label: string; name: string }> = [
   { value: 'en', label: 'EN', name: 'English' },
@@ -118,7 +120,7 @@ export function QuestionList() {
   // Reset loaded questions when filters change
   useEffect(() => {
     setQuestionsByPage(new Map());
-  }, [params.category_id, params.status, params.difficulty, params.type, params.search]);
+  }, [params.category_id, params.status, params.difficulty, params.type, params.mcq_image, params.search]);
 
   useEffect(() => {
     const controllers = inFlightControllersRef.current;
@@ -195,6 +197,35 @@ export function QuestionList() {
     }));
   };
 
+  const handleTypeFilterChange = (value: TypeFilterValue) => {
+    setParams((prev) => {
+      if (value === 'all') {
+        return {
+          ...prev,
+          type: undefined,
+          mcq_image: undefined,
+          page: 1,
+        };
+      }
+
+      if (value === 'mcq_single_image') {
+        return {
+          ...prev,
+          type: 'mcq_single',
+          mcq_image: 'with',
+          page: 1,
+        };
+      }
+
+      return {
+        ...prev,
+        type: value,
+        mcq_image: undefined,
+        page: 1,
+      };
+    });
+  };
+
   const handleCategoryFilterChange = (value: string) => {
     if (value === 'all') {
       handleFilterChange('category_id', value);
@@ -209,6 +240,7 @@ export function QuestionList() {
         ...prev,
         category_id: value,
         type: dailyChallengeType,
+        mcq_image: undefined,
         page: 1,
       }));
       return;
@@ -420,6 +452,12 @@ export function QuestionList() {
   const getQuestionTypeLabel = (type: NonNullable<ListQuestionsParams['type']>) =>
     QUESTION_TYPE_LABELS[type];
 
+  const hasMcqImage = (question: Question) =>
+    question.payload?.type === 'mcq_single' && Boolean(question.payload.image?.url);
+
+  const getQuestionTypeDisplayLabel = (question: Question) =>
+    hasMcqImage(question) ? 'Multiple Choice + Image' : QUESTION_TYPE_LABELS[question.type];
+
   const getQuestionTitle = (question: Question) => {
     const getText = (field: Question['prompt'] | null | undefined, fallback = '') =>
       getLocalizedTextByLang(field, displayLocale, fallback).trim();
@@ -486,6 +524,7 @@ export function QuestionList() {
         status: params.status,
         difficulty: params.difficulty,
         type: params.type,
+        mcq_image: params.mcq_image,
         search: params.search,
       });
       setSelectedIds(allIds);
@@ -602,14 +641,17 @@ export function QuestionList() {
             </Select>
 
             <Select
-              value={params.type || 'all'}
-              onValueChange={(v) => handleFilterChange('type', v)}
+              value={params.mcq_image === 'with' ? 'mcq_single_image' : (params.type || 'all')}
+              onValueChange={(v) => handleTypeFilterChange(v as TypeFilterValue)}
             >
-              <SelectTrigger className="w-[150px] h-10 bg-white border-gray-200 rounded-xl text-xs font-bold text-gray-600 hover:bg-gray-50 transition-colors">
+              <SelectTrigger className="w-[190px] h-10 bg-white border-gray-200 rounded-xl text-xs font-bold text-gray-600 hover:bg-gray-50 transition-colors">
                 <SelectValue placeholder="Type" />
               </SelectTrigger>
               <SelectContent className="rounded-xl border-gray-200 bg-white shadow-xl">
                 <SelectItem value="all" className="text-xs font-medium">Type</SelectItem>
+                <SelectItem value="mcq_single_image" className="text-xs font-medium">
+                  Multiple Choice + Image
+                </SelectItem>
                 {Object.entries(QUESTION_TYPE_LABELS).map(([value, label]) => (
                   <SelectItem key={value} value={value} className="text-xs font-medium">
                     {label}
@@ -710,10 +752,10 @@ export function QuestionList() {
           )}
           {params.type && (params.type as string) !== 'all' && (
             <button
-              onClick={() => handleFilterChange('type', 'all')}
+              onClick={() => handleTypeFilterChange('all')}
               className="flex items-center gap-1.5 px-3 py-1 bg-slate-900 text-white rounded-full text-[11px] font-bold transition-all hover:bg-slate-800"
             >
-              Type: {getQuestionTypeLabel(params.type)}
+              Type: {params.mcq_image === 'with' ? 'Multiple Choice + Image' : getQuestionTypeLabel(params.type)}
               <X className="w-3 h-3" />
             </button>
           )}
@@ -813,9 +855,15 @@ export function QuestionList() {
                         </span>
                       </div>
                       <div className="flex items-center gap-1.5">
-                        {question.type === 'mcq_single' ? <LayoutList className="w-3.5 h-3.5 text-slate-300" /> : <FileText className="w-3.5 h-3.5 text-slate-300" />}
+                        {hasMcqImage(question) ? (
+                          <ImageIcon className="w-3.5 h-3.5 text-slate-300" />
+                        ) : question.type === 'mcq_single' ? (
+                          <LayoutList className="w-3.5 h-3.5 text-slate-300" />
+                        ) : (
+                          <FileText className="w-3.5 h-3.5 text-slate-300" />
+                        )}
                         <span className="text-xs font-medium text-slate-400">
-                          {QUESTION_TYPE_LABELS[question.type]}
+                          {getQuestionTypeDisplayLabel(question)}
                         </span>
                       </div>
                       <div className="flex items-center gap-2">

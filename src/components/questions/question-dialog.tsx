@@ -528,9 +528,12 @@ export function QuestionDialog({
 
   const renderViewMode = () => {
     if (!hydratedQuestion) return null;
+    const mcqImage = hydratedQuestion.payload?.type === 'mcq_single'
+      ? hydratedQuestion.payload.image
+      : undefined;
 
     return (
-      <div className="space-y-6 font-inter">
+      <div className="space-y-4 font-inter">
         {/* Header with badges + language toggle */}
         <div className="flex items-center justify-between flex-wrap gap-2">
           <div className="flex items-center gap-3 flex-wrap">
@@ -542,7 +545,7 @@ export function QuestionDialog({
             </div>
 
             <Badge variant="outline" className="rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-widest border-slate-200 bg-slate-50/50">
-              {hydratedQuestion.type}
+              {mcqImage ? 'mcq + image' : hydratedQuestion.type}
             </Badge>
             <Badge
               variant={hydratedQuestion.status === 'published' ? 'default' : 'secondary'}
@@ -586,23 +589,46 @@ export function QuestionDialog({
           </p>
         </div>
 
+        {/* Image (for image-backed MCQ) */}
+        {mcqImage?.url && (
+          <div className="space-y-2">
+            <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Image</Label>
+            <div className="flex max-h-[260px] w-full items-center justify-center overflow-hidden rounded-xl border border-slate-100 bg-slate-50">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={mcqImage.url}
+                alt={mcqImage.title || 'Question image'}
+                className="block max-h-[260px] max-w-full object-contain"
+              />
+            </div>
+            <div className="min-w-0 space-y-1">
+              {mcqImage.title && (
+                <p className="truncate text-xs font-semibold text-slate-500">{mcqImage.title}</p>
+              )}
+              <p className="truncate text-xs text-slate-400">
+                {mcqImage.source_url || mcqImage.url}
+              </p>
+            </div>
+          </div>
+        )}
+
         {/* Options (for MCQ) */}
         {hydratedQuestion.type === 'mcq_single' && hydratedQuestion.payload?.type === 'mcq_single' && (
-          <div className="space-y-3">
+          <div className="space-y-2">
             <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Options</Label>
             <div className="grid gap-2 mt-1">
               {hydratedQuestion.payload.options.map((option, index) => (
                 <div
                   key={option.id}
                   className={cn(
-                    'flex items-center gap-4 p-4 rounded-xl border transition-all duration-300 group',
+                    'flex items-center gap-3 p-3 rounded-xl border transition-all duration-300 group',
                     option.is_correct
                       ? 'bg-emerald-50 border-emerald-500 shadow-[0_2px_10px_rgba(16,185,129,0.1)]'
                       : 'border-slate-100 bg-white hover:border-slate-200 hover:bg-slate-50/50'
                   )}
                 >
                   <span className={cn(
-                    "w-8 h-8 rounded-full flex items-center justify-center text-xs font-black transition-colors",
+                    "w-7 h-7 rounded-full flex items-center justify-center text-xs font-black transition-colors",
                     option.is_correct ? "bg-emerald-500 text-white" : "bg-slate-100 text-slate-500 group-hover:bg-slate-200"
                   )}>
                     {String.fromCharCode(65 + index)}
@@ -614,8 +640,8 @@ export function QuestionDialog({
                     {getLocalizedTextByLang(option.text, viewLang)}
                   </span>
                   {option.is_correct && (
-                    <div className="h-6 w-6 rounded-full bg-emerald-500 flex items-center justify-center shadow-sm animate-in zoom-in duration-300">
-                      <CheckCircle2 className="h-4 w-4 text-white" />
+                    <div className="h-5 w-5 rounded-full bg-emerald-500 flex items-center justify-center shadow-sm animate-in zoom-in duration-300">
+                      <CheckCircle2 className="h-3.5 w-3.5 text-white" />
                     </div>
                   )}
                 </div>
@@ -656,7 +682,7 @@ export function QuestionDialog({
 
         {/* Explanation */}
         {hydratedQuestion.explanation && (
-          <div className="space-y-2 p-4 bg-slate-50 rounded-2xl border border-slate-100">
+          <div className="space-y-2 p-3 bg-slate-50 rounded-xl border border-slate-100">
             <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Explanation</Label>
             <p className="text-sm text-slate-600 leading-relaxed font-medium">
               {getLocalizedTextByLang(hydratedQuestion.explanation, viewLang)}
@@ -665,7 +691,7 @@ export function QuestionDialog({
         )}
 
         {/* Quick Actions */}
-        <div className="flex gap-3 pt-6 border-t border-slate-100">
+        <div className="flex gap-3 pt-4 border-t border-slate-100">
           <Button
             variant="ghost"
             onClick={handleToggleStatus}
@@ -1024,8 +1050,19 @@ export function QuestionDialog({
         if (!isOpen) closeErrorFeedback();
       }} />
       {trigger && <DialogTrigger asChild>{trigger}</DialogTrigger>}
-      <DialogContent className="max-h-[calc(100vh-2rem)] max-w-2xl overflow-y-auto bg-white border border-slate-200 shadow-2xl rounded-[1.5rem] p-5 sm:p-6 font-inter focus:outline-none" onClick={(e) => e.stopPropagation()}>
-        <DialogHeader className="pr-12 pb-4">
+      <DialogContent
+        className={cn(
+          'bg-white border border-slate-200 shadow-2xl rounded-[1.5rem] font-inter focus:outline-none',
+          mode === 'view'
+            ? 'flex max-h-[92vh] w-[min(94vw,920px)] max-w-none flex-col overflow-hidden p-0'
+            : 'max-h-[calc(100vh-2rem)] max-w-2xl overflow-y-auto p-5 sm:p-6'
+        )}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <DialogHeader className={cn(
+          'pr-12',
+          mode === 'view' ? 'shrink-0 border-b border-slate-100 px-6 py-5' : 'pb-4'
+        )}>
           <div className="flex items-center justify-between">
             <DialogTitle className="text-2xl font-black text-slate-900 tracking-tight">
               {mode === 'create' ? 'New Question' : mode === 'edit' ? 'Edit Question' : 'Question Preview'}
@@ -1066,7 +1103,10 @@ export function QuestionDialog({
           </div>
         </DialogHeader>
 
-        <div className="relative">
+        <div className={cn(
+          'relative',
+          mode === 'view' && 'min-h-0 flex-1 overflow-y-auto px-6 py-5'
+        )}>
           {mode === 'view' ? renderViewMode() : renderEditMode()}
         </div>
       </DialogContent>

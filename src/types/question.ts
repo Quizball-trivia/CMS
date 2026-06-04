@@ -22,6 +22,19 @@ export interface McqOption {
   is_correct: boolean;
 }
 
+export interface McqImage {
+  url: string;
+  width: number;
+  height: number;
+  aspect_ratio?: string;
+  source_url?: string | null;
+  title?: string | null;
+  author?: string | null;
+  license?: string | null;
+  license_url?: string | null;
+  provider?: string | null;
+}
+
 // Extended I18nField with stable ID for React keys (UI-only, stripped when sending to API)
 export interface AnswerWithId extends I18nField {
   id: string;
@@ -29,6 +42,7 @@ export interface AnswerWithId extends I18nField {
 
 export interface McqPayload {
   type: 'mcq_single';
+  image?: McqImage;
   options: McqOption[];
 }
 
@@ -155,6 +169,7 @@ export interface ListQuestionsParams {
   status?: QuestionStatus;
   difficulty?: Difficulty;
   type?: QuestionType;
+  mcq_image?: 'with' | 'without';
   search?: string;
   page?: number;
   limit?: number;
@@ -192,6 +207,91 @@ export interface BulkCreateResponse {
   failed: number;
   created: Question[];
   errors: BulkCreateError[];
+}
+
+export interface GeneratedImageMcqImage {
+  data_url: string;
+  width: number;
+  height: number;
+  aspect_ratio: string;
+  source_url: string;
+  title: string;
+  author: string | null;
+  license: string | null;
+  license_url: string | null;
+  provider: string;
+}
+
+export interface GeneratedImageMcqCard {
+  id: string;
+  category_id: string;
+  category_slug: string;
+  category_name: string;
+  prompt: I18nField;
+  difficulty: Difficulty;
+  options: McqOption[];
+  explanation: I18nField;
+  confidence: number;
+  image: GeneratedImageMcqImage;
+}
+
+export interface GenerateImageMcqPreviewRequest {
+  category_ids?: string[];
+  limit_categories?: number;
+  images_per_category?: number;
+  questions_per_image?: number;
+  image_width?: number;
+  image_height?: number;
+  model?: string;
+}
+
+export interface GenerateImageMcqPreviewResponse {
+  cards: GeneratedImageMcqCard[];
+  skipped: Array<{
+    category_id: string;
+    category_slug: string;
+    reason: string;
+  }>;
+}
+
+export interface GenerateImageMcqProgressEvent {
+  type: 'progress';
+  stage:
+    | 'started'
+    | 'category_started'
+    | 'commons_search'
+    | 'candidates_selected'
+    | 'candidate_started'
+    | 'image_normalized'
+    | 'openrouter_started'
+    | 'openrouter_completed'
+    | 'candidate_completed'
+    | 'candidate_skipped'
+    | 'category_completed'
+    | 'completed';
+  message: string;
+  completed_images: number;
+  total_images: number;
+  cards_generated: number;
+  target_cards: number;
+  current_category?: string;
+  current_image_title?: string;
+}
+
+export interface SaveImageMcqDraftsRequest {
+  cards: GeneratedImageMcqCard[];
+  translate_to_ka?: boolean;
+}
+
+export interface SaveImageMcqDraftsResponse {
+  total: number;
+  successful: number;
+  failed: number;
+  created: Question[];
+  errors: Array<{
+    index: number;
+    error: string;
+  }>;
 }
 
 // Duplicate detection types - using generated types from OpenAPI
