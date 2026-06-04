@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useMemo, useState, useRef } from 'react';
 import { toast } from 'sonner';
 import { parseQuestionFile, toBulkCreateQuestion, type ParsedBulkQuestion, type ParseError } from '@/lib/parsers/question-parser';
 import { useBulkCreateQuestions, useCategories, useCheckDuplicates, useSyncQuestionsToStaging } from '@/hooks';
@@ -46,6 +46,7 @@ import {
   type DailyChallengeQuestionType,
   getDailyChallengeQuestionTypeForCategory,
 } from '@/lib/daily-challenge-question-types';
+import { preloadQuestionImage, QuestionImagePreview } from './question-image-preview';
 
 type UploadQuestionType = DailyChallengeQuestionType;
 
@@ -488,10 +489,26 @@ export function BulkUploadDialog() {
   const currentPage = Math.min(page, totalPages);
   const pageStart = (currentPage - 1) * pageSize;
   const pageQuestions = questionsWithState.slice(pageStart, pageStart + pageSize);
+  const previewImageUrls = useMemo(
+    () => questionsWithState.map((question) =>
+      question.kind === 'mcq_single' ? question.imageUrl : undefined
+    ),
+    [questionsWithState]
+  );
 
   useEffect(() => {
     latestQuestionsRef.current = questionsWithState;
   }, [questionsWithState]);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      previewImageUrls.slice(0, 6).forEach((url) => {
+        preloadQuestionImage(url);
+      });
+    }, 150);
+
+    return () => window.clearTimeout(timer);
+  }, [previewImageUrls]);
 
   // Re-check duplicates only when locale changes
   useEffect(() => {
@@ -887,6 +904,7 @@ export function BulkUploadDialog() {
             question={questionsWithState[previewIndex]}
             currentIndex={previewIndex}
             totalQuestions={questionsWithState.length}
+            imageUrls={previewImageUrls}
             onClose={() => setPreviewIndex(null)}
             onNavigate={setPreviewIndex}
           />
@@ -918,6 +936,7 @@ interface ParsedQuestionPreviewDialogProps {
   question: QuestionWithSelection;
   currentIndex: number;
   totalQuestions: number;
+  imageUrls: Array<string | undefined>;
   onClose: () => void;
   onNavigate: (index: number) => void;
 }
@@ -926,6 +945,7 @@ function ParsedQuestionPreviewDialog({
   question,
   currentIndex,
   totalQuestions,
+  imageUrls,
   onClose,
   onNavigate,
 }: ParsedQuestionPreviewDialogProps) {
@@ -950,6 +970,23 @@ function ParsedQuestionPreviewDialog({
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [currentIndex, hasPrevious, hasNext, onNavigate, onClose]);
+
+  useEffect(() => {
+    const indexesToPreload = [
+      currentIndex,
+      currentIndex + 1,
+      currentIndex + 2,
+      currentIndex + 3,
+      currentIndex - 1,
+    ];
+    const timer = window.setTimeout(() => {
+      indexesToPreload.forEach((index) => {
+        preloadQuestionImage(imageUrls[index]);
+      });
+    }, 0);
+
+    return () => window.clearTimeout(timer);
+  }, [currentIndex, imageUrls]);
 
   return (
     <Dialog open onOpenChange={(isOpen) => !isOpen && onClose()}>
@@ -1024,15 +1061,13 @@ function ParsedQuestionPreviewDialog({
               {question.imageUrl && (
                 <div>
                   <Label className="text-xs text-muted-foreground">Image</Label>
-                  <div className="mt-1 flex max-h-80 w-full min-w-0 items-center justify-center overflow-hidden rounded-lg border bg-gray-50">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={question.imageUrl}
-                      alt={`Question ${question.questionNumber} image`}
-                      className="block max-h-80 max-w-full object-contain"
-                    />
-                  </div>
-                  <p className="mt-1 min-w-0 truncate text-xs text-muted-foreground">{question.imageUrl}</p>
+                  <QuestionImagePreview
+                    src={question.imageUrl}
+                    alt={`Question ${question.questionNumber} image`}
+                    sourceUrl={question.imageUrl}
+                    compact
+                    className="mt-1"
+                  />
                 </div>
               )}
 

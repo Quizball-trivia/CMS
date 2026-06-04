@@ -1,4 +1,11 @@
-export const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8001/api/v1';
+function normalizeApiBaseUrl(rawUrl: string): string {
+  const url = rawUrl.trim().replace(/\/+$/, '');
+  return url.endsWith('/api/v1') ? url : `${url}/api/v1`;
+}
+
+export const API_BASE_URL = normalizeApiBaseUrl(
+  process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8001/api/v1'
+);
 
 export const SUPPORTED_LANGUAGES = ['en', 'ka'] as const;
 export type SupportedLanguage = typeof SUPPORTED_LANGUAGES[number];

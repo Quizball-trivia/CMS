@@ -21,6 +21,7 @@ import { useRouter } from 'next/navigation';
 import { getDifficultyVariant } from '@/components/ui/difficulty-signal';
 import { useErrorFeedbackDialog } from '@/hooks/use-error-feedback-dialog';
 import { ErrorFeedbackDialog } from '@/components/error-feedback-dialog';
+import { preloadQuestionImage, QuestionImagePreview } from './question-image-preview';
 
 interface QuestionPreviewDialogProps {
   question: Question;
@@ -101,6 +102,27 @@ export function QuestionPreviewDialog({
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [open, activeIndex, hasPrevious, hasNext, handleNavigate]);
+
+  useEffect(() => {
+    if (!open) return;
+
+    const indexesToPreload = [
+      activeIndex,
+      activeIndex + 1,
+      activeIndex + 2,
+      activeIndex + 3,
+      activeIndex - 1,
+    ];
+    const timer = window.setTimeout(() => {
+      indexesToPreload.forEach((index) => {
+        const item = allQuestions[index];
+        const imageUrl = item?.payload?.type === 'mcq_single' ? item.payload.image?.url : undefined;
+        preloadQuestionImage(imageUrl);
+      });
+    }, 0);
+
+    return () => window.clearTimeout(timer);
+  }, [activeIndex, allQuestions, open]);
 
   const handleToggleStatus = async (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -263,17 +285,13 @@ export function QuestionPreviewDialog({
           {mcqImage?.url && (
             <div>
               <Label className="text-xs text-muted-foreground">Image</Label>
-              <div className="mt-1 flex max-h-72 w-full items-center justify-center overflow-hidden rounded-lg border bg-gray-50">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={mcqImage.url}
-                  alt={mcqImage.title || 'Question image'}
-                  className="block max-h-72 max-w-full object-contain"
-                />
-              </div>
-              <p className="mt-1 truncate text-xs text-muted-foreground">
-                {mcqImage.source_url || mcqImage.url}
-              </p>
+              <QuestionImagePreview
+                src={mcqImage.url}
+                alt={mcqImage.title || 'Question image'}
+                sourceUrl={mcqImage.source_url || mcqImage.url}
+                compact
+                className="mt-1"
+              />
             </div>
           )}
 

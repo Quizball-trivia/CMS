@@ -11,6 +11,7 @@ import type {
   FootballLogicPayload,
   HighLowPayload,
   ImposterMultiSelectPayload,
+  McqImage,
   PutInOrderPayload,
   Question,
   QuestionStatus,
@@ -41,6 +42,7 @@ import { Eye, EyeOff, Edit, CheckCircle2, ChevronLeft, ChevronRight, Save, X, Lo
 import { getLocalizedText, getLocalizedTextByLang, cn } from '@/lib/utils';
 import { useErrorFeedbackDialog } from '@/hooks/use-error-feedback-dialog';
 import { ErrorFeedbackDialog } from '@/components/error-feedback-dialog';
+import { QuestionImagePreview } from './question-image-preview';
 import { TextInputEditor, type AnswerWithId } from './text-input-editor';
 import { TrueFalseEditor } from './true-false-editor';
 import { DifficultySignal, getDifficultyVariant } from '@/components/ui/difficulty-signal';
@@ -129,6 +131,13 @@ export function QuestionDialog({
     Array<{ id: string; category_id: string; category_name: Record<string, string>; created_at: string }>
   >([]);
 
+  const toDialogFormData = (sourceQuestion: Question, locale: 'en' | 'ka') => ({
+    ...questionToFormData(sourceQuestion, locale),
+    imageUrl: sourceQuestion.payload?.type === 'mcq_single'
+      ? sourceQuestion.payload.image?.url ?? ''
+      : '',
+  });
+
   const totalQuestions = allQuestions.length;
   const hasPrevious = activeIndex > 0;
   const hasNext = activeIndex < totalQuestions - 1;
@@ -148,6 +157,7 @@ export function QuestionDialog({
     type: EditableQuestionType;
     prompt: string;
     explanation: string;
+    imageUrl: string;
     options: Array<{ id?: string; text: string; is_correct: boolean }>;
     acceptedAnswers: AnswerWithId[];
     caseSensitive: boolean;
@@ -160,6 +170,7 @@ export function QuestionDialog({
     type: 'mcq_single',
     prompt: '',
     explanation: '',
+    imageUrl: '',
     options: [
       { text: '', is_correct: false },
       { text: '', is_correct: false },
@@ -170,6 +181,21 @@ export function QuestionDialog({
     caseSensitive: false,
     customPayload: null,
   });
+
+  const buildMcqImage = (existingImage?: McqImage): McqImage | undefined => {
+    const url = formData.imageUrl.trim();
+    if (!url) return undefined;
+
+    return {
+      ...existingImage,
+      url,
+      width: existingImage?.width ?? 1440,
+      height: existingImage?.height ?? 1080,
+      aspect_ratio: existingImage?.aspect_ratio ?? '4:3',
+      source_url: existingImage?.source_url || url,
+      provider: existingImage?.provider ?? 'cms_edit',
+    };
+  };
 
   // Reset activeIndex when dialog opens
   const handleOpenChange = (isOpen: boolean) => {
@@ -184,7 +210,7 @@ export function QuestionDialog({
         const selectedQuestion = freshQuestion ?? (allQuestions.length > 0 ? allQuestions[currentIndex] : question);
         if (selectedQuestion) {
           // Load question data into form using utility function
-          setFormData(questionToFormData(selectedQuestion, 'en'));
+          setFormData(toDialogFormData(selectedQuestion, 'en'));
         }
       } else if (initialMode === 'create') {
         // Reset form for new question
@@ -196,6 +222,7 @@ export function QuestionDialog({
           type: 'mcq_single',
           prompt: '',
           explanation: '',
+          imageUrl: '',
           options: [
             { text: '', is_correct: false },
             { text: '', is_correct: false },
@@ -262,7 +289,7 @@ export function QuestionDialog({
 
   const handleEdit = () => {
     if (hydratedQuestion) {
-      setFormData(questionToFormData(hydratedQuestion, viewLang));
+      setFormData(toDialogFormData(hydratedQuestion, viewLang));
     }
     setMode('edit');
   };
@@ -302,6 +329,7 @@ export function QuestionDialog({
 
   const buildCreatePayload = (): CreateQuestionRequest => {
     const locale = formData.locale;
+    const mcqImage = buildMcqImage();
 
     return {
       category_id: formData.category_id,
@@ -313,6 +341,7 @@ export function QuestionDialog({
       payload: formData.type === 'mcq_single'
         ? {
             type: 'mcq_single',
+            ...(mcqImage ? { image: mcqImage } : {}),
             options: formData.options.map(opt => ({
               id: generateAnswerId(),
               text: { [locale]: opt.text },
@@ -357,6 +386,15 @@ export function QuestionDialog({
     if (!formData.category_id) {
       toast.error('Please select a category');
       return;
+    }
+
+    if (formData.type === 'mcq_single' && formData.imageUrl.trim()) {
+      try {
+        new URL(formData.imageUrl.trim());
+      } catch {
+        toast.error('Image URL must be a valid URL');
+        return;
+      }
     }
 
     // Validate based on question type
@@ -421,6 +459,10 @@ export function QuestionDialog({
         toast.success('Question created successfully');
         setOpen(false);
       } else if (mode === 'edit' && hydratedQuestion) {
+        const existingMcqImage = hydratedQuestion.payload?.type === 'mcq_single'
+          ? hydratedQuestion.payload.image
+          : undefined;
+        const mcqImage = buildMcqImage(existingMcqImage);
         const data: UpdateQuestionRequest = {
           category_id: formData.category_id,
           difficulty: formData.difficulty,
@@ -432,6 +474,7 @@ export function QuestionDialog({
           payload: formData.type === 'mcq_single'
             ? {
                 type: 'mcq_single',
+                ...(mcqImage ? { image: mcqImage } : {}),
                 options: formData.options.map((opt, idx) => {
                   const optionId = opt.id || generateAnswerId();
                   const existingOption = hydratedQuestion.payload?.type === 'mcq_single'
@@ -593,21 +636,16 @@ export function QuestionDialog({
         {mcqImage?.url && (
           <div className="space-y-2">
             <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Image</Label>
-            <div className="flex max-h-[260px] w-full items-center justify-center overflow-hidden rounded-xl border border-slate-100 bg-slate-50">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={mcqImage.url}
-                alt={mcqImage.title || 'Question image'}
-                className="block max-h-[260px] max-w-full object-contain"
-              />
-            </div>
+            <QuestionImagePreview
+              src={mcqImage.url}
+              alt={mcqImage.title || 'Question image'}
+              sourceUrl={mcqImage.source_url || mcqImage.url}
+              compact
+            />
             <div className="min-w-0 space-y-1">
               {mcqImage.title && (
                 <p className="truncate text-xs font-semibold text-slate-500">{mcqImage.title}</p>
               )}
-              <p className="truncate text-xs text-slate-400">
-                {mcqImage.source_url || mcqImage.url}
-              </p>
             </div>
           </div>
         )}
@@ -800,7 +838,7 @@ export function QuestionDialog({
             <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Language *</Label>
             <Select value={formData.locale} onValueChange={(v: 'en' | 'ka') => {
               if (mode === 'edit' && hydratedQuestion) {
-                setFormData(questionToFormData(hydratedQuestion, v));
+                setFormData(toDialogFormData(hydratedQuestion, v));
               } else {
                 setFormData(prev => ({ ...prev, locale: v }));
               }
@@ -876,6 +914,23 @@ export function QuestionDialog({
             className="min-h-[72px] rounded-xl border-slate-200 bg-white focus:ring-slate-100 focus:ring-offset-2 transition-all font-medium leading-relaxed resize-none text-sm"
           />
         </div>
+
+        {formData.type === 'mcq_single' && (
+          <div className="space-y-1.5">
+            <Label className="ml-1 text-[10px] font-black uppercase tracking-widest text-slate-400">
+              Image URL (optional)
+            </Label>
+            <Input
+              value={formData.imageUrl}
+              onChange={(event) => setFormData(prev => ({ ...prev, imageUrl: event.target.value }))}
+              placeholder="https://example.com/question-image.png"
+              className="h-9 rounded-lg border-slate-200 bg-white text-sm font-medium transition-all"
+            />
+            <p className="ml-1 text-[11px] leading-4 text-slate-400">
+              Add a URL to make this question appear as Multiple Choice + Image.
+            </p>
+          </div>
+        )}
 
         {/* Options (MCQ) or Accepted Answers (Text Input) */}
         {formData.type === 'mcq_single' ? (
