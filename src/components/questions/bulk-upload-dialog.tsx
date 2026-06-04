@@ -166,6 +166,7 @@ export function BulkUploadDialog() {
   const [selectedQuestionType, setSelectedQuestionType] = useState<UploadQuestionType>('mcq_single');
   const [selectedLocale, setSelectedLocale] = useState<'en' | 'ka'>('en');
   const [syncToStaging, setSyncToStaging] = useState(false);
+  const uploadInFlightRef = useRef(false);
   const [state, setState] = useState<UploadState>({
     file: null,
     parsedQuestions: [],
@@ -367,6 +368,10 @@ export function BulkUploadDialog() {
   };
 
   const handleUpload = async () => {
+    if (uploadInFlightRef.current || state.isUploading || bulkCreate.isPending) {
+      return;
+    }
+
     const selectedQuestions = questionsWithState.filter(q => q.isSelected);
 
     if (selectedQuestions.length === 0) {
@@ -379,6 +384,7 @@ export function BulkUploadDialog() {
       return;
     }
 
+    uploadInFlightRef.current = true;
     setState((prev) => ({ ...prev, isUploading: true }));
 
     // Set initial progress
@@ -428,6 +434,8 @@ export function BulkUploadDialog() {
         failed: 0,
         total: 0,
       });
+    } finally {
+      uploadInFlightRef.current = false;
     }
   };
 
@@ -441,6 +449,7 @@ export function BulkUploadDialog() {
   };
 
   const handleClose = () => {
+    uploadInFlightRef.current = false;
     setOpen(false);
     setTimeout(() => {
       setState({
@@ -473,7 +482,7 @@ export function BulkUploadDialog() {
   // Computed values
   const selectedCount = questionsWithState.filter(q => q.isSelected).length;
   const duplicateCount = questionsWithState.filter(q => q.isDuplicate).length;
-  const canUpload = selectedCategory && selectedCount > 0 && !state.isUploading && !isCheckingDuplicates;
+  const canUpload = selectedCategory && selectedCount > 0 && !state.isUploading && !bulkCreate.isPending && !isCheckingDuplicates;
   const pageSize = 100;
   const totalPages = Math.max(1, Math.ceil(questionsWithState.length / pageSize));
   const currentPage = Math.min(page, totalPages);
