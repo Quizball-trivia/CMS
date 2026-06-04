@@ -20,6 +20,8 @@ import type {
   DeleteQuestionResult,
   SaveImageMcqDraftsRequest,
   SaveImageMcqDraftsResponse,
+  SyncQuestionsToStagingRequest,
+  SyncQuestionsToStagingResponse,
 } from '@/types';
 import { logger } from '@/lib/logger';
 import { API_BASE_URL, AUTH_TOKEN_KEY } from '@/lib/constants';
@@ -184,6 +186,13 @@ export const questionsService = {
     logger.debug('api', 'POST /questions/image-mcq/save-drafts', { count: data.cards.length, translate_to_ka: data.translate_to_ka });
     return apiClient.post<SaveImageMcqDraftsResponse>('/questions/image-mcq/save-drafts', data, {
       timeoutMs: 900000,
+    });
+  },
+
+  async syncQuestionsToStaging(data: SyncQuestionsToStagingRequest): Promise<SyncQuestionsToStagingResponse> {
+    logger.debug('api', 'POST /questions/sync-staging', { count: data.question_ids.length });
+    return apiClient.post<SyncQuestionsToStagingResponse>('/questions/sync-staging', data, {
+      timeoutMs: 600000,
     });
   },
 

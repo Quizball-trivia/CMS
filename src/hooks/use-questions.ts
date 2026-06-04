@@ -10,6 +10,7 @@ import type {
   FindDuplicatesParams,
   CheckDuplicatesRequest,
   SaveImageMcqDraftsRequest,
+  SyncQuestionsToStagingRequest,
 } from '@/types';
 import { logger } from '@/lib/logger';
 import { getErrorFeedback, getErrorLogDetails } from '@/lib/error-feedback';
@@ -185,6 +186,27 @@ export function useSaveImageMcqDrafts() {
     onError: (error) => {
       toast.error('Failed to save image question drafts.');
       logger.error('questions', 'Failed to save image MCQ drafts', getErrorLogDetails(error));
+    },
+  });
+}
+
+export function useSyncQuestionsToStaging() {
+  return useMutation({
+    mutationFn: (data: SyncQuestionsToStagingRequest) =>
+      questionsService.syncQuestionsToStaging(data),
+    onSuccess: (result) => {
+      toast.success(`Synced ${result.inserted_questions} question${result.inserted_questions === 1 ? '' : 's'} to staging`, {
+        description: result.already_present > 0
+          ? `${result.already_present} already existed in staging.`
+          : undefined,
+      });
+    },
+    onError: (error) => {
+      const feedback = getErrorFeedback(error, 'Failed to sync questions to staging.');
+      toast.error(feedback.title, {
+        description: feedback.description,
+      });
+      logger.error('questions', 'Failed to sync questions to staging', getErrorLogDetails(error));
     },
   });
 }

@@ -15,18 +15,11 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Textarea } from '@/components/ui/textarea';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { useCategories, useSaveImageMcqDrafts } from '@/hooks';
+import { useCategories, useSaveImageMcqDrafts, useSyncQuestionsToStaging } from '@/hooks';
 import { questionsService } from '@/services';
 import type { GeneratedImageMcqCard, GenerateImageMcqProgressEvent, McqOption } from '@/types';
 import { cn } from '@/lib/utils';
@@ -90,12 +83,14 @@ export function ImageMcqGeneratorDialog() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [generationProgress, setGenerationProgress] = useState<GenerateImageMcqProgressEvent | null>(null);
   const [translateToKa, setTranslateToKa] = useState(true);
+  const [syncToStaging, setSyncToStaging] = useState(false);
 
   const { data: categories = [], isLoading: categoriesLoading } = useCategories({
     is_active: 'true',
     limit: 100,
   });
   const saveDrafts = useSaveImageMcqDrafts();
+  const syncQuestionsToStaging = useSyncQuestionsToStaging();
 
   const selectedCount = useMemo(
     () => cards.filter((card) => card.selected).length,
@@ -176,6 +171,16 @@ export function ImageMcqGeneratorDialog() {
       });
 
       if (result.successful > 0) {
+        if (syncToStaging && result.created.length > 0) {
+          try {
+            await syncQuestionsToStaging.mutateAsync({
+              question_ids: result.created.map((question) => question.id),
+            });
+          } catch {
+            // Draft save succeeded; staging sync error is handled by useSyncQuestionsToStaging.
+          }
+        }
+
         const failedAcceptedIds = new Set(
           result.errors
             .map((error) => accepted[error.index]?.id)
@@ -225,23 +230,26 @@ export function ImageMcqGeneratorDialog() {
             </DialogDescription>
           </DialogHeader>
 
-          <div className="grid min-h-0 flex-1 grid-rows-[auto_minmax(0,1fr)] overflow-hidden lg:grid-cols-[340px_minmax(0,1fr)] lg:grid-rows-1">
-            <aside className="max-h-[36vh] overflow-y-auto border-b bg-slate-50 p-4 sm:p-5 lg:max-h-none lg:min-h-0 lg:border-r lg:border-b-0">
+          <div className="grid min-h-0 flex-1 grid-rows-[auto_minmax(0,1fr)] overflow-hidden lg:grid-cols-[320px_minmax(0,1fr)] lg:grid-rows-1">
+            <aside className="relative z-30 max-h-[36vh] overflow-y-auto border-b bg-slate-50 p-4 sm:p-5 lg:max-h-none lg:min-h-0 lg:border-r lg:border-b-0">
               <div className="space-y-4">
                 <div className="space-y-2">
                   <Label>Category</Label>
-                  <Select value={categoryId} onValueChange={setCategoryId} disabled={categoriesLoading || isGenerating}>
-                    <SelectTrigger className="h-10 bg-white">
-                      <SelectValue placeholder={categoriesLoading ? 'Loading categories...' : 'Choose category'} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {categories.map((category) => (
-                        <SelectItem key={category.id} value={category.id}>
-                          {category.name.en || category.slug}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <select
+                    value={categoryId}
+                    onChange={(event) => setCategoryId(event.target.value)}
+                    disabled={categoriesLoading || isGenerating}
+                    className="h-10 w-full rounded-md border border-slate-200 bg-white px-3 text-sm shadow-xs outline-none transition-colors focus:border-slate-400 focus:ring-2 focus:ring-slate-200 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    <option value="" disabled>
+                      {categoriesLoading ? 'Loading categories...' : 'Choose category'}
+                    </option>
+                    {categories.map((category) => (
+                      <option key={category.id} value={category.id}>
+                        {category.name.en || category.slug}
+                      </option>
+                    ))}
+                  </select>
                 </div>
 
                 <div className="grid grid-cols-2 gap-3">
@@ -272,25 +280,21 @@ export function ImageMcqGeneratorDialog() {
 
                 <div className="space-y-2">
                   <Label>Image Size</Label>
-                  <Select
+                  <select
                     value={selectedSizeValue(imageWidth, imageHeight)}
-                    onValueChange={handleSizeChange}
+                    onChange={(event) => handleSizeChange(event.target.value)}
                     disabled={isGenerating}
+                    className="h-10 w-full rounded-md border border-slate-200 bg-white px-3 text-sm shadow-xs outline-none transition-colors focus:border-slate-400 focus:ring-2 focus:ring-slate-200 disabled:cursor-not-allowed disabled:opacity-50"
                   >
-                    <SelectTrigger className="h-10 bg-white">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {SIZE_OPTIONS.map((option) => (
-                        <SelectItem
-                          key={selectedSizeValue(option.width, option.height)}
-                          value={selectedSizeValue(option.width, option.height)}
-                        >
-                          {option.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                    {SIZE_OPTIONS.map((option) => (
+                      <option
+                        key={selectedSizeValue(option.width, option.height)}
+                        value={selectedSizeValue(option.width, option.height)}
+                      >
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
                 </div>
 
                 <Button
@@ -354,6 +358,23 @@ export function ImageMcqGeneratorDialog() {
                   </span>
                 </label>
 
+                <label className="flex items-start gap-3 rounded-lg border bg-white p-3">
+                  <Checkbox
+                    checked={syncToStaging}
+                    onCheckedChange={(checked) => setSyncToStaging(Boolean(checked))}
+                    disabled={saveDrafts.isPending || syncQuestionsToStaging.isPending}
+                    className="mt-0.5"
+                  />
+                  <span className="min-w-0 text-sm">
+                    <span className="block font-bold text-slate-900">
+                      Sync to staging
+                    </span>
+                    <span className="mt-1 block text-xs leading-5 text-slate-500">
+                      After saving drafts, copy them into the staging database.
+                    </span>
+                  </span>
+                </label>
+
                 <Alert className="bg-white">
                   <CheckCircle2 className="h-4 w-4" />
                   <AlertDescription className="text-xs leading-5">
@@ -363,7 +384,7 @@ export function ImageMcqGeneratorDialog() {
               </div>
             </aside>
 
-            <section className="min-h-0 overflow-y-auto bg-white p-3 sm:p-5">
+            <section className="relative z-0 min-h-0 overflow-y-auto bg-white p-3 sm:p-5">
               {cards.length === 0 ? (
                 <div className="flex h-full min-h-[360px] items-center justify-center rounded-lg border border-dashed bg-slate-50 sm:min-h-[520px]">
                   <div className="max-w-sm text-center">
@@ -395,23 +416,26 @@ export function ImageMcqGeneratorDialog() {
                     <article
                       key={card.id}
                       className={cn(
-                        'grid grid-cols-1 overflow-hidden rounded-lg border bg-white shadow-sm 2xl:grid-cols-[440px_minmax(0,1fr)]',
+                        'grid min-w-0 grid-cols-1 overflow-hidden rounded-lg border bg-white shadow-sm xl:grid-cols-[320px_minmax(0,1fr)]',
                         card.selected ? 'border-emerald-300' : 'border-slate-200 opacity-75'
                       )}
                     >
-                      <div className="bg-[linear-gradient(45deg,#111827_25%,transparent_25%),linear-gradient(-45deg,#111827_25%,transparent_25%),linear-gradient(45deg,transparent_75%,#111827_75%),linear-gradient(-45deg,transparent_75%,#111827_75%)] bg-[length:16px_16px] bg-[position:0_0,0_8px,8px_-8px,-8px_0] p-3 sm:p-4">
-                        <div className="aspect-[4/3] overflow-hidden rounded-md bg-slate-950">
+                      <div className="border-b bg-slate-50 p-3 xl:border-r xl:border-b-0">
+                        <div
+                          className="mx-auto flex max-h-[240px] w-full max-w-[296px] items-center justify-center overflow-hidden rounded-md bg-[linear-gradient(45deg,#111827_25%,transparent_25%),linear-gradient(-45deg,#111827_25%,transparent_25%),linear-gradient(45deg,transparent_75%,#111827_75%),linear-gradient(-45deg,transparent_75%,#111827_75%)] bg-[length:16px_16px] bg-[position:0_0,0_8px,8px_-8px,-8px_0]"
+                          style={{ aspectRatio: `${card.image.width} / ${card.image.height}` }}
+                        >
                           {/* eslint-disable-next-line @next/next/no-img-element */}
                           <img src={card.image.data_url} alt={card.image.title} className="h-full w-full object-contain" />
                         </div>
-                        <div className="mt-3 space-y-1 text-xs text-slate-300">
-                          <p className="truncate font-semibold text-white">{card.image.title}</p>
+                        <div className="mt-3 space-y-1 text-xs text-slate-500">
+                          <p className="truncate font-semibold text-slate-800">{card.image.title}</p>
                           <p>{card.image.width}x{card.image.height} · {card.image.aspect_ratio}</p>
                           <p className="truncate">{card.image.license || 'license unknown'}</p>
                         </div>
                       </div>
 
-                      <div className="min-w-0 space-y-4 p-3 sm:p-4">
+                      <div className="min-w-0 space-y-3 p-3 sm:p-4">
                         <div className="flex items-start justify-between gap-3">
                           <div className="flex min-w-0 flex-wrap items-center gap-2">
                             <Checkbox
@@ -433,7 +457,7 @@ export function ImageMcqGeneratorDialog() {
                           <Textarea
                             value={card.prompt.en}
                             onChange={(event) => updateCard(card.id, { prompt: { ...card.prompt, en: event.target.value } })}
-                            className="min-h-[72px] resize-y"
+                            className="min-h-[64px] resize-y"
                           />
                         </div>
 
@@ -454,7 +478,7 @@ export function ImageMcqGeneratorDialog() {
                               <Textarea
                                 value={option.text.en}
                                 onChange={(event) => updateCard(card.id, { options: updateOptionText(card.options, option.id, event.target.value) })}
-                                className="min-h-[76px] resize-y leading-5"
+                                className="min-h-[64px] resize-y leading-5"
                               />
                             </div>
                           ))}
@@ -465,7 +489,7 @@ export function ImageMcqGeneratorDialog() {
                           <Textarea
                             value={card.explanation.en}
                             onChange={(event) => updateCard(card.id, { explanation: { ...card.explanation, en: event.target.value } })}
-                            className="min-h-[72px] resize-y"
+                            className="min-h-[64px] resize-y"
                           />
                         </div>
                       </div>
@@ -482,10 +506,10 @@ export function ImageMcqGeneratorDialog() {
             </Button>
             <Button
               onClick={handleSaveDrafts}
-              disabled={saveDrafts.isPending || isGenerating || selectedCount === 0}
+              disabled={saveDrafts.isPending || syncQuestionsToStaging.isPending || isGenerating || selectedCount === 0}
               className="w-full bg-emerald-600 font-black text-white hover:bg-emerald-700 sm:w-auto"
             >
-              {saveDrafts.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+              {(saveDrafts.isPending || syncQuestionsToStaging.isPending) ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
               Save {selectedCount} Draft{selectedCount === 1 ? '' : 's'}
             </Button>
           </DialogFooter>

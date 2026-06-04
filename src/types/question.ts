@@ -294,6 +294,19 @@ export interface SaveImageMcqDraftsResponse {
   }>;
 }
 
+export interface SyncQuestionsToStagingRequest {
+  question_ids: string[];
+}
+
+export interface SyncQuestionsToStagingResponse {
+  requested: number;
+  source_found: number;
+  already_present: number;
+  inserted_questions: number;
+  inserted_payloads: number;
+  missing_questions: string[];
+}
+
 // Duplicate detection types - using generated types from OpenAPI
 export type CategorySummary = components['schemas']['CategorySummary'];
 export type DuplicateType = components['schemas']['DuplicateGroup']['type'];

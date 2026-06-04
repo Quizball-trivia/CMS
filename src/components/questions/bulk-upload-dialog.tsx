@@ -3,7 +3,7 @@
 import { useEffect, useState, useRef } from 'react';
 import { toast } from 'sonner';
 import { parseQuestionFile, toBulkCreateQuestion, type ParsedBulkQuestion, type ParseError } from '@/lib/parsers/question-parser';
-import { useBulkCreateQuestions, useCategories, useCheckDuplicates } from '@/hooks';
+import { useBulkCreateQuestions, useCategories, useCheckDuplicates, useSyncQuestionsToStaging } from '@/hooks';
 import type { BulkCreateQuestionsRequest, DuplicateQuestionInfo } from '@/types';
 import {
   Dialog,
@@ -165,6 +165,7 @@ export function BulkUploadDialog() {
   const [selectedCategory, setSelectedCategory] = useState<string>('');
   const [selectedQuestionType, setSelectedQuestionType] = useState<UploadQuestionType>('mcq_single');
   const [selectedLocale, setSelectedLocale] = useState<'en' | 'ka'>('en');
+  const [syncToStaging, setSyncToStaging] = useState(false);
   const [state, setState] = useState<UploadState>({
     file: null,
     parsedQuestions: [],
@@ -191,6 +192,7 @@ export function BulkUploadDialog() {
   const { data: categories } = useCategories();
   const bulkCreate = useBulkCreateQuestions();
   const checkDuplicates = useCheckDuplicates();
+  const syncQuestionsToStaging = useSyncQuestionsToStaging();
   const selectedCategoryObject = categories?.find((category) => category.id === selectedCategory);
   const inferredQuestionType = getDailyChallengeQuestionTypeForCategory(selectedCategoryObject);
 
@@ -403,6 +405,16 @@ export function BulkUploadDialog() {
         total: result.total,
       });
 
+      if (syncToStaging && result.created.length > 0) {
+        try {
+          await syncQuestionsToStaging.mutateAsync({
+            question_ids: result.created.map((question) => question.id),
+          });
+        } catch {
+          // Upload succeeded; staging sync error is handled by useSyncQuestionsToStaging.
+        }
+      }
+
       // Small delay to show completion message
       await new Promise(resolve => setTimeout(resolve, 1500));
 
@@ -450,6 +462,7 @@ export function BulkUploadDialog() {
       setIsCheckingDuplicates(false);
       setSelectedCategory('');
       setSelectedQuestionType('mcq_single');
+      setSyncToStaging(false);
       setPage(1);
       if (fileInputRef.current) {
         fileInputRef.current.value = '';
@@ -629,6 +642,21 @@ export function BulkUploadDialog() {
               </p>
             </div>
           </div>
+
+          <label className="flex items-start gap-3 rounded-lg border bg-white p-3">
+            <Checkbox
+              checked={syncToStaging}
+              onCheckedChange={(checked) => setSyncToStaging(Boolean(checked))}
+              disabled={state.isUploading || syncQuestionsToStaging.isPending}
+              className="mt-0.5"
+            />
+            <span className="min-w-0 text-sm">
+              <span className="block font-semibold text-slate-900">Sync created questions to staging</span>
+              <span className="mt-1 block text-xs leading-5 text-muted-foreground">
+                After the upload succeeds, copy the new questions and payloads into the staging database.
+              </span>
+            </span>
+          </label>
 
           {/* Format Instructions */}
           <Card>
@@ -861,9 +889,11 @@ export function BulkUploadDialog() {
           </Button>
           <Button
             onClick={handleUpload}
-            disabled={!canUpload || selectedCount > 500}
+            disabled={!canUpload || selectedCount > 500 || syncQuestionsToStaging.isPending}
           >
-            {state.isUploading ? (
+            {syncQuestionsToStaging.isPending ? (
+              <>Syncing to staging...</>
+            ) : state.isUploading ? (
               <>Uploading...</>
             ) : (
               <>Upload {selectedCount} Question{selectedCount !== 1 ? 's' : ''}</>
