@@ -18,10 +18,10 @@ export const categoryKeys = {
   detail: (id: string) => [...categoryKeys.details(), id] as const,
 };
 
-export function useCategories(params?: ListCategoriesParams) {
+export function useCategories(params?: Omit<ListCategoriesParams, 'page' | 'limit'>) {
   return useQuery({
     queryKey: categoryKeys.list(params),
-    queryFn: () => categoriesService.list(params),
+    queryFn: () => categoriesService.listAll(params),
   });
 }
 

@@ -18,6 +18,33 @@ export const categoriesService = {
     return response.data;
   },
 
+  // Fetches every category across all pages. The backend caps `limit` at 100,
+  // so the CMS must page through rather than assume one request returns all of
+  // them — otherwise categories past the first page silently disappear from the
+  // grid, dropdowns, and question forms.
+  async listAll(params?: Omit<ListCategoriesParams, 'page' | 'limit'>): Promise<Category[]> {
+    const limit = 100;
+    const first = await apiClient.get<PaginatedCategoriesResponse>(
+      '/categories',
+      { ...params, page: 1, limit } as Record<string, string | number | boolean | undefined>
+    );
+
+    if (first.total_pages <= 1) {
+      return first.data;
+    }
+
+    const remaining = await Promise.all(
+      Array.from({ length: first.total_pages - 1 }, (_, i) =>
+        apiClient.get<PaginatedCategoriesResponse>(
+          '/categories',
+          { ...params, page: i + 2, limit } as Record<string, string | number | boolean | undefined>
+        )
+      )
+    );
+
+    return [first.data, ...remaining.map((r) => r.data)].flat();
+  },
+
   async getById(id: string): Promise<Category> {
     return apiClient.get<Category>(`/categories/${id}`);
   },

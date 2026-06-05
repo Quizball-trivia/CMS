@@ -87,7 +87,6 @@ export function ImageMcqGeneratorDialog() {
 
   const { data: categories = [], isLoading: categoriesLoading } = useCategories({
     is_active: 'true',
-    limit: 100,
   });
   const saveDrafts = useSaveImageMcqDrafts();
   const syncQuestionsToStaging = useSyncQuestionsToStaging();
