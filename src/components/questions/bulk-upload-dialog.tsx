@@ -325,6 +325,8 @@ export function BulkUploadDialog() {
       setPage(1);
 
       if (result.errors.length > 0) {
+        const errorCount = result.errors.filter((error) => error.severity === 'error').length;
+        const warningCount = result.errors.filter((error) => error.severity === 'warning').length;
         const looksLikeOldPutInOrderParser = selectedQuestionType === 'put_in_order'
           && result.errors.some((error) => error.message.includes('Duplicate question number'));
 
@@ -337,7 +339,9 @@ export function BulkUploadDialog() {
           });
         }
 
-        toast.warning(`Parsed ${result.questions.length} questions with ${result.errors.length} errors`);
+        toast.warning(
+          `Parsed ${result.questions.length} questions with ${errorCount} error${errorCount === 1 ? '' : 's'} and ${warningCount} warning${warningCount === 1 ? '' : 's'}`
+        );
       } else {
         toast.success(`Parsed ${result.questions.length} questions`);
       }
@@ -483,6 +487,8 @@ export function BulkUploadDialog() {
   // Computed values
   const selectedCount = questionsWithState.filter(q => q.isSelected).length;
   const duplicateCount = questionsWithState.filter(q => q.isDuplicate).length;
+  const parseErrorCount = state.parseErrors.filter((error) => error.severity === 'error').length;
+  const parseWarningCount = state.parseErrors.filter((error) => error.severity === 'warning').length;
   const canUpload = selectedCategory && selectedCount > 0 && !state.isUploading && !bulkCreate.isPending && !isCheckingDuplicates;
   const pageSize = 100;
   const totalPages = Math.max(1, Math.ceil(questionsWithState.length / pageSize));
@@ -697,6 +703,12 @@ export function BulkUploadDialog() {
                       <pre className="bg-muted p-3 rounded-lg text-xs overflow-x-auto border border-border">
 {FORMAT_EXAMPLES[selectedQuestionType]}
                       </pre>
+                      {selectedQuestionType === 'mcq_single' && (
+                        <p className="mt-2 text-xs leading-5 text-muted-foreground">
+                          Image URLs must point directly to a renderable image file, such as JPG, PNG, WebP,
+                          or a Wikimedia file redirect. Webpage/detail URLs like Getty Images pages will not render.
+                        </p>
+                      )}
                     </div>
 
                   </div>
@@ -707,11 +719,16 @@ export function BulkUploadDialog() {
 
           {/* Parse Errors */}
           {state.parseErrors.length > 0 && (
-            <Alert variant="destructive">
+            <Alert
+              variant={parseErrorCount > 0 ? 'destructive' : 'default'}
+              className={cn(parseErrorCount === 0 && 'border-amber-500 bg-amber-50')}
+            >
               <AlertCircle className="h-4 w-4" />
               <AlertDescription>
                 <div className="font-medium mb-2">
-                  Found {state.parseErrors.length} error(s) in file:
+                  Found {state.parseErrors.length} issue(s) in file
+                  {parseWarningCount > 0 && ` (${parseWarningCount} warning${parseWarningCount === 1 ? '' : 's'})`}
+                  {parseErrorCount > 0 && ` (${parseErrorCount} error${parseErrorCount === 1 ? '' : 's'})`}:
                 </div>
                 {selectedQuestionType === 'put_in_order' && state.parseErrors.some((err) => err.message.includes('Duplicate question number')) && (
                   <p className="mb-2 text-sm">
@@ -722,6 +739,7 @@ export function BulkUploadDialog() {
                 <ul className="list-disc list-inside space-y-1 text-sm">
                   {state.parseErrors.slice(0, 5).map((err, i) => (
                     <li key={i}>
+                      <span className="font-medium capitalize">{err.severity}</span>: {' '}
                       Line {err.lineNumber}
                       {err.questionNumber && ` (Question ${err.questionNumber})`}: {err.message}
                     </li>

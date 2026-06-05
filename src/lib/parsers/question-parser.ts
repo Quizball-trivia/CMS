@@ -133,6 +133,7 @@ const QUESTION_START = /^(\d+)\.\s*(.*)$/;
 const DIFFICULTY_LINE = /^Difficulty:\s*(Easy|Medium|Hard)\s*$/i;
 const EXPLANATION_LINE = /^Explanation:\s*(.*)$/i;
 const IMAGE_LINE = /^Image:\s*(.+)$/i;
+const DIRECT_IMAGE_PATH = /\.(?:jpg|jpeg|png|webp|gif)$/i;
 
 function normalizeLineBreaks(content: string): string[] {
   return content.replace(/\r\n/g, '\n').split('\n');
@@ -146,6 +147,22 @@ function normalizeAlias(value: string): string {
     .replace(/\s+/g, ' ')
     .trim()
     .toLowerCase();
+}
+
+function isLikelyRenderableImageUrl(value: string): boolean {
+  try {
+    const url = new URL(value);
+    const hostname = url.hostname.toLowerCase();
+    const pathname = decodeURIComponent(url.pathname).toLowerCase();
+
+    if (DIRECT_IMAGE_PATH.test(pathname)) return true;
+    if (hostname === 'commons.wikimedia.org' && pathname.includes('/wiki/special:redirect/file/')) return true;
+    if (hostname.endsWith('upload.wikimedia.org')) return true;
+
+    return false;
+  } catch {
+    return false;
+  }
 }
 
 function splitAliases(line: string): { display: string; aliases: string[] } {
@@ -366,6 +383,14 @@ function parseMcqBlock(block: ParsedBlock): { question?: ParsedMcqQuestion; erro
         });
       } else {
         imageUrl = nextImageUrl;
+        if (!isLikelyRenderableImageUrl(nextImageUrl)) {
+          errors.push({
+            lineNumber: block.lineNumber,
+            questionNumber: block.questionNumber,
+            message: 'Image URL may not render. Use a direct JPG, PNG, WebP, GIF, or Wikimedia file redirect URL, not a webpage/detail URL.',
+            severity: 'warning',
+          });
+        }
       }
       continue;
     }
