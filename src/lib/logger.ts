@@ -11,13 +11,14 @@
 
 type LogLevel = 'debug' | 'info' | 'warn' | 'error';
 
-export type LogModule = 
+export type LogModule =
   | 'questions'
   | 'categories'
   | 'featured'
   | 'auth'
   | 'api'
   | 'form'
+  | 'admin-users'
   | 'general';
 
 interface LogEntry {

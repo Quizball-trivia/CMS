@@ -27,6 +27,10 @@ export interface paths {
                         /** Format: email */
                         email: string;
                         password: string;
+                        /** Format: uri */
+                        redirect_to?: string;
+                        /** @enum {string} */
+                        locale?: "en" | "ka";
                     };
                 };
             };
@@ -110,6 +114,68 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/auth/login/restore": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Restore pending-deletion account with email and password */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        /** Format: email */
+                        email: string;
+                        password: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description Account restored and login successful */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["AuthResponse"];
+                    };
+                };
+                /** @description Account is not restorable */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Authentication failed */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/auth/refresh": {
         parameters: {
             query?: never;
@@ -142,6 +208,69 @@ export interface paths {
                     };
                     content: {
                         "application/json": components["schemas"]["AuthResponse"];
+                    };
+                };
+                /** @description Invalid refresh token */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/restore-pending-deletion": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Restore pending-deletion account with refresh token
+         * @description Used by OAuth callback flows after the provider has returned a valid Supabase refresh token. The endpoint restores only the account matching that token; it never accepts a user id. The refresh token may be supplied either in the request body OR via the httpOnly qb_refresh_token cookie (injected server-side), which is why `refresh_token` is optional in the body schema; a 400 is returned when neither source provides one.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        refresh_token?: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description Account restored and session established */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["AuthResponse"];
+                    };
+                };
+                /** @description Missing token or account is not restorable */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
                     };
                 };
                 /** @description Invalid refresh token */
@@ -215,7 +344,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Reset password */
+        /**
+         * Reset password
+         * @description Sets a new password for the session identified by the Authorization Bearer token (a Supabase recovery session, or a logged-in user adding/changing a password). The token is read from the Authorization header, not the body.
+         */
         post: {
             parameters: {
                 query?: never;
@@ -226,7 +358,6 @@ export interface paths {
             requestBody: {
                 content: {
                     "application/json": {
-                        access_token: string;
                         new_password: string;
                     };
                 };
@@ -289,6 +420,585 @@ export interface paths {
                 };
             };
         };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/social-login-token": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Exchange a provider-issued OIDC id_token for a session
+         * @description Used by client-side OAuth flows like Google Identity Services and Sign in with Apple that return a signed id_token instead of doing a browser redirect. Required for in-app browsers where the classic OAuth redirect endpoint is blocked.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        /** @enum {string} */
+                        provider: "google" | "apple";
+                        id_token: string;
+                        nonce?: string;
+                        restore_pending_deletion?: boolean;
+                    };
+                };
+            };
+            responses: {
+                /** @description Session created */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["AuthResponse"];
+                    };
+                };
+                /** @description Invalid id_token */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/phone/ge/availability": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Check Georgian phone auth availability
+         * @description Detects the request country and reports whether Georgian phone sign-in should be shown to the client.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Availability resolved */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["GeorgianPhoneAvailabilityResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/phone/ge/start": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Start Georgian phone OTP sign-in or sign-up
+         * @description Starts Supabase phone OTP for Georgian mobile numbers only. SMS delivery is handled by the configured Supabase Send SMS hook.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        phone: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description Verification code sent */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["MessageResponse"];
+                    };
+                };
+                /** @description Unsupported or invalid phone number */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/phone/ge/verify": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Verify Georgian phone OTP */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        phone: string;
+                        token: string;
+                        restore_pending_deletion?: boolean;
+                    };
+                };
+            };
+            responses: {
+                /** @description Session created */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["AuthResponse"];
+                    };
+                };
+                /** @description Invalid request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Invalid OTP */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/phone/ge/link/start": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Start linking a Georgian phone number
+         * @description Starts a Supabase phone-change OTP for the authenticated account. Use this from Settings so Google/email users link a phone to the same account.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        phone: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description Verification code sent or already linked */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["PhoneLinkStartResponse"];
+                    };
+                };
+                /** @description Unsupported or invalid phone number */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Not authenticated */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Phone number already linked elsewhere */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/phone/ge/link/verify": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Verify linked Georgian phone number
+         * @description Verifies the phone-change OTP and stores the verified phone number on the current QuizBall user.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        phone: string;
+                        token: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description Phone number linked */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** Format: uuid */
+                            id: string;
+                            /** Format: email */
+                            email: string | null;
+                            phone_number: string | null;
+                            /** Format: date-time */
+                            phone_verified_at: string | null;
+                            /** @enum {string} */
+                            role: "admin" | "user";
+                            nickname: string | null;
+                            country: string | null;
+                            /** Format: uri */
+                            avatar_url: string | null;
+                            avatar_customization: {
+                                /** @enum {string} */
+                                skin?: "skin_male_white" | "skin_male_white_alt" | "skin_male_dark" | "skin_male_dark_alt";
+                                /** @enum {string} */
+                                jersey?: "jersey_green" | "jersey_blue" | "jersey_yellow" | "jersey_red" | "jersey_violet" | "jersey_pink" | "jersey_real" | "jersey_liverpool" | "jersey_barcelona" | "jersey_milan" | "jersey_bayern" | "jersey_brazil_retro" | "jersey_argentina_retro" | "jersey_france_retro" | "jersey_germany_retro" | "jersey_netherlands_retro";
+                                /** @enum {string} */
+                                hair?: "hair_boy_basic" | "hair_girl_basic" | "hair_hamsik" | "hair_ramos" | "hair_ronaldo_brazil" | "hair_ronaldo_goat";
+                                /** @enum {string} */
+                                glasses?: "glasses_wayfarer" | "glasses_round" | "glasses_aviator";
+                                /** @enum {string} */
+                                facialHair?: "stache" | "beard";
+                            } | null;
+                            favorite_club: string | null;
+                            preferred_language: string | null;
+                            onboarding_complete: boolean;
+                            progression: {
+                                level: number;
+                                totalXp: number;
+                                currentLevelXp: number;
+                                xpForNextLevel: number;
+                                progressPct: number;
+                            };
+                            /** Format: date-time */
+                            created_at: string;
+                        };
+                    };
+                };
+                /** @description Invalid request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Invalid OTP or not authenticated */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Phone number already linked elsewhere */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/sms/supabase-hook": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Supabase Send SMS hook for SMSOffice
+         * @description Called by Supabase Auth Send SMS hook. Sends only Georgian phone OTP messages through SMSOffice. Authenticated by the shared hook secret in the Authorization Bearer header.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        user: {
+                            phone?: string | null;
+                        };
+                        sms: {
+                            otp: string;
+                        };
+                    };
+                };
+            };
+            responses: {
+                /** @description SMS accepted */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["MessageResponse"];
+                    };
+                };
+                /** @description Invalid hook authorization */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description SMS provider failed */
+                502: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/sms/smsoffice-callback": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * SMSOffice delivery callback
+         * @description Receives SMSOffice delivery status updates. Responds with plain text OK. Authenticated by the shared callback secret in the `secret` query parameter.
+         */
+        get: {
+            parameters: {
+                query: {
+                    reference: string;
+                    status: string;
+                    reason?: string;
+                    destination: string;
+                    timestamp?: string;
+                    operator?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Callback accepted */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": string;
+                    };
+                };
+                /** @description Invalid callback secret */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/sms/smsoffice-status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Check SMSOffice message status
+         * @description Polls SMSOffice message status by destination and reference. Intended for manual/internal verification. Authenticated by the shared hook secret in the Authorization Bearer header.
+         */
+        get: {
+            parameters: {
+                query: {
+                    destination: string;
+                    reference: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description SMSOffice status */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["SmsOfficeStatusResponse"];
+                    };
+                };
+                /** @description Invalid status authorization */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description SMS provider failed */
+                502: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -681,6 +1391,71 @@ export interface paths {
         };
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/leaderboard/reset": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Reset the leaderboard for an event
+         * @description Requires admin role. Archives current standings into the reset archive tables, then sets every real user's RP to 0 (tier 'Academy') and clears placement progress.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        /** @enum {boolean} */
+                        confirm: true;
+                        notes?: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description Leaderboard reset summary */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["LeaderboardResetResponse"];
+                    };
+                };
+                /** @description Not authenticated */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Insufficient permissions */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
         delete?: never;
         options?: never;
         head?: never;
@@ -1185,7 +1960,7 @@ export interface paths {
                 query?: {
                     userId?: string;
                     purchaseId?: string;
-                    eventType?: "checkout_session_created" | "checkout_session_failed" | "webhook_received" | "webhook_signature_invalid" | "fulfillment_succeeded" | "fulfillment_failed" | "manual_adjustment_succeeded" | "manual_adjustment_failed";
+                    eventType?: "checkout_session_created" | "checkout_session_failed" | "webhook_received" | "webhook_signature_invalid" | "fulfillment_succeeded" | "fulfillment_failed" | "manual_adjustment_succeeded" | "manual_adjustment_failed" | "objective_reward_succeeded" | "admin_progression_adjustment" | "leaderboard_reset";
                     outcome?: "success" | "failure";
                     from?: string;
                     to?: string;
@@ -1209,7 +1984,7 @@ export interface paths {
                                 /** Format: uuid */
                                 id: string;
                                 /** @enum {string} */
-                                eventType: "checkout_session_created" | "checkout_session_failed" | "webhook_received" | "webhook_signature_invalid" | "fulfillment_succeeded" | "fulfillment_failed" | "manual_adjustment_succeeded" | "manual_adjustment_failed";
+                                eventType: "checkout_session_created" | "checkout_session_failed" | "webhook_received" | "webhook_signature_invalid" | "fulfillment_succeeded" | "fulfillment_failed" | "manual_adjustment_succeeded" | "manual_adjustment_failed" | "objective_reward_succeeded" | "admin_progression_adjustment" | "leaderboard_reset";
                                 /** @enum {string} */
                                 outcome: "success" | "failure";
                                 /** Format: uuid */
@@ -1415,6 +2190,51 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/users/me/deletion": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Schedule current user account for deletion */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Account deletion scheduled */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["AccountDeletionResponse"];
+                    };
+                };
+                /** @description Not authenticated */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/users/{userId}/profile": {
         parameters: {
             query?: never;
@@ -1441,6 +2261,397 @@ export interface paths {
                     };
                     content: {
                         "application/json": components["schemas"]["PublicProfileResponse"];
+                    };
+                };
+                /** @description Not authenticated */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description User not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/users/me/reset-onboarding": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Reset onboarding flag for the current admin (dev-only)
+         * @description Dev-only. Requires admin role and NODE_ENV='local'. Flips onboarding_complete back to false so the onboarding flow can be re-tested. Operates on the caller's own user.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Onboarding reset */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["UserResponse"];
+                    };
+                };
+                /** @description Not authenticated */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Insufficient permissions */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/users/{userId}/deletion/restore": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Restore a user account pending deletion
+         * @description Requires admin role. Only works before the 30-day grace period expires.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    userId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Account deletion cancelled */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["UserResponse"];
+                    };
+                };
+                /** @description Account is not restorable */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Not authenticated */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Insufficient permissions */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description User not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/users": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List users with progression, RP and wallet
+         * @description Requires admin role. Paginated and searchable by nickname/email.
+         */
+        get: {
+            parameters: {
+                query?: {
+                    search?: string;
+                    page?: number;
+                    limit?: number;
+                    orderBy?: "created_at" | "total_xp" | "rp" | "nickname";
+                    orderDir?: "asc" | "desc";
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Paginated users list */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["AdminUsersListResponse"];
+                    };
+                };
+                /** @description Not authenticated */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Insufficient permissions */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/users/{userId}/progression": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Set or grant a user XP and/or RP
+         * @description Requires admin role. Records the acting admin id for audit. Each of xp/rp may be a set (absolute) or delta (grant).
+         */
+        patch: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    userId: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        xp?: {
+                            /** @enum {string} */
+                            mode: "set" | "delta";
+                            value: number;
+                        };
+                        rp?: {
+                            /** @enum {string} */
+                            mode: "set" | "delta";
+                            value: number;
+                        };
+                        reason: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description Progression updated */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["AdminProgressionResult"];
+                    };
+                };
+                /** @description Invalid adjustment request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Not authenticated */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Insufficient permissions */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description User not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        trace?: never;
+    };
+    "/api/v1/users/me/achievements": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get achievements for the current user */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Achievements list */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["AchievementsResponse"];
+                    };
+                };
+                /** @description Not authenticated */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/users/{userId}/achievements": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get achievements for a specific user */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    userId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Achievements list */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["AchievementsResponse"];
                     };
                 };
                 /** @description Not authenticated */
@@ -1516,6 +2727,7 @@ export interface paths {
                                     facialHair?: "stache" | "beard";
                                 } | null;
                                 level: number;
+                                pendingDeletion: boolean;
                                 ranked: {
                                     rp: number;
                                     /** @enum {string} */
@@ -1597,6 +2809,7 @@ export interface paths {
                                     facialHair?: "stache" | "beard";
                                 } | null;
                                 level: number;
+                                pendingDeletion: boolean;
                                 ranked: {
                                     rp: number;
                                     /** @enum {string} */
@@ -1683,6 +2896,7 @@ export interface paths {
                                         facialHair?: "stache" | "beard";
                                     } | null;
                                     level: number;
+                                    pendingDeletion: boolean;
                                     ranked: {
                                         rp: number;
                                         /** @enum {string} */
@@ -1724,6 +2938,7 @@ export interface paths {
                                         facialHair?: "stache" | "beard";
                                     } | null;
                                     level: number;
+                                    pendingDeletion: boolean;
                                     ranked: {
                                         rp: number;
                                         /** @enum {string} */
@@ -2117,6 +3332,206 @@ export interface paths {
                 };
             };
         };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/objectives": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List current daily and weekly objectives for the current user */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Current objective progress */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            daily: {
+                                /** Format: date-time */
+                                periodStart: string;
+                                /** Format: date-time */
+                                periodEnd: string;
+                                completedCount: number;
+                                totalCount: number;
+                                objectives: {
+                                    id: string;
+                                    /** @enum {string} */
+                                    periodType: "daily" | "weekly";
+                                    title: {
+                                        [key: string]: string;
+                                    };
+                                    description: {
+                                        [key: string]: string;
+                                    };
+                                    icon: string;
+                                    progress: number;
+                                    target: number;
+                                    completed: boolean;
+                                    rewarded: boolean;
+                                    /** Format: date-time */
+                                    completedAt: string | null;
+                                    /** Format: date-time */
+                                    rewardedAt: string | null;
+                                    rewardCoins: number;
+                                    rewardXp: number;
+                                    metadata?: {
+                                        /** Format: uuid */
+                                        leadingCategoryId?: string;
+                                        leadingCategoryName?: string;
+                                        categoryProgress?: {
+                                            [key: string]: number;
+                                        };
+                                    };
+                                }[];
+                            };
+                            weekly: {
+                                /** Format: date-time */
+                                periodStart: string;
+                                /** Format: date-time */
+                                periodEnd: string;
+                                completedCount: number;
+                                totalCount: number;
+                                objectives: {
+                                    id: string;
+                                    /** @enum {string} */
+                                    periodType: "daily" | "weekly";
+                                    title: {
+                                        [key: string]: string;
+                                    };
+                                    description: {
+                                        [key: string]: string;
+                                    };
+                                    icon: string;
+                                    progress: number;
+                                    target: number;
+                                    completed: boolean;
+                                    rewarded: boolean;
+                                    /** Format: date-time */
+                                    completedAt: string | null;
+                                    /** Format: date-time */
+                                    rewardedAt: string | null;
+                                    rewardCoins: number;
+                                    rewardXp: number;
+                                    metadata?: {
+                                        /** Format: uuid */
+                                        leadingCategoryId?: string;
+                                        leadingCategoryName?: string;
+                                        categoryProgress?: {
+                                            [key: string]: number;
+                                        };
+                                    };
+                                }[];
+                            };
+                        };
+                    };
+                };
+                /** @description Not authenticated */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/presence/ping": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Heartbeat presence ping
+         * @description Records the caller (anonymous or logged-in) as currently online and returns the site-wide online count. Public — accepts requests without authentication.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Online count */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["OnlineCountResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/presence/online": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get site-wide online count
+         * @description Returns the current count of visitors online site-wide.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Online count */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["OnlineCountResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -2822,8 +4237,8 @@ export interface paths {
                     difficulty?: "easy" | "medium" | "hard";
                     type?: "mcq_single" | "true_false" | "input_text" | "countdown_list" | "clue_chain" | "put_in_order" | "imposter_multi_select" | "career_path" | "high_low" | "football_logic";
                     search?: string;
-                    page?: string;
-                    limit?: string;
+                    page?: number;
+                    limit?: number;
                 };
                 header?: never;
                 path?: never;
@@ -3314,6 +4729,89 @@ export interface paths {
         };
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/questions/check-duplicates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Check for duplicate prompts before bulk upload
+         * @description Check if question prompts already exist in the database. Used during bulk upload preview to show users which questions are duplicates. Requires admin role.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        /**
+                         * @description Array of question prompts to check
+                         * @example [
+                         *       {
+                         *         "en": "What is the capital of France?"
+                         *       },
+                         *       {
+                         *         "en": "What is 2+2?"
+                         *       }
+                         *     ]
+                         */
+                        prompts: components["schemas"]["I18nField"][];
+                    };
+                };
+            };
+            responses: {
+                /** @description Duplicate check completed successfully */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["CheckDuplicatesResponse"];
+                    };
+                };
+                /** @description Invalid request (e.g., too many prompts) */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Not authenticated */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Insufficient permissions (admin role required) */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
         delete?: never;
         options?: never;
         head?: never;
@@ -3987,89 +5485,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/questions/check-duplicates": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Check for duplicate prompts before bulk upload
-         * @description Check if question prompts already exist in the database. Used during bulk upload preview to show users which questions are duplicates. Requires admin role.
-         */
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody: {
-                content: {
-                    "application/json": {
-                        /**
-                         * @description Array of question prompts to check
-                         * @example [
-                         *       {
-                         *         "en": "What is the capital of France?"
-                         *       },
-                         *       {
-                         *         "en": "What is 2+2?"
-                         *       }
-                         *     ]
-                         */
-                        prompts: components["schemas"]["I18nField"][];
-                    };
-                };
-            };
-            responses: {
-                /** @description Duplicate check completed successfully */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["CheckDuplicatesResponse"];
-                    };
-                };
-                /** @description Invalid request (e.g., too many prompts) */
-                400: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["ErrorResponse"];
-                    };
-                };
-                /** @description Not authenticated */
-                401: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["ErrorResponse"];
-                    };
-                };
-                /** @description Insufficient permissions (admin role required) */
-                403: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["ErrorResponse"];
-                    };
-                };
-            };
-        };
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -4083,9 +5498,13 @@ export interface components {
             /** @example uuid-here */
             request_id: string | null;
         };
+        I18nField: {
+            [key: string]: string;
+        };
         AuthUser: {
             /** Format: email */
             email: string | null;
+            phone: string | null;
             provider_sub: string;
         };
         AuthResponse: {
@@ -4095,50 +5514,29 @@ export interface components {
             token_type: string;
             user: components["schemas"]["AuthUser"] & unknown;
             provider: string;
+            already_registered?: boolean;
+            pending_deletion?: boolean;
         };
         MessageResponse: {
             message: string;
         };
+        PhoneLinkStartResponse: components["schemas"]["MessageResponse"] & {
+            phone: string;
+            otp_required: boolean;
+        };
+        GeorgianPhoneAvailabilityResponse: {
+            country: string | null;
+            phone_auth_available: boolean;
+        };
+        SmsOfficeStatusResponse: {
+            reference: string;
+            destination: string;
+            status: string;
+            message: string | null;
+        };
         SocialLoginResponse: {
             /** Format: uri */
             url: string;
-        };
-        ProgressionResponse: {
-            level: number;
-            totalXp: number;
-            currentLevelXp: number;
-            xpForNextLevel: number;
-            progressPct: number;
-        };
-        UserResponse: {
-            /** Format: uuid */
-            id: string;
-            /** Format: email */
-            email: string | null;
-            /** @enum {string} */
-            role: "admin" | "user";
-            nickname: string | null;
-            country: string | null;
-            /** Format: uri */
-            avatar_url: string | null;
-            avatar_customization: {
-                /** @enum {string} */
-                skin?: "skin_male_white" | "skin_male_white_alt" | "skin_male_dark" | "skin_male_dark_alt";
-                /** @enum {string} */
-                jersey?: "jersey_green" | "jersey_blue" | "jersey_yellow" | "jersey_red" | "jersey_violet" | "jersey_pink" | "jersey_real" | "jersey_liverpool" | "jersey_barcelona" | "jersey_milan" | "jersey_bayern" | "jersey_brazil_retro" | "jersey_argentina_retro" | "jersey_france_retro" | "jersey_germany_retro" | "jersey_netherlands_retro";
-                /** @enum {string} */
-                hair?: "hair_boy_basic" | "hair_girl_basic" | "hair_hamsik" | "hair_ramos" | "hair_ronaldo_brazil" | "hair_ronaldo_goat";
-                /** @enum {string} */
-                glasses?: "glasses_wayfarer" | "glasses_round" | "glasses_aviator";
-                /** @enum {string} */
-                facialHair?: "stache" | "beard";
-            } | null;
-            favorite_club: string | null;
-            preferred_language: string | null;
-            onboarding_complete: boolean;
-            progression: components["schemas"]["ProgressionResponse"];
-            /** Format: date-time */
-            created_at: string;
         };
         HeadToHeadResponse: {
             /** Format: uuid */
@@ -4233,38 +5631,12 @@ export interface components {
             /** Format: date-time */
             lastRankedMatchAt: string | null;
         };
-        PublicProfileResponse: {
+        LeaderboardResetResponse: {
             /** Format: uuid */
-            id: string;
-            nickname: string | null;
-            /** Format: uri */
-            avatarUrl: string | null;
-            avatarCustomization: {
-                /** @enum {string} */
-                skin?: "skin_male_white" | "skin_male_white_alt" | "skin_male_dark" | "skin_male_dark_alt";
-                /** @enum {string} */
-                jersey?: "jersey_green" | "jersey_blue" | "jersey_yellow" | "jersey_red" | "jersey_violet" | "jersey_pink" | "jersey_real" | "jersey_liverpool" | "jersey_barcelona" | "jersey_milan" | "jersey_bayern" | "jersey_brazil_retro" | "jersey_argentina_retro" | "jersey_france_retro" | "jersey_germany_retro" | "jersey_netherlands_retro";
-                /** @enum {string} */
-                hair?: "hair_boy_basic" | "hair_girl_basic" | "hair_hamsik" | "hair_ramos" | "hair_ronaldo_brazil" | "hair_ronaldo_goat";
-                /** @enum {string} */
-                glasses?: "glasses_wayfarer" | "glasses_round" | "glasses_aviator";
-                /** @enum {string} */
-                facialHair?: "stache" | "beard";
-            } | null;
-            country: string | null;
-            favoriteClub: string | null;
-            progression: components["schemas"]["ProgressionResponse"];
-            ranked: components["schemas"]["RankedProfileResponse"] | null;
-            stats: components["schemas"]["StatsSummaryResponse"];
-            headToHead: components["schemas"]["HeadToHeadResponse"] | null;
-            globalRank: {
-                rank: number;
-                total: number;
-            } | null;
-            countryRank: {
-                rank: number;
-                total: number;
-            } | null;
+            batchId: string;
+            profilesReset: number;
+            profilesArchived: number;
+            rpChangesArchived: number;
         };
         StoreProductsResponse: {
             items: {
@@ -4343,7 +5715,7 @@ export interface components {
             /** Format: uuid */
             id: string;
             /** @enum {string} */
-            eventType: "checkout_session_created" | "checkout_session_failed" | "webhook_received" | "webhook_signature_invalid" | "fulfillment_succeeded" | "fulfillment_failed" | "manual_adjustment_succeeded" | "manual_adjustment_failed";
+            eventType: "checkout_session_created" | "checkout_session_failed" | "webhook_received" | "webhook_signature_invalid" | "fulfillment_succeeded" | "fulfillment_failed" | "manual_adjustment_succeeded" | "manual_adjustment_failed" | "objective_reward_succeeded" | "admin_progression_adjustment" | "leaderboard_reset";
             /** @enum {string} */
             outcome: "success" | "failure";
             /** Format: uuid */
@@ -4377,7 +5749,7 @@ export interface components {
                 /** Format: uuid */
                 id: string;
                 /** @enum {string} */
-                eventType: "checkout_session_created" | "checkout_session_failed" | "webhook_received" | "webhook_signature_invalid" | "fulfillment_succeeded" | "fulfillment_failed" | "manual_adjustment_succeeded" | "manual_adjustment_failed";
+                eventType: "checkout_session_created" | "checkout_session_failed" | "webhook_received" | "webhook_signature_invalid" | "fulfillment_succeeded" | "fulfillment_failed" | "manual_adjustment_succeeded" | "manual_adjustment_failed" | "objective_reward_succeeded" | "admin_progression_adjustment" | "leaderboard_reset";
                 /** @enum {string} */
                 outcome: "success" | "failure";
                 /** Format: uuid */
@@ -4411,6 +5783,135 @@ export interface components {
             total: number;
             totalPages: number;
         };
+        ProgressionResponse: {
+            level: number;
+            totalXp: number;
+            currentLevelXp: number;
+            xpForNextLevel: number;
+            progressPct: number;
+        };
+        UserResponse: {
+            /** Format: uuid */
+            id: string;
+            /** Format: email */
+            email: string | null;
+            phone_number: string | null;
+            /** Format: date-time */
+            phone_verified_at: string | null;
+            /** @enum {string} */
+            role: "admin" | "user";
+            nickname: string | null;
+            country: string | null;
+            /** Format: uri */
+            avatar_url: string | null;
+            avatar_customization: {
+                /** @enum {string} */
+                skin?: "skin_male_white" | "skin_male_white_alt" | "skin_male_dark" | "skin_male_dark_alt";
+                /** @enum {string} */
+                jersey?: "jersey_green" | "jersey_blue" | "jersey_yellow" | "jersey_red" | "jersey_violet" | "jersey_pink" | "jersey_real" | "jersey_liverpool" | "jersey_barcelona" | "jersey_milan" | "jersey_bayern" | "jersey_brazil_retro" | "jersey_argentina_retro" | "jersey_france_retro" | "jersey_germany_retro" | "jersey_netherlands_retro";
+                /** @enum {string} */
+                hair?: "hair_boy_basic" | "hair_girl_basic" | "hair_hamsik" | "hair_ramos" | "hair_ronaldo_brazil" | "hair_ronaldo_goat";
+                /** @enum {string} */
+                glasses?: "glasses_wayfarer" | "glasses_round" | "glasses_aviator";
+                /** @enum {string} */
+                facialHair?: "stache" | "beard";
+            } | null;
+            favorite_club: string | null;
+            preferred_language: string | null;
+            onboarding_complete: boolean;
+            progression: components["schemas"]["ProgressionResponse"];
+            /** Format: date-time */
+            created_at: string;
+        };
+        PublicProfileResponse: {
+            /** Format: uuid */
+            id: string;
+            nickname: string | null;
+            /** Format: uri */
+            avatarUrl: string | null;
+            avatarCustomization: {
+                /** @enum {string} */
+                skin?: "skin_male_white" | "skin_male_white_alt" | "skin_male_dark" | "skin_male_dark_alt";
+                /** @enum {string} */
+                jersey?: "jersey_green" | "jersey_blue" | "jersey_yellow" | "jersey_red" | "jersey_violet" | "jersey_pink" | "jersey_real" | "jersey_liverpool" | "jersey_barcelona" | "jersey_milan" | "jersey_bayern" | "jersey_brazil_retro" | "jersey_argentina_retro" | "jersey_france_retro" | "jersey_germany_retro" | "jersey_netherlands_retro";
+                /** @enum {string} */
+                hair?: "hair_boy_basic" | "hair_girl_basic" | "hair_hamsik" | "hair_ramos" | "hair_ronaldo_brazil" | "hair_ronaldo_goat";
+                /** @enum {string} */
+                glasses?: "glasses_wayfarer" | "glasses_round" | "glasses_aviator";
+                /** @enum {string} */
+                facialHair?: "stache" | "beard";
+            } | null;
+            country: string | null;
+            favoriteClub: string | null;
+            progression: components["schemas"]["ProgressionResponse"];
+            ranked: components["schemas"]["RankedProfileResponse"] | null;
+            stats: components["schemas"]["StatsSummaryResponse"];
+            headToHead: components["schemas"]["HeadToHeadResponse"] | null;
+            globalRank: {
+                rank: number;
+                total: number;
+            } | null;
+            countryRank: {
+                rank: number;
+                total: number;
+            } | null;
+        };
+        AccountDeletionResponse: {
+            /** Format: date-time */
+            deletionRequestedAt: string;
+            /** Format: date-time */
+            pendingDeletionAt: string;
+        };
+        AchievementsResponse: {
+            achievements: {
+                id: string;
+                title: {
+                    [key: string]: string;
+                };
+                description: {
+                    [key: string]: string;
+                };
+                icon: string;
+                unlocked: boolean;
+                progress: number;
+                target: number;
+                /** Format: date-time */
+                unlockedAt: string | null;
+            }[];
+        };
+        AdminUsersListResponse: {
+            items: {
+                /** Format: uuid */
+                id: string;
+                email: string | null;
+                nickname: string | null;
+                country: string | null;
+                /** Format: uri */
+                avatar_url: string | null;
+                total_xp: number;
+                level: number;
+                rp: number | null;
+                tier: string | null;
+                /** @enum {string|null} */
+                placement_status: "unplaced" | "in_progress" | "placed" | null;
+                coins: number;
+                tickets: number;
+                /** Format: date-time */
+                created_at: string;
+            }[];
+            page: number;
+            limit: number;
+            total: number;
+            totalPages: number;
+        };
+        AdminProgressionResult: {
+            /** Format: uuid */
+            userId: string;
+            total_xp: number;
+            level: number;
+            rp: number | null;
+            tier: string | null;
+        };
         FriendsResponse: {
             friends: {
                 /** Format: uuid */
@@ -4431,6 +5932,7 @@ export interface components {
                     facialHair?: "stache" | "beard";
                 } | null;
                 level: number;
+                pendingDeletion: boolean;
                 ranked: {
                     rp: number;
                     /** @enum {string} */
@@ -4473,6 +5975,7 @@ export interface components {
                         facialHair?: "stache" | "beard";
                     } | null;
                     level: number;
+                    pendingDeletion: boolean;
                     ranked: {
                         rp: number;
                         /** @enum {string} */
@@ -4514,6 +6017,7 @@ export interface components {
                         facialHair?: "stache" | "beard";
                     } | null;
                     level: number;
+                    pendingDeletion: boolean;
                     ranked: {
                         rp: number;
                         /** @enum {string} */
@@ -4543,8 +6047,86 @@ export interface components {
             /** @enum {boolean} */
             success: true;
         };
-        I18nField: {
-            [key: string]: string;
+        ObjectivesResponse: {
+            daily: {
+                /** Format: date-time */
+                periodStart: string;
+                /** Format: date-time */
+                periodEnd: string;
+                completedCount: number;
+                totalCount: number;
+                objectives: {
+                    id: string;
+                    /** @enum {string} */
+                    periodType: "daily" | "weekly";
+                    title: {
+                        [key: string]: string;
+                    };
+                    description: {
+                        [key: string]: string;
+                    };
+                    icon: string;
+                    progress: number;
+                    target: number;
+                    completed: boolean;
+                    rewarded: boolean;
+                    /** Format: date-time */
+                    completedAt: string | null;
+                    /** Format: date-time */
+                    rewardedAt: string | null;
+                    rewardCoins: number;
+                    rewardXp: number;
+                    metadata?: {
+                        /** Format: uuid */
+                        leadingCategoryId?: string;
+                        leadingCategoryName?: string;
+                        categoryProgress?: {
+                            [key: string]: number;
+                        };
+                    };
+                }[];
+            };
+            weekly: {
+                /** Format: date-time */
+                periodStart: string;
+                /** Format: date-time */
+                periodEnd: string;
+                completedCount: number;
+                totalCount: number;
+                objectives: {
+                    id: string;
+                    /** @enum {string} */
+                    periodType: "daily" | "weekly";
+                    title: {
+                        [key: string]: string;
+                    };
+                    description: {
+                        [key: string]: string;
+                    };
+                    icon: string;
+                    progress: number;
+                    target: number;
+                    completed: boolean;
+                    rewarded: boolean;
+                    /** Format: date-time */
+                    completedAt: string | null;
+                    /** Format: date-time */
+                    rewardedAt: string | null;
+                    rewardCoins: number;
+                    rewardXp: number;
+                    metadata?: {
+                        /** Format: uuid */
+                        leadingCategoryId?: string;
+                        leadingCategoryName?: string;
+                        categoryProgress?: {
+                            [key: string]: number;
+                        };
+                    };
+                }[];
+            };
+        };
+        OnlineCountResponse: {
+            online: number;
         };
         CategoryResponse: {
             /** Format: uuid */
@@ -4595,6 +6177,16 @@ export interface components {
                 difficulty: string;
             }[];
             featured: boolean;
+        };
+        FeaturedCategoryResponse: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            category_id: string;
+            sort_order: number;
+            /** Format: date-time */
+            created_at: string;
+            category: components["schemas"]["CategoryResponse"];
         };
         QuestionPayload: {
             /** @enum {string} */
@@ -4726,16 +6318,6 @@ export interface components {
             limit: number;
             total: number;
             total_pages: number;
-        };
-        FeaturedCategoryResponse: {
-            /** Format: uuid */
-            id: string;
-            /** Format: uuid */
-            category_id: string;
-            sort_order: number;
-            /** Format: date-time */
-            created_at: string;
-            category: components["schemas"]["CategoryResponse"];
         };
         BulkCreateResponse: {
             total: number;
