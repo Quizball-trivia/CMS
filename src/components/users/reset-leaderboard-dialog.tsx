@@ -54,12 +54,13 @@ export function ResetLeaderboardDialog({ open, onOpenChange }: ResetLeaderboardD
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <AlertTriangle className="w-5 h-5 text-destructive" />
-            Reset leaderboard
+            Reset ranks &amp; placement
           </DialogTitle>
           <DialogDescription>
             This sets <strong>every real player&apos;s rank points to 0</strong> (tier Academy)
-            and clears placement progress. Current standings are archived first, so the reset
-            is reversible from the database. AI and seed accounts are not affected.
+            and clears placement, so <strong>everyone re-does their placement matches</strong> and
+            climbs back from scratch. Current standings are archived first, so it&apos;s reversible
+            from the database. AI and seed accounts are not affected.
           </DialogDescription>
         </DialogHeader>
 

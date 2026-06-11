@@ -23,6 +23,16 @@ interface WalletAdjustmentResult {
   inventoryApplied: Array<{ productSlug: string; quantity: number }>;
 }
 
+interface ResetTicketWindowBody {
+  userId: string;
+  reason: string;
+}
+
+interface ResetTicketWindowResult {
+  voided: number;
+  wallet: { coins: number; tickets: number };
+}
+
 export const adminUsersService = {
   async list(query: AdminUsersListQuery): Promise<AdminUsersListResponse> {
     return apiClient.get<AdminUsersListResponse>(
@@ -43,6 +53,10 @@ export const adminUsersService = {
 
   async adjustWallet(body: WalletAdjustmentBody): Promise<WalletAdjustmentResult> {
     return apiClient.post<WalletAdjustmentResult>('/store/admin/adjustments', body);
+  },
+
+  async resetTicketWindow(body: ResetTicketWindowBody): Promise<ResetTicketWindowResult> {
+    return apiClient.post<ResetTicketWindowResult>('/store/admin/reset-ticket-window', body);
   },
 
   async resetLeaderboard(body: LeaderboardResetBody): Promise<LeaderboardResetResponse> {

@@ -14,10 +14,9 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { cn } from '@/lib/utils';
-import { useAdjustWallet, useSetProgression } from '@/hooks';
+import { useAdjustWallet, useResetTicketWindow, useSetProgression } from '@/hooks';
 import { ApiClientError } from '@/services';
-import type { AdminEditMode, AdminUserListItem } from '@/types/admin-users';
+import type { AdminUserListItem } from '@/types/admin-users';
 
 interface UserEditDialogProps {
   user: AdminUserListItem | null;
@@ -25,139 +24,74 @@ interface UserEditDialogProps {
   onOpenChange: (open: boolean) => void;
 }
 
-interface FieldState {
-  mode: AdminEditMode;
-  value: string;
-}
-
-const EMPTY_FIELD: FieldState = { mode: 'set', value: '' };
-
-/** Parse a field into an integer, or null if blank. Returns NaN on invalid input. */
-function parseFieldValue(field: FieldState): number | null {
-  const trimmed = field.value.trim();
+/** Parse a value into an integer, or null if blank. Returns NaN on invalid input. */
+function parseValue(raw: string): number | null {
+  const trimmed = raw.trim();
   if (trimmed === '') return null;
   return Number(trimmed);
 }
 
-/** Resolve the delta to send for a wallet field given current value + edit state. */
-function resolveWalletDelta(field: FieldState, current: number): number | null {
-  const parsed = parseFieldValue(field);
-  if (parsed === null) return null;
-  return field.mode === 'set' ? parsed - current : parsed;
-}
-
-function ModeToggle({
-  mode,
-  onChange,
-  disabled,
-}: {
-  mode: AdminEditMode;
-  onChange: (mode: AdminEditMode) => void;
-  disabled?: boolean;
-}) {
-  return (
-    <div className="inline-flex rounded-md border border-gray-200 p-0.5">
-      {(['set', 'delta'] as const).map((m) => (
-        <button
-          key={m}
-          type="button"
-          disabled={disabled}
-          onClick={() => onChange(m)}
-          className={cn(
-            'px-2.5 py-1 text-xs font-medium rounded transition-colors',
-            mode === m
-              ? 'bg-foreground text-background'
-              : 'text-gray-500 hover:text-gray-700'
-          )}
-        >
-          {m === 'set' ? 'Set' : 'Grant'}
-        </button>
-      ))}
-    </div>
-  );
-}
-
+/**
+ * Set-only field row. The admin types the exact new value; the current value is
+ * shown for reference. (Grant/delta was removed — when you can see the current
+ * value, "set 200" and "grant -100" are equivalent, so absolute-only is simpler.)
+ */
 function EditRow({
   label,
   current,
-  field,
-  onField,
+  value,
+  onValue,
   disabled,
+  note,
 }: {
   label: string;
   current: number | null;
-  field: FieldState;
-  onField: (next: FieldState) => void;
+  value: string;
+  onValue: (next: string) => void;
   disabled?: boolean;
+  note?: string;
 }) {
-  const preview =
-    parseFieldValue(field) === null || current === null
-      ? null
-      : field.mode === 'set'
-        ? parseFieldValue(field)
-        : current + (parseFieldValue(field) as number);
-
   return (
     <div className="space-y-1.5">
-      <div className="flex items-center justify-between">
-        <Label className="text-sm">
-          {label}
-          <span className="ml-2 text-xs text-gray-400">
-            current: {current ?? '—'}
-          </span>
-        </Label>
-        <ModeToggle
-          mode={field.mode}
-          onChange={(mode) => onField({ ...field, mode })}
-          disabled={disabled}
-        />
-      </div>
-      <div className="flex items-center gap-2">
-        <Input
-          type="number"
-          inputMode="numeric"
-          placeholder={field.mode === 'set' ? 'new value' : 'e.g. +500'}
-          value={field.value}
-          disabled={disabled || current === null}
-          onChange={(e) => onField({ ...field, value: e.target.value })}
-        />
-        {preview !== null && Number.isFinite(preview) && (
-          <span className="text-xs text-gray-400 whitespace-nowrap">→ {preview}</span>
-        )}
-      </div>
-      {current === null && (
-        <p className="text-xs text-amber-600">
-          No ranked profile yet — RP can&apos;t be edited until they play a ranked match.
-        </p>
-      )}
+      <Label className="text-sm">
+        {label}
+        <span className="ml-2 text-xs text-gray-400">current: {current ?? '—'}</span>
+      </Label>
+      <Input
+        type="number"
+        inputMode="numeric"
+        placeholder="new value"
+        value={value}
+        disabled={disabled || current === null}
+        onChange={(e) => onValue(e.target.value)}
+      />
+      {current === null && note && <p className="text-xs text-amber-600">{note}</p>}
     </div>
   );
 }
 
 export function UserEditDialog({ user, open, onOpenChange }: UserEditDialogProps) {
-  const [xp, setXp] = useState<FieldState>(EMPTY_FIELD);
-  const [rp, setRp] = useState<FieldState>(EMPTY_FIELD);
-  const [coins, setCoins] = useState<FieldState>(EMPTY_FIELD);
-  const [tickets, setTickets] = useState<FieldState>(EMPTY_FIELD);
+  const [xp, setXp] = useState('');
+  const [rp, setRp] = useState('');
+  const [coins, setCoins] = useState('');
+  const [tickets, setTickets] = useState('');
   const [reason, setReason] = useState('');
 
   const setProgression = useSetProgression();
   const adjustWallet = useAdjustWallet();
+  const resetTicketWindow = useResetTicketWindow();
   const saving = setProgression.isPending || adjustWallet.isPending;
 
   const validation = useMemo(() => {
     const fields = [
-      { f: xp, name: 'XP' },
-      { f: rp, name: 'RP' },
-      { f: coins, name: 'Coins' },
-      { f: tickets, name: 'Tickets' },
+      { v: xp, name: 'XP' },
+      { v: rp, name: 'RP' },
+      { v: coins, name: 'Coins' },
+      { v: tickets, name: 'Tickets' },
     ];
-    const touched = fields.filter(({ f }) => f.value.trim() !== '');
-    const invalid = touched.find(({ f }) => !Number.isInteger(parseFieldValue(f) ?? NaN));
-    return {
-      hasChange: touched.length > 0,
-      invalidField: invalid?.name ?? null,
-    };
+    const touched = fields.filter(({ v }) => v.trim() !== '');
+    const invalid = touched.find(({ v }) => !Number.isInteger(parseValue(v) ?? NaN));
+    return { hasChange: touched.length > 0, invalidField: invalid?.name ?? null };
   }, [xp, rp, coins, tickets]);
 
   if (!user) return null;
@@ -177,28 +111,25 @@ export function UserEditDialog({ user, open, onOpenChange }: UserEditDialogProps
     }
 
     const reasonText = reason.trim();
-    // One idempotency key per save so the wallet adjustment can't double-apply on retry.
     const idempotencyKey = `cms-${user.id}-${Date.now()}`;
 
-    // Build progression payload (XP/RP).
-    const xpValue = parseFieldValue(xp);
-    const rpValue = parseFieldValue(rp);
+    // XP/RP → absolute "set" mode.
+    const xpValue = parseValue(xp);
+    const rpValue = parseValue(rp);
     const progressionBody: {
-      xp?: { mode: AdminEditMode; value: number };
-      rp?: { mode: AdminEditMode; value: number };
+      xp?: { mode: 'set'; value: number };
+      rp?: { mode: 'set'; value: number };
       reason: string;
     } = { reason: reasonText };
-    if (xpValue !== null) progressionBody.xp = { mode: xp.mode, value: xpValue };
-    if (rpValue !== null && user.rp !== null) {
-      progressionBody.rp = { mode: rp.mode, value: rpValue };
-    }
+    if (xpValue !== null) progressionBody.xp = { mode: 'set', value: xpValue };
+    if (rpValue !== null && user.rp !== null) progressionBody.rp = { mode: 'set', value: rpValue };
 
-    // Build wallet payload (coins/tickets) as deltas computed from current row.
-    const coinsDelta = resolveWalletDelta(coins, user.coins);
-    const ticketsDelta = resolveWalletDelta(tickets, user.tickets);
-    const hasWalletChange =
-      (coinsDelta !== null && coinsDelta !== 0) ||
-      (ticketsDelta !== null && ticketsDelta !== 0);
+    // Coins/tickets → the store endpoint is delta-based, so compute delta = target − current.
+    const coinsValue = parseValue(coins);
+    const ticketsValue = parseValue(tickets);
+    const coinsDelta = coinsValue === null ? 0 : coinsValue - user.coins;
+    const ticketsDelta = ticketsValue === null ? 0 : ticketsValue - user.tickets;
+    const hasWalletChange = coinsDelta !== 0 || ticketsDelta !== 0;
 
     try {
       if (progressionBody.xp || progressionBody.rp) {
@@ -207,8 +138,8 @@ export function UserEditDialog({ user, open, onOpenChange }: UserEditDialogProps
       if (hasWalletChange) {
         await adjustWallet.mutateAsync({
           userId: user.id,
-          coinsDelta: coinsDelta ?? undefined,
-          ticketsDelta: ticketsDelta ?? undefined,
+          coinsDelta: coinsDelta || undefined,
+          ticketsDelta: ticketsDelta || undefined,
           reason: reasonText,
           idempotencyKey,
         });
@@ -222,22 +153,48 @@ export function UserEditDialog({ user, open, onOpenChange }: UserEditDialogProps
     }
   };
 
+  const handleResetTicketWindow = async () => {
+    try {
+      const result = await resetTicketWindow.mutateAsync({
+        userId: user.id,
+        reason: reason.trim().length >= 3 ? reason.trim() : 'Admin reset of daily ticket-buy window',
+      });
+      toast.success(
+        result.voided > 0
+          ? `Ticket window cleared (${result.voided} purchase${result.voided === 1 ? '' : 's'} voided)`
+          : 'Ticket window already clear'
+      );
+    } catch (error) {
+      const message =
+        error instanceof ApiClientError ? error.message : 'Failed to reset ticket window';
+      toast.error(message);
+    }
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[480px]">
         <DialogHeader>
           <DialogTitle>Edit {user.nickname ?? user.email ?? 'user'}</DialogTitle>
           <DialogDescription>
-            Set an absolute value or grant a delta. Changes are logged with your admin
-            identity.
+            Enter the exact new value for any field. Changes are logged with your admin identity.
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-5 py-2">
-          <EditRow label="XP" current={user.total_xp} field={xp} onField={setXp} disabled={saving} />
-          <EditRow label="Rank Points" current={user.rp} field={rp} onField={setRp} disabled={saving} />
-          <EditRow label="Coins" current={user.coins} field={coins} onField={setCoins} disabled={saving} />
-          <EditRow label="Tickets" current={user.tickets} field={tickets} onField={setTickets} disabled={saving} />
+          <div className="grid grid-cols-2 gap-4">
+            <EditRow label="XP" current={user.total_xp} value={xp} onValue={setXp} disabled={saving} />
+            <EditRow
+              label="Rank Points"
+              current={user.rp}
+              value={rp}
+              onValue={setRp}
+              disabled={saving}
+              note="No ranked profile yet — RP can't be edited until they play a ranked match."
+            />
+            <EditRow label="Coins" current={user.coins} value={coins} onValue={setCoins} disabled={saving} />
+            <EditRow label="Tickets" current={user.tickets} value={tickets} onValue={setTickets} disabled={saving} />
+          </div>
 
           <div className="space-y-1.5">
             <Label htmlFor="edit-reason" className="text-sm">
@@ -251,6 +208,24 @@ export function UserEditDialog({ user, open, onOpenChange }: UserEditDialogProps
               onChange={(e) => setReason(e.target.value)}
               rows={2}
             />
+          </div>
+
+          {/* Ticket-purchase window control */}
+          <div className="flex items-center justify-between rounded-lg border border-gray-200 px-3 py-2.5">
+            <div>
+              <p className="text-sm font-medium text-gray-900">Daily ticket-buy limit</p>
+              <p className="text-xs text-gray-400">
+                Clear the last 24h of ticket purchases so they can buy again.
+              </p>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleResetTicketWindow}
+              disabled={resetTicketWindow.isPending}
+            >
+              {resetTicketWindow.isPending ? 'Resetting…' : 'Reset window'}
+            </Button>
           </div>
         </div>
 

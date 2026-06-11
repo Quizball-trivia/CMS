@@ -23,6 +23,8 @@ import {
 } from '@/components/ui/select';
 import { UserEditDialog } from '@/components/users/user-edit-dialog';
 import { ResetLeaderboardDialog } from '@/components/users/reset-leaderboard-dialog';
+import { API_BASE_URL } from '@/lib/constants';
+import { cn } from '@/lib/utils';
 import type {
   AdminUserListItem,
   AdminUsersListQuery,
@@ -32,15 +34,35 @@ type OrderBy = NonNullable<AdminUsersListQuery>['orderBy'];
 
 const PAGE_SIZE = 25;
 
-/** Read-only environment indicator. Production switching is a later phase. */
-function EnvironmentToggle() {
+/**
+ * Read-only environment badge. Which env this CMS targets is decided by the
+ * backend it was built against (`NEXT_PUBLIC_API_URL`) — staging-CMS → staging
+ * backend, prod-CMS → prod backend. There's no live in-page switch; each
+ * environment is a separate deployment with its own login.
+ */
+function EnvironmentBadge() {
+  const isProd = /(?:^|\/\/)api\.quizball\.io/.test(API_BASE_URL);
   return (
     <div
       className="inline-flex items-center gap-1 rounded-md border border-gray-200 bg-gray-50 p-0.5 text-xs"
-      title="Production switching coming soon"
+      title={`This CMS targets the ${isProd ? 'production' : 'staging'} backend`}
     >
-      <span className="rounded bg-foreground px-2 py-1 font-medium text-background">Staging</span>
-      <span className="cursor-not-allowed px-2 py-1 font-medium text-gray-300">Production</span>
+      <span
+        className={cn(
+          'rounded px-2 py-1 font-medium',
+          !isProd ? 'bg-foreground text-background' : 'text-gray-300'
+        )}
+      >
+        Staging
+      </span>
+      <span
+        className={cn(
+          'rounded px-2 py-1 font-medium',
+          isProd ? 'bg-red-600 text-white' : 'text-gray-300'
+        )}
+      >
+        Production
+      </span>
     </div>
   );
 }
@@ -105,10 +127,10 @@ export default function UsersPage() {
           </div>
         </div>
         <div className="flex items-center gap-3">
-          <EnvironmentToggle />
+          <EnvironmentBadge />
           <Button variant="destructive" onClick={() => setResetOpen(true)}>
             <Trophy className="h-4 w-4" />
-            Reset leaderboard
+            Reset ranks &amp; placement
           </Button>
         </div>
       </div>

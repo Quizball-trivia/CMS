@@ -63,6 +63,24 @@ export function useAdjustWallet() {
   });
 }
 
+export function useResetTicketWindow() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (body: { userId: string; reason: string }) =>
+      adminUsersService.resetTicketWindow(body),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: adminUserKeys.all });
+    },
+    onError: (error, variables) => {
+      logger.error('admin-users', 'Failed to reset ticket window', {
+        userId: variables.userId,
+        ...getErrorLogDetails(error),
+      });
+    },
+  });
+}
+
 export function useResetLeaderboard() {
   const queryClient = useQueryClient();
 
