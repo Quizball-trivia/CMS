@@ -11,6 +11,7 @@ import {
   Trophy,
   Activity,
   CalendarDays,
+  Users,
 } from 'lucide-react';
 
 const navItems = [
@@ -28,6 +29,11 @@ const navItems = [
     title: 'Daily Challenges',
     href: '/daily-challenges',
     icon: CalendarDays,
+  },
+  {
+    title: 'Users',
+    href: '/users',
+    icon: Users,
   },
 ];
 

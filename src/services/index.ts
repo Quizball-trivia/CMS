@@ -5,3 +5,4 @@ export { dailyChallengesService } from './daily-challenges.service';
 export { questionsService } from './questions.service';
 export { featuredService } from './featured.service';
 export { activityService } from './activity.service';
+export { adminUsersService } from './admin-users.service';
