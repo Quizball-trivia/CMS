@@ -1239,6 +1239,22 @@ export interface paths {
                                 draws: number;
                                 winRate: number;
                             };
+                            rankedSeasons: {
+                                regular: {
+                                    gamesPlayed: number;
+                                    wins: number;
+                                    losses: number;
+                                    draws: number;
+                                    winRate: number;
+                                };
+                                event: {
+                                    gamesPlayed: number;
+                                    wins: number;
+                                    losses: number;
+                                    draws: number;
+                                    winRate: number;
+                                };
+                            };
                         };
                     };
                 };
@@ -1409,8 +1425,8 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Reset the leaderboard for an event
-         * @description Requires admin role. Archives current standings into the reset archive tables, then sets every real user's RP to 0 (tier 'Academy') and clears placement progress.
+         * Reset the global leaderboard (ranks & placement)
+         * @description Requires admin role. Archives current standings into the reset archive tables, then sets every real user's RP to 0 (tier 'Academy') and clears placement progress so all users re-do placement.
          */
         post: {
             parameters: {
@@ -1908,6 +1924,8 @@ export interface paths {
                         }[];
                         reason: string;
                         idempotencyKey?: string;
+                        /** @default false */
+                        notify?: boolean;
                     };
                 };
             };
@@ -2607,7 +2625,7 @@ export interface paths {
         head?: never;
         /**
          * Set or grant a user XP and/or RP
-         * @description Requires admin role. Records the acting admin id for audit. Each of xp/rp may be a set (absolute) or delta (grant).
+         * @description Requires admin role. At least one of `xp` or `rp` must be provided (enforced server-side). Records the acting admin id for audit. Each of xp/rp may be a set (absolute) or delta (grant).
          */
         patch: {
             parameters: {
@@ -2632,6 +2650,8 @@ export interface paths {
                             value: number;
                         };
                         reason: string;
+                        /** @default true */
+                        notify?: boolean;
                     };
                 };
             };
@@ -3551,84 +3571,6 @@ export interface paths {
                     };
                     content: {
                         "application/json": components["schemas"]["ErrorResponse"];
-                    };
-                };
-            };
-        };
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/presence/ping": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Heartbeat presence ping
-         * @description Records the caller (anonymous or logged-in) as currently online and returns the site-wide online count. Public — accepts requests without authentication.
-         */
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Online count */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["OnlineCountResponse"];
-                    };
-                };
-            };
-        };
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/presence/online": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get site-wide online count
-         * @description Returns the current count of visitors online site-wide.
-         */
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Online count */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["OnlineCountResponse"];
                     };
                 };
             };
@@ -5589,6 +5531,191 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/notifications": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List the current user notifications */
+        get: {
+            parameters: {
+                query?: {
+                    limit?: number;
+                    before?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Notification feed with unread count */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ListNotificationsResponse"];
+                    };
+                };
+                /** @description Not authenticated */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/notifications/unread-count": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get the current user unread notification count */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Unread count */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["UnreadCountResponse"];
+                    };
+                };
+                /** @description Not authenticated */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/notifications/{notificationId}/read": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Mark a notification as read */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    notificationId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Updated unread count */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["UnreadCountResponse"];
+                    };
+                };
+                /** @description Not authenticated */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/notifications/read-all": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Mark all notifications as read */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Updated unread count (zero) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["UnreadCountResponse"];
+                    };
+                };
+                /** @description Not authenticated */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -5722,6 +5849,22 @@ export interface components {
                 losses: number;
                 draws: number;
                 winRate: number;
+            };
+            rankedSeasons: {
+                regular: {
+                    gamesPlayed: number;
+                    wins: number;
+                    losses: number;
+                    draws: number;
+                    winRate: number;
+                };
+                event: {
+                    gamesPlayed: number;
+                    wins: number;
+                    losses: number;
+                    draws: number;
+                    winRate: number;
+                };
             };
         };
         RankedProfileResponse: {
@@ -6265,9 +6408,6 @@ export interface components {
                     };
                 }[];
             };
-        };
-        OnlineCountResponse: {
-            online: number;
         };
         CategoryResponse: {
             /** Format: uuid */
@@ -6886,6 +7026,31 @@ export interface components {
                 mediumCount: number;
                 hardCount: number;
             }[];
+        };
+        ListNotificationsResponse: {
+            items: {
+                /** Format: uuid */
+                id: string;
+                /** @enum {string} */
+                type: "points_adjustment" | "season_award" | "announcement";
+                title: {
+                    [key: string]: string;
+                };
+                body: {
+                    [key: string]: string;
+                } | null;
+                data: {
+                    [key: string]: unknown;
+                };
+                /** Format: date-time */
+                readAt: string | null;
+                /** Format: date-time */
+                createdAt: string;
+            }[];
+            unreadCount: number;
+        };
+        UnreadCountResponse: {
+            unreadCount: number;
         };
     };
     responses: never;

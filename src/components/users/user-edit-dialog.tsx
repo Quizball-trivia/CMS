@@ -14,6 +14,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { Checkbox } from '@/components/ui/checkbox';
+import { cn } from '@/lib/utils';
 import { useAdjustWallet, useResetTicketWindow, useSetProgression } from '@/hooks';
 import { ApiClientError } from '@/services';
 import type { AdminUserListItem } from '@/types/admin-users';
@@ -76,6 +78,7 @@ export function UserEditDialog({ user, open, onOpenChange }: UserEditDialogProps
   const [coins, setCoins] = useState('');
   const [tickets, setTickets] = useState('');
   const [reason, setReason] = useState('');
+  const [notify, setNotify] = useState(true);
 
   const setProgression = useSetProgression();
   const adjustWallet = useAdjustWallet();
@@ -120,7 +123,8 @@ export function UserEditDialog({ user, open, onOpenChange }: UserEditDialogProps
       xp?: { mode: 'set'; value: number };
       rp?: { mode: 'set'; value: number };
       reason: string;
-    } = { reason: reasonText };
+      notify: boolean;
+    } = { reason: reasonText, notify };
     if (xpValue !== null) progressionBody.xp = { mode: 'set', value: xpValue };
     if (rpValue !== null && user.rp !== null) progressionBody.rp = { mode: 'set', value: rpValue };
 
@@ -142,6 +146,7 @@ export function UserEditDialog({ user, open, onOpenChange }: UserEditDialogProps
           ticketsDelta: ticketsDelta || undefined,
           reason: reasonText,
           idempotencyKey,
+          notify,
         });
       }
       toast.success(`Updated ${user.nickname ?? user.email ?? 'user'}`);
@@ -227,6 +232,15 @@ export function UserEditDialog({ user, open, onOpenChange }: UserEditDialogProps
               {resetTicketWindow.isPending ? 'Resetting…' : 'Reset window'}
             </Button>
           </div>
+
+          <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer select-none">
+            <Checkbox
+              checked={notify}
+              disabled={saving}
+              onCheckedChange={(checked) => setNotify(checked === true)}
+            />
+            Notify user (sends an in-app notification about the change)
+          </label>
         </div>
 
         <DialogFooter>
