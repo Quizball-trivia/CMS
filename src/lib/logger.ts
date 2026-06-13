@@ -19,6 +19,7 @@ export type LogModule =
   | 'api'
   | 'form'
   | 'admin-users'
+  | 'announcements'
   | 'general';
 
 interface LogEntry {
