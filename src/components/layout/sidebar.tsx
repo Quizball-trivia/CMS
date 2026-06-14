@@ -12,6 +12,7 @@ import {
   Activity,
   CalendarDays,
   Users,
+  Megaphone,
 } from 'lucide-react';
 
 const navItems = [
@@ -34,6 +35,11 @@ const navItems = [
     title: 'Users',
     href: '/users',
     icon: Users,
+  },
+  {
+    title: 'Announcements',
+    href: '/announcements',
+    icon: Megaphone,
   },
 ];
 

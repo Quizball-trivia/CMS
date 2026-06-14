@@ -6,3 +6,4 @@ export { questionsService } from './questions.service';
 export { featuredService } from './featured.service';
 export { activityService } from './activity.service';
 export { adminUsersService } from './admin-users.service';
+export { announcementsService } from './announcements.service';
