@@ -126,7 +126,7 @@ export default function AnnouncementsPage() {
   };
 
   const handleDelete = async (a: Announcement) => {
-    if (!window.confirm(`Delete this announcement?\n\n"${a.title.en ?? ''}"`)) return;
+    if (!window.confirm(`Delete this announcement?\n\n"${a.title.en ?? a.title.ka ?? ''}"`)) return;
     try {
       await deleteMutation.mutateAsync(a.id);
       toast.success('Announcement deleted');
@@ -174,7 +174,9 @@ export default function AnnouncementsPage() {
           <TableBody>
             {announcements.map((a) => (
               <TableRow key={a.id}>
-                <TableCell className="font-medium text-gray-900">{a.title.en}</TableCell>
+                <TableCell className="font-medium text-gray-900">
+                  {a.title.en ?? a.title.ka ?? '—'}
+                </TableCell>
                 <TableCell>
                   <span className="text-sm capitalize text-gray-600">{a.type}</span>
                 </TableCell>
