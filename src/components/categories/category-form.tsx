@@ -30,7 +30,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { getLocalizedText } from '@/lib/utils';
+import { cn, getLocalizedText } from '@/lib/utils';
 import { CategoryPreview } from './category-preview';
 import { CategoryQuestions } from './category-questions';
 import { useErrorFeedbackDialog } from '@/hooks/use-error-feedback-dialog';
@@ -187,45 +187,60 @@ export function CategoryForm({ category, onSuccess }: CategoryFormProps) {
         />
 
         <div className="grid grid-cols-2 gap-x-4 gap-y-3">
-          <FormField
-            control={form.control}
-            name={activeLang === 'ka' ? 'name_ka' : 'name_en'}
-            render={({ field }) => (
-              <FormItem className="col-span-2">
-                <FormLabel className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider ml-1">
-                  Name ({activeLang === 'ka' ? 'KA' : 'EN'})
-                </FormLabel>
-                <FormControl>
-                  <Input
-                    placeholder={activeLang === 'ka' ? 'ქართული სახელი' : 'Category name'}
-                    className="h-10 shadow-sm border-border/50 bg-white/5 backdrop-blur-md focus:ring-1 focus:ring-primary/30 transition-all rounded-xl"
-                    {...field}
-                  />
-                </FormControl>
-                <FormMessage className="text-[10px]" />
-              </FormItem>
-            )}
-          />
+          {/*
+            Both locales are rendered at once and the inactive one is hidden with
+            CSS. Previously a single FormField swapped its `name` on the language
+            toggle, which unregistered the other locale's field in react-hook-form
+            and reset its value to undefined — so switching EN<->KA wiped the name
+            and submit failed with "expected string, received undefined".
+          */}
+          {(['en', 'ka'] as const).map((lang) => (
+            <FormField
+              key={`name_${lang}`}
+              control={form.control}
+              name={lang === 'ka' ? 'name_ka' : 'name_en'}
+              render={({ field }) => (
+                <FormItem className={cn('col-span-2', activeLang !== lang && 'hidden')}>
+                  <FormLabel className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider ml-1">
+                    Name ({lang === 'ka' ? 'KA' : 'EN'})
+                  </FormLabel>
+                  <FormControl>
+                    <Input
+                      placeholder={lang === 'ka' ? 'ქართული სახელი' : 'Category name'}
+                      className="h-10 shadow-sm border-border/50 bg-white/5 backdrop-blur-md focus:ring-1 focus:ring-primary/30 transition-all rounded-xl"
+                      {...field}
+                      value={field.value ?? ''}
+                    />
+                  </FormControl>
+                  <FormMessage className="text-[10px]" />
+                </FormItem>
+              )}
+            />
+          ))}
 
-          <FormField
-            control={form.control}
-            name={activeLang === 'ka' ? 'description_ka' : 'description_en'}
-            render={({ field }) => (
-              <FormItem className="col-span-2">
-                <FormLabel className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider ml-1">
-                  Description ({activeLang === 'ka' ? 'KA' : 'EN'})
-                </FormLabel>
-                <FormControl>
-                  <Input
-                    placeholder={activeLang === 'ka' ? 'ქართული აღწერა' : 'Short description (optional)'}
-                    className="h-10 shadow-sm border-border/50 bg-white/5 backdrop-blur-md focus:ring-1 focus:ring-primary/30 transition-all rounded-xl"
-                    {...field}
-                  />
-                </FormControl>
-                <FormMessage className="text-[10px]" />
-              </FormItem>
-            )}
-          />
+          {(['en', 'ka'] as const).map((lang) => (
+            <FormField
+              key={`description_${lang}`}
+              control={form.control}
+              name={lang === 'ka' ? 'description_ka' : 'description_en'}
+              render={({ field }) => (
+                <FormItem className={cn('col-span-2', activeLang !== lang && 'hidden')}>
+                  <FormLabel className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider ml-1">
+                    Description ({lang === 'ka' ? 'KA' : 'EN'})
+                  </FormLabel>
+                  <FormControl>
+                    <Input
+                      placeholder={lang === 'ka' ? 'ქართული აღწერა' : 'Short description (optional)'}
+                      className="h-10 shadow-sm border-border/50 bg-white/5 backdrop-blur-md focus:ring-1 focus:ring-primary/30 transition-all rounded-xl"
+                      {...field}
+                      value={field.value ?? ''}
+                    />
+                  </FormControl>
+                  <FormMessage className="text-[10px]" />
+                </FormItem>
+              )}
+            />
+          ))}
 
           <FormField
             control={form.control}

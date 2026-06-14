@@ -15,6 +15,7 @@ interface WalletAdjustmentBody {
   ticketsDelta?: number;
   reason: string;
   idempotencyKey?: string;
+  notify?: boolean;
 }
 
 interface WalletAdjustmentResult {

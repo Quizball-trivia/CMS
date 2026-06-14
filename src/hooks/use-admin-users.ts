@@ -50,6 +50,7 @@ export function useAdjustWallet() {
       ticketsDelta?: number;
       reason: string;
       idempotencyKey?: string;
+      notify?: boolean;
     }) => adminUsersService.adjustWallet(body),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: adminUserKeys.all });
