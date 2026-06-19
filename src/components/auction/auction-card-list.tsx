@@ -336,11 +336,16 @@ export function AuctionCardList() {
                     <div className="flex min-w-0 items-center gap-3">
                       <div className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-slate-100 text-xs font-black text-slate-400">
                         {card.player.image_url ? (
-                          <img
-                            src={card.player.image_url}
-                            alt={card.player.name}
-                            className="h-full w-full object-cover"
-                          />
+                          <>
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img
+                              src={card.player.image_url}
+                              alt={card.player.name}
+                              loading="lazy"
+                              referrerPolicy="no-referrer"
+                              className="h-full w-full object-cover"
+                            />
+                          </>
                         ) : (
                           card.player.name.slice(0, 2).toUpperCase()
                         )}

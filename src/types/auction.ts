@@ -65,6 +65,8 @@ export interface AuctionCardSummary {
   status: AuctionCardStatus;
   verification_status: AuctionVerificationStatus;
   generator_model?: string | null;
+  verifier_model?: string | null;
+  prompt_version?: string | null;
   published_at: string | null;
   created_at: string;
   updated_at: string;
