@@ -5,3 +5,4 @@ export * from './use-featured';
 export * from './use-activity';
 export * from './use-admin-users';
 export * from './use-announcements';
+export * from './use-auction';

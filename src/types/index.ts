@@ -4,3 +4,4 @@ export * from './daily-challenge';
 export * from './question';
 export * from './admin-users';
 export * from './announcement';
+export * from './auction';
