@@ -236,9 +236,10 @@ function statusClass(status: AuctionCardStatus): string {
 
 interface AuctionCardEditorProps {
   card: AuctionCardDetail;
+  variant?: 'page' | 'modal';
 }
 
-export function AuctionCardEditor({ card }: AuctionCardEditorProps) {
+export function AuctionCardEditor({ card, variant = 'page' }: AuctionCardEditorProps) {
   const updateCard = useUpdateAuctionCard();
   const updateStatus = useUpdateAuctionCardStatus();
   const { errorFeedback, showErrorFeedback, closeErrorFeedback } = useErrorFeedbackDialog();
@@ -248,6 +249,15 @@ export function AuctionCardEditor({ card }: AuctionCardEditorProps) {
   const publishErrors = useMemo(() => getPublishErrors(form), [form]);
   const forcePublishErrors = publishErrors.filter((error) => error !== 'Verification must be passed before normal publish.');
   const isBusy = updateCard.isPending || updateStatus.isPending;
+  const isModal = variant === 'modal';
+  const panelClassName = cn(
+    'space-y-4 rounded-3xl bg-white p-6 shadow-sm',
+    isModal && 'rounded-2xl border border-slate-200 p-4 shadow-none'
+  );
+  const widePanelClassName = cn(
+    'space-y-5 rounded-3xl bg-white p-6 shadow-sm',
+    isModal && 'rounded-2xl border border-slate-200 p-4 shadow-none'
+  );
 
   const updateClue = (order: number, updater: (clue: EditableClue) => EditableClue) => {
     setForm((current) => ({
@@ -314,9 +324,9 @@ export function AuctionCardEditor({ card }: AuctionCardEditorProps) {
         if (!open) closeErrorFeedback();
       }} />
 
-      <div className="space-y-6">
-        <div className="grid gap-6 xl:grid-cols-[320px,1fr]">
-          <section className="space-y-4 rounded-3xl bg-white p-6 shadow-sm">
+      <div className={cn('space-y-6', isModal && 'space-y-4')}>
+        <div className={cn('grid gap-6 xl:grid-cols-[320px,1fr]', isModal && 'gap-4')}>
+          <section className={panelClassName}>
             <div className="flex items-start gap-4">
               <div className="flex h-24 w-24 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-slate-100 text-xl font-black text-slate-400">
                 {card.player.image_url ? (
@@ -368,7 +378,7 @@ export function AuctionCardEditor({ card }: AuctionCardEditorProps) {
             </dl>
           </section>
 
-          <section className="space-y-4 rounded-3xl bg-white p-6 shadow-sm">
+          <section className={panelClassName}>
             <div className="flex flex-wrap items-start justify-between gap-4">
               <div className="space-y-1">
                 <div className="flex items-center gap-2">
@@ -481,7 +491,7 @@ export function AuctionCardEditor({ card }: AuctionCardEditorProps) {
           </section>
         </div>
 
-        <section className="space-y-5 rounded-3xl bg-white p-6 shadow-sm">
+        <section className={widePanelClassName}>
           <div className="flex items-center gap-2">
             <CheckCircle2 className="h-4 w-4 text-gray-400" />
             <h2 className="text-sm font-black uppercase tracking-widest text-gray-500">Card Fields</h2>
@@ -602,7 +612,7 @@ export function AuctionCardEditor({ card }: AuctionCardEditorProps) {
           </div>
         </section>
 
-        <section className="space-y-5 rounded-3xl bg-white p-6 shadow-sm">
+        <section className={widePanelClassName}>
           <div className="flex items-center justify-between gap-3">
             <div>
               <h2 className="text-sm font-black uppercase tracking-widest text-gray-500">Auction Clues</h2>
@@ -663,7 +673,7 @@ export function AuctionCardEditor({ card }: AuctionCardEditorProps) {
         {(card.supported_facts.length > 0 || card.generation_run) && (
           <section className="grid gap-6 xl:grid-cols-2">
             {card.supported_facts.length > 0 && (
-              <div className="space-y-4 rounded-3xl bg-white p-6 shadow-sm">
+              <div className={panelClassName}>
                 <h2 className="text-sm font-black uppercase tracking-widest text-gray-500">Supported Facts</h2>
                 <div className="space-y-3">
                   {card.supported_facts.map((fact) => (
@@ -687,7 +697,7 @@ export function AuctionCardEditor({ card }: AuctionCardEditorProps) {
             )}
 
             {card.generation_run && (
-              <div className="space-y-4 rounded-3xl bg-white p-6 shadow-sm">
+              <div className={panelClassName}>
                 <h2 className="text-sm font-black uppercase tracking-widest text-gray-500">Generation Run</h2>
                 <dl className="grid grid-cols-2 gap-4 text-sm">
                   <div>

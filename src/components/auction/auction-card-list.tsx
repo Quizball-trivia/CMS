@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { useRouter } from 'next/navigation';
 import { AlertCircle, ChevronLeft, ChevronRight, Search, X } from 'lucide-react';
 import { useAuctionCards } from '@/hooks';
 import { cn } from '@/lib/utils';
@@ -32,6 +31,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { AuctionCardReviewDialog } from './auction-card-review-dialog';
 
 const STATUS_OPTIONS: Array<{ value: AuctionCardStatus; label: string }> = [
   { value: 'draft', label: 'Draft' },
@@ -125,14 +125,15 @@ function verificationClass(status: AuctionVerificationStatus): string {
 }
 
 export function AuctionCardList() {
-  const router = useRouter();
   const [params, setParams] = useState<ListAuctionCardsParams>({
     page: 1,
     limit: 20,
   });
   const [searchQuery, setSearchQuery] = useState('');
+  const [openCardId, setOpenCardId] = useState<string | null>(null);
 
   const { data, isLoading, error } = useAuctionCards(params);
+  const cards = data?.data ?? [];
 
   useEffect(() => {
     const timeoutId = window.setTimeout(() => {
@@ -326,11 +327,19 @@ export function AuctionCardList() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {data?.data.map((card) => (
+              {cards.map((card) => (
                 <TableRow
                   key={card.id}
-                  className="cursor-pointer hover:bg-slate-50"
-                  onClick={() => router.push(`/auction/${card.id}`)}
+                  tabIndex={0}
+                  aria-label={`Review ${card.player.name}`}
+                  className="cursor-pointer outline-none transition-colors hover:bg-slate-50 focus-visible:bg-slate-50 focus-visible:ring-2 focus-visible:ring-slate-300"
+                  onClick={() => setOpenCardId(card.id)}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter' || event.key === ' ') {
+                      event.preventDefault();
+                      setOpenCardId(card.id);
+                    }
+                  }}
                 >
                   <TableCell className="px-5">
                     <div className="flex min-w-0 items-center gap-3">
@@ -391,6 +400,17 @@ export function AuctionCardList() {
           </Table>
         )}
       </div>
+
+      <AuctionCardReviewDialog
+        cardId={openCardId}
+        cards={cards}
+        open={Boolean(openCardId)}
+        totalAvailable={data?.total ?? cards.length}
+        onNavigate={setOpenCardId}
+        onOpenChange={(isOpen) => {
+          if (!isOpen) setOpenCardId(null);
+        }}
+      />
 
       {data && data.total_pages > 1 && (
         <div className="flex items-center justify-between px-2">
