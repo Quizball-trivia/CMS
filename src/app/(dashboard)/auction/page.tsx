@@ -2,6 +2,7 @@
 
 import { Gavel } from 'lucide-react';
 import { AuctionCardList } from '@/components/auction';
+import { TranslateCluesDialog } from '@/components/auction/translate-clues-dialog';
 import { ImportCardsButton } from '@/components/player-clue-cards/import-cards-button';
 
 export default function AuctionPage() {
@@ -18,7 +19,10 @@ export default function AuctionPage() {
               Import, review, edit, and publish player clue cards.
             </p>
           </header>
-          <ImportCardsButton />
+          <div className="flex items-center gap-2">
+            <TranslateCluesDialog />
+            <ImportCardsButton />
+          </div>
         </div>
 
         <AuctionCardList />

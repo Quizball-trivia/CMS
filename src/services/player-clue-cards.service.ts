@@ -61,4 +61,24 @@ export const playerClueCardsService = {
   async bulkUpdateStatus(params: BulkUpdateStatusParams): Promise<{ updated: number }> {
     return apiClient.patch<{ updated: number }>(`${BASE_PATH}/status/bulk`, params);
   },
+
+  async translateStatus(): Promise<{ clues: number }> {
+    return apiClient.get<{ clues: number }>(`${BASE_PATH}/translate/status`, {
+      cache_bust: Date.now(),
+    });
+  },
+
+  async translateBackfill(): Promise<{
+    status: 'started' | 'done';
+    total: number;
+    translated: number;
+    failed: number;
+  }> {
+    return apiClient.post<{
+      status: 'started' | 'done';
+      total: number;
+      translated: number;
+      failed: number;
+    }>(`${BASE_PATH}/translate/backfill`, {}, { timeoutMs: 600_000 });
+  },
 };
