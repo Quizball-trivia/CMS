@@ -6,3 +6,4 @@ export * from './use-activity';
 export * from './use-admin-users';
 export * from './use-announcements';
 export * from './use-auction';
+export * from './use-player-clue-cards';

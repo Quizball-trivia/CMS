@@ -2,6 +2,7 @@
 
 import { Gavel } from 'lucide-react';
 import { AuctionCardList } from '@/components/auction';
+import { ImportCardsButton } from '@/components/player-clue-cards/import-cards-button';
 
 export default function AuctionPage() {
   return (
@@ -11,12 +12,13 @@ export default function AuctionPage() {
           <header className="space-y-1">
             <div className="flex items-center gap-3">
               <Gavel className="h-8 w-8 text-gray-800" />
-              <h1 className="text-4xl font-black tracking-tight text-gray-900">Auction</h1>
+              <h1 className="text-4xl font-black tracking-tight text-gray-900">Auction Cards</h1>
             </div>
             <p className="text-base font-medium text-gray-500">
-              Review, edit, and publish generated Auction player cards.
+              Import, review, edit, and publish player clue cards.
             </p>
           </header>
+          <ImportCardsButton />
         </div>
 
         <AuctionCardList />

@@ -6,10 +6,8 @@ import { useAuctionCards } from '@/hooks';
 import { cn } from '@/lib/utils';
 import type {
   AuctionCardStatus,
-  AuctionCardType,
   AuctionDifficulty,
   AuctionPositionGroup,
-  AuctionVerificationStatus,
   ListAuctionCardsParams,
 } from '@/types';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -41,16 +39,6 @@ const STATUS_OPTIONS: Array<{ value: AuctionCardStatus; label: string }> = [
   { value: 'rejected', label: 'Rejected' },
 ];
 
-const CARD_TYPE_OPTIONS: Array<{ value: AuctionCardType; label: string }> = [
-  { value: 'normal', label: 'Normal' },
-  { value: 'safe_star', label: 'Safe Star' },
-  { value: 'bargain', label: 'Bargain' },
-  { value: 'trap', label: 'Trap' },
-  { value: 'obscure_gem', label: 'Obscure Gem' },
-  { value: 'lookalike_story', label: 'Lookalike Story' },
-  { value: 'legend', label: 'Legend' },
-];
-
 const DIFFICULTY_OPTIONS: Array<{ value: AuctionDifficulty; label: string }> = [
   { value: 'easy', label: 'Easy' },
   { value: 'medium', label: 'Medium' },
@@ -65,11 +53,6 @@ const POSITION_OPTIONS: Array<{ value: AuctionPositionGroup; label: string }> = 
   { value: 'FWD', label: 'FWD' },
 ];
 
-const VERIFICATION_OPTIONS: Array<{ value: AuctionVerificationStatus; label: string }> = [
-  { value: 'passed', label: 'Passed' },
-  { value: 'failed', label: 'Failed' },
-  { value: 'needs_review', label: 'Needs Review' },
-];
 
 function formatMoney(value: number): string {
   return new Intl.NumberFormat('en-US', {
@@ -112,18 +95,6 @@ function statusClass(status: AuctionCardStatus): string {
   }
 }
 
-function verificationClass(status: AuctionVerificationStatus): string {
-  switch (status) {
-    case 'passed':
-      return 'bg-emerald-50 text-emerald-700 border-emerald-100';
-    case 'failed':
-      return 'bg-rose-50 text-rose-700 border-rose-100';
-    case 'needs_review':
-    default:
-      return 'bg-amber-50 text-amber-700 border-amber-100';
-  }
-}
-
 export function AuctionCardList() {
   const [params, setParams] = useState<ListAuctionCardsParams>({
     page: 1,
@@ -151,10 +122,8 @@ export function AuctionCardList() {
   const activeFilters = useMemo(() => {
     return [
       params.status ? { key: 'status' as const, label: `Status: ${formatLabel(params.status)}` } : null,
-      params.card_type ? { key: 'card_type' as const, label: `Type: ${formatLabel(params.card_type)}` } : null,
       params.difficulty ? { key: 'difficulty' as const, label: `Difficulty: ${formatLabel(params.difficulty)}` } : null,
       params.position_group ? { key: 'position_group' as const, label: `Position: ${params.position_group}` } : null,
-      params.verification_status ? { key: 'verification_status' as const, label: `Verification: ${formatLabel(params.verification_status)}` } : null,
       params.search ? { key: 'search' as const, label: `Search: ${params.search}` } : null,
     ].filter(Boolean) as Array<{ key: keyof ListAuctionCardsParams; label: string }>;
   }, [params]);
@@ -220,21 +189,6 @@ export function AuctionCardList() {
           </Select>
 
           <Select
-            value={params.card_type ?? 'all'}
-            onValueChange={(value) => handleFilterChange('card_type', value as AuctionCardType | 'all')}
-          >
-            <SelectTrigger className="h-10 w-[165px] rounded-xl bg-white text-xs font-bold">
-              <SelectValue placeholder="Card Type" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Card Type</SelectItem>
-              {CARD_TYPE_OPTIONS.map((option) => (
-                <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-
-          <Select
             value={params.difficulty ?? 'all'}
             onValueChange={(value) => handleFilterChange('difficulty', value as AuctionDifficulty | 'all')}
           >
@@ -259,21 +213,6 @@ export function AuctionCardList() {
             <SelectContent>
               <SelectItem value="all">Position</SelectItem>
               {POSITION_OPTIONS.map((option) => (
-                <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-
-          <Select
-            value={params.verification_status ?? 'all'}
-            onValueChange={(value) => handleFilterChange('verification_status', value as AuctionVerificationStatus | 'all')}
-          >
-            <SelectTrigger className="h-10 w-[165px] rounded-xl bg-white text-xs font-bold">
-              <SelectValue placeholder="Verification" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Verification</SelectItem>
-              {VERIFICATION_OPTIONS.map((option) => (
                 <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
               ))}
             </SelectContent>
@@ -318,11 +257,8 @@ export function AuctionCardList() {
                 <TableHead className="text-xs font-black uppercase tracking-widest text-gray-400">Pos</TableHead>
                 <TableHead className="text-xs font-black uppercase tracking-widest text-gray-400">True Value</TableHead>
                 <TableHead className="text-xs font-black uppercase tracking-widest text-gray-400">Start</TableHead>
-                <TableHead className="text-xs font-black uppercase tracking-widest text-gray-400">Type</TableHead>
                 <TableHead className="text-xs font-black uppercase tracking-widest text-gray-400">Difficulty</TableHead>
                 <TableHead className="text-xs font-black uppercase tracking-widest text-gray-400">Status</TableHead>
-                <TableHead className="text-xs font-black uppercase tracking-widest text-gray-400">Verify</TableHead>
-                <TableHead className="text-xs font-black uppercase tracking-widest text-gray-400">Model</TableHead>
                 <TableHead className="text-xs font-black uppercase tracking-widest text-gray-400">Created</TableHead>
               </TableRow>
             </TableHeader>
@@ -373,23 +309,11 @@ export function AuctionCardList() {
                   </TableCell>
                   <TableCell className="font-semibold text-gray-900">{formatMoney(card.true_value_eur)}</TableCell>
                   <TableCell className="font-semibold text-gray-700">{formatMoney(card.starting_price_eur)}</TableCell>
-                  <TableCell className="text-sm text-gray-600">{formatLabel(card.card_type)}</TableCell>
                   <TableCell className="text-sm font-semibold capitalize text-gray-700">{card.difficulty}</TableCell>
                   <TableCell>
                     <Badge variant="outline" className={cn('rounded-md font-bold', statusClass(card.status))}>
                       {formatLabel(card.status)}
                     </Badge>
-                  </TableCell>
-                  <TableCell>
-                    <Badge
-                      variant="outline"
-                      className={cn('rounded-md font-bold', verificationClass(card.verification_status))}
-                    >
-                      {formatLabel(card.verification_status)}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="max-w-[160px] truncate text-xs font-medium text-gray-500">
-                    {card.generator_model ?? '-'}
                   </TableCell>
                   <TableCell className="text-xs font-medium text-gray-500">
                     {formatDate(card.created_at)}

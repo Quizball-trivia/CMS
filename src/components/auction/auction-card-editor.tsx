@@ -57,11 +57,6 @@ const DIFFICULTY_OPTIONS: Array<{ value: AuctionDifficulty; label: string }> = [
   { value: 'expert', label: 'Expert' },
 ];
 
-const VERIFICATION_OPTIONS: Array<{ value: AuctionVerificationStatus; label: string }> = [
-  { value: 'passed', label: 'Passed' },
-  { value: 'failed', label: 'Failed' },
-  { value: 'needs_review', label: 'Needs Review' },
-];
 
 type EditableClue = {
   clue_order: number;
@@ -211,11 +206,7 @@ function buildSavePayload(form: FormState): { payload: UpdateAuctionCardRequest;
 
 function getPublishErrors(form: FormState): string[] {
   const { errors } = buildSavePayload(form);
-  const publishErrors = [...errors];
-  if (form.verification_status !== 'passed') {
-    publishErrors.push('Verification must be passed before normal publish.');
-  }
-  return publishErrors;
+  return [...errors];
 }
 
 function statusClass(status: AuctionCardStatus): string {
@@ -385,9 +376,6 @@ export function AuctionCardEditor({ card, variant = 'page' }: AuctionCardEditorP
                   <Badge variant="outline" className={cn('rounded-md font-bold', statusClass(card.status))}>
                     {formatLabel(card.status)}
                   </Badge>
-                  <Badge variant="outline" className="rounded-md font-bold">
-                    {formatLabel(form.verification_status)}
-                  </Badge>
                 </div>
                 <p className="text-xs font-medium text-gray-400">
                   Created {formatDateTime(card.created_at)} · Updated {formatDateTime(card.updated_at)}
@@ -464,16 +452,6 @@ export function AuctionCardEditor({ card, variant = 'page' }: AuctionCardEditorP
                 </Button>
               </div>
             </div>
-
-            {form.verification_status !== 'passed' && (
-              <Alert className="border-amber-200 bg-amber-50 text-amber-800">
-                <AlertTriangle className="h-4 w-4" />
-                <AlertTitle>Verification warning</AlertTitle>
-                <AlertDescription>
-                  Normal publish is disabled until verification passes. Force publish remains available if required fields are valid.
-                </AlertDescription>
-              </Alert>
-            )}
 
             {clientErrors.length > 0 && (
               <Alert variant="destructive">
@@ -563,51 +541,6 @@ export function AuctionCardEditor({ card, variant = 'page' }: AuctionCardEditorP
                   ))}
                 </SelectContent>
               </Select>
-            </div>
-            <div className="space-y-2">
-              <Label>Verification status</Label>
-              <Select
-                value={form.verification_status}
-                onValueChange={(value) => setForm((current) => ({ ...current, verification_status: value as AuctionVerificationStatus }))}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {VERIFICATION_OPTIONS.map((option) => (
-                    <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2 xl:col-span-2">
-              <Label>Models</Label>
-              <div className="rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-600">
-                Generator: <span className="font-semibold">{card.generator_model ?? '-'}</span>
-                <span className="px-2 text-gray-300">/</span>
-                Verifier: <span className="font-semibold">{card.verifier_model ?? '-'}</span>
-              </div>
-            </div>
-          </div>
-
-          <div className="grid gap-4 lg:grid-cols-2">
-            <div className="space-y-2">
-              <Label htmlFor="verification_notes">Verification notes</Label>
-              <Textarea
-                id="verification_notes"
-                rows={5}
-                value={form.verification_notes}
-                onChange={(event) => setForm((current) => ({ ...current, verification_notes: event.target.value }))}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="editor_notes">Editor notes</Label>
-              <Textarea
-                id="editor_notes"
-                rows={5}
-                value={form.editor_notes}
-                onChange={(event) => setForm((current) => ({ ...current, editor_notes: event.target.value }))}
-              />
             </div>
           </div>
         </section>

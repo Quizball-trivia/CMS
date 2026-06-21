@@ -3,7 +3,7 @@
 import { AlertCircle, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
 import { useAuctionCard } from '@/hooks';
 import { cn } from '@/lib/utils';
-import type { AuctionCardStatus, AuctionCardSummary, AuctionVerificationStatus } from '@/types';
+import type { AuctionCardStatus, AuctionCardSummary } from '@/types';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -48,18 +48,6 @@ function statusClass(status: AuctionCardStatus): string {
   }
 }
 
-function verificationClass(status: AuctionVerificationStatus): string {
-  switch (status) {
-    case 'passed':
-      return 'bg-emerald-50 text-emerald-700 border-emerald-100';
-    case 'failed':
-      return 'bg-rose-50 text-rose-700 border-rose-100';
-    case 'needs_review':
-    default:
-      return 'bg-amber-50 text-amber-700 border-amber-100';
-  }
-}
-
 export function AuctionCardReviewDialog({
   cardId,
   cards,
@@ -75,7 +63,6 @@ export function AuctionCardReviewDialog({
   const playerName = card?.player.name ?? summary?.player.name ?? 'Auction card';
   const clubName = card?.player.current_club ?? summary?.player.current_club ?? null;
   const status = card?.status ?? summary?.status;
-  const verificationStatus = card?.verification_status ?? summary?.verification_status;
   const hasPrevious = activeIndex > 0;
   const hasNext = activeIndex >= 0 && activeIndex < cards.length - 1;
 
@@ -105,18 +92,10 @@ export function AuctionCardReviewDialog({
                     {formatLabel(status)}
                   </Badge>
                 )}
-                {verificationStatus && (
-                  <Badge
-                    variant="outline"
-                    className={cn('rounded-md font-bold', verificationClass(verificationStatus))}
-                  >
-                    {formatLabel(verificationStatus)}
-                  </Badge>
-                )}
               </div>
             </div>
 
-            <div className="flex items-center gap-3">
+            <div className="mr-10 flex items-center gap-3">
               <span className="text-xs font-black uppercase tracking-widest text-slate-400">
                 {activeIndex >= 0 ? activeIndex + 1 : '-'}
                 <span className="mx-1 text-slate-200">/</span>

@@ -33,7 +33,7 @@ const navItems = [
     icon: CalendarDays,
   },
   {
-    title: 'Auction',
+    title: 'Auction Cards',
     href: '/auction',
     icon: Gavel,
   },
