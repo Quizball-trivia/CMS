@@ -80,11 +80,14 @@ type FormState = {
 
 function formatMoney(value: number | null): string {
   if (value === null) return '-';
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'EUR',
-    maximumFractionDigits: 0,
-  }).format(value);
+  if (value >= 1_000_000) {
+    const millions = value / 1_000_000;
+    return `€${millions % 1 === 0 ? millions.toFixed(0) : millions.toFixed(1)}M`;
+  }
+  if (value >= 1_000) {
+    return `€${Math.round(value / 1_000)}K`;
+  }
+  return `€${value}`;
 }
 
 function formatDateTime(value: string | null): string {
@@ -353,10 +356,6 @@ export function AuctionCardEditor({ card, variant = 'page' }: AuctionCardEditorP
               <div>
                 <dt className="text-[10px] font-black uppercase tracking-widest text-gray-400">Nationality</dt>
                 <dd className="font-semibold text-gray-800">{card.player.nationality ?? '-'}</dd>
-              </div>
-              <div>
-                <dt className="text-[10px] font-black uppercase tracking-widest text-gray-400">Active</dt>
-                <dd className="font-semibold text-gray-800">{formatLabel(card.player.active_status)}</dd>
               </div>
               <div>
                 <dt className="text-[10px] font-black uppercase tracking-widest text-gray-400">Current Value</dt>
