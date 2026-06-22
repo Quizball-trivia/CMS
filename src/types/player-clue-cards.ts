@@ -21,6 +21,7 @@ export interface PreviewRow {
   sourcePlayerNumber: number | null;
   answerName: string;
   difficulty: ClueCardDifficulty;
+  difficultySource?: 'row' | 'default' | 'ai';
   clue1: string;
   clue2: string;
   clue3: string;
@@ -34,6 +35,8 @@ export interface PreviewRow {
   matchMethod?: string | null;
   matchConfidence?: MatchConfidence | null;
   resolvedPlayerId?: string | null;
+  duplicateInBatch?: boolean;
+  alreadyHasCard?: boolean;
 }
 
 export interface PreviewResult {
@@ -41,6 +44,7 @@ export interface PreviewResult {
   matchedCount: number;
   ambiguousCount: number;
   unmatchedCount: number;
+  duplicateCount?: number;
   warningCount: number;
   rows: PreviewRow[];
 }
