@@ -6,3 +6,4 @@ export * from './admin-users';
 export * from './announcement';
 export * from './auction';
 export * from './player-clue-cards';
+export * from './agents';

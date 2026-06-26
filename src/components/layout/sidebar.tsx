@@ -14,6 +14,7 @@ import {
   Users,
   Megaphone,
   Gavel,
+  Bot,
 } from 'lucide-react';
 
 const navItems = [
@@ -36,6 +37,11 @@ const navItems = [
     title: 'Auction Cards',
     href: '/auction',
     icon: Gavel,
+  },
+  {
+    title: 'Agents',
+    href: '/agents',
+    icon: Bot,
   },
   {
     title: 'Users',
