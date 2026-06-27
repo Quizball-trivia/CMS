@@ -16,8 +16,12 @@ import type {
   AgentEvent,
   AgentJob,
   AgentMonitor,
+  AgentPrompt,
+  AgentPromptVersion,
+  AgentRosterEntry,
   AgentTask,
   ListAgentJobsParams,
+  SaveAgentPromptRequest,
   SpawnAgentJobRequest,
   UpdateAgentBudgetRequest,
 } from '@/types';
@@ -64,11 +68,31 @@ export const agentsApi = {
     return apiClient.get<AgentMonitor>(`${BASE}/monitor`);
   },
 
+  getRoster(): Promise<ItemsResponse<AgentRosterEntry>> {
+    return apiClient.get<ItemsResponse<AgentRosterEntry>>(`${BASE}/roster`);
+  },
+
   getBudget(): Promise<AgentBudget> {
     return apiClient.get<AgentBudget>(`${BASE}/budget`);
   },
 
   setBudget(data: UpdateAgentBudgetRequest): Promise<AgentBudget> {
     return apiClient.patch<AgentBudget>(`${BASE}/budget`, data);
+  },
+
+  listPrompts(): Promise<ItemsResponse<AgentPrompt>> {
+    return apiClient.get<ItemsResponse<AgentPrompt>>(`${BASE}/prompts`);
+  },
+
+  getPromptHistory(role: string): Promise<ItemsResponse<AgentPromptVersion>> {
+    return apiClient.get<ItemsResponse<AgentPromptVersion>>(`${BASE}/prompts/${role}/history`);
+  },
+
+  savePrompt(role: string, data: SaveAgentPromptRequest): Promise<AgentPrompt> {
+    return apiClient.put<AgentPrompt>(`${BASE}/prompts/${role}`, data);
+  },
+
+  activatePromptVersion(promptId: string): Promise<AgentPrompt> {
+    return apiClient.post<AgentPrompt>(`${BASE}/prompts/${promptId}/activate`);
   },
 };

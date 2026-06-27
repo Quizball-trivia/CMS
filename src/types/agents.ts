@@ -104,7 +104,49 @@ export interface AgentMonitor {
 export interface AgentBudget {
   limitCents: number;
   spentTodayCents: number;
+  spentWeekCents: number;
+  spentMonthCents: number;
+  monthlyCreditCents: number;
   paused: boolean;
+}
+
+export interface AgentRosterEntry {
+  role: string;
+  label: string;
+  description: string;
+  model: string;
+  promptVersion: number | null;
+  promptPreview: string | null;
+  runsToday: number;
+  succeededToday: number;
+  failedToday: number;
+  runningNow: number;
+  avgCostCents: number;
+  lastRunAt: string | null;
+}
+
+export type AgentPromptRole = 'generator' | 'factcheck' | 'criteria' | 'dedupe';
+
+export interface AgentPrompt {
+  role: AgentPromptRole | string;
+  content: string;
+  version: number;
+  note: string | null;
+  updatedAt: string;
+}
+
+export interface AgentPromptVersion {
+  id: string;
+  version: number;
+  content: string;
+  note: string | null;
+  isActive: boolean;
+  createdAt: string;
+}
+
+export interface SaveAgentPromptRequest {
+  content: string;
+  note?: string;
 }
 
 export interface ListAgentJobsParams {

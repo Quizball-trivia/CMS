@@ -14,7 +14,7 @@ import {
 import { toast } from 'sonner';
 import { useAgentJob, useJobEvents, useJobTasks, useRetryTask } from '@/hooks';
 import type { AgentTask, AgentTaskVerdicts } from '@/types';
-import { getLocalizedText } from '@/lib/utils';
+import { getLocalizedText, getLocalizedTextByLang } from '@/lib/utils';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -53,7 +53,17 @@ function verdictText(value: unknown): string | null {
   if (typeof value === 'string') return value;
   if (typeof value === 'object') {
     const obj = value as Record<string, unknown>;
-    const reason = obj.reason ?? obj.message ?? obj.detail;
+    const reason = obj.reason ?? obj.message ?? obj.detail ?? obj.suggestions;
+    // Criteria-style verdicts are boolean checks (context_complete, distractors_ok,
+    // not_dry, natural). Summarize them as readable pass/fail chips instead of raw JSON.
+    const boolKeys = ['context_complete', 'distractors_ok', 'not_dry', 'natural', 'correctness', 'factual'].filter(
+      (k) => typeof obj[k] === 'boolean'
+    );
+    if (boolKeys.length) {
+      const parts = boolKeys.map((k) => `${obj[k] ? '✓' : '✗'} ${k.replace(/_/g, ' ')}`);
+      const note = typeof reason === 'string' && reason.trim() ? ` — ${reason}` : '';
+      return parts.join('  ') + note;
+    }
     if (typeof reason === 'string') return reason;
     return JSON.stringify(value);
   }
@@ -72,19 +82,19 @@ function VerdictsPanel({ verdicts }: { verdicts: AgentTaskVerdicts | null }) {
       {factcheck ? (
         <div className="rounded-lg border border-slate-200 bg-white p-3">
           <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">Fact check</div>
-          <p className="mt-1 text-xs text-slate-600">{factcheck}</p>
+          <p className="mt-1 whitespace-pre-wrap break-words text-xs text-slate-600">{factcheck}</p>
         </div>
       ) : null}
       {criteria ? (
         <div className="rounded-lg border border-slate-200 bg-white p-3">
           <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">Criteria</div>
-          <p className="mt-1 text-xs text-slate-600">{criteria}</p>
+          <p className="mt-1 whitespace-pre-wrap break-words text-xs text-slate-600">{criteria}</p>
         </div>
       ) : null}
       {dedupe ? (
         <div className="rounded-lg border border-slate-200 bg-white p-3">
           <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">Dedupe</div>
-          <p className="mt-1 text-xs text-slate-600">{dedupe}</p>
+          <p className="mt-1 whitespace-pre-wrap break-words text-xs text-slate-600">{dedupe}</p>
         </div>
       ) : null}
     </div>
@@ -100,9 +110,14 @@ function TaskDetail({ task }: { task: AgentTask }) {
         <div className="space-y-3">
           <div>
             <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">Prompt</div>
-            <p className="mt-1 text-sm font-medium text-slate-900">
-              {getLocalizedText(draft.prompt, '—')}
+            <p className="mt-1 break-words text-sm font-medium text-slate-900">
+              {getLocalizedTextByLang(draft.prompt, 'ka', '—')}
             </p>
+            {getLocalizedTextByLang(draft.prompt, 'en') ? (
+              <p className="mt-0.5 break-words text-xs text-slate-400">
+                {getLocalizedTextByLang(draft.prompt, 'en')}
+              </p>
+            ) : null}
           </div>
           <div className="grid gap-2 sm:grid-cols-2">
             {draft.options.map((option, index) => (
@@ -115,11 +130,17 @@ function TaskDetail({ task }: { task: AgentTask }) {
                 }
               >
                 {option.is_correct ? (
-                  <Badge variant="outline" className="border-emerald-300 bg-emerald-100 text-emerald-700">
+                  <Badge variant="outline" className="shrink-0 border-emerald-300 bg-emerald-100 text-emerald-700">
                     Correct
                   </Badge>
                 ) : null}
-                <span className="text-sm text-slate-700">{getLocalizedText(option.text, '—')}</span>
+                <span className="flex min-w-0 flex-col">
+                  <span className="break-words text-sm text-slate-700">{getLocalizedTextByLang(option.text, 'ka', '—')}</span>
+                  {getLocalizedTextByLang(option.text, 'en') &&
+                  getLocalizedTextByLang(option.text, 'en') !== getLocalizedTextByLang(option.text, 'ka') ? (
+                    <span className="break-words text-xs text-slate-400">{getLocalizedTextByLang(option.text, 'en')}</span>
+                  ) : null}
+                </span>
               </div>
             ))}
           </div>
@@ -184,8 +205,8 @@ function TasksTable({ jobId }: { jobId: string }) {
 
   return (
     <Card className="border-slate-200 shadow-sm">
-      <CardContent className="p-0">
-        <Table>
+      <CardContent className="overflow-x-auto p-0">
+        <Table className="w-full table-fixed">
           <TableHeader>
             <TableRow>
               <TableHead className="w-8 pl-5" />
@@ -240,9 +261,9 @@ function TasksTable({ jobId }: { jobId: string }) {
                         <DecisionBadge decision={task.decision} />
                       </TableCell>
                       <TableCell className="max-w-[320px]">
-                        <span className="line-clamp-2 text-sm text-slate-700">
+                        <span className="line-clamp-2 break-words text-sm text-slate-700">
                           {task.questionDraft
-                            ? getLocalizedText(task.questionDraft.prompt, '—')
+                            ? getLocalizedTextByLang(task.questionDraft.prompt, 'ka', '—')
                             : '—'}
                         </span>
                       </TableCell>

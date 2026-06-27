@@ -1,8 +1,19 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Bot, DollarSign, Loader2, Pause, Play, Sparkles, X } from 'lucide-react';
+import {
+  Bot,
+  DollarSign,
+  FileText,
+  Info,
+  Loader2,
+  Pause,
+  Play,
+  Sparkles,
+  X,
+} from 'lucide-react';
 import { toast } from 'sonner';
 import {
   useAgentBudget,
@@ -250,14 +261,27 @@ function MonitorStrip() {
   );
 }
 
+function SpendRollup({ label, cents }: { label: string; cents: number }) {
+  return (
+    <div className="rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-2 text-center">
+      <div className="text-[9px] font-black uppercase tracking-widest text-slate-400">{label}</div>
+      <div className="mt-0.5 text-sm font-bold text-slate-900">{formatCents(cents)}</div>
+    </div>
+  );
+}
+
 function BudgetWidget() {
   const { data: budget } = useAgentBudget();
   const setBudget = useSetBudget();
 
-  const spent = budget?.spentTodayCents ?? 0;
-  const limit = budget?.limitCents ?? 0;
+  const spentToday = budget?.spentTodayCents ?? 0;
+  const spentWeek = budget?.spentWeekCents ?? 0;
+  const spentMonth = budget?.spentMonthCents ?? 0;
+  const monthlyCredit = budget?.monthlyCreditCents ?? 0;
+  const dailyLimit = budget?.limitCents ?? 0;
   const paused = budget?.paused ?? false;
-  const pct = limit > 0 ? Math.min(100, Math.round((spent / limit) * 100)) : 0;
+  const monthPct =
+    monthlyCredit > 0 ? Math.min(100, Math.round((spentMonth / monthlyCredit) * 100)) : 0;
 
   const handleTogglePause = async () => {
     try {
@@ -271,34 +295,57 @@ function BudgetWidget() {
   return (
     <Card className="border-slate-200 shadow-sm">
       <CardContent className="space-y-3 p-5">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <DollarSign className="h-4 w-4 text-slate-500" />
-            <span className="text-sm font-semibold text-slate-900">Daily budget</span>
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex min-w-0 items-center gap-2">
+            <DollarSign className="h-4 w-4 shrink-0 text-slate-500" />
+            <span className="truncate text-sm font-semibold text-slate-900">Estimated spend</span>
+            <span
+              className="shrink-0 text-slate-400"
+              title="Estimated equivalent API cost. Claude's actual subscription usage isn't queryable."
+            >
+              <Info className="h-3.5 w-3.5" />
+            </span>
           </div>
           {paused ? (
-            <Badge variant="outline" className="border-amber-200 bg-amber-50 text-amber-700">
+            <Badge variant="outline" className="shrink-0 border-amber-200 bg-amber-50 text-amber-700">
               Paused
             </Badge>
           ) : (
-            <Badge variant="outline" className="border-emerald-200 bg-emerald-50 text-emerald-700">
+            <Badge variant="outline" className="shrink-0 border-emerald-200 bg-emerald-50 text-emerald-700">
               Active
             </Badge>
           )}
         </div>
 
+        <p className="text-[11px] leading-snug text-slate-400">
+          Estimated equivalent API cost. Claude&apos;s actual subscription usage isn&apos;t queryable.
+        </p>
+
+        <div className="grid grid-cols-3 gap-2">
+          <SpendRollup label="Today" cents={spentToday} />
+          <SpendRollup label="7 days" cents={spentWeek} />
+          <SpendRollup label="Month" cents={spentMonth} />
+        </div>
+
         <div>
-          <div className="flex items-baseline justify-between text-sm">
-            <span className="font-bold text-slate-900">{formatCents(spent)}</span>
-            <span className="text-slate-500">of {formatCents(limit)}</span>
+          <div className="flex items-baseline justify-between gap-2 text-sm">
+            <span className="font-bold text-slate-900">{formatCents(spentMonth)}</span>
+            <span className="truncate text-slate-500">
+              of {formatCents(monthlyCredit)}/mo agent credit
+            </span>
           </div>
           <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-slate-100">
             <div
-              className={pct >= 100 ? 'h-full bg-red-500' : 'h-full bg-slate-900'}
-              style={{ width: `${pct}%` }}
+              className={monthPct >= 100 ? 'h-full bg-red-500' : 'h-full bg-slate-900'}
+              style={{ width: `${monthPct}%` }}
             />
           </div>
         </div>
+
+        <p className="text-[11px] leading-snug text-slate-400">
+          Daily kill-switch at {formatCents(dailyLimit)} — agents pause automatically once today&apos;s
+          estimate passes it.
+        </p>
 
         <Button
           variant="outline"
@@ -389,8 +436,8 @@ function JobsTable() {
                     <TableCell className="pl-5">
                       <JobStatusBadge status={job.status} />
                     </TableCell>
-                    <TableCell className="max-w-[260px] truncate font-medium text-slate-900">
-                      {jobTopic(job)}
+                    <TableCell className="max-w-[260px] font-medium text-slate-900">
+                      <span className="line-clamp-2 break-words">{jobTopic(job)}</span>
                     </TableCell>
                     <TableCell className="capitalize text-slate-600">{jobDifficulty(job)}</TableCell>
                     <TableCell className="text-slate-600">{jobProgress(job)}</TableCell>
@@ -431,6 +478,20 @@ export default function AgentsPage() {
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-slate-900">Agents</h1>
           <p className="text-sm text-slate-500">Spawn and monitor question-generation agents.</p>
+        </div>
+        <div className="ml-auto flex gap-2">
+          <Button variant="outline" size="sm" asChild>
+            <Link href="/agents/sub-agents">
+              <Bot className="h-4 w-4" />
+              Sub-agents
+            </Link>
+          </Button>
+          <Button variant="outline" size="sm" asChild>
+            <Link href="/agents/prompts">
+              <FileText className="h-4 w-4" />
+              Prompts
+            </Link>
+          </Button>
         </div>
       </div>
 

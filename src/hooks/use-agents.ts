@@ -4,6 +4,7 @@ import { logger } from '@/lib/logger';
 import { getErrorLogDetails } from '@/lib/error-feedback';
 import type {
   ListAgentJobsParams,
+  SaveAgentPromptRequest,
   SpawnAgentJobRequest,
   UpdateAgentBudgetRequest,
 } from '@/types';
@@ -18,7 +19,10 @@ export const agentKeys = {
   jobTasks: (jobId: string) => [...agentKeys.job(jobId), 'tasks'] as const,
   jobEvents: (jobId: string) => [...agentKeys.job(jobId), 'events'] as const,
   monitor: () => [...agentKeys.all, 'monitor'] as const,
+  roster: () => [...agentKeys.all, 'roster'] as const,
   budget: () => [...agentKeys.all, 'budget'] as const,
+  prompts: () => [...agentKeys.all, 'prompts'] as const,
+  promptHistory: (role: string) => [...agentKeys.prompts(), 'history', role] as const,
 };
 
 export function useAgentJobs(params?: ListAgentJobsParams) {
@@ -64,11 +68,34 @@ export function useAgentMonitor() {
   });
 }
 
+export function useAgentRoster() {
+  return useQuery({
+    queryKey: agentKeys.roster(),
+    queryFn: () => agentsApi.getRoster(),
+    refetchInterval: LIVE_REFETCH_MS,
+  });
+}
+
 export function useAgentBudget() {
   return useQuery({
     queryKey: agentKeys.budget(),
     queryFn: () => agentsApi.getBudget(),
     refetchInterval: LIVE_REFETCH_MS,
+  });
+}
+
+export function useAgentPrompts() {
+  return useQuery({
+    queryKey: agentKeys.prompts(),
+    queryFn: async () => (await agentsApi.listPrompts()).items,
+  });
+}
+
+export function usePromptHistory(role: string, enabled = true) {
+  return useQuery({
+    queryKey: agentKeys.promptHistory(role),
+    queryFn: async () => (await agentsApi.getPromptHistory(role)).items,
+    enabled: enabled && !!role,
   });
 }
 
@@ -131,6 +158,44 @@ export function useSetBudget() {
     },
     onError: (error) => {
       logger.error('agents', 'Failed to update agent budget', getErrorLogDetails(error));
+    },
+  });
+}
+
+export function useSavePrompt() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ role, data }: { role: string; data: SaveAgentPromptRequest }) =>
+      agentsApi.savePrompt(role, data),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: agentKeys.prompts() });
+      queryClient.invalidateQueries({ queryKey: agentKeys.promptHistory(variables.role) });
+    },
+    onError: (error, variables) => {
+      logger.error('agents', 'Failed to save agent prompt', {
+        role: variables.role,
+        ...getErrorLogDetails(error),
+      });
+    },
+  });
+}
+
+export function useActivatePromptVersion() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ promptId }: { promptId: string; role: string }) =>
+      agentsApi.activatePromptVersion(promptId),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: agentKeys.prompts() });
+      queryClient.invalidateQueries({ queryKey: agentKeys.promptHistory(variables.role) });
+    },
+    onError: (error, variables) => {
+      logger.error('agents', 'Failed to activate agent prompt version', {
+        promptId: variables.promptId,
+        ...getErrorLogDetails(error),
+      });
     },
   });
 }
