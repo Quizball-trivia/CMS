@@ -125,10 +125,36 @@ export interface AgentRosterEntry {
   lastRunAt: string | null;
 }
 
+export type AgentQuestionTypeId =
+  | 'mcq_single'
+  | 'true_false'
+  | 'clue_chain'
+  | 'put_in_order'
+  | 'countdown_list'
+  | 'career_path';
+
+export interface AgentQuestionType {
+  type: AgentQuestionTypeId | string;
+  label: string;
+  description: string;
+  enabled: boolean;
+  sortOrder: number;
+}
+
+export interface UpdateAgentQuestionTypeRequest {
+  enabled?: boolean;
+  description?: string;
+}
+
 export type AgentPromptRole = 'generator' | 'factcheck' | 'criteria' | 'dedupe';
+
+// Prompts are stored per (role, type). A type of '*' is the role-level default
+// applied to every question type unless a type-specific override exists.
+export const DEFAULT_PROMPT_TYPE = '*';
 
 export interface AgentPrompt {
   role: AgentPromptRole | string;
+  type: string;
   content: string;
   version: number;
   note: string | null;
@@ -147,6 +173,7 @@ export interface AgentPromptVersion {
 export interface SaveAgentPromptRequest {
   content: string;
   note?: string;
+  type?: string;
 }
 
 export interface ListAgentJobsParams {
@@ -156,6 +183,7 @@ export interface ListAgentJobsParams {
 
 export interface SpawnAgentJobRequest {
   type: AgentJobType;
+  questionType: string;
   categoryId: string;
   topic: string;
   difficulty: AgentDifficulty;

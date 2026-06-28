@@ -1,15 +1,18 @@
 'use client';
 
-import { useState } from 'react';
+import { Suspense, useMemo, useState } from 'react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import { ArrowLeft, History, Info, Loader2, RotateCcw, Save } from 'lucide-react';
 import { toast } from 'sonner';
 import {
   useActivatePromptVersion,
   useAgentPrompts,
   usePromptHistory,
+  useQuestionTypes,
   useSavePrompt,
 } from '@/hooks';
+import { DEFAULT_PROMPT_TYPE } from '@/types';
 import type { AgentPrompt, AgentPromptVersion } from '@/types';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -17,6 +20,13 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import {
   Dialog,
   DialogContent,
@@ -58,15 +68,22 @@ const ROLE_META: RoleMeta[] = [
 function HistoryDialog({
   role,
   label,
+  type,
   open,
   onOpenChange,
 }: {
   role: string;
   label: string;
+  type: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
-  const { data: versions, isLoading } = usePromptHistory(role, open);
+  const isDefault = type === DEFAULT_PROMPT_TYPE;
+  const { data: versions, isLoading } = usePromptHistory(
+    role,
+    isDefault ? undefined : type,
+    open
+  );
   const activate = useActivatePromptVersion();
 
   const handleRevert = async (version: AgentPromptVersion) => {
@@ -76,7 +93,11 @@ function HistoryDialog({
     );
     if (!ok) return;
     try {
-      await activate.mutateAsync({ promptId: version.id, role });
+      await activate.mutateAsync({
+        promptId: version.id,
+        role,
+        type: isDefault ? undefined : type,
+      });
       toast.success(`Reverted to version ${version.version}`);
     } catch {
       toast.error('Failed to revert prompt version');
@@ -140,12 +161,21 @@ function HistoryDialog({
   );
 }
 
-function PromptCard({ meta, prompt }: { meta: RoleMeta; prompt: AgentPrompt | undefined }) {
+function PromptCard({
+  meta,
+  prompt,
+  type,
+}: {
+  meta: RoleMeta;
+  prompt: AgentPrompt | undefined;
+  type: string;
+}) {
   const savePrompt = useSavePrompt();
   const [content, setContent] = useState(prompt?.content ?? '');
   const [note, setNote] = useState('');
   const [historyOpen, setHistoryOpen] = useState(false);
 
+  const isDefault = type === DEFAULT_PROMPT_TYPE;
   const dirty = content !== (prompt?.content ?? '');
 
   const handleSave = async () => {
@@ -160,7 +190,11 @@ function PromptCard({ meta, prompt }: { meta: RoleMeta; prompt: AgentPrompt | un
     try {
       await savePrompt.mutateAsync({
         role: meta.role,
-        data: { content, ...(note.trim() ? { note: note.trim() } : {}) },
+        data: {
+          content,
+          ...(note.trim() ? { note: note.trim() } : {}),
+          ...(isDefault ? {} : { type }),
+        },
       });
       setNote('');
       toast.success(`${meta.label} prompt saved`);
@@ -236,6 +270,7 @@ function PromptCard({ meta, prompt }: { meta: RoleMeta; prompt: AgentPrompt | un
       <HistoryDialog
         role={meta.role}
         label={meta.label}
+        type={type}
         open={historyOpen}
         onOpenChange={setHistoryOpen}
       />
@@ -243,8 +278,23 @@ function PromptCard({ meta, prompt }: { meta: RoleMeta; prompt: AgentPrompt | un
   );
 }
 
-export default function AgentPromptsPage() {
-  const { data: prompts, isLoading } = useAgentPrompts();
+function PromptsEditor() {
+  const searchParams = useSearchParams();
+  const initialType = searchParams.get('type') || DEFAULT_PROMPT_TYPE;
+  const [type, setType] = useState(initialType);
+
+  const { data: questionTypes } = useQuestionTypes();
+  const isDefault = type === DEFAULT_PROMPT_TYPE;
+  const { data: prompts, isLoading } = useAgentPrompts(isDefault ? undefined : type);
+
+  const sortedTypes = useMemo(
+    () => [...(questionTypes ?? [])].sort((a, b) => a.sortOrder - b.sortOrder),
+    [questionTypes]
+  );
+
+  const activeTypeLabel = isDefault
+    ? 'Default (all types)'
+    : sortedTypes.find((t) => t.type === type)?.label ?? type;
 
   const byRole = new Map((prompts ?? []).map((p) => [p.role, p]));
 
@@ -273,9 +323,31 @@ export default function AgentPromptsPage() {
         <Info className="mt-0.5 h-4 w-4 shrink-0 text-blue-500" />
         <p>
           Edits take effect on the next generation job (the VPS reads the active prompt per run,
-          ~1 min cache).
+          ~1 min cache). &ldquo;Default (all types)&rdquo; sets the role defaults; pick a question
+          type to override its prompts.
         </p>
       </div>
+
+      <Card className="border-slate-200 shadow-sm">
+        <CardContent className="flex flex-col gap-1.5 p-5 sm:max-w-sm">
+          <Label className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+            Editing prompts for
+          </Label>
+          <Select value={type} onValueChange={setType}>
+            <SelectTrigger className="h-10 w-full">
+              <SelectValue>{activeTypeLabel}</SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={DEFAULT_PROMPT_TYPE}>Default (all types)</SelectItem>
+              {sortedTypes.map((t) => (
+                <SelectItem key={t.type} value={t.type}>
+                  {t.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </CardContent>
+      </Card>
 
       {isLoading ? (
         <div className="flex items-center gap-2 py-10 text-sm text-slate-500">
@@ -288,14 +360,30 @@ export default function AgentPromptsPage() {
             const prompt = byRole.get(meta.role);
             return (
               <PromptCard
-                key={`${meta.role}:${prompt?.version ?? 'none'}`}
+                key={`${type}:${meta.role}:${prompt?.version ?? 'none'}`}
                 meta={meta}
                 prompt={prompt}
+                type={type}
               />
             );
           })}
         </div>
       )}
     </div>
+  );
+}
+
+export default function AgentPromptsPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex items-center gap-2 py-10 text-sm text-slate-500">
+          <Loader2 className="h-4 w-4 animate-spin" />
+          Loading prompts…
+        </div>
+      }
+    >
+      <PromptsEditor />
+    </Suspense>
   );
 }

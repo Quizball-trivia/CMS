@@ -2,11 +2,13 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { agentsApi } from '@/lib/agents-api';
 import { logger } from '@/lib/logger';
 import { getErrorLogDetails } from '@/lib/error-feedback';
+import { DEFAULT_PROMPT_TYPE } from '@/types';
 import type {
   ListAgentJobsParams,
   SaveAgentPromptRequest,
   SpawnAgentJobRequest,
   UpdateAgentBudgetRequest,
+  UpdateAgentQuestionTypeRequest,
 } from '@/types';
 
 const LIVE_REFETCH_MS = 3000;
@@ -21,8 +23,11 @@ export const agentKeys = {
   monitor: () => [...agentKeys.all, 'monitor'] as const,
   roster: () => [...agentKeys.all, 'roster'] as const,
   budget: () => [...agentKeys.all, 'budget'] as const,
-  prompts: () => [...agentKeys.all, 'prompts'] as const,
-  promptHistory: (role: string) => [...agentKeys.prompts(), 'history', role] as const,
+  questionTypes: () => [...agentKeys.all, 'question-types'] as const,
+  prompts: (type: string = DEFAULT_PROMPT_TYPE) =>
+    [...agentKeys.all, 'prompts', type] as const,
+  promptHistory: (role: string, type: string = DEFAULT_PROMPT_TYPE) =>
+    [...agentKeys.prompts(type), 'history', role] as const,
 };
 
 export function useAgentJobs(params?: ListAgentJobsParams) {
@@ -84,17 +89,24 @@ export function useAgentBudget() {
   });
 }
 
-export function useAgentPrompts() {
+export function useQuestionTypes() {
   return useQuery({
-    queryKey: agentKeys.prompts(),
-    queryFn: async () => (await agentsApi.listPrompts()).items,
+    queryKey: agentKeys.questionTypes(),
+    queryFn: async () => (await agentsApi.listQuestionTypes()).items,
   });
 }
 
-export function usePromptHistory(role: string, enabled = true) {
+export function useAgentPrompts(type?: string) {
   return useQuery({
-    queryKey: agentKeys.promptHistory(role),
-    queryFn: async () => (await agentsApi.getPromptHistory(role)).items,
+    queryKey: agentKeys.prompts(type ?? DEFAULT_PROMPT_TYPE),
+    queryFn: async () => (await agentsApi.listPrompts(type)).items,
+  });
+}
+
+export function usePromptHistory(role: string, type?: string, enabled = true) {
+  return useQuery({
+    queryKey: agentKeys.promptHistory(role, type ?? DEFAULT_PROMPT_TYPE),
+    queryFn: async () => (await agentsApi.getPromptHistory(role, type)).items,
     enabled: enabled && !!role,
   });
 }
@@ -162,6 +174,24 @@ export function useSetBudget() {
   });
 }
 
+export function useUpdateQuestionType() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ type, data }: { type: string; data: UpdateAgentQuestionTypeRequest }) =>
+      agentsApi.updateQuestionType(type, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: agentKeys.questionTypes() });
+    },
+    onError: (error, variables) => {
+      logger.error('agents', 'Failed to update question type', {
+        type: variables.type,
+        ...getErrorLogDetails(error),
+      });
+    },
+  });
+}
+
 export function useSavePrompt() {
   const queryClient = useQueryClient();
 
@@ -169,8 +199,9 @@ export function useSavePrompt() {
     mutationFn: ({ role, data }: { role: string; data: SaveAgentPromptRequest }) =>
       agentsApi.savePrompt(role, data),
     onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: agentKeys.prompts() });
-      queryClient.invalidateQueries({ queryKey: agentKeys.promptHistory(variables.role) });
+      const type = variables.data.type ?? DEFAULT_PROMPT_TYPE;
+      queryClient.invalidateQueries({ queryKey: agentKeys.prompts(type) });
+      queryClient.invalidateQueries({ queryKey: agentKeys.promptHistory(variables.role, type) });
     },
     onError: (error, variables) => {
       logger.error('agents', 'Failed to save agent prompt', {
@@ -185,11 +216,12 @@ export function useActivatePromptVersion() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ promptId }: { promptId: string; role: string }) =>
+    mutationFn: ({ promptId }: { promptId: string; role: string; type?: string }) =>
       agentsApi.activatePromptVersion(promptId),
     onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: agentKeys.prompts() });
-      queryClient.invalidateQueries({ queryKey: agentKeys.promptHistory(variables.role) });
+      const type = variables.type ?? DEFAULT_PROMPT_TYPE;
+      queryClient.invalidateQueries({ queryKey: agentKeys.prompts(type) });
+      queryClient.invalidateQueries({ queryKey: agentKeys.promptHistory(variables.role, type) });
     },
     onError: (error, variables) => {
       logger.error('agents', 'Failed to activate agent prompt version', {

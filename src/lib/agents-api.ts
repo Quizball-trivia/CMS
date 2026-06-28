@@ -18,12 +18,14 @@ import type {
   AgentMonitor,
   AgentPrompt,
   AgentPromptVersion,
+  AgentQuestionType,
   AgentRosterEntry,
   AgentTask,
   ListAgentJobsParams,
   SaveAgentPromptRequest,
   SpawnAgentJobRequest,
   UpdateAgentBudgetRequest,
+  UpdateAgentQuestionTypeRequest,
 } from '@/types';
 
 const BASE = '/admin/agents';
@@ -80,12 +82,31 @@ export const agentsApi = {
     return apiClient.patch<AgentBudget>(`${BASE}/budget`, data);
   },
 
-  listPrompts(): Promise<ItemsResponse<AgentPrompt>> {
-    return apiClient.get<ItemsResponse<AgentPrompt>>(`${BASE}/prompts`);
+  listQuestionTypes(): Promise<ItemsResponse<AgentQuestionType>> {
+    return apiClient.get<ItemsResponse<AgentQuestionType>>(`${BASE}/question-types`);
   },
 
-  getPromptHistory(role: string): Promise<ItemsResponse<AgentPromptVersion>> {
-    return apiClient.get<ItemsResponse<AgentPromptVersion>>(`${BASE}/prompts/${role}/history`);
+  updateQuestionType(
+    type: string,
+    data: UpdateAgentQuestionTypeRequest
+  ): Promise<AgentQuestionType> {
+    return apiClient.patch<AgentQuestionType>(`${BASE}/question-types/${type}`, data);
+  },
+
+  // `type` defaults to omitted, which the backend treats as the '*' role-level
+  // defaults — preserving the original (type-less) behavior.
+  listPrompts(type?: string): Promise<ItemsResponse<AgentPrompt>> {
+    return apiClient.get<ItemsResponse<AgentPrompt>>(
+      `${BASE}/prompts`,
+      type ? { type } : undefined
+    );
+  },
+
+  getPromptHistory(role: string, type?: string): Promise<ItemsResponse<AgentPromptVersion>> {
+    return apiClient.get<ItemsResponse<AgentPromptVersion>>(
+      `${BASE}/prompts/${role}/history`,
+      type ? { type } : undefined
+    );
   },
 
   savePrompt(role: string, data: SaveAgentPromptRequest): Promise<AgentPrompt> {

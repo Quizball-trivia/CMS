@@ -8,6 +8,7 @@ import {
   DollarSign,
   FileText,
   Info,
+  Layers,
   Loader2,
   Pause,
   Play,
@@ -21,6 +22,7 @@ import {
   useAgentMonitor,
   useCancelJob,
   useCategories,
+  useQuestionTypes,
   useSetBudget,
   useSpawnJob,
 } from '@/hooks';
@@ -59,15 +61,29 @@ const DIFFICULTIES: { value: AgentDifficulty; label: string }[] = [
   { value: 'hard', label: 'Hard' },
 ];
 
+const DEFAULT_QUESTION_TYPE = 'mcq_single';
+
 function SpawnCard() {
   const { data: categories, isLoading: categoriesLoading } = useCategories();
+  const { data: questionTypes, isLoading: questionTypesLoading } = useQuestionTypes();
   const spawnJob = useSpawnJob();
 
   const [categoryId, setCategoryId] = useState('');
   const [topic, setTopic] = useState('');
+  const [questionType, setQuestionType] = useState(DEFAULT_QUESTION_TYPE);
   const [difficulty, setDifficulty] = useState<AgentDifficulty>('medium');
   const [count, setCount] = useState(10);
   const [budgetDollars, setBudgetDollars] = useState('');
+
+  const enabledTypes = useMemo(
+    () =>
+      [...(questionTypes ?? [])]
+        .filter((t) => t.enabled)
+        .sort((a, b) => a.sortOrder - b.sortOrder),
+    [questionTypes]
+  );
+
+  const selectedType = enabledTypes.find((t) => t.type === questionType);
 
   const sortedCategories = useMemo(
     () =>
@@ -107,6 +123,7 @@ function SpawnCard() {
     try {
       const job = await spawnJob.mutateAsync({
         type: 'mcq_generate',
+        questionType,
         categoryId,
         topic: topic.trim(),
         difficulty,
@@ -132,7 +149,7 @@ function SpawnCard() {
             <h2 className="text-sm font-semibold text-slate-900">Spawn generation job</h2>
           </div>
 
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-6">
             <div className="space-y-2 xl:col-span-2">
               <Label className="text-[10px] font-black uppercase tracking-widest text-slate-400">
                 Category
@@ -161,6 +178,28 @@ function SpawnCard() {
                 placeholder="Topic prompt"
                 className="h-10"
               />
+            </div>
+
+            <div className="space-y-2 xl:col-span-2">
+              <Label className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                Question type
+              </Label>
+              <Select value={questionType} onValueChange={setQuestionType}>
+                <SelectTrigger className="h-10 w-full">
+                  <SelectValue
+                    placeholder={questionTypesLoading ? 'Loading…' : 'Select type'}
+                  >
+                    {selectedType?.label ?? questionType}
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  {enabledTypes.map((type) => (
+                    <SelectItem key={type.type} value={type.type}>
+                      {type.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
             <div className="space-y-2">
@@ -484,6 +523,12 @@ export default function AgentsPage() {
             <Link href="/agents/sub-agents">
               <Bot className="h-4 w-4" />
               Sub-agents
+            </Link>
+          </Button>
+          <Button variant="outline" size="sm" asChild>
+            <Link href="/agents/question-types">
+              <Layers className="h-4 w-4" />
+              Question Types
             </Link>
           </Button>
           <Button variant="outline" size="sm" asChild>
