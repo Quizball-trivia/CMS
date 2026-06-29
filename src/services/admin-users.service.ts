@@ -2,6 +2,7 @@ import { apiClient } from './api-client';
 import type {
   AdminProgressionResult,
   AdminSetProgressionBody,
+  AdminUserListItem,
   AdminUsersListQuery,
   AdminUsersListResponse,
   LeaderboardResetBody,
@@ -34,6 +35,16 @@ interface ResetTicketWindowResult {
   wallet: { coins: number; tickets: number };
 }
 
+/**
+ * Ban a player. Hand-typed (not from the generated OpenAPI spec) so the CMS can
+ * ship the ban UI before the spec is regenerated. `zeroRp` defaults to true on
+ * the backend (snapshots + zeroes RP; restored on unban).
+ */
+interface BanUserBody {
+  reason?: string;
+  zeroRp?: boolean;
+}
+
 export const adminUsersService = {
   async list(query: AdminUsersListQuery): Promise<AdminUsersListResponse> {
     return apiClient.get<AdminUsersListResponse>(
@@ -62,5 +73,13 @@ export const adminUsersService = {
 
   async resetLeaderboard(body: LeaderboardResetBody): Promise<LeaderboardResetResponse> {
     return apiClient.post<LeaderboardResetResponse>('/admin/leaderboard/reset', body);
+  },
+
+  async banUser(userId: string, body: BanUserBody): Promise<AdminUserListItem> {
+    return apiClient.post<AdminUserListItem>(`/admin/users/${userId}/ban`, body);
+  },
+
+  async unbanUser(userId: string): Promise<AdminUserListItem> {
+    return apiClient.post<AdminUserListItem>(`/admin/users/${userId}/unban`, {});
   },
 };
