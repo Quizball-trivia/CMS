@@ -20,14 +20,6 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
-import {
   DecisionBadge,
   EventLevelDot,
   formatCents,
@@ -203,109 +195,83 @@ function TasksTable({ jobId }: { jobId: string }) {
     }
   };
 
+  if (isLoading) {
+    return (
+      <Card className="border-slate-200 shadow-sm">
+        <CardContent className="py-10 text-center text-sm text-slate-500">Loading tasks…</CardContent>
+      </Card>
+    );
+  }
+  if (!tasks || tasks.length === 0) {
+    return (
+      <Card className="border-slate-200 shadow-sm">
+        <CardContent className="py-10 text-center text-sm text-slate-500">No tasks yet.</CardContent>
+      </Card>
+    );
+  }
+
+  // Each task is its own card: a summary header row + an expandable detail BELOW
+  // it (not inside a scrollable table). This keeps the wide draft/options/criteria
+  // content at container width — no horizontal scroll, no clipped edges.
   return (
-    <Card className="border-slate-200 shadow-sm">
-      <CardContent className="overflow-x-auto p-0">
-        <Table className="w-full table-fixed">
-          <TableHeader>
-            <TableRow>
-              <TableHead className="w-8 pl-5" />
-              <TableHead className="w-12">#</TableHead>
-              <TableHead>Status / Stage</TableHead>
-              <TableHead>Decision</TableHead>
-              <TableHead>Question</TableHead>
-              <TableHead className="pr-5 text-right">Actions</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {isLoading ? (
-              <TableRow>
-                <TableCell colSpan={6} className="py-10 text-center text-sm text-slate-500">
-                  Loading tasks…
-                </TableCell>
-              </TableRow>
-            ) : !tasks || tasks.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={6} className="py-10 text-center text-sm text-slate-500">
-                  No tasks yet.
-                </TableCell>
-              </TableRow>
-            ) : (
-              tasks.map((task) => {
-                const isOpen = expanded.has(task.id);
-                const failed = task.status === 'failed' || !!task.error;
-                return (
-                  <>
-                    <TableRow
-                      key={task.id}
-                      className="cursor-pointer align-top"
-                      onClick={() => toggle(task.id)}
-                    >
-                      <TableCell className="pl-5">
-                        {isOpen ? (
-                          <ChevronDown className="h-4 w-4 text-slate-400" />
-                        ) : (
-                          <ChevronRight className="h-4 w-4 text-slate-400" />
-                        )}
-                      </TableCell>
-                      <TableCell className="text-slate-500">{task.seq}</TableCell>
-                      <TableCell>
-                        <div className="flex flex-col gap-1">
-                          <span className="text-sm font-medium capitalize text-slate-900">{task.status}</span>
-                          {task.stage ? (
-                            <span className="text-xs text-slate-500">{task.stage}</span>
-                          ) : null}
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <DecisionBadge decision={task.decision} />
-                      </TableCell>
-                      <TableCell className="max-w-[320px]">
-                        <span className="line-clamp-2 break-words text-sm text-slate-700">
-                          {task.questionDraft
-                            ? getLocalizedTextByLang(task.questionDraft.prompt, 'ka', '—')
-                            : '—'}
-                        </span>
-                      </TableCell>
-                      <TableCell className="pr-5 text-right">
-                        <div className="flex justify-end gap-2" onClick={(event) => event.stopPropagation()}>
-                          {failed ? (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={(event) => handleRetry(event, task.id)}
-                              disabled={retryTask.isPending}
-                            >
-                              <RotateCcw className="h-4 w-4" />
-                              Retry
-                            </Button>
-                          ) : null}
-                          {task.publishedQuestionId ? (
-                            <Button variant="ghost" size="sm" asChild>
-                              <Link href={`/questions/${task.publishedQuestionId}`}>
-                                <ExternalLink className="h-4 w-4" />
-                                View
-                              </Link>
-                            </Button>
-                          ) : null}
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                    {isOpen ? (
-                      <TableRow key={`${task.id}-detail`} className="hover:bg-transparent">
-                        <TableCell colSpan={6} className="p-0">
-                          <TaskDetail task={task} />
-                        </TableCell>
-                      </TableRow>
-                    ) : null}
-                  </>
-                );
-              })
-            )}
-          </TableBody>
-        </Table>
-      </CardContent>
-    </Card>
+    <div className="space-y-3">
+      {tasks.map((task) => {
+        const isOpen = expanded.has(task.id);
+        const failed = task.status === 'failed' || !!task.error;
+        return (
+          <Card key={task.id} className="overflow-hidden border-slate-200 shadow-sm">
+            <button
+              type="button"
+              onClick={() => toggle(task.id)}
+              className="flex w-full items-center gap-3 px-4 py-3 text-left hover:bg-slate-50"
+            >
+              {isOpen ? (
+                <ChevronDown className="h-4 w-4 shrink-0 text-slate-400" />
+              ) : (
+                <ChevronRight className="h-4 w-4 shrink-0 text-slate-400" />
+              )}
+              <span className="w-6 shrink-0 text-sm text-slate-500">{task.seq}</span>
+              <span className="flex w-28 shrink-0 flex-col">
+                <span className="text-sm font-medium capitalize text-slate-900">{task.status}</span>
+                {task.stage ? <span className="text-xs text-slate-500">{task.stage}</span> : null}
+              </span>
+              <span className="shrink-0">
+                <DecisionBadge decision={task.decision} />
+              </span>
+              <span className="min-w-0 flex-1 truncate text-sm text-slate-700">
+                {task.questionDraft ? getLocalizedTextByLang(task.questionDraft.prompt, 'ka', '—') : '—'}
+              </span>
+              <span className="flex shrink-0 gap-2" onClick={(event) => event.stopPropagation()}>
+                {failed ? (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={(event) => handleRetry(event, task.id)}
+                    disabled={retryTask.isPending}
+                  >
+                    <RotateCcw className="h-4 w-4" />
+                    Retry
+                  </Button>
+                ) : null}
+                {task.publishedQuestionId ? (
+                  <Button variant="ghost" size="sm" asChild>
+                    <Link href={`/questions/${task.publishedQuestionId}`}>
+                      <ExternalLink className="h-4 w-4" />
+                      View
+                    </Link>
+                  </Button>
+                ) : null}
+              </span>
+            </button>
+            {isOpen ? (
+              <div className="border-t border-slate-100">
+                <TaskDetail task={task} />
+              </div>
+            ) : null}
+          </Card>
+        );
+      })}
+    </div>
   );
 }
 
