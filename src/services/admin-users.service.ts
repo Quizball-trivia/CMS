@@ -41,7 +41,7 @@ interface ResetTicketWindowResult {
  * the backend (snapshots + zeroes RP; restored on unban).
  */
 interface BanUserBody {
-  reason?: string;
+  reason: string;
   zeroRp?: boolean;
 }
 
