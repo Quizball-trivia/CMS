@@ -82,6 +82,48 @@ export function useResetTicketWindow() {
   });
 }
 
+export function useBanUser() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({
+      userId,
+      reason,
+      zeroRp,
+    }: {
+      userId: string;
+      reason?: string;
+      zeroRp?: boolean;
+    }) => adminUsersService.banUser(userId, { reason, zeroRp }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: adminUserKeys.all });
+    },
+    onError: (error, variables) => {
+      logger.error('admin-users', 'Failed to ban user', {
+        userId: variables.userId,
+        ...getErrorLogDetails(error),
+      });
+    },
+  });
+}
+
+export function useUnbanUser() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ userId }: { userId: string }) => adminUsersService.unbanUser(userId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: adminUserKeys.all });
+    },
+    onError: (error, variables) => {
+      logger.error('admin-users', 'Failed to unban user', {
+        userId: variables.userId,
+        ...getErrorLogDetails(error),
+      });
+    },
+  });
+}
+
 export function useResetLeaderboard() {
   const queryClient = useQueryClient();
 

@@ -16,7 +16,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
 import { cn } from '@/lib/utils';
-import { useAdjustWallet, useResetTicketWindow, useSetProgression } from '@/hooks';
+import { useAdjustWallet, useBanUser, useResetTicketWindow, useSetProgression, useUnbanUser } from '@/hooks';
 import { ApiClientError } from '@/services';
 import type { AdminUserListItem } from '@/types/admin-users';
 
@@ -83,7 +83,10 @@ export function UserEditDialog({ user, open, onOpenChange }: UserEditDialogProps
   const setProgression = useSetProgression();
   const adjustWallet = useAdjustWallet();
   const resetTicketWindow = useResetTicketWindow();
+  const banUser = useBanUser();
+  const unbanUser = useUnbanUser();
   const saving = setProgression.isPending || adjustWallet.isPending;
+  const banPending = banUser.isPending || unbanUser.isPending;
 
   const validation = useMemo(() => {
     const fields = [
@@ -176,6 +179,40 @@ export function UserEditDialog({ user, open, onOpenChange }: UserEditDialogProps
     }
   };
 
+  const handleBan = async () => {
+    const name = user.nickname ?? user.email ?? 'this user';
+    if (reason.trim().length < 3) {
+      toast.error('A reason (min 3 characters) is required to ban');
+      return;
+    }
+    if (!window.confirm(`Ban ${name}? This blocks login and zeroes their RP (restored on unban).`)) {
+      return;
+    }
+    try {
+      await banUser.mutateAsync({ userId: user.id, reason: reason.trim(), zeroRp: true });
+      toast.success(`Banned ${name}`);
+      onOpenChange(false);
+    } catch (error) {
+      const message = error instanceof ApiClientError ? error.message : 'Failed to ban user';
+      toast.error(message);
+    }
+  };
+
+  const handleUnban = async () => {
+    const name = user.nickname ?? user.email ?? 'this user';
+    if (!window.confirm(`Unban ${name}? Login is restored and their pre-ban RP is reinstated.`)) {
+      return;
+    }
+    try {
+      await unbanUser.mutateAsync({ userId: user.id });
+      toast.success(`Unbanned ${name}`);
+      onOpenChange(false);
+    } catch (error) {
+      const message = error instanceof ApiClientError ? error.message : 'Failed to unban user';
+      toast.error(message);
+    }
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[480px]">
@@ -241,6 +278,39 @@ export function UserEditDialog({ user, open, onOpenChange }: UserEditDialogProps
             />
             Notify user (sends an in-app notification about the change)
           </label>
+
+          {/* Danger zone: ban / unban */}
+          <div className="flex items-center justify-between rounded-lg border border-red-200 bg-red-50/40 px-3 py-2.5">
+            <div>
+              <p className="text-sm font-medium text-red-700">
+                {user.is_banned ? 'Account banned' : 'Ban account'}
+              </p>
+              <p className="text-xs text-gray-500">
+                {user.is_banned
+                  ? 'Login is blocked. Unban to restore access and pre-ban RP.'
+                  : 'Blocks login, zeroes RP (restored on unban). A reason is required.'}
+              </p>
+            </div>
+            {user.is_banned ? (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleUnban}
+                disabled={banPending}
+              >
+                {unbanUser.isPending ? 'Unbanning…' : 'Unban'}
+              </Button>
+            ) : (
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={handleBan}
+                disabled={banPending || saving}
+              >
+                {banUser.isPending ? 'Banning…' : 'Ban'}
+              </Button>
+            )}
+          </div>
         </div>
 
         <DialogFooter>
