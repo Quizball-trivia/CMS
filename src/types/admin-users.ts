@@ -1,7 +1,11 @@
 import type { components, paths } from './api.generated';
 
 export type AdminUsersListResponse = components['schemas']['AdminUsersListResponse'];
-export type AdminUserListItem = AdminUsersListResponse['items'][number];
+// `is_banned` is appended locally so the ban UI works before the OpenAPI spec is
+// regenerated. Once the spec includes it, this intersection becomes a no-op.
+export type AdminUserListItem = AdminUsersListResponse['items'][number] & {
+  is_banned?: boolean;
+};
 export type AdminProgressionResult = components['schemas']['AdminProgressionResult'];
 export type LeaderboardResetResponse = components['schemas']['LeaderboardResetResponse'];
 
