@@ -15,7 +15,6 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
-import { cn } from '@/lib/utils';
 import { useAdjustWallet, useBanUser, useResetTicketWindow, useSetProgression, useUnbanUser } from '@/hooks';
 import { ApiClientError } from '@/services';
 import type { AdminUserListItem } from '@/types/admin-users';
@@ -87,6 +86,9 @@ export function UserEditDialog({ user, open, onOpenChange }: UserEditDialogProps
   const unbanUser = useUnbanUser();
   const saving = setProgression.isPending || adjustWallet.isPending;
   const banPending = banUser.isPending || unbanUser.isPending;
+  // Any in-flight mutation locks the whole dialog so save/ban can't overlap on
+  // the same user.
+  const busy = saving || banPending;
 
   const validation = useMemo(() => {
     const fields = [
@@ -225,17 +227,17 @@ export function UserEditDialog({ user, open, onOpenChange }: UserEditDialogProps
 
         <div className="space-y-5 py-2">
           <div className="grid grid-cols-2 gap-4">
-            <EditRow label="XP" current={user.total_xp} value={xp} onValue={setXp} disabled={saving} />
+            <EditRow label="XP" current={user.total_xp} value={xp} onValue={setXp} disabled={busy} />
             <EditRow
               label="Rank Points"
               current={user.rp}
               value={rp}
               onValue={setRp}
-              disabled={saving}
+              disabled={busy}
               note="No ranked profile yet — RP can't be edited until they play a ranked match."
             />
-            <EditRow label="Coins" current={user.coins} value={coins} onValue={setCoins} disabled={saving} />
-            <EditRow label="Tickets" current={user.tickets} value={tickets} onValue={setTickets} disabled={saving} />
+            <EditRow label="Coins" current={user.coins} value={coins} onValue={setCoins} disabled={busy} />
+            <EditRow label="Tickets" current={user.tickets} value={tickets} onValue={setTickets} disabled={busy} />
           </div>
 
           <div className="space-y-1.5">
@@ -246,7 +248,7 @@ export function UserEditDialog({ user, open, onOpenChange }: UserEditDialogProps
               id="edit-reason"
               placeholder="e.g. event correction, support grant"
               value={reason}
-              disabled={saving}
+              disabled={busy}
               onChange={(e) => setReason(e.target.value)}
               rows={2}
             />
@@ -264,7 +266,7 @@ export function UserEditDialog({ user, open, onOpenChange }: UserEditDialogProps
               variant="outline"
               size="sm"
               onClick={handleResetTicketWindow}
-              disabled={resetTicketWindow.isPending}
+              disabled={resetTicketWindow.isPending || busy}
             >
               {resetTicketWindow.isPending ? 'Resetting…' : 'Reset window'}
             </Button>
@@ -273,7 +275,7 @@ export function UserEditDialog({ user, open, onOpenChange }: UserEditDialogProps
           <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer select-none">
             <Checkbox
               checked={notify}
-              disabled={saving}
+              disabled={busy}
               onCheckedChange={(checked) => setNotify(checked === true)}
             />
             Notify user (sends an in-app notification about the change)
@@ -314,10 +316,10 @@ export function UserEditDialog({ user, open, onOpenChange }: UserEditDialogProps
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={busy}>
             Cancel
           </Button>
-          <Button onClick={handleSave} disabled={saving}>
+          <Button onClick={handleSave} disabled={busy}>
             {saving ? 'Saving…' : 'Save changes'}
           </Button>
         </DialogFooter>

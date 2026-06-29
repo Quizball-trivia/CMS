@@ -92,7 +92,7 @@ export function useBanUser() {
       zeroRp,
     }: {
       userId: string;
-      reason?: string;
+      reason: string;
       zeroRp?: boolean;
     }) => adminUsersService.banUser(userId, { reason, zeroRp }),
     onSuccess: () => {
