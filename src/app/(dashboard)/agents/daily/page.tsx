@@ -28,6 +28,11 @@ function ScheduleCard({ schedule }: { schedule: AgentSchedule }) {
   const [hour, setHour] = useState(schedule.hourTbilisi);
 
   const p = schedule.params ?? {};
+  const isRanked = schedule.jobType !== 'daily_challenge';
+  const types = (Array.isArray(p.questionTypes) ? p.questionTypes : []) as string[];
+  const rotation = (Array.isArray(p.rotation) ? p.rotation : []) as { categoryId: string; topic?: string }[];
+  const categoriesPerDay = Number(p.categoriesPerDay ?? 1);
+  const hasFixedCategory = Boolean(p.categoryId ?? p.category_id);
 
   const handleToggle = (enabled: boolean) => {
     update.mutate(
@@ -90,9 +95,12 @@ function ScheduleCard({ schedule }: { schedule: AgentSchedule }) {
 
         {/* config row */}
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-          <ConfigTile label="Count" value={String(p.count ?? '—')} />
+          <ConfigTile label={isRanked ? 'Qs / type / category' : 'Count'} value={String(p.count ?? '—')} />
           <ConfigTile label="Difficulty" value={String(p.difficulty ?? '—')} />
-          <ConfigTile label="Type" value={String(p.questionType ?? 'mcq_single')} />
+          <ConfigTile
+            label={isRanked ? 'Types' : 'Type'}
+            value={isRanked ? types.length ? types.join(', ') : '—' : String(p.questionType ?? 'mcq_single')}
+          />
           <div className="rounded-xl border border-slate-200 bg-white px-4 py-3">
             <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">Fire hour (Tbilisi)</div>
             <div className="mt-1 flex items-center gap-2">
@@ -113,11 +121,27 @@ function ScheduleCard({ schedule }: { schedule: AgentSchedule }) {
           </div>
         </div>
 
-        {/* category note */}
-        {!p.categoryId ? (
+        {/* what this schedule generates each run */}
+        <p className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
+          <span className="font-semibold text-slate-700">Each run:</span>{' '}
+          {isRanked ? (
+            <>
+              generates {p.count ?? 25} questions per type ({types.join(', ') || '—'}) for {categoriesPerDay}{' '}
+              categor{categoriesPerDay === 1 ? 'y' : 'ies'} = <b>{(Number(p.count ?? 25) * types.length * categoriesPerDay) || 0} questions</b>, rotating through {rotation.length} categories over ~
+              {Math.ceil(rotation.length / Math.max(1, categoriesPerDay))} days.
+            </>
+          ) : (
+            <>
+              generates {p.count ?? 5} {String(p.questionType ?? 'mcq_single')} questions for one category
+              {rotation.length ? <>, rotating through {rotation.length} categories.</> : hasFixedCategory ? '.' : '.'}
+            </>
+          )}
+        </p>
+
+        {/* only warn if there's genuinely no category source (no fixed + no rotation) */}
+        {!hasFixedCategory && rotation.length === 0 ? (
           <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
-            No category set on this schedule — the VPS falls back to its env rotation (DAILY_CATEGORY_ROTATION) to
-            pick which category each day generates against.
+            No category or rotation set — this schedule has nothing to generate against and will be skipped.
           </p>
         ) : null}
 
@@ -178,8 +202,8 @@ export default function DailyChallengesPage() {
           <CalendarClock className="h-6 w-6 text-slate-700" />
         </div>
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900">Daily Challenges</h1>
-          <p className="text-sm text-slate-500">The scheduled daily-challenge generator — config, history, and manual run.</p>
+          <h1 className="text-2xl font-bold tracking-tight text-slate-900">Schedules</h1>
+          <p className="text-sm text-slate-500">Recurring cron jobs that auto-generate questions — config, what they do, history, and manual run.</p>
         </div>
       </div>
 

@@ -15,7 +15,7 @@ const AGENT_TABS = [
   { href: '/agents', label: 'Jobs', icon: LayoutList },
   { href: '/agents/activity', label: 'Activity', icon: Activity },
   { href: '/agents/review', label: 'Review', icon: Inbox },
-  { href: '/agents/daily', label: 'Daily Challenges', icon: CalendarClock },
+  { href: '/agents/daily', label: 'Schedules', icon: CalendarClock },
   { href: '/agents/stats', label: 'Stats', icon: BarChart3 },
   { href: '/agents/sub-agents', label: 'Sub-agents', icon: Bot },
   { href: '/agents/question-types', label: 'Question Types', icon: Layers },
