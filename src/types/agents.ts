@@ -276,6 +276,8 @@ export interface AgentReviewItem {
   source: 'daily' | 'ranked' | string;
   jobType: string;
   topic: string | null;
+  // active daily challenges this question can feed (empty = none right now)
+  feedsChallenges: string[];
   createdAt: string;
 }
 

@@ -60,6 +60,15 @@ function ReviewItem({ item }: { item: AgentReviewItem }) {
           <p className="mt-0.5 break-words text-xs text-slate-400">
             {getLocalizedTextByLang(item.prompt, 'en')}
           </p>
+          <p className="mt-1 text-[11px]">
+            {item.feedsChallenges.length > 0 ? (
+              <span className="text-slate-500">
+                <span className="font-semibold">Feeds:</span> {item.feedsChallenges.join(', ')}
+              </span>
+            ) : (
+              <span className="text-amber-600">Not used by any active daily challenge</span>
+            )}
+          </p>
         </div>
         <div className="flex shrink-0 gap-2">
           <Button size="sm" variant="outline" onClick={handleReject} disabled={busy} className="text-red-600 hover:bg-red-50">
