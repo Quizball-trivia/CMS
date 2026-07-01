@@ -6,6 +6,7 @@ import { useAgentRoster } from '@/hooks';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { AgentNav } from '../agent-ui';
 
 function fmtCents(c: number): string {
   return `$${(c / 100).toFixed(2)}`;
@@ -46,6 +47,8 @@ export default function SubAgentsPage() {
           </Link>
         </Button>
       </div>
+
+      <AgentNav />
 
       {isLoading ? (
         <div className="flex items-center gap-2 text-sm text-slate-500">

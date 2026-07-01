@@ -12,6 +12,7 @@
 
 import { apiClient } from '@/services';
 import type {
+  AgentActivity,
   AgentBudget,
   AgentEvent,
   AgentJob,
@@ -20,12 +21,15 @@ import type {
   AgentPromptVersion,
   AgentQuestionType,
   AgentRosterEntry,
+  AgentSchedule,
+  AgentStats,
   AgentTask,
   ListAgentJobsParams,
   SaveAgentPromptRequest,
   SpawnAgentJobRequest,
   UpdateAgentBudgetRequest,
   UpdateAgentQuestionTypeRequest,
+  UpdateAgentScheduleRequest,
 } from '@/types';
 
 const BASE = '/admin/agents';
@@ -68,6 +72,31 @@ export const agentsApi = {
 
   getMonitor(): Promise<AgentMonitor> {
     return apiClient.get<AgentMonitor>(`${BASE}/monitor`);
+  },
+
+  getActivity(): Promise<AgentActivity> {
+    return apiClient.get<AgentActivity>(`${BASE}/activity`);
+  },
+
+  getStats(): Promise<AgentStats> {
+    return apiClient.get<AgentStats>(`${BASE}/stats`);
+  },
+
+  // ── Schedules (daily-challenge cron) ──
+  listSchedules(): Promise<ItemsResponse<AgentSchedule>> {
+    return apiClient.get<ItemsResponse<AgentSchedule>>(`${BASE}/schedules`);
+  },
+
+  updateSchedule(id: string, data: UpdateAgentScheduleRequest): Promise<AgentSchedule> {
+    return apiClient.patch<AgentSchedule>(`${BASE}/schedules/${id}`, data);
+  },
+
+  getScheduleRuns(id: string): Promise<ItemsResponse<AgentJob>> {
+    return apiClient.get<ItemsResponse<AgentJob>>(`${BASE}/schedules/${id}/runs`);
+  },
+
+  runScheduleNow(id: string): Promise<AgentJob> {
+    return apiClient.post<AgentJob>(`${BASE}/schedules/${id}/run-now`);
   },
 
   getRoster(): Promise<ItemsResponse<AgentRosterEntry>> {

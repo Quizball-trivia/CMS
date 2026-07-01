@@ -1,8 +1,59 @@
 'use client';
 
+import Link from 'next/link';
+import { usePathname } from 'next/navigation';
+import { Activity, Bot, CalendarClock, FileText, BarChart3, Layers, LayoutList } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import type { AgentEventLevel, AgentJobStatus, AgentTaskDecision } from '@/types';
+
+// Shared tab bar across all Agents pages. Keeps navigation consistent and shows
+// where you are. Active = exact match, except /agents (Jobs) which also matches
+// job-detail routes (/agents/<uuid>).
+const AGENT_TABS = [
+  { href: '/agents', label: 'Jobs', icon: LayoutList },
+  { href: '/agents/activity', label: 'Activity', icon: Activity },
+  { href: '/agents/daily', label: 'Daily Challenges', icon: CalendarClock },
+  { href: '/agents/stats', label: 'Stats', icon: BarChart3 },
+  { href: '/agents/sub-agents', label: 'Sub-agents', icon: Bot },
+  { href: '/agents/question-types', label: 'Question Types', icon: Layers },
+  { href: '/agents/prompts', label: 'Prompts', icon: FileText },
+] as const;
+
+export function AgentNav() {
+  const pathname = usePathname();
+  const isActive = (href: string) => {
+    if (href === '/agents') {
+      // Jobs tab: active on /agents and job-detail (/agents/<id>), but not the other tabs
+      const others = AGENT_TABS.filter((t) => t.href !== '/agents').map((t) => t.href);
+      return pathname === '/agents' || (pathname.startsWith('/agents/') && !others.some((o) => pathname.startsWith(o)));
+    }
+    return pathname === href || pathname.startsWith(href + '/');
+  };
+  return (
+    <nav className="flex flex-wrap gap-1 border-b border-slate-200 pb-px">
+      {AGENT_TABS.map((tab) => {
+        const Icon = tab.icon;
+        const active = isActive(tab.href);
+        return (
+          <Link
+            key={tab.href}
+            href={tab.href}
+            className={cn(
+              'flex items-center gap-1.5 rounded-t-lg border-b-2 px-3 py-2 text-sm font-medium transition-colors',
+              active
+                ? 'border-slate-900 text-slate-900'
+                : 'border-transparent text-slate-500 hover:text-slate-800'
+            )}
+          >
+            <Icon className="h-4 w-4" />
+            {tab.label}
+          </Link>
+        );
+      })}
+    </nav>
+  );
+}
 
 const STATUS_STYLES: Record<AgentJobStatus, string> = {
   queued: 'border-slate-200 bg-slate-100 text-slate-600',

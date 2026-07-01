@@ -1,14 +1,11 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
   Bot,
   DollarSign,
-  FileText,
   Info,
-  Layers,
   Loader2,
   Pause,
   Play,
@@ -49,6 +46,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import {
+  AgentNav,
   formatCents,
   formatRelativeTime,
   isActiveJobStatus,
@@ -518,27 +516,9 @@ export default function AgentsPage() {
           <h1 className="text-2xl font-bold tracking-tight text-slate-900">Agents</h1>
           <p className="text-sm text-slate-500">Spawn and monitor question-generation agents.</p>
         </div>
-        <div className="ml-auto flex gap-2">
-          <Button variant="outline" size="sm" asChild>
-            <Link href="/agents/sub-agents">
-              <Bot className="h-4 w-4" />
-              Sub-agents
-            </Link>
-          </Button>
-          <Button variant="outline" size="sm" asChild>
-            <Link href="/agents/question-types">
-              <Layers className="h-4 w-4" />
-              Question Types
-            </Link>
-          </Button>
-          <Button variant="outline" size="sm" asChild>
-            <Link href="/agents/prompts">
-              <FileText className="h-4 w-4" />
-              Prompts
-            </Link>
-          </Button>
-        </div>
       </div>
+
+      <AgentNav />
 
       <SpawnCard />
 

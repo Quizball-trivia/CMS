@@ -9,6 +9,7 @@ import type {
   SpawnAgentJobRequest,
   UpdateAgentBudgetRequest,
   UpdateAgentQuestionTypeRequest,
+  UpdateAgentScheduleRequest,
 } from '@/types';
 
 const LIVE_REFETCH_MS = 3000;
@@ -21,6 +22,10 @@ export const agentKeys = {
   jobTasks: (jobId: string) => [...agentKeys.job(jobId), 'tasks'] as const,
   jobEvents: (jobId: string) => [...agentKeys.job(jobId), 'events'] as const,
   monitor: () => [...agentKeys.all, 'monitor'] as const,
+  activity: () => [...agentKeys.all, 'activity'] as const,
+  stats: () => [...agentKeys.all, 'stats'] as const,
+  schedules: () => [...agentKeys.all, 'schedules'] as const,
+  scheduleRuns: (id: string) => [...agentKeys.schedules(), id, 'runs'] as const,
   roster: () => [...agentKeys.all, 'roster'] as const,
   budget: () => [...agentKeys.all, 'budget'] as const,
   questionTypes: () => [...agentKeys.all, 'question-types'] as const,
@@ -70,6 +75,68 @@ export function useAgentMonitor() {
     queryKey: agentKeys.monitor(),
     queryFn: () => agentsApi.getMonitor(),
     refetchInterval: LIVE_REFETCH_MS,
+  });
+}
+
+export function useAgentActivity() {
+  return useQuery({
+    queryKey: agentKeys.activity(),
+    queryFn: () => agentsApi.getActivity(),
+    refetchInterval: LIVE_REFETCH_MS,
+  });
+}
+
+export function useAgentStats() {
+  return useQuery({
+    queryKey: agentKeys.stats(),
+    queryFn: () => agentsApi.getStats(),
+    refetchInterval: 15000,
+  });
+}
+
+export function useSchedules() {
+  return useQuery({
+    queryKey: agentKeys.schedules(),
+    queryFn: async () => (await agentsApi.listSchedules()).items,
+    refetchInterval: LIVE_REFETCH_MS,
+  });
+}
+
+export function useScheduleRuns(id: string, enabled = true) {
+  return useQuery({
+    queryKey: agentKeys.scheduleRuns(id),
+    queryFn: async () => (await agentsApi.getScheduleRuns(id)).items,
+    enabled: enabled && !!id,
+    refetchInterval: LIVE_REFETCH_MS,
+  });
+}
+
+export function useUpdateSchedule() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, data }: { id: string; data: UpdateAgentScheduleRequest }) =>
+      agentsApi.updateSchedule(id, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: agentKeys.schedules() });
+    },
+    onError: (error) => {
+      logger.error('agents', 'Failed to update schedule', getErrorLogDetails(error));
+    },
+  });
+}
+
+export function useRunScheduleNow() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => agentsApi.runScheduleNow(id),
+    onSuccess: (_, id) => {
+      queryClient.invalidateQueries({ queryKey: agentKeys.jobs() });
+      queryClient.invalidateQueries({ queryKey: agentKeys.schedules() });
+      queryClient.invalidateQueries({ queryKey: agentKeys.scheduleRuns(id) });
+    },
+    onError: (error) => {
+      logger.error('agents', 'Failed to run schedule now', getErrorLogDetails(error));
+    },
   });
 }
 

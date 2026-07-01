@@ -34,7 +34,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { formatRelativeTime } from '../agent-ui';
+import { formatRelativeTime, AgentNav } from '../agent-ui';
 
 interface RoleMeta {
   role: string;
@@ -318,6 +318,8 @@ function PromptsEditor() {
           </p>
         </div>
       </div>
+
+      <AgentNav />
 
       <div className="flex items-start gap-2 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800">
         <Info className="mt-0.5 h-4 w-4 shrink-0 text-blue-500" />

@@ -195,3 +195,69 @@ export interface UpdateAgentBudgetRequest {
   limitCents?: number;
   paused?: boolean;
 }
+
+// ── Live activity feed ──
+export interface AgentLiveSession {
+  id: string;
+  role: AgentPromptRole | string;
+  model: string | null;
+  jobId: string | null;
+  taskSeq: number | null;
+  topic: string | null;
+  question: string | null;
+  startedAt: string;
+  durationSeconds: number;
+}
+
+export interface AgentActivity {
+  running: AgentLiveSession[];
+  recent: {
+    generated: number;
+    approved: number;
+    rejected: number;
+    failed: number;
+    windowHours: number;
+  };
+}
+
+// ── Stats rollups ──
+export interface AgentStatsDay {
+  day: string;
+  approved: number;
+  rejected: number;
+  costCents: number;
+}
+
+export interface AgentStats {
+  days: number;
+  daily: AgentStatsDay[];
+  rejections: { stage: string; count: number }[];
+  timings: { role: string; avgSeconds: number; runs: number }[];
+  totals: { approved: number; rejected: number; costCents: number; approvalRate: number };
+}
+
+// ── Schedules (daily-challenge cron) ──
+export interface AgentSchedule {
+  id: string;
+  label: string;
+  jobType: string;
+  enabled: boolean;
+  hourTbilisi: number;
+  params: {
+    count?: number;
+    difficulty?: AgentDifficulty;
+    questionType?: string;
+    categoryId?: string;
+    topic?: string;
+    [k: string]: unknown;
+  };
+  lastRunAt: string | null;
+  lastJobId: string | null;
+  lastStatus: string | null;
+}
+
+export interface UpdateAgentScheduleRequest {
+  enabled?: boolean;
+  hourTbilisi?: number;
+  params?: Record<string, unknown>;
+}

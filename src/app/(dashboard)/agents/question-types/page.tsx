@@ -8,6 +8,7 @@ import { useQuestionTypes, useUpdateQuestionType } from '@/hooks';
 import type { AgentQuestionType } from '@/types';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { AgentNav } from '../agent-ui';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Textarea } from '@/components/ui/textarea';
@@ -131,6 +132,8 @@ export default function QuestionTypesPage() {
           </p>
         </div>
       </div>
+
+      <AgentNav />
 
       <div className="flex items-start gap-2 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800">
         <Info className="mt-0.5 h-4 w-4 shrink-0 text-blue-500" />
