@@ -261,3 +261,32 @@ export interface UpdateAgentScheduleRequest {
   hourTbilisi?: number;
   params?: Record<string, unknown>;
 }
+
+// ── Review queue ──
+export interface AgentReviewItem {
+  id: string;
+  type: string;
+  difficulty: AgentDifficulty | string;
+  categoryId: string;
+  prompt: I18nField;
+  // payload is type-specific (mcq options, clue chain, …); loosely typed
+  payload: { options?: AgentQuestionOption[]; [k: string]: unknown } | null;
+  verdicts: AgentTaskVerdicts | null;
+  warnings: string[] | null;
+  source: 'daily' | 'ranked' | string;
+  jobType: string;
+  topic: string | null;
+  createdAt: string;
+}
+
+export interface AgentReviewGroup {
+  source: 'daily' | 'ranked' | string;
+  topic: string | null;
+  count: number;
+  items: AgentReviewItem[];
+}
+
+export interface AgentReviewQueue {
+  count: number;
+  groups: AgentReviewGroup[];
+}

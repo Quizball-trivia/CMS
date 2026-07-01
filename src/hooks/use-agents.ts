@@ -26,6 +26,8 @@ export const agentKeys = {
   stats: () => [...agentKeys.all, 'stats'] as const,
   schedules: () => [...agentKeys.all, 'schedules'] as const,
   scheduleRuns: (id: string) => [...agentKeys.schedules(), id, 'runs'] as const,
+  review: () => [...agentKeys.all, 'review'] as const,
+  reviewCount: () => [...agentKeys.all, 'review', 'count'] as const,
   roster: () => [...agentKeys.all, 'roster'] as const,
   budget: () => [...agentKeys.all, 'budget'] as const,
   questionTypes: () => [...agentKeys.all, 'question-types'] as const,
@@ -145,6 +147,51 @@ export function useAgentRoster() {
     queryKey: agentKeys.roster(),
     queryFn: () => agentsApi.getRoster(),
     refetchInterval: LIVE_REFETCH_MS,
+  });
+}
+
+// ── Review queue ──
+export function useReviewQueue() {
+  return useQuery({
+    queryKey: agentKeys.review(),
+    queryFn: () => agentsApi.getReviewQueue(),
+    refetchInterval: LIVE_REFETCH_MS,
+  });
+}
+
+export function useReviewCount() {
+  return useQuery({
+    queryKey: agentKeys.reviewCount(),
+    queryFn: () => agentsApi.getReviewCount(),
+    refetchInterval: 15000,
+  });
+}
+
+export function useApproveQuestion() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (questionId: string) => agentsApi.approveQuestion(questionId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: agentKeys.review() });
+      queryClient.invalidateQueries({ queryKey: agentKeys.reviewCount() });
+    },
+    onError: (error) => {
+      logger.error('agents', 'Failed to approve question', getErrorLogDetails(error));
+    },
+  });
+}
+
+export function useRejectQuestion() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (questionId: string) => agentsApi.rejectQuestion(questionId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: agentKeys.review() });
+      queryClient.invalidateQueries({ queryKey: agentKeys.reviewCount() });
+    },
+    onError: (error) => {
+      logger.error('agents', 'Failed to reject question', getErrorLogDetails(error));
+    },
   });
 }
 

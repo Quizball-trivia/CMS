@@ -20,6 +20,7 @@ import type {
   AgentPrompt,
   AgentPromptVersion,
   AgentQuestionType,
+  AgentReviewQueue,
   AgentRosterEntry,
   AgentSchedule,
   AgentStats,
@@ -97,6 +98,23 @@ export const agentsApi = {
 
   runScheduleNow(id: string): Promise<AgentJob> {
     return apiClient.post<AgentJob>(`${BASE}/schedules/${id}/run-now`);
+  },
+
+  // ── Review queue ──
+  getReviewQueue(): Promise<AgentReviewQueue> {
+    return apiClient.get<AgentReviewQueue>(`${BASE}/review`);
+  },
+
+  getReviewCount(): Promise<{ count: number }> {
+    return apiClient.get<{ count: number }>(`${BASE}/review/count`);
+  },
+
+  approveQuestion(questionId: string): Promise<void> {
+    return apiClient.post<void>(`${BASE}/review/${questionId}/approve`);
+  },
+
+  rejectQuestion(questionId: string): Promise<void> {
+    return apiClient.post<void>(`${BASE}/review/${questionId}/reject`);
   },
 
   getRoster(): Promise<ItemsResponse<AgentRosterEntry>> {

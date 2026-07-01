@@ -2,9 +2,10 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Activity, Bot, CalendarClock, FileText, BarChart3, Layers, LayoutList } from 'lucide-react';
+import { Activity, Bot, CalendarClock, FileText, BarChart3, Inbox, Layers, LayoutList } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
+import { useReviewCount } from '@/hooks';
 import type { AgentEventLevel, AgentJobStatus, AgentTaskDecision } from '@/types';
 
 // Shared tab bar across all Agents pages. Keeps navigation consistent and shows
@@ -13,6 +14,7 @@ import type { AgentEventLevel, AgentJobStatus, AgentTaskDecision } from '@/types
 const AGENT_TABS = [
   { href: '/agents', label: 'Jobs', icon: LayoutList },
   { href: '/agents/activity', label: 'Activity', icon: Activity },
+  { href: '/agents/review', label: 'Review', icon: Inbox },
   { href: '/agents/daily', label: 'Daily Challenges', icon: CalendarClock },
   { href: '/agents/stats', label: 'Stats', icon: BarChart3 },
   { href: '/agents/sub-agents', label: 'Sub-agents', icon: Bot },
@@ -22,6 +24,7 @@ const AGENT_TABS = [
 
 export function AgentNav() {
   const pathname = usePathname();
+  const { data: reviewCount } = useReviewCount();
   const isActive = (href: string) => {
     if (href === '/agents') {
       // Jobs tab: active on /agents and job-detail (/agents/<id>), but not the other tabs
@@ -48,6 +51,11 @@ export function AgentNav() {
           >
             <Icon className="h-4 w-4" />
             {tab.label}
+            {tab.href === '/agents/review' && reviewCount && reviewCount.count > 0 ? (
+              <span className="ml-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-amber-500 px-1.5 text-[11px] font-bold text-white">
+                {reviewCount.count}
+              </span>
+            ) : null}
           </Link>
         );
       })}
