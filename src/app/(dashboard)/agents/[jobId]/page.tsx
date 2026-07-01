@@ -275,6 +275,28 @@ function TasksTable({ jobId }: { jobId: string }) {
   );
 }
 
+// Some events (job_done) carry a raw JSON counts blob in their message. Render
+// it as a readable summary instead of leaking "{"generated":5,...}".
+function formatEventMessage(message: string | null | undefined): string {
+  if (!message) return '';
+  const braceAt = message.indexOf('{');
+  if (braceAt === -1) return message;
+  const prefix = message.slice(0, braceAt).trim();
+  try {
+    const obj = JSON.parse(message.slice(braceAt));
+    if (obj && typeof obj === 'object') {
+      const parts = Object.entries(obj)
+        .filter(([, v]) => typeof v === 'number' || typeof v === 'string')
+        .map(([k, v]) => `${v} ${k}`);
+      const summary = parts.join(' · ');
+      return prefix ? `${prefix} ${summary}` : summary;
+    }
+  } catch {
+    /* not JSON — fall through */
+  }
+  return message;
+}
+
 function EventsFeed({ jobId }: { jobId: string }) {
   const { data: events, isLoading } = useJobEvents(jobId);
 
@@ -296,7 +318,7 @@ function EventsFeed({ jobId }: { jobId: string }) {
                     <span className="text-xs font-medium text-slate-500">{event.type}</span>
                     <span className="shrink-0 text-[11px] text-slate-400">{formatTime(event.ts)}</span>
                   </div>
-                  <p className="text-slate-700">{event.message}</p>
+                  <p className="break-words text-slate-700">{formatEventMessage(event.message)}</p>
                 </div>
               </div>
             ))
