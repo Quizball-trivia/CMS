@@ -365,17 +365,23 @@ function BudgetWidget() {
         </div>
 
         <div>
-          <div className="flex items-baseline justify-between gap-2 text-sm">
-            <span className="font-bold text-slate-900">{formatCents(spentMonth)}</span>
-            <span className="truncate text-slate-500">
-              of {formatCents(monthlyCredit)}/mo agent credit
+          <div className="flex items-baseline justify-between gap-2">
+            <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+              Monthly usage
+            </span>
+            <span className={`text-sm font-bold ${monthPct >= 90 ? 'text-red-600' : monthPct >= 70 ? 'text-amber-600' : 'text-slate-900'}`}>
+              {monthPct}% used
             </span>
           </div>
-          <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-slate-100">
+          <div className="mt-1.5 h-2.5 w-full overflow-hidden rounded-full bg-slate-100">
             <div
-              className={monthPct >= 100 ? 'h-full bg-red-500' : 'h-full bg-slate-900'}
+              className={monthPct >= 90 ? 'h-full bg-red-500' : monthPct >= 70 ? 'h-full bg-amber-500' : 'h-full bg-emerald-500'}
               style={{ width: `${monthPct}%` }}
             />
+          </div>
+          <div className="mt-1 flex items-baseline justify-between text-[11px] text-slate-500">
+            <span>{formatCents(spentMonth)} of {formatCents(monthlyCredit)}</span>
+            <span className="font-medium text-slate-600">{Math.max(0, 100 - monthPct)}% left</span>
           </div>
         </div>
 

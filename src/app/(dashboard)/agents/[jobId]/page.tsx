@@ -220,10 +220,19 @@ function TasksTable({ jobId }: { jobId: string }) {
         const failed = task.status === 'failed' || !!task.error;
         return (
           <Card key={task.id} className="overflow-hidden border-slate-200 shadow-sm">
-            <button
-              type="button"
+            {/* row toggles expand; it's a div (not a button) so the Retry/View
+                buttons inside are valid (a button can't nest a button) */}
+            <div
+              role="button"
+              tabIndex={0}
               onClick={() => toggle(task.id)}
-              className="flex w-full items-center gap-3 px-4 py-3 text-left hover:bg-slate-50"
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  toggle(task.id);
+                }
+              }}
+              className="flex w-full cursor-pointer items-center gap-3 px-4 py-3 text-left hover:bg-slate-50"
             >
               {isOpen ? (
                 <ChevronDown className="h-4 w-4 shrink-0 text-slate-400" />
@@ -262,7 +271,7 @@ function TasksTable({ jobId }: { jobId: string }) {
                   </Button>
                 ) : null}
               </span>
-            </button>
+            </div>
             {isOpen ? (
               <div className="border-t border-slate-100">
                 <TaskDetail task={task} />
