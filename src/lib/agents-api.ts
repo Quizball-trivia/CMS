@@ -117,6 +117,10 @@ export const agentsApi = {
     return apiClient.post<void>(`${BASE}/review/${questionId}/reject`);
   },
 
+  regenerateQuestion(questionId: string): Promise<AgentJob> {
+    return apiClient.post<AgentJob>(`${BASE}/review/${questionId}/regenerate`);
+  },
+
   getRoster(): Promise<ItemsResponse<AgentRosterEntry>> {
     return apiClient.get<ItemsResponse<AgentRosterEntry>>(`${BASE}/roster`);
   },

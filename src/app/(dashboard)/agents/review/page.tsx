@@ -1,9 +1,9 @@
 'use client';
 
 import { useState } from 'react';
-import { Inbox, Loader2, Check, X, CalendarClock, Trophy, ChevronDown, ChevronRight } from 'lucide-react';
+import { Inbox, Loader2, Check, X, CalendarClock, Trophy, ChevronDown, ChevronRight, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
-import { useReviewQueue, useApproveQuestion, useRejectQuestion } from '@/hooks';
+import { useReviewQueue, useApproveQuestion, useRejectQuestion, useRegenerateQuestion } from '@/hooks';
 import { getLocalizedTextByLang } from '@/lib/utils';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -151,8 +151,9 @@ function AnswerPill({ answer, accepted }: { answer?: I18nField; accepted?: strin
 function ReviewItem({ item }: { item: AgentReviewItem }) {
   const approve = useApproveQuestion();
   const reject = useRejectQuestion();
+  const regenerate = useRegenerateQuestion();
   const [open, setOpen] = useState(false);
-  const busy = approve.isPending || reject.isPending;
+  const busy = approve.isPending || reject.isPending || regenerate.isPending;
 
   const factcheck = item.verdicts?.factcheck as { reason?: string; correct_answer?: string } | undefined;
   const criteria = item.verdicts?.criteria as { suggestions?: string } | undefined;
@@ -166,6 +167,11 @@ function ReviewItem({ item }: { item: AgentReviewItem }) {
     reject.mutate(item.id, {
       onSuccess: () => toast.success('Rejected — question archived'),
       onError: () => toast.error('Failed to reject'),
+    });
+  const handleRegenerate = () =>
+    regenerate.mutate(item.id, {
+      onSuccess: () => toast.success('Regenerating — a fresh question is being generated'),
+      onError: () => toast.error('Failed to regenerate'),
     });
 
   return (
@@ -197,6 +203,9 @@ function ReviewItem({ item }: { item: AgentReviewItem }) {
           </p>
         </div>
         <div className="flex shrink-0 gap-2">
+          <Button size="sm" variant="outline" onClick={handleRegenerate} disabled={busy} className="text-slate-600 hover:bg-slate-50">
+            {regenerate.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />} Regenerate
+          </Button>
           <Button size="sm" variant="outline" onClick={handleReject} disabled={busy} className="text-red-600 hover:bg-red-50">
             <X className="h-4 w-4" /> Reject
           </Button>

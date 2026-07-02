@@ -195,6 +195,21 @@ export function useRejectQuestion() {
   });
 }
 
+export function useRegenerateQuestion() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (questionId: string) => agentsApi.regenerateQuestion(questionId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: agentKeys.review() });
+      queryClient.invalidateQueries({ queryKey: agentKeys.reviewCount() });
+      queryClient.invalidateQueries({ queryKey: agentKeys.jobs() });
+    },
+    onError: (error) => {
+      logger.error('agents', 'Failed to regenerate question', getErrorLogDetails(error));
+    },
+  });
+}
+
 export function useAgentBudget() {
   return useQuery({
     queryKey: agentKeys.budget(),
