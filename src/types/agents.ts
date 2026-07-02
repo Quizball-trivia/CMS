@@ -50,9 +50,21 @@ export interface AgentQuestionOption {
 }
 
 export interface AgentQuestionDraft {
-  prompt: I18nField;
-  options: AgentQuestionOption[];
-  difficulty: AgentDifficulty | string;
+  prompt?: I18nField;
+  questionType?: string;
+  difficulty?: AgentDifficulty | string;
+  // mcq_single / true_false
+  options?: AgentQuestionOption[];
+  // clue_chain / career_path (type-specific fields sit at the top level of the draft)
+  clues?: { type?: string; content: I18nField }[];
+  clubs?: I18nField[];
+  display_answer?: I18nField;
+  accepted_answers?: string[];
+  // put_in_order
+  items?: { label: I18nField; sort_value: number }[];
+  // countdown_list
+  answer_groups?: { display: I18nField; accepted_answers?: string[] }[];
+  [k: string]: unknown;
 }
 
 export interface AgentTaskVerdicts {

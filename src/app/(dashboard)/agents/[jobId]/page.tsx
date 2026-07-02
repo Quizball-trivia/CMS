@@ -13,7 +13,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAgentJob, useJobEvents, useJobTasks, useRetryTask } from '@/hooks';
-import type { AgentTask, AgentTaskVerdicts } from '@/types';
+import type { AgentTask, AgentTaskVerdicts, AgentQuestionDraft, I18nField } from '@/types';
 import { getLocalizedText, getLocalizedTextByLang } from '@/lib/utils';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -93,6 +93,126 @@ function VerdictsPanel({ verdicts }: { verdicts: AgentTaskVerdicts | null }) {
   );
 }
 
+// Bilingual line: Georgian primary, English muted underneath.
+function BiLine({ value }: { value: I18nField | undefined }) {
+  const ka = getLocalizedTextByLang(value, 'ka', '—');
+  const en = getLocalizedTextByLang(value, 'en');
+  return (
+    <span className="flex min-w-0 flex-col">
+      <span className="break-words text-sm text-slate-700">{ka}</span>
+      {en && en !== ka ? <span className="break-words text-xs text-slate-400">{en}</span> : null}
+    </span>
+  );
+}
+
+// Renders the type-specific body of a draft (mcq options, clue chain, ordered
+// items, answer list, career path). Guards every field so a non-mcq draft never
+// crashes on a missing `options`.
+function DraftBody({ draft }: { draft: AgentQuestionDraft }) {
+  const type = draft.questionType ?? 'mcq_single';
+
+  if (draft.options?.length) {
+    return (
+      <div className="grid gap-2 sm:grid-cols-2">
+        {draft.options.map((option, index) => (
+          <div
+            key={index}
+            className={
+              option.is_correct
+                ? 'flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2'
+                : 'flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2'
+            }
+          >
+            {option.is_correct ? (
+              <Badge variant="outline" className="shrink-0 border-emerald-300 bg-emerald-100 text-emerald-700">
+                Correct
+              </Badge>
+            ) : null}
+            <BiLine value={option.text} />
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  if (type === 'clue_chain' && (draft.clues?.length || draft.display_answer)) {
+    return (
+      <div className="space-y-2">
+        <DraftAnswer answer={draft.display_answer} accepted={draft.accepted_answers} />
+        <ol className="space-y-1.5">
+          {(draft.clues ?? []).map((c, i) => (
+            <li key={i} className="flex gap-2 rounded-lg border border-slate-200 bg-white px-3 py-1.5">
+              <span className="mt-0.5 shrink-0 text-xs font-bold text-slate-400">{i + 1}</span>
+              <BiLine value={c.content} />
+            </li>
+          ))}
+        </ol>
+      </div>
+    );
+  }
+
+  if (type === 'career_path' && (draft.clubs?.length || draft.display_answer)) {
+    return (
+      <div className="space-y-2">
+        <DraftAnswer answer={draft.display_answer} accepted={draft.accepted_answers} />
+        <div className="flex flex-wrap items-center gap-1.5">
+          {(draft.clubs ?? []).map((club, i) => (
+            <span key={i} className="flex items-center gap-1.5">
+              {i > 0 ? <span className="text-slate-300">→</span> : null}
+              <span className="rounded-md border border-slate-200 bg-white px-2 py-1">
+                <BiLine value={club} />
+              </span>
+            </span>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  if (type === 'put_in_order' && draft.items?.length) {
+    const items = [...draft.items].sort((a, b) => (a.sort_value ?? 0) - (b.sort_value ?? 0));
+    return (
+      <ol className="space-y-1.5">
+        {items.map((it, i) => (
+          <li key={i} className="flex gap-2 rounded-lg border border-slate-200 bg-white px-3 py-1.5">
+            <span className="mt-0.5 shrink-0 text-xs font-bold text-slate-400">{it.sort_value ?? i + 1}</span>
+            <BiLine value={it.label} />
+          </li>
+        ))}
+      </ol>
+    );
+  }
+
+  if (type === 'countdown_list' && draft.answer_groups?.length) {
+    return (
+      <div className="grid gap-1.5 sm:grid-cols-2">
+        {draft.answer_groups.map((g, i) => (
+          <div key={i} className="rounded-lg border border-slate-200 bg-white px-3 py-1.5">
+            <BiLine value={g.display} />
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  return <p className="text-xs text-slate-400">No preview available for this question type.</p>;
+}
+
+function DraftAnswer({ answer, accepted }: { answer?: I18nField; accepted?: string[] }) {
+  const ka = getLocalizedTextByLang(answer, 'ka', '');
+  const en = getLocalizedTextByLang(answer, 'en', '');
+  return (
+    <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5">
+      <span className="text-[10px] font-black uppercase tracking-widest text-emerald-600">Answer</span>
+      <div className="text-sm font-semibold text-slate-800">
+        {ka || en || '—'}
+        {en && en !== ka ? <span className="ml-1 text-xs font-normal text-slate-400">({en})</span> : null}
+      </div>
+      {accepted?.length ? <div className="mt-0.5 text-[11px] text-slate-400">accepts: {accepted.join(', ')}</div> : null}
+    </div>
+  );
+}
+
 function TaskDetail({ task }: { task: AgentTask }) {
   const draft = task.questionDraft;
 
@@ -111,31 +231,7 @@ function TaskDetail({ task }: { task: AgentTask }) {
               </p>
             ) : null}
           </div>
-          <div className="grid gap-2 sm:grid-cols-2">
-            {draft.options.map((option, index) => (
-              <div
-                key={index}
-                className={
-                  option.is_correct
-                    ? 'flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2'
-                    : 'flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2'
-                }
-              >
-                {option.is_correct ? (
-                  <Badge variant="outline" className="shrink-0 border-emerald-300 bg-emerald-100 text-emerald-700">
-                    Correct
-                  </Badge>
-                ) : null}
-                <span className="flex min-w-0 flex-col">
-                  <span className="break-words text-sm text-slate-700">{getLocalizedTextByLang(option.text, 'ka', '—')}</span>
-                  {getLocalizedTextByLang(option.text, 'en') &&
-                  getLocalizedTextByLang(option.text, 'en') !== getLocalizedTextByLang(option.text, 'ka') ? (
-                    <span className="break-words text-xs text-slate-400">{getLocalizedTextByLang(option.text, 'en')}</span>
-                  ) : null}
-                </span>
-              </div>
-            ))}
-          </div>
+          <DraftBody draft={draft} />
         </div>
       ) : (
         <p className="text-sm text-slate-500">No draft generated yet.</p>
