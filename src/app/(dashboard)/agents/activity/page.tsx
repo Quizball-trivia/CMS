@@ -1,6 +1,7 @@
 'use client';
 
-import { Activity, Loader2 } from 'lucide-react';
+import Link from 'next/link';
+import { Activity, Loader2, ChevronRight } from 'lucide-react';
 import { useAgentActivity } from '@/hooks';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -21,9 +22,19 @@ function fmtDuration(seconds: number): string {
   return `${m}m ${s}s`;
 }
 
+// The stage a role represents in the pipeline — shown so you know what a
+// long-running session is actually doing.
+const ROLE_STAGE: Record<string, string> = {
+  generator: 'writing questions',
+  factcheck: 'web fact-checking',
+  criteria: 'quality check',
+  dedupe: 'duplicate check',
+};
+
 function SessionRow({ s }: { s: AgentLiveSession }) {
-  return (
-    <div className="flex items-center gap-3 border-b border-slate-100 px-4 py-3 last:border-0">
+  const slow = s.durationSeconds > 120; // flag sessions running unusually long
+  const inner = (
+    <div className="flex items-center gap-3 px-4 py-3">
       <span className="relative flex h-2.5 w-2.5 shrink-0">
         <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
         <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-emerald-500" />
@@ -36,13 +47,25 @@ function SessionRow({ s }: { s: AgentLiveSession }) {
           {s.question || s.topic || '—'}
         </p>
         <p className="text-xs text-slate-500">
-          {s.topic ? `${s.topic} · ` : ''}
-          {s.taskSeq != null ? `Q#${s.taskSeq} · ` : ''}
-          {s.model ?? ''}
+          {ROLE_STAGE[s.role] ?? 'working'}
+          {s.topic ? ` · ${s.topic}` : ''}
+          {s.taskSeq != null ? ` · Q#${s.taskSeq}` : ''}
+          {s.model ? ` · ${s.model}` : ''}
         </p>
       </div>
-      <span className="shrink-0 font-mono text-sm tabular-nums text-slate-600">{fmtDuration(s.durationSeconds)}</span>
+      <span className={`shrink-0 font-mono text-sm tabular-nums ${slow ? 'font-semibold text-amber-600' : 'text-slate-600'}`}>
+        {fmtDuration(s.durationSeconds)}
+      </span>
+      {s.jobId ? <ChevronRight className="h-4 w-4 shrink-0 text-slate-300" /> : null}
     </div>
+  );
+  // Clicking a session opens its job detail (tasks, stages, verdicts, events).
+  return s.jobId ? (
+    <Link href={`/agents/${s.jobId}`} className="block border-b border-slate-100 last:border-0 hover:bg-slate-50">
+      {inner}
+    </Link>
+  ) : (
+    <div className="border-b border-slate-100 last:border-0">{inner}</div>
   );
 }
 
