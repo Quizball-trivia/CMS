@@ -9,7 +9,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { AgentNav } from '../agent-ui';
-import type { AgentReviewGroup, AgentReviewItem } from '@/types';
+import type { AgentReviewGroup, AgentReviewItem, I18nField } from '@/types';
 
 function SourceBadge({ source }: { source: string }) {
   if (source === 'daily') {
@@ -26,13 +26,134 @@ function SourceBadge({ source }: { source: string }) {
   );
 }
 
+// A bilingual line: Georgian primary, English muted underneath.
+function Bi({ value, className = '' }: { value: I18nField | undefined; className?: string }) {
+  const ka = getLocalizedTextByLang(value, 'ka', '—');
+  const en = getLocalizedTextByLang(value, 'en');
+  return (
+    <span className={`flex min-w-0 flex-col ${className}`}>
+      <span className="break-words text-sm text-slate-700">{ka}</span>
+      {en && en !== ka ? <span className="break-words text-xs text-slate-400">{en}</span> : null}
+    </span>
+  );
+}
+
+// Renders the type-specific content of a question so an editor can actually read
+// and judge it — MCQ options, clue chains, ordered items, answer lists, career paths.
+function PayloadView({ type, payload }: { type: string; payload: AgentReviewItem['payload'] }) {
+  const p = payload ?? {};
+
+  // mcq_single / true_false — options with the correct one highlighted
+  if (p.options?.length) {
+    return (
+      <div className="grid gap-1.5 sm:grid-cols-2">
+        {p.options.map((o, i) => (
+          <div
+            key={i}
+            className={
+              o.is_correct
+                ? 'flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5'
+                : 'flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-1.5'
+            }
+          >
+            {o.is_correct ? <Check className="h-3.5 w-3.5 shrink-0 text-emerald-600" /> : null}
+            <Bi value={o.text} />
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  // clue_chain ("Who am I?") — the answer, then the ordered clues (hardest→easiest)
+  if (type === 'clue_chain' && (p.clues?.length || p.display_answer)) {
+    return (
+      <div className="space-y-2">
+        <AnswerPill answer={p.display_answer} accepted={p.accepted_answers} />
+        <ol className="space-y-1.5">
+          {(p.clues ?? []).map((c, i) => (
+            <li key={i} className="flex gap-2 rounded-lg border border-slate-200 bg-white px-3 py-1.5">
+              <span className="mt-0.5 shrink-0 text-xs font-bold text-slate-400">{i + 1}</span>
+              <Bi value={c.content} />
+            </li>
+          ))}
+        </ol>
+      </div>
+    );
+  }
+
+  // career_path — the answer, then the club sequence
+  if (type === 'career_path' && (p.clubs?.length || p.display_answer)) {
+    return (
+      <div className="space-y-2">
+        <AnswerPill answer={p.display_answer} accepted={p.accepted_answers} />
+        <div className="flex flex-wrap items-center gap-1.5">
+          {(p.clubs ?? []).map((club, i) => (
+            <span key={i} className="flex items-center gap-1.5">
+              {i > 0 ? <span className="text-slate-300">→</span> : null}
+              <span className="rounded-md border border-slate-200 bg-white px-2 py-1">
+                <Bi value={club} />
+              </span>
+            </span>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  // put_in_order — items in their correct order
+  if (type === 'put_in_order' && p.items?.length) {
+    const items = [...p.items].sort((a, b) => (a.sort_value ?? 0) - (b.sort_value ?? 0));
+    return (
+      <ol className="space-y-1.5">
+        {items.map((it, i) => (
+          <li key={i} className="flex gap-2 rounded-lg border border-slate-200 bg-white px-3 py-1.5">
+            <span className="mt-0.5 shrink-0 text-xs font-bold text-slate-400">{it.sort_value ?? i + 1}</span>
+            <Bi value={it.label} />
+          </li>
+        ))}
+      </ol>
+    );
+  }
+
+  // countdown_list — the full set of accepted answers
+  if (type === 'countdown_list' && p.answer_groups?.length) {
+    return (
+      <div className="grid gap-1.5 sm:grid-cols-2">
+        {p.answer_groups.map((g, i) => (
+          <div key={i} className="rounded-lg border border-slate-200 bg-white px-3 py-1.5">
+            <Bi value={g.display} />
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  return <p className="text-xs text-slate-400">No preview available for this question type.</p>;
+}
+
+function AnswerPill({ answer, accepted }: { answer?: I18nField; accepted?: string[] }) {
+  const ka = getLocalizedTextByLang(answer, 'ka', '');
+  const en = getLocalizedTextByLang(answer, 'en', '');
+  return (
+    <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5">
+      <span className="text-[10px] font-black uppercase tracking-widest text-emerald-600">Answer</span>
+      <div className="text-sm font-semibold text-slate-800">
+        {ka || en || '—'}
+        {en && en !== ka ? <span className="ml-1 text-xs font-normal text-slate-400">({en})</span> : null}
+      </div>
+      {accepted?.length ? (
+        <div className="mt-0.5 text-[11px] text-slate-400">accepts: {accepted.join(', ')}</div>
+      ) : null}
+    </div>
+  );
+}
+
 function ReviewItem({ item }: { item: AgentReviewItem }) {
   const approve = useApproveQuestion();
   const reject = useRejectQuestion();
   const [open, setOpen] = useState(false);
   const busy = approve.isPending || reject.isPending;
 
-  const options = item.payload?.options ?? [];
   const factcheck = item.verdicts?.factcheck as { reason?: string; correct_answer?: string } | undefined;
   const criteria = item.verdicts?.criteria as { suggestions?: string } | undefined;
 
@@ -66,7 +187,12 @@ function ReviewItem({ item }: { item: AgentReviewItem }) {
                 <span className="font-semibold">Feeds:</span> {item.feedsChallenges.join(', ')}
               </span>
             ) : (
-              <span className="text-amber-600">Not used by any active daily challenge</span>
+              <span
+                className="text-amber-600"
+                title="No daily challenge that's currently active uses this question type + category. It still goes into the question bank on approval; it'll appear in a daily challenge once one is configured to use it."
+              >
+                Not used by any active daily challenge
+              </span>
             )}
           </p>
         </div>
@@ -82,27 +208,8 @@ function ReviewItem({ item }: { item: AgentReviewItem }) {
 
       {open ? (
         <div className="space-y-3 bg-slate-50 px-4 py-3 pl-11">
-          {/* options */}
-          {options.length > 0 ? (
-            <div className="grid gap-1.5 sm:grid-cols-2">
-              {options.map((o, i) => (
-                <div
-                  key={i}
-                  className={
-                    o.is_correct
-                      ? 'flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5'
-                      : 'flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-1.5'
-                  }
-                >
-                  {o.is_correct ? <Check className="h-3.5 w-3.5 shrink-0 text-emerald-600" /> : null}
-                  <span className="flex min-w-0 flex-col">
-                    <span className="break-words text-sm text-slate-700">{getLocalizedTextByLang(o.text, 'ka', '—')}</span>
-                    <span className="break-words text-xs text-slate-400">{getLocalizedTextByLang(o.text, 'en')}</span>
-                  </span>
-                </div>
-              ))}
-            </div>
-          ) : null}
+          {/* type-specific content (options / clues / items / …) */}
+          <PayloadView type={item.type} payload={item.payload} />
 
           {/* verdicts — why it passed the gates */}
           <div className="flex flex-wrap gap-2 text-xs">

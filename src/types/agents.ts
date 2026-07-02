@@ -263,6 +263,25 @@ export interface UpdateAgentScheduleRequest {
 }
 
 // ── Review queue ──
+// Type-specific payload shapes (as produced by the generators / stored in
+// question_payloads). All text fields are bilingual {en, ka}.
+export interface AgentQuestionPayload {
+  type?: string;
+  // mcq_single / true_false
+  options?: AgentQuestionOption[];
+  // clue_chain / career_path
+  clues?: { type?: string; content: I18nField }[];
+  clubs?: I18nField[];
+  display_answer?: I18nField;
+  accepted_answers?: string[];
+  // put_in_order
+  direction?: string;
+  items?: { label: I18nField; sort_value: number }[];
+  // countdown_list
+  answer_groups?: { display: I18nField; accepted_answers?: string[] }[];
+  [k: string]: unknown;
+}
+
 export interface AgentReviewItem {
   id: string;
   type: string;
@@ -270,7 +289,10 @@ export interface AgentReviewItem {
   categoryId: string;
   prompt: I18nField;
   // payload is type-specific (mcq options, clue chain, …); loosely typed
-  payload: { options?: AgentQuestionOption[]; [k: string]: unknown } | null;
+  // type-specific payload — shape depends on the question type:
+  //  mcq_single/true_false: options[]; clue_chain/career_path: clues|clubs + display_answer;
+  //  put_in_order: items[]; countdown_list: answer_groups[]
+  payload: AgentQuestionPayload | null;
   verdicts: AgentTaskVerdicts | null;
   warnings: string[] | null;
   source: 'daily' | 'ranked' | string;
