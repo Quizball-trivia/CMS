@@ -269,7 +269,7 @@ function MonitorStrip() {
   const running = monitor?.running ?? [];
 
   return (
-    <Card className="border-slate-200 shadow-sm">
+    <Card className="self-start border-slate-200 shadow-sm">
       <CardContent className="flex flex-wrap items-center gap-4 p-5">
         <div className="flex items-center gap-3">
           <div className="rounded-2xl bg-slate-100 p-2.5">
