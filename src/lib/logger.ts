@@ -21,6 +21,7 @@ export type LogModule =
   | 'admin-users'
   | 'announcements'
   | 'auction'
+  | 'agents'
   | 'general';
 
 interface LogEntry {
@@ -33,7 +34,7 @@ interface LogEntry {
 
 // Enable/disable logging per module (can be controlled via localStorage in browser)
 const getEnabledModules = (): Set<LogModule> => {
-  if (typeof window === 'undefined') return new Set(['questions', 'categories', 'featured', 'auth', 'api', 'form', 'admin-users', 'announcements', 'auction', 'general']);
+  if (typeof window === 'undefined') return new Set(['questions', 'categories', 'featured', 'auth', 'api', 'form', 'admin-users', 'announcements', 'auction', 'agents', 'general']);
   
   try {
     const stored = localStorage.getItem('cms_log_modules');
