@@ -31,6 +31,7 @@ import type {
   UpdateAgentBudgetRequest,
   UpdateAgentQuestionTypeRequest,
   UpdateAgentScheduleRequest,
+  UpdateReviewQuestionRequest,
 } from '@/types';
 
 const BASE = '/admin/agents';
@@ -119,6 +120,10 @@ export const agentsApi = {
 
   regenerateQuestion(questionId: string): Promise<AgentJob> {
     return apiClient.post<AgentJob>(`${BASE}/review/${questionId}/regenerate`);
+  },
+
+  updateReviewQuestion(questionId: string, data: UpdateReviewQuestionRequest): Promise<void> {
+    return apiClient.patch<void>(`${BASE}/review/${questionId}`, data);
   },
 
   getRoster(): Promise<ItemsResponse<AgentRosterEntry>> {

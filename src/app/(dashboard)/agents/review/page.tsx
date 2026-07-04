@@ -1,15 +1,17 @@
 'use client';
 
 import { useState } from 'react';
-import { Inbox, Loader2, Check, X, CalendarClock, Trophy, ChevronDown, ChevronRight, RefreshCw } from 'lucide-react';
+import { Inbox, Loader2, Check, X, CalendarClock, Trophy, ChevronDown, ChevronRight, RefreshCw, Pencil, Save } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
-import { useReviewQueue, useApproveQuestion, useRejectQuestion, useRegenerateQuestion } from '@/hooks';
+import { useReviewQueue, useApproveQuestion, useRejectQuestion, useRegenerateQuestion, useUpdateReviewQuestion } from '@/hooks';
 import { getLocalizedTextByLang } from '@/lib/utils';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { AgentNav } from '../agent-ui';
-import type { AgentReviewGroup, AgentReviewItem, I18nField } from '@/types';
+import type { AgentReviewGroup, AgentReviewItem, AgentQuestionPayload, I18nField } from '@/types';
 
 function SourceBadge({ source }: { source: string }) {
   if (source === 'daily') {
@@ -148,12 +150,182 @@ function AnswerPill({ answer, accepted }: { answer?: I18nField; accepted?: strin
   );
 }
 
+// Editable bilingual pair — Georgian first (primary), English under it.
+function BiEditField({
+  value,
+  onChange,
+  multiline,
+}: {
+  value: I18nField | undefined;
+  onChange: (v: I18nField) => void;
+  multiline?: boolean;
+}) {
+  const v = value ?? { en: '', ka: '' };
+  const Field: any = multiline ? Textarea : Input;
+  return (
+    <div className="flex min-w-0 flex-1 flex-col gap-1">
+      <Field
+        value={v.ka ?? ''}
+        onChange={(e: React.ChangeEvent<HTMLInputElement>) => onChange({ ...v, ka: e.target.value })}
+        placeholder="ქართული"
+        className="text-sm"
+      />
+      <Field
+        value={v.en ?? ''}
+        onChange={(e: React.ChangeEvent<HTMLInputElement>) => onChange({ ...v, en: e.target.value })}
+        placeholder="English"
+        className="text-xs text-slate-500"
+      />
+    </div>
+  );
+}
+
+function AcceptedAnswersField({ value, onChange }: { value: string[] | undefined; onChange: (v: string[]) => void }) {
+  return (
+    <div>
+      <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Accepted answers (comma-separated)</span>
+      <Input
+        value={(value ?? []).join(', ')}
+        onChange={(e) => onChange(e.target.value.split(',').map((s) => s.trim()).filter(Boolean))}
+        className="mt-1 text-sm"
+      />
+    </div>
+  );
+}
+
+// Type-aware editor mirroring PayloadView — every text leaf becomes editable.
+function PayloadEditor({
+  type,
+  payload,
+  onChange,
+}: {
+  type: string;
+  payload: AgentQuestionPayload | null;
+  onChange: (p: AgentQuestionPayload) => void;
+}) {
+  const p = payload ?? {};
+  const set = (patch: Partial<AgentQuestionPayload>) => onChange({ ...p, ...patch });
+
+  if (p.options?.length) {
+    return (
+      <div className="space-y-2">
+        {p.options.map((o, i) => (
+          <div key={i} className="flex items-start gap-2">
+            <span className={`mt-2 w-16 shrink-0 text-xs font-semibold ${o.is_correct ? 'text-emerald-600' : 'text-slate-400'}`}>
+              {o.is_correct ? '✓ correct' : 'wrong'}
+            </span>
+            <BiEditField
+              value={o.text}
+              onChange={(text) => set({ options: p.options!.map((x, j) => (j === i ? { ...x, text } : x)) })}
+            />
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  if (type === 'clue_chain') {
+    return (
+      <div className="space-y-3">
+        <div>
+          <span className="text-[10px] font-black uppercase tracking-widest text-emerald-600">Answer</span>
+          <BiEditField value={p.display_answer} onChange={(display_answer) => set({ display_answer })} />
+        </div>
+        <AcceptedAnswersField value={p.accepted_answers} onChange={(accepted_answers) => set({ accepted_answers })} />
+        {(p.clues ?? []).map((c, i) => (
+          <div key={i} className="flex items-start gap-2">
+            <span className="mt-2 shrink-0 text-xs font-bold text-slate-400">{i + 1}</span>
+            <BiEditField
+              multiline
+              value={c.content}
+              onChange={(content) => set({ clues: p.clues!.map((x, j) => (j === i ? { ...x, content } : x)) })}
+            />
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  if (type === 'career_path') {
+    return (
+      <div className="space-y-3">
+        <div>
+          <span className="text-[10px] font-black uppercase tracking-widest text-emerald-600">Answer</span>
+          <BiEditField value={p.display_answer} onChange={(display_answer) => set({ display_answer })} />
+        </div>
+        <AcceptedAnswersField value={p.accepted_answers} onChange={(accepted_answers) => set({ accepted_answers })} />
+        {(p.clubs ?? []).map((club, i) => (
+          <div key={i} className="flex items-start gap-2">
+            <span className="mt-2 shrink-0 text-xs font-bold text-slate-400">{i + 1}</span>
+            <BiEditField value={club} onChange={(v) => set({ clubs: p.clubs!.map((x, j) => (j === i ? v : x)) })} />
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  if (type === 'put_in_order' && p.items?.length) {
+    return (
+      <div className="space-y-2">
+        {[...p.items]
+          .map((it, idx) => ({ it, idx }))
+          .sort((a, b) => (a.it.sort_value ?? 0) - (b.it.sort_value ?? 0))
+          .map(({ it, idx }) => (
+            <div key={idx} className="flex items-start gap-2">
+              <span className="mt-2 shrink-0 text-xs font-bold text-slate-400">{it.sort_value}</span>
+              <BiEditField
+                value={it.label}
+                onChange={(label) => set({ items: p.items!.map((x, j) => (j === idx ? { ...x, label } : x)) })}
+              />
+            </div>
+          ))}
+      </div>
+    );
+  }
+
+  if (type === 'countdown_list' && p.answer_groups?.length) {
+    return (
+      <div className="space-y-2">
+        {p.answer_groups.map((g, i) => (
+          <BiEditField
+            key={i}
+            value={g.display}
+            onChange={(display) => set({ answer_groups: p.answer_groups!.map((x, j) => (j === i ? { ...x, display } : x)) })}
+          />
+        ))}
+      </div>
+    );
+  }
+
+  return <p className="text-xs text-slate-400">No editable fields for this question type.</p>;
+}
+
 function ReviewItem({ item }: { item: AgentReviewItem }) {
   const approve = useApproveQuestion();
   const reject = useRejectQuestion();
   const regenerate = useRegenerateQuestion();
+  const update = useUpdateReviewQuestion();
   const [open, setOpen] = useState(false);
-  const busy = approve.isPending || reject.isPending || regenerate.isPending;
+  const [edit, setEdit] = useState<{ prompt: I18nField; payload: AgentQuestionPayload | null } | null>(null);
+  const busy = approve.isPending || reject.isPending || regenerate.isPending || update.isPending;
+
+  const startEdit = () => {
+    setOpen(true);
+    setEdit(structuredClone({ prompt: item.prompt ?? { en: '', ka: '' }, payload: item.payload }));
+  };
+  const saveEdit = () => {
+    if (!edit) return;
+    update.mutate(
+      { id: item.id, data: { prompt: edit.prompt as { en: string; ka: string }, payload: (edit.payload ?? undefined) as Record<string, unknown> | undefined } },
+      {
+        onSuccess: () => {
+          toast.success('Question updated');
+          setEdit(null);
+        },
+        onError: () => toast.error('Failed to save changes'),
+      }
+    );
+  };
 
   const factcheck = item.verdicts?.factcheck as { reason?: string; correct_answer?: string } | undefined;
   const criteria = item.verdicts?.criteria as { suggestions?: string } | undefined;
@@ -203,19 +375,43 @@ function ReviewItem({ item }: { item: AgentReviewItem }) {
           </p>
         </div>
         <div className="flex shrink-0 gap-2">
-          <Button size="sm" variant="outline" onClick={handleRegenerate} disabled={busy} className="text-slate-600 hover:bg-slate-50">
-            {regenerate.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />} Regenerate
-          </Button>
-          <Button size="sm" variant="outline" onClick={handleReject} disabled={busy} className="text-red-600 hover:bg-red-50">
-            <X className="h-4 w-4" /> Reject
-          </Button>
-          <Button size="sm" onClick={handleApprove} disabled={busy} className="bg-emerald-600 hover:bg-emerald-700">
-            {approve.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />} Approve
-          </Button>
+          {edit ? (
+            <>
+              <Button size="sm" variant="outline" onClick={() => setEdit(null)} disabled={busy}>
+                Cancel
+              </Button>
+              <Button size="sm" onClick={saveEdit} disabled={busy} className="bg-slate-900 hover:bg-slate-800">
+                {update.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />} Save
+              </Button>
+            </>
+          ) : (
+            <>
+              <Button size="sm" variant="outline" onClick={startEdit} disabled={busy} className="text-slate-600 hover:bg-slate-50">
+                <Pencil className="h-4 w-4" /> Edit
+              </Button>
+              <Button size="sm" variant="outline" onClick={handleRegenerate} disabled={busy} className="text-slate-600 hover:bg-slate-50">
+                {regenerate.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />} Regenerate
+              </Button>
+              <Button size="sm" variant="outline" onClick={handleReject} disabled={busy} className="text-red-600 hover:bg-red-50">
+                <X className="h-4 w-4" /> Reject
+              </Button>
+              <Button size="sm" onClick={handleApprove} disabled={busy} className="bg-emerald-600 hover:bg-emerald-700">
+                {approve.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />} Approve
+              </Button>
+            </>
+          )}
         </div>
       </div>
 
-      {open ? (
+      {open && edit ? (
+        <div className="space-y-3 bg-slate-50 px-4 py-3 pl-11">
+          <div>
+            <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Prompt</span>
+            <BiEditField multiline value={edit.prompt} onChange={(prompt) => setEdit({ ...edit, prompt })} />
+          </div>
+          <PayloadEditor type={item.type} payload={edit.payload} onChange={(payload) => setEdit({ ...edit, payload })} />
+        </div>
+      ) : open ? (
         <div className="space-y-3 bg-slate-50 px-4 py-3 pl-11">
           {/* type-specific content (options / clues / items / …) */}
           <PayloadView type={item.type} payload={item.payload} />

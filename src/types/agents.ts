@@ -322,6 +322,11 @@ export interface AgentReviewGroup {
   items: AgentReviewItem[];
 }
 
+export interface UpdateReviewQuestionRequest {
+  prompt?: { en: string; ka: string };
+  payload?: Record<string, unknown>;
+}
+
 export interface AgentReviewQueue {
   count: number;
   groups: AgentReviewGroup[];
