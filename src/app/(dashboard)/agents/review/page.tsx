@@ -46,22 +46,40 @@ function PayloadView({ type, payload }: { type: string; payload: AgentReviewItem
   const p = payload ?? {};
 
   // mcq_single / true_false — options with the correct one highlighted
+  // (image MCQs additionally show the photo the question hinges on)
   if (p.options?.length) {
     return (
-      <div className="grid gap-1.5 sm:grid-cols-2">
-        {p.options.map((o, i) => (
-          <div
-            key={i}
-            className={
-              o.is_correct
-                ? 'flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5'
-                : 'flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-1.5'
-            }
-          >
-            {o.is_correct ? <Check className="h-3.5 w-3.5 shrink-0 text-emerald-600" /> : null}
-            <Bi value={o.text} />
+      <div className="space-y-2">
+        {p.image?.url ? (
+          <div>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={p.image.url}
+              alt="question image"
+              className="max-h-64 rounded-lg border border-slate-200 object-contain"
+            />
+            {p.image.author || p.image.license ? (
+              <p className="mt-0.5 text-[10px] text-slate-400">
+                {p.image.author ?? ''} {p.image.license ? `· ${p.image.license}` : ''}
+              </p>
+            ) : null}
           </div>
-        ))}
+        ) : null}
+        <div className="grid gap-1.5 sm:grid-cols-2">
+          {p.options.map((o, i) => (
+            <div
+              key={i}
+              className={
+                o.is_correct
+                  ? 'flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5'
+                  : 'flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-1.5'
+              }
+            >
+              {o.is_correct ? <Check className="h-3.5 w-3.5 shrink-0 text-emerald-600" /> : null}
+              <Bi value={o.text} />
+            </div>
+          ))}
+        </div>
       </div>
     );
   }

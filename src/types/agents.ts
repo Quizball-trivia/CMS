@@ -279,6 +279,8 @@ export interface UpdateAgentScheduleRequest {
 // question_payloads). All text fields are bilingual {en, ka}.
 export interface AgentQuestionPayload {
   type?: string;
+  // image MCQs: the photo the question hinges on
+  image?: { url: string; width?: number; height?: number; author?: string | null; license?: string | null };
   // mcq_single / true_false
   options?: AgentQuestionOption[];
   // clue_chain / career_path
