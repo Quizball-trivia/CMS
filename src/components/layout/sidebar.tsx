@@ -3,13 +3,10 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
-import { ACTIVITY_ALLOWED_EMAIL } from '@/lib/constants';
-import { useAuth } from '@/providers';
 import {
   Layers,
   HelpCircle,
   Trophy,
-  Activity,
   CalendarDays,
   Users,
   Megaphone,
@@ -57,14 +54,8 @@ const navItems = [
 
 export function Sidebar() {
   const pathname = usePathname();
-  const { user } = useAuth();
 
-  const allNavItems = [
-    ...navItems,
-    ...(user?.email === ACTIVITY_ALLOWED_EMAIL
-      ? [{ title: 'Activity', href: '/activity', icon: Activity }]
-      : []),
-  ];
+  const allNavItems = [...navItems];
 
   return (
     <aside className="w-20 bg-[#f8f9fb] border-r border-gray-200/50 flex flex-col h-screen sticky top-0 z-[100]">
