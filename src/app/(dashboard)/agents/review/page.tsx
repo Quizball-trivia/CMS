@@ -431,12 +431,26 @@ function ReviewItem({ item }: { item: AgentReviewItem }) {
         </button>
         <div className="min-w-0 flex-1">
           <p className="break-words text-sm font-medium text-slate-900">
-            {getLocalizedTextByLang(item.prompt, 'ka', '—')}
+            {/* EN-only drafts (pre-Translate-All) show English as the title */}
+            {getLocalizedTextByLang(item.prompt, 'ka', '') || getLocalizedTextByLang(item.prompt, 'en', '—')}
           </p>
-          <p className="mt-0.5 break-words text-xs text-slate-400">
-            {getLocalizedTextByLang(item.prompt, 'en')}
-          </p>
-          <p className="mt-1 text-[11px]">
+          {getLocalizedTextByLang(item.prompt, 'ka', '') ? (
+            <p className="mt-0.5 break-words text-xs text-slate-400">
+              {getLocalizedTextByLang(item.prompt, 'en')}
+            </p>
+          ) : null}
+          <p className="mt-1 flex flex-wrap items-center gap-2 text-[11px]">
+            <span
+              className={
+                item.difficulty === 'easy'
+                  ? 'rounded-full bg-emerald-50 px-2 py-0.5 font-semibold uppercase tracking-wide text-emerald-700'
+                  : item.difficulty === 'hard'
+                    ? 'rounded-full bg-red-50 px-2 py-0.5 font-semibold uppercase tracking-wide text-red-600'
+                    : 'rounded-full bg-amber-50 px-2 py-0.5 font-semibold uppercase tracking-wide text-amber-700'
+              }
+            >
+              {item.difficulty}
+            </span>
             {item.feedsChallenges.length > 0 ? (
               <span className="text-slate-500">
                 <span className="font-semibold">Feeds:</span> {item.feedsChallenges.join(', ')}
