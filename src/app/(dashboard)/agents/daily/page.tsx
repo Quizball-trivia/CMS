@@ -29,10 +29,41 @@ function ScheduleCard({ schedule }: { schedule: AgentSchedule }) {
 
   const p = schedule.params ?? {};
   const isRanked = schedule.jobType !== 'daily_challenge';
-  const types = (Array.isArray(p.questionTypes) ? p.questionTypes : []) as string[];
-  const rotation = (Array.isArray(p.rotation) ? p.rotation : []) as { categoryId: string; topic?: string }[];
-  const categoriesPerDay = Number(p.categoriesPerDay ?? 1);
-  const hasFixedCategory = Boolean(p.categoryId ?? p.category_id);
+  const savedTypes = (Array.isArray(p.questionTypes) ? p.questionTypes : []) as string[];
+  const savedMix = (p.difficultyMix ?? null) as { easy: number; medium: number; hard: number } | null;
+
+  // editable config (count / difficulty / types / categories-per-day)
+  const [count, setCount] = useState<number>(Number(p.count ?? 25));
+  const [difficulty, setDifficulty] = useState<string>(savedMix ? 'mixed' : String(p.difficulty ?? 'medium'));
+  const [mix, setMix] = useState<{ easy: number; medium: number; hard: number }>(savedMix ?? { easy: 8, medium: 9, hard: 8 });
+  const [selTypes, setSelTypes] = useState<string[]>(savedTypes.length ? savedTypes : ['mcq_single']);
+  const [perDay, setPerDay] = useState<number>(Number(p.categoriesPerDay ?? 40));
+
+  const dirty =
+    count !== Number(p.count ?? 25) ||
+    difficulty !== (savedMix ? 'mixed' : String(p.difficulty ?? 'medium')) ||
+    (difficulty === 'mixed' && JSON.stringify(mix) !== JSON.stringify(savedMix ?? {})) ||
+    (isRanked && (JSON.stringify(selTypes) !== JSON.stringify(savedTypes.length ? savedTypes : ['mcq_single']) || perDay !== Number(p.categoriesPerDay ?? 40)));
+
+  const handleConfigSave = () => {
+    const next: Record<string, unknown> = { ...p, count };
+    if (difficulty === 'mixed') {
+      next.difficultyMix = mix;
+    } else {
+      next.difficulty = difficulty;
+      delete next.difficultyMix;
+    }
+    if (isRanked) {
+      next.questionTypes = selTypes;
+      next.categoriesPerDay = perDay;
+    }
+    update.mutate(
+      { id: schedule.id, data: { params: next } },
+      { onSuccess: () => toast.success('Schedule config saved'), onError: () => toast.error('Failed to save config') }
+    );
+  };
+
+  const perRunTotal = difficulty === 'mixed' ? mix.easy + mix.medium + mix.hard : count;
 
   const handleToggle = (enabled: boolean) => {
     update.mutate(
@@ -93,57 +124,157 @@ function ScheduleCard({ schedule }: { schedule: AgentSchedule }) {
           </div>
         </div>
 
-        {/* config row */}
+        {/* editable config */}
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-          <ConfigTile label={isRanked ? 'Qs / type / category' : 'Count'} value={String(p.count ?? '—')} />
-          <ConfigTile label="Difficulty" value={String(p.difficulty ?? '—')} />
-          <ConfigTile
-            label={isRanked ? 'Types' : 'Type'}
-            value={isRanked ? types.length ? types.join(', ') : '—' : String(p.questionType ?? 'mcq_single')}
-          />
           <div className="rounded-xl border border-slate-200 bg-white px-4 py-3">
-            <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">Fire hour (Tbilisi)</div>
-            <div className="mt-1 flex items-center gap-2">
+            <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+              {difficulty === 'mixed' ? 'Easy / Med / Hard' : isRanked ? 'Qs / type / category' : 'Qs / challenge'}
+            </div>
+            {difficulty === 'mixed' ? (
+              <div className="mt-1 flex gap-1">
+                {(['easy', 'medium', 'hard'] as const).map((d) => (
+                  <input
+                    key={d}
+                    type="number"
+                    min={0}
+                    title={d}
+                    value={mix[d]}
+                    onChange={(e) => setMix((m) => ({ ...m, [d]: Math.max(0, Number(e.target.value) || 0) }))}
+                    className="w-full rounded-md border border-slate-200 px-1 py-1 text-center text-sm"
+                  />
+                ))}
+              </div>
+            ) : (
+              <input
+                type="number"
+                min={1}
+                value={count}
+                onChange={(e) => setCount(Math.max(1, Number(e.target.value) || 1))}
+                className="mt-1 w-20 rounded-md border border-slate-200 px-2 py-1 text-sm"
+              />
+            )}
+          </div>
+          <div className="rounded-xl border border-slate-200 bg-white px-4 py-3">
+            <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">Difficulty</div>
+            <select
+              value={difficulty}
+              onChange={(e) => setDifficulty(e.target.value)}
+              className="mt-1 w-full rounded-md border border-slate-200 px-2 py-1 text-sm capitalize"
+            >
+              <option value="easy">easy</option>
+              <option value="medium">medium</option>
+              <option value="hard">hard</option>
+              <option value="mixed">mixed…</option>
+            </select>
+          </div>
+          <div className="rounded-xl border border-slate-200 bg-white px-4 py-3">
+            <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+              {isRanked ? 'Types (tap to toggle)' : 'Type'}
+            </div>
+            {isRanked ? (
+              <div className="mt-1 flex flex-wrap gap-1">
+                {['mcq_single', 'true_false', 'clue_chain', 'put_in_order', 'countdown_list', 'career_path', 'imposter_multi_select', 'high_low', 'image_mcq'].map((t) => {
+                  const on = selTypes.includes(t);
+                  return (
+                    <button
+                      key={t}
+                      type="button"
+                      onClick={() => setSelTypes((cur) => (on ? cur.filter((x) => x !== t) : [...cur, t]))}
+                      className={
+                        on
+                          ? 'rounded-full bg-slate-900 px-2 py-0.5 text-[10px] font-semibold text-white'
+                          : 'rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[10px] text-slate-500 hover:bg-slate-50'
+                      }
+                    >
+                      {t.replace(/_/g, ' ')}
+                    </button>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="mt-1 text-sm font-medium text-slate-800">per active challenge</div>
+            )}
+          </div>
+          <div className="rounded-xl border border-slate-200 bg-white px-4 py-3">
+            <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+              {isRanked ? 'Categories / day (LRU)' : 'Fire hour (Tbilisi)'}
+            </div>
+            {isRanked ? (
+              <input
+                type="number"
+                min={1}
+                value={perDay}
+                onChange={(e) => setPerDay(Math.max(1, Number(e.target.value) || 1))}
+                className="mt-1 w-20 rounded-md border border-slate-200 px-2 py-1 text-sm"
+              />
+            ) : (
+              <div className="mt-1 flex items-center gap-2">
+                <input
+                  type="number"
+                  min={0}
+                  max={23}
+                  value={hour}
+                  onChange={(e) => setHour(Math.max(0, Math.min(23, Number(e.target.value))))}
+                  className="w-14 rounded-md border border-slate-200 px-2 py-1 text-sm"
+                />
+                {hour !== schedule.hourTbilisi ? (
+                  <Button size="sm" variant="outline" onClick={handleHourSave} disabled={update.isPending}>
+                    Save
+                  </Button>
+                ) : null}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {isRanked ? (
+          <div className="flex items-center gap-2">
+            <div className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm">
+              <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Fire hour (Tbilisi) </span>
               <input
                 type="number"
                 min={0}
                 max={23}
                 value={hour}
                 onChange={(e) => setHour(Math.max(0, Math.min(23, Number(e.target.value))))}
-                className="w-14 rounded-md border border-slate-200 px-2 py-1 text-sm"
+                className="ml-2 w-14 rounded-md border border-slate-200 px-2 py-1 text-sm"
               />
               {hour !== schedule.hourTbilisi ? (
-                <Button size="sm" variant="outline" onClick={handleHourSave} disabled={update.isPending}>
+                <Button size="sm" variant="outline" className="ml-2" onClick={handleHourSave} disabled={update.isPending}>
                   Save
                 </Button>
               ) : null}
             </div>
           </div>
-        </div>
+        ) : null}
+
+        {dirty ? (
+          <div className="flex items-center gap-3 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2">
+            <span className="text-xs text-blue-700">Unsaved config changes</span>
+            <Button size="sm" onClick={handleConfigSave} disabled={update.isPending}>
+              {update.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : null} Save config
+            </Button>
+          </div>
+        ) : null}
 
         {/* what this schedule generates each run */}
         <p className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
           <span className="font-semibold text-slate-700">Each run:</span>{' '}
           {isRanked ? (
             <>
-              generates {p.count ?? 25} questions per type ({types.join(', ') || '—'}) for {categoriesPerDay}{' '}
-              categor{categoriesPerDay === 1 ? 'y' : 'ies'} = <b>{(Number(p.count ?? 25) * types.length * categoriesPerDay) || 0} questions</b>, rotating through {rotation.length} categories over ~
-              {Math.ceil(rotation.length / Math.max(1, categoriesPerDay))} days.
+              {perRunTotal} questions per type ({selTypes.map((t) => t.replace(/_/g, ' ')).join(', ') || '—'}) ×{' '}
+              {perDay} categories = <b>{perRunTotal * selTypes.length * perDay} questions</b>. Categories are picked
+              least-recently-generated first (LRU), so the whole bank cycles automatically — no fixed category needed.
+              {difficulty === 'mixed' ? <> Difficulty split {mix.easy}/{mix.medium}/{mix.hard} (E/M/H).</> : null}
             </>
           ) : (
             <>
-              generates {p.count ?? 5} {String(p.questionType ?? 'mcq_single')} questions for one category
-              {rotation.length ? <>, rotating through {rotation.length} categories.</> : hasFixedCategory ? '.' : '.'}
+              one job per ACTIVE daily challenge (Money Drop, True/False, …), {perRunTotal} questions each
+              {difficulty === 'mixed' ? <> — split {mix.easy} easy / {mix.medium} medium / {mix.hard} hard</> : null}. Each
+              challenge uses its own category (or an LRU pick when set to all categories).
             </>
           )}
         </p>
-
-        {/* only warn if there's genuinely no category source (no fixed + no rotation) */}
-        {!hasFixedCategory && rotation.length === 0 ? (
-          <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
-            No category or rotation set — this schedule has nothing to generate against and will be skipped.
-          </p>
-        ) : null}
 
         {/* run history */}
         <div>
