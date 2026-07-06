@@ -148,6 +148,33 @@ function PayloadView({ type, payload }: { type: string; payload: AgentReviewItem
     );
   }
 
+  // high_low — the stat + each matchup, higher value highlighted
+  if (type === 'high_low' && p.matchups?.length) {
+    return (
+      <div className="space-y-1.5">
+        {p.stat_label ? (
+          <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+            Stat: <span className="normal-case tracking-normal text-slate-600">{p.stat_label.en}</span>
+          </p>
+        ) : null}
+        {p.matchups.map((m, i) => {
+          const leftWins = (m.left_value ?? 0) > (m.right_value ?? 0);
+          return (
+            <div key={i} className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm">
+              <span className={leftWins ? 'font-semibold text-emerald-700' : 'text-slate-600'}>
+                <Bi value={m.left_name} /> {m.left_value}
+              </span>
+              <span className="text-xs text-slate-300">vs</span>
+              <span className={!leftWins ? 'font-semibold text-emerald-700' : 'text-slate-600'}>
+                <Bi value={m.right_name} /> {m.right_value}
+              </span>
+            </div>
+          );
+        })}
+      </div>
+    );
+  }
+
   return <p className="text-xs text-slate-400">No preview available for this question type.</p>;
 }
 
@@ -310,6 +337,38 @@ function PayloadEditor({
             value={g.display}
             onChange={(display) => set({ answer_groups: p.answer_groups!.map((x, j) => (j === i ? { ...x, display } : x)) })}
           />
+        ))}
+      </div>
+    );
+  }
+
+  if (type === 'high_low' && p.matchups?.length) {
+    const setMatchup = (i: number, patch: Record<string, unknown>) =>
+      set({ matchups: p.matchups!.map((x, j) => (j === i ? { ...x, ...patch } : x)) });
+    return (
+      <div className="space-y-3">
+        <div>
+          <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Stat label</span>
+          <BiEditField value={p.stat_label} onChange={(stat_label) => set({ stat_label })} />
+        </div>
+        {p.matchups.map((m, i) => (
+          <div key={i} className="flex items-start gap-2">
+            <BiEditField value={m.left_name} onChange={(left_name) => setMatchup(i, { left_name })} />
+            <Input
+              type="number"
+              value={m.left_value ?? 0}
+              onChange={(e) => setMatchup(i, { left_value: Number(e.target.value) })}
+              className="mt-0 w-24 text-sm"
+            />
+            <span className="mt-2 text-xs text-slate-400">vs</span>
+            <BiEditField value={m.right_name} onChange={(right_name) => setMatchup(i, { right_name })} />
+            <Input
+              type="number"
+              value={m.right_value ?? 0}
+              onChange={(e) => setMatchup(i, { right_value: Number(e.target.value) })}
+              className="mt-0 w-24 text-sm"
+            />
+          </div>
         ))}
       </div>
     );

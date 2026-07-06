@@ -293,6 +293,9 @@ export interface AgentQuestionPayload {
   items?: { label: I18nField; sort_value: number }[];
   // countdown_list
   answer_groups?: { display: I18nField; accepted_answers?: string[] }[];
+  // high_low
+  stat_label?: I18nField;
+  matchups?: { left_name: I18nField; left_value: number; right_name: I18nField; right_value: number }[];
   [k: string]: unknown;
 }
 
