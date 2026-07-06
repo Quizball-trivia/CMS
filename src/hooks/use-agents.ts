@@ -195,6 +195,20 @@ export function useRejectQuestion() {
   });
 }
 
+export function useUpdateReviewQuestion() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, data }: { id: string; data: import('@/types').UpdateReviewQuestionRequest }) =>
+      agentsApi.updateReviewQuestion(id, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: agentKeys.review() });
+    },
+    onError: (error) => {
+      logger.error('agents', 'Failed to update question', getErrorLogDetails(error));
+    },
+  });
+}
+
 export function useRegenerateQuestion() {
   const queryClient = useQueryClient();
   return useMutation({

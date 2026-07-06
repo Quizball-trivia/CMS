@@ -120,6 +120,8 @@ export interface AgentBudget {
   spentMonthCents: number;
   monthlyCreditCents: number;
   paused: boolean;
+  // why the system paused itself (e.g. subscription weekly limit) — set while paused
+  pauseReason?: string | null;
 }
 
 export interface AgentRosterEntry {
@@ -198,8 +200,10 @@ export interface SpawnAgentJobRequest {
   questionType: string;
   categoryId: string;
   topic: string;
-  difficulty: AgentDifficulty;
-  count: number;
+  difficulty?: AgentDifficulty;
+  count?: number;
+  // "25 hard / 20 medium / 5 easy" — the backend fans out one job per non-zero difficulty
+  difficultyMix?: { easy: number; medium: number; hard: number };
   budgetCents?: number;
 }
 
@@ -279,6 +283,8 @@ export interface UpdateAgentScheduleRequest {
 // question_payloads). All text fields are bilingual {en, ka}.
 export interface AgentQuestionPayload {
   type?: string;
+  // image MCQs: the photo the question hinges on
+  image?: { url: string; width?: number; height?: number; author?: string | null; license?: string | null };
   // mcq_single / true_false
   options?: AgentQuestionOption[];
   // clue_chain / career_path
@@ -291,6 +297,9 @@ export interface AgentQuestionPayload {
   items?: { label: I18nField; sort_value: number }[];
   // countdown_list
   answer_groups?: { display: I18nField; accepted_answers?: string[] }[];
+  // high_low
+  stat_label?: I18nField;
+  matchups?: { left_name: I18nField; left_value: number; right_name: I18nField; right_value: number }[];
   [k: string]: unknown;
 }
 
@@ -320,6 +329,11 @@ export interface AgentReviewGroup {
   topic: string | null;
   count: number;
   items: AgentReviewItem[];
+}
+
+export interface UpdateReviewQuestionRequest {
+  prompt?: { en: string; ka: string };
+  payload?: Record<string, unknown>;
 }
 
 export interface AgentReviewQueue {
