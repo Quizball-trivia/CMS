@@ -69,8 +69,9 @@ function SpawnCard() {
   const [categoryId, setCategoryId] = useState('');
   const [topic, setTopic] = useState('');
   const [questionType, setQuestionType] = useState(DEFAULT_QUESTION_TYPE);
-  const [difficulty, setDifficulty] = useState<AgentDifficulty>('medium');
+  const [difficulty, setDifficulty] = useState<AgentDifficulty | 'mixed'>('medium');
   const [count, setCount] = useState(10);
+  const [mix, setMix] = useState<{ easy: number; medium: number; hard: number }>({ easy: 5, medium: 10, hard: 5 });
   const [budgetDollars, setBudgetDollars] = useState('');
 
   const enabledTypes = useMemo(
@@ -105,7 +106,8 @@ function SpawnCard() {
       toast.error('Select a category first');
       return;
     }
-    if (count < 1) {
+    const mixTotal = mix.easy + mix.medium + mix.hard;
+    if (difficulty === 'mixed' ? mixTotal < 1 : count < 1) {
       toast.error('Count must be at least 1');
       return;
     }
@@ -124,12 +126,16 @@ function SpawnCard() {
         questionType,
         categoryId,
         topic: topic.trim(),
-        difficulty,
-        count,
+        ...(difficulty === 'mixed'
+          ? { difficultyMix: mix }
+          : { difficulty, count }),
         ...(budgetCents !== undefined ? { budgetCents } : {}),
       });
       toast.success('Agent job spawned', {
-        description: `Generating ${count} ${difficulty} question${count === 1 ? '' : 's'}.`,
+        description:
+          difficulty === 'mixed'
+            ? `Generating ${mixTotal} questions (${mix.easy} easy / ${mix.medium} medium / ${mix.hard} hard).`
+            : `Generating ${count} ${difficulty} question${count === 1 ? '' : 's'}.`,
       });
       setBudgetDollars('');
       void job;
@@ -204,7 +210,7 @@ function SpawnCard() {
               <Label className="text-[10px] font-black uppercase tracking-widest text-slate-400">
                 Difficulty
               </Label>
-              <Select value={difficulty} onValueChange={(value) => setDifficulty(value as AgentDifficulty)}>
+              <Select value={difficulty} onValueChange={(value) => setDifficulty(value as AgentDifficulty | 'mixed')}>
                 <SelectTrigger className="h-10 w-full">
                   <SelectValue />
                 </SelectTrigger>
@@ -214,21 +220,40 @@ function SpawnCard() {
                       {option.label}
                     </SelectItem>
                   ))}
+                  <SelectItem value="mixed">Mixed…</SelectItem>
                 </SelectContent>
               </Select>
             </div>
 
             <div className="space-y-2">
               <Label className="text-[10px] font-black uppercase tracking-widest text-slate-400">
-                Count
+                {difficulty === 'mixed' ? 'Easy / Med / Hard' : 'Count'}
               </Label>
-              <Input
-                type="number"
-                min={1}
-                value={count}
-                onChange={(event) => setCount(Math.max(1, Number(event.target.value) || 1))}
-                className="h-10"
-              />
+              {difficulty === 'mixed' ? (
+                <div className="flex gap-1">
+                  {(['easy', 'medium', 'hard'] as const).map((d) => (
+                    <Input
+                      key={d}
+                      type="number"
+                      min={0}
+                      value={mix[d]}
+                      onChange={(event) =>
+                        setMix((m) => ({ ...m, [d]: Math.max(0, Number(event.target.value) || 0) }))
+                      }
+                      className="h-10 px-2 text-center"
+                      title={d}
+                    />
+                  ))}
+                </div>
+              ) : (
+                <Input
+                  type="number"
+                  min={1}
+                  value={count}
+                  onChange={(event) => setCount(Math.max(1, Number(event.target.value) || 1))}
+                  className="h-10"
+                />
+              )}
             </div>
 
             <div className="space-y-2">

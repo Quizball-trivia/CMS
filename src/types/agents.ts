@@ -198,8 +198,10 @@ export interface SpawnAgentJobRequest {
   questionType: string;
   categoryId: string;
   topic: string;
-  difficulty: AgentDifficulty;
-  count: number;
+  difficulty?: AgentDifficulty;
+  count?: number;
+  // "25 hard / 20 medium / 5 easy" — the backend fans out one job per non-zero difficulty
+  difficultyMix?: { easy: number; medium: number; hard: number };
   budgetCents?: number;
 }
 
