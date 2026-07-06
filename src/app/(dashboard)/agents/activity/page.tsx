@@ -1,8 +1,8 @@
 'use client';
 
 import Link from 'next/link';
-import { Activity, Loader2, ChevronRight } from 'lucide-react';
-import { useAgentActivity } from '@/hooks';
+import { Activity, Loader2, ChevronRight, AlertTriangle } from 'lucide-react';
+import { useAgentActivity, useAgentBudget } from '@/hooks';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { AgentNav } from '../agent-ui';
@@ -80,8 +80,10 @@ function Stat({ label, value, tone }: { label: string; value: number; tone?: str
 
 export default function ActivityPage() {
   const { data, isLoading } = useAgentActivity();
+  const { data: budget } = useAgentBudget();
   const running = data?.running ?? [];
   const recent = data?.recent;
+  const gateClosed = !!budget && (budget.paused || budget.spentTodayCents >= budget.limitCents);
 
   return (
     <div className="space-y-6">
@@ -96,6 +98,20 @@ export default function ActivityPage() {
       </div>
 
       <AgentNav />
+
+      {gateClosed ? (
+        <div className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+          <div>
+            <span className="font-semibold">
+              {budget!.paused ? 'Agents are paused.' : 'Daily budget reached — generation is on hold.'}
+            </span>{' '}
+            ${(budget!.spentTodayCents / 100).toFixed(2)} / ${(budget!.limitCents / 100).toFixed(0)} spent today.
+            Queued and spawned jobs stay waiting and resume automatically at midnight (Georgia time) — or raise the
+            limit on the Jobs page to run them now.
+          </div>
+        </div>
+      ) : null}
 
       {recent ? (
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
