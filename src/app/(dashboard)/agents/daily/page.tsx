@@ -173,7 +173,9 @@ function ScheduleCard({ schedule }: { schedule: AgentSchedule }) {
             </div>
             {isRanked ? (
               <div className="mt-1 flex flex-wrap gap-1">
-                {['mcq_single', 'true_false', 'clue_chain', 'put_in_order', 'countdown_list', 'career_path', 'imposter_multi_select', 'high_low', 'image_mcq'].map((t) => {
+                {/* ranked matches only support these 4 formats — the other types are
+                    daily-challenge game modes and don't belong in the ranked pool */}
+                {['mcq_single', 'image_mcq', 'clue_chain', 'put_in_order'].map((t) => {
                   const on = selTypes.includes(t);
                   return (
                     <button
