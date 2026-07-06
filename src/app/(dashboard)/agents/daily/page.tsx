@@ -37,13 +37,16 @@ function ScheduleCard({ schedule }: { schedule: AgentSchedule }) {
   const [difficulty, setDifficulty] = useState<string>(savedMix ? 'mixed' : String(p.difficulty ?? 'medium'));
   const [mix, setMix] = useState<{ easy: number; medium: number; hard: number }>(savedMix ?? { easy: 8, medium: 9, hard: 8 });
   const [selTypes, setSelTypes] = useState<string[]>(savedTypes.length ? savedTypes : ['mcq_single']);
+  const savedExcluded = (Array.isArray(p.excludeChallenges) ? p.excludeChallenges : []) as string[];
+  const [excluded, setExcluded] = useState<string[]>(savedExcluded);
   const [perDay, setPerDay] = useState<number>(Number(p.categoriesPerDay ?? 40));
 
   const dirty =
     count !== Number(p.count ?? 25) ||
     difficulty !== (savedMix ? 'mixed' : String(p.difficulty ?? 'medium')) ||
     (difficulty === 'mixed' && JSON.stringify(mix) !== JSON.stringify(savedMix ?? {})) ||
-    (isRanked && (JSON.stringify(selTypes) !== JSON.stringify(savedTypes.length ? savedTypes : ['mcq_single']) || perDay !== Number(p.categoriesPerDay ?? 40)));
+    (isRanked && (JSON.stringify(selTypes) !== JSON.stringify(savedTypes.length ? savedTypes : ['mcq_single']) || perDay !== Number(p.categoriesPerDay ?? 40))) ||
+    (!isRanked && JSON.stringify([...excluded].sort()) !== JSON.stringify([...savedExcluded].sort()));
 
   const handleConfigSave = () => {
     const next: Record<string, unknown> = { ...p, count };
@@ -56,6 +59,8 @@ function ScheduleCard({ schedule }: { schedule: AgentSchedule }) {
     if (isRanked) {
       next.questionTypes = selTypes;
       next.categoriesPerDay = perDay;
+    } else {
+      next.excludeChallenges = excluded;
     }
     update.mutate(
       { id: schedule.id, data: { params: next } },
@@ -169,7 +174,7 @@ function ScheduleCard({ schedule }: { schedule: AgentSchedule }) {
           </div>
           <div className="rounded-xl border border-slate-200 bg-white px-4 py-3">
             <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">
-              {isRanked ? 'Types (tap to toggle)' : 'Type'}
+              {isRanked ? 'Types (tap to toggle)' : 'Challenges (tap to exclude)'}
             </div>
             {isRanked ? (
               <div className="mt-1 flex flex-wrap gap-1">
@@ -194,7 +199,27 @@ function ScheduleCard({ schedule }: { schedule: AgentSchedule }) {
                 })}
               </div>
             ) : (
-              <div className="mt-1 text-sm font-medium text-slate-800">per active challenge</div>
+              <div className="mt-1 flex flex-wrap gap-1">
+                {/* ON = generate for it (when active in the game); OFF = skip even if active */}
+                {['moneyDrop', 'trueFalse', 'clues', 'putInOrder', 'countdown', 'careerPath', 'imposter', 'highLow'].map((c) => {
+                  const on = !excluded.includes(c);
+                  return (
+                    <button
+                      key={c}
+                      type="button"
+                      title={on ? 'Generating (when this challenge is active in the game)' : 'Excluded from generation'}
+                      onClick={() => setExcluded((cur) => (on ? [...cur, c] : cur.filter((x) => x !== c)))}
+                      className={
+                        on
+                          ? 'rounded-full bg-slate-900 px-2 py-0.5 text-[10px] font-semibold text-white'
+                          : 'rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[10px] text-slate-400 line-through hover:bg-slate-50'
+                      }
+                    >
+                      {c}
+                    </button>
+                  );
+                })}
+              </div>
             )}
           </div>
           <div className="rounded-xl border border-slate-200 bg-white px-4 py-3">
@@ -271,7 +296,7 @@ function ScheduleCard({ schedule }: { schedule: AgentSchedule }) {
             </>
           ) : (
             <>
-              one job per ACTIVE daily challenge (Money Drop, True/False, …), {perRunTotal} questions each
+              one job per ACTIVE daily challenge{excluded.length ? ` (excluding ${excluded.join(', ')})` : ''}, {perRunTotal} questions each
               {difficulty === 'mixed' ? <> — split {mix.easy} easy / {mix.medium} medium / {mix.hard} hard</> : null}. Each
               challenge uses its own category (or an LRU pick when set to all categories).
             </>
