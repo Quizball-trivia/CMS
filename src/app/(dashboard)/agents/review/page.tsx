@@ -195,7 +195,9 @@ function AnswerPill({ answer, accepted }: { answer?: I18nField; accepted?: strin
   );
 }
 
-// Editable bilingual pair — Georgian first (primary), English under it.
+// Editable bilingual pair — Georgian first (primary), English under it. Each
+// row carries a language tag: names look identical in both languages, so
+// unlabeled fields read as an accidental duplicate.
 function BiEditField({
   value,
   onChange,
@@ -207,20 +209,27 @@ function BiEditField({
 }) {
   const v = value ?? { en: '', ka: '' };
   const Field: any = multiline ? Textarea : Input;
+  const tag = 'mt-2.5 w-7 shrink-0 text-[9px] font-black uppercase tracking-widest text-slate-400';
   return (
     <div className="flex min-w-0 flex-1 flex-col gap-1">
-      <Field
-        value={v.ka ?? ''}
-        onChange={(e: React.ChangeEvent<HTMLInputElement>) => onChange({ ...v, ka: e.target.value })}
-        placeholder="ქართული"
-        className="text-sm"
-      />
-      <Field
-        value={v.en ?? ''}
-        onChange={(e: React.ChangeEvent<HTMLInputElement>) => onChange({ ...v, en: e.target.value })}
-        placeholder="English"
-        className="text-xs text-slate-500"
-      />
+      <div className="flex items-start gap-1.5">
+        <span className={tag}>ქარ</span>
+        <Field
+          value={v.ka ?? ''}
+          onChange={(e: React.ChangeEvent<HTMLInputElement>) => onChange({ ...v, ka: e.target.value })}
+          placeholder="ქართული — Translate All fills this if left empty"
+          className="text-sm"
+        />
+      </div>
+      <div className="flex items-start gap-1.5">
+        <span className={tag}>EN</span>
+        <Field
+          value={v.en ?? ''}
+          onChange={(e: React.ChangeEvent<HTMLInputElement>) => onChange({ ...v, en: e.target.value })}
+          placeholder="English"
+          className="text-xs text-slate-500"
+        />
+      </div>
     </div>
   );
 }
