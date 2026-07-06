@@ -106,9 +106,15 @@ export default function ActivityPage() {
             <span className="font-semibold">
               {budget!.paused ? 'Agents are paused.' : 'Daily budget reached — generation is on hold.'}
             </span>{' '}
-            ${(budget!.spentTodayCents / 100).toFixed(2)} / ${(budget!.limitCents / 100).toFixed(0)} spent today.
-            Queued and spawned jobs stay waiting and resume automatically at midnight (Georgia time) — or raise the
-            limit on the Jobs page to run them now.
+            {budget!.paused && budget!.pauseReason ? (
+              <>{budget!.pauseReason} Jobs stay queued and resume when unpaused (Jobs page → Resume).</>
+            ) : (
+              <>
+                ${(budget!.spentTodayCents / 100).toFixed(2)} / ${(budget!.limitCents / 100).toFixed(0)} spent today.
+                Queued and spawned jobs stay waiting and resume automatically at midnight (Georgia time) — or raise
+                the limit on the Jobs page to run them now.
+              </>
+            )}
           </div>
         </div>
       ) : null}

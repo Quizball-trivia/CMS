@@ -120,6 +120,8 @@ export interface AgentBudget {
   spentMonthCents: number;
   monthlyCreditCents: number;
   paused: boolean;
+  // why the system paused itself (e.g. subscription weekly limit) — set while paused
+  pauseReason?: string | null;
 }
 
 export interface AgentRosterEntry {
