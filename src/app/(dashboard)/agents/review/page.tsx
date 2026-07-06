@@ -475,10 +475,54 @@ function Group({ group }: { group: AgentReviewGroup }) {
   );
 }
 
+// ── Filters ──
+// The type filter distinguishes plain MCQ from MCQ-with-image: both publish as
+// mcq_single; the image one is recognized by payload.image.
+const TYPE_FILTERS: Array<{ key: string; label: string; match: (i: AgentReviewItem) => boolean }> = [
+  { key: 'mcq', label: 'MCQ', match: (i) => i.type === 'mcq_single' && !i.payload?.image },
+  { key: 'image_mcq', label: 'MCQ + image', match: (i) => i.type === 'mcq_single' && !!i.payload?.image },
+  { key: 'true_false', label: 'True/False', match: (i) => i.type === 'true_false' },
+  { key: 'clue_chain', label: 'Who am I?', match: (i) => i.type === 'clue_chain' },
+  { key: 'put_in_order', label: 'Put in order', match: (i) => i.type === 'put_in_order' },
+  { key: 'countdown_list', label: 'Countdown', match: (i) => i.type === 'countdown_list' },
+  { key: 'career_path', label: 'Career path', match: (i) => i.type === 'career_path' },
+  { key: 'imposter_multi_select', label: "Pick'em", match: (i) => i.type === 'imposter_multi_select' },
+  { key: 'high_low', label: 'High Low', match: (i) => i.type === 'high_low' },
+];
+
+function FilterPill({ active, label, count, onClick }: { active: boolean; label: string; count?: number; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={
+        active
+          ? 'rounded-full bg-slate-900 px-3 py-1 text-xs font-semibold text-white'
+          : 'rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-medium text-slate-600 hover:bg-slate-50'
+      }
+    >
+      {label}
+      {typeof count === 'number' ? <span className={active ? 'ml-1.5 text-slate-300' : 'ml-1.5 text-slate-400'}>{count}</span> : null}
+    </button>
+  );
+}
+
 export default function ReviewPage() {
   const { data, isLoading } = useReviewQueue();
-  const groups = data?.groups ?? [];
-  const count = data?.count ?? 0;
+  const [sourceFilter, setSourceFilter] = useState<'all' | 'ranked' | 'daily'>('all');
+  const [typeFilter, setTypeFilter] = useState<string>('all');
+
+  const allGroups = data?.groups ?? [];
+  const allItems = allGroups.flatMap((g) => g.items);
+  const typeMatch = (i: AgentReviewItem) => typeFilter === 'all' || TYPE_FILTERS.find((t) => t.key === typeFilter)?.match(i) === true;
+
+  const groups = allGroups
+    .filter((g) => sourceFilter === 'all' || g.source === sourceFilter)
+    .map((g) => ({ ...g, items: g.items.filter(typeMatch) }))
+    .filter((g) => g.items.length > 0);
+  const count = groups.reduce((s, g) => s + g.items.length, 0);
+
+  const sourceCount = (s: string) => allGroups.filter((g) => g.source === s).reduce((n, g) => n + g.items.length, 0);
 
   return (
     <div className="space-y-6">
@@ -497,6 +541,25 @@ export default function ReviewPage() {
       </div>
 
       <AgentNav />
+
+      {/* filter bar: source + question type */}
+      <div className="space-y-2">
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="mr-1 text-[10px] font-black uppercase tracking-widest text-slate-400">Source</span>
+          <FilterPill active={sourceFilter === 'all'} label="All" count={allItems.length} onClick={() => setSourceFilter('all')} />
+          <FilterPill active={sourceFilter === 'daily'} label="Daily challenge" count={sourceCount('daily')} onClick={() => setSourceFilter('daily')} />
+          <FilterPill active={sourceFilter === 'ranked'} label="Ranked" count={sourceCount('ranked')} onClick={() => setSourceFilter('ranked')} />
+        </div>
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="mr-1 text-[10px] font-black uppercase tracking-widest text-slate-400">Type</span>
+          <FilterPill active={typeFilter === 'all'} label="All" onClick={() => setTypeFilter('all')} />
+          {TYPE_FILTERS.map((t) => {
+            const n = allItems.filter(t.match).length;
+            if (n === 0) return null; // don't clutter with types not in the queue
+            return <FilterPill key={t.key} active={typeFilter === t.key} label={t.label} count={n} onClick={() => setTypeFilter(t.key)} />;
+          })}
+        </div>
+      </div>
 
       {isLoading ? (
         <div className="flex items-center gap-2 py-10 text-sm text-slate-500">
