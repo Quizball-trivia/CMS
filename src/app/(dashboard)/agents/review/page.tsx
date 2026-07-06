@@ -11,6 +11,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { AgentNav } from '../agent-ui';
+import { TranslateBackfillDialog } from '@/components/questions/translate-backfill-dialog';
 import type { AgentReviewGroup, AgentReviewItem, AgentQuestionPayload, I18nField } from '@/types';
 
 function SourceBadge({ source }: { source: string }) {
@@ -623,6 +624,12 @@ export default function ReviewPage() {
       </div>
 
       <AgentNav />
+
+      {/* Translate All — same backfill used for all questions (en set + ka empty
+          → Georgian filled). Drafts in this queue are included. */}
+      <div className="flex justify-end">
+        <TranslateBackfillDialog />
+      </div>
 
       {/* filter bar: source + question type */}
       <div className="space-y-2">
