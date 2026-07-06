@@ -231,6 +231,16 @@ export const questionsService = {
     return result;
   },
 
+  async translateRedoDrafts(): Promise<{
+    status: 'started' | 'done';
+    total: number;
+    remaining: number;
+    categories: number;
+  }> {
+    logger.debug('api', 'POST /questions/translate/redo-drafts');
+    return apiClient.post('/questions/translate/redo-drafts', {});
+  },
+
   async translateStatus(): Promise<{
     questions: number;
     categories: number;

@@ -94,14 +94,25 @@ export function TranslateBackfillDialog() {
     };
   }, []);
 
-  const handleTranslate = async () => {
+  const handleTranslate = async (mode: 'missing' | 'redoDrafts' = 'missing') => {
+    if (
+      mode === 'redoDrafts' &&
+      !window.confirm(
+        'Re-translate ALL draft questions from scratch? Their current Georgian (including manual edits on drafts) will be overwritten. Published questions are not touched.'
+      )
+    ) {
+      return;
+    }
     setIsStarting(true);
     setIsDone(false);
     setNothingToTranslate(false);
     pollErrorCountRef.current = 0;
 
     try {
-      const res = await questionsService.translateBackfill();
+      const res =
+        mode === 'redoDrafts'
+          ? await questionsService.translateRedoDrafts()
+          : await questionsService.translateBackfill();
       logger.info('questions', 'Translation backfill started', res);
 
       if (res.status === 'done') {
@@ -211,16 +222,26 @@ export function TranslateBackfillDialog() {
             {isDone || nothingToTranslate ? 'Close' : isPolling ? 'Close (continues in background)' : 'Cancel'}
           </Button>
           {!isPolling && !isDone && !nothingToTranslate && (
-            <Button onClick={handleTranslate} disabled={isStarting}>
-              {isStarting ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Starting...
-                </>
-              ) : (
-                'Start Translation'
-              )}
-            </Button>
+            <>
+              <Button
+                variant="outline"
+                onClick={() => handleTranslate('redoDrafts')}
+                disabled={isStarting}
+                title="Wipe and re-translate the Georgian of every DRAFT question (review queue). Published questions are untouched."
+              >
+                Re-translate drafts (overwrite)
+              </Button>
+              <Button onClick={() => handleTranslate('missing')} disabled={isStarting}>
+                {isStarting ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Starting...
+                  </>
+                ) : (
+                  'Translate missing only'
+                )}
+              </Button>
+            </>
           )}
         </DialogFooter>
       </DialogContent>
