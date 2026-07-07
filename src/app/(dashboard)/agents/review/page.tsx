@@ -628,7 +628,7 @@ export default function ReviewPage() {
       {/* Translate All — same backfill used for all questions (en set + ka empty
           → Georgian filled). Drafts in this queue are included. */}
       <div className="flex justify-end">
-        <TranslateBackfillDialog />
+        <TranslateBackfillDialog scope="agents" />
       </div>
 
       {/* filter bar: source + question type */}

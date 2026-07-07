@@ -24,7 +24,7 @@ import { ErrorFeedbackDialog } from '@/components/error-feedback-dialog';
 
 const POLL_INTERVAL_MS = 3000;
 
-export function TranslateBackfillDialog() {
+export function TranslateBackfillDialog({ scope = 'all' }: { scope?: 'all' | 'agents' } = {}) {
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
   const [isStarting, setIsStarting] = useState(false);
@@ -55,7 +55,7 @@ export function TranslateBackfillDialog() {
 
     pollRef.current = setInterval(async () => {
       try {
-        const status = await questionsService.translateStatus();
+        const status = await questionsService.translateStatus(scope);
         pollErrorCountRef.current = 0;
         setRemaining(status.questions);
 
@@ -112,7 +112,7 @@ export function TranslateBackfillDialog() {
     let prev: number | null = null;
     const tick = async () => {
       try {
-        const c = await questionsService.translateStatus();
+        const c = await questionsService.translateStatus(scope);
         setIdleCounts(c);
         if (prev != null && c.questions < prev) setIdleShrinking(true);
         if (c.questions === 0) setIdleShrinking(false);
@@ -149,7 +149,7 @@ export function TranslateBackfillDialog() {
       const res =
         mode === 'redoDrafts'
           ? await questionsService.translateRedoDrafts()
-          : await questionsService.translateBackfill();
+          : await questionsService.translateBackfill(scope);
       logger.info('questions', 'Translation backfill started', res);
 
       if (res.status === 'done') {
@@ -226,8 +226,9 @@ export function TranslateBackfillDialog() {
                 Translate missing only
               </div>
               <p className="mt-1 text-xs text-slate-500">
-                Fills Georgian only where it&apos;s empty — questions, options, and category names. Existing
-                translations are never touched. Safe to run anytime.
+                {scope === 'agents'
+                  ? 'Fills Georgian only where it\u2019s empty — AGENT-GENERATED questions only (drafts and approved). The rest of the question bank is never touched.'
+                  : 'Fills Georgian only where it\u2019s empty — questions, options, and category names. Existing translations are never touched. Safe to run anytime.'}
               </p>
               {idleCounts ? (
                 <p className="mt-1.5 text-xs font-semibold text-slate-700">
