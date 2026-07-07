@@ -157,6 +157,18 @@ export function TranslateBackfillDialog({ scope = 'all' }: { scope?: 'all' | 'ag
         queryClient.invalidateQueries({ queryKey: questionKeys.all });
         queryClient.invalidateQueries({ queryKey: categoryKeys.all });
         toast.info('All questions are already translated');
+      } else if (scope === 'agents') {
+        // background-first UX: close the modal; the progress strip on the
+        // Review page (localStorage handoff) takes over as the progress surface
+        try {
+          localStorage.setItem('qb-agent-translate-run', JSON.stringify({ total: res.total, ts: Date.now() }));
+        } catch {
+          /* private mode — the strip just won't show */
+        }
+        toast.success(`Translation started — ${res.total.toLocaleString()} questions`, {
+          description: 'Runs in the background. Progress shows at the top of the review queue.',
+        });
+        setOpen(false);
       } else {
         startPolling(res.total);
       }
