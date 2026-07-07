@@ -244,8 +244,9 @@ export const questionsService = {
   async translateStatus(scope: 'all' | 'agents' = 'all'): Promise<{
     questions: number;
     categories: number;
+    agentTotal?: number;
   }> {
-    return apiClient.get<{ questions: number; categories: number }>('/questions/translate/status', {
+    return apiClient.get<{ questions: number; categories: number; agentTotal?: number }>('/questions/translate/status', {
       cache_bust: Date.now(),
       ...(scope === 'agents' ? { scope } : {}),
     });
