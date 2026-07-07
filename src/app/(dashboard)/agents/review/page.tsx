@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { AgentNav } from '../agent-ui';
 import { TranslateBackfillDialog } from '@/components/questions/translate-backfill-dialog';
+import { TranslationProgressStrip } from '../translation-progress';
 import type { AgentReviewGroup, AgentReviewItem, AgentQuestionPayload, I18nField } from '@/types';
 
 function SourceBadge({ source }: { source: string }) {
@@ -625,11 +626,12 @@ export default function ReviewPage() {
 
       <AgentNav />
 
-      {/* Translate All — same backfill used for all questions (en set + ka empty
-          → Georgian filled). Drafts in this queue are included. */}
+      {/* Translate All — agent-scoped. Runs server-side; the strip below is the
+          progress surface (modal closes on start). */}
       <div className="flex justify-end">
         <TranslateBackfillDialog scope="agents" />
       </div>
+      <TranslationProgressStrip />
 
       {/* filter bar: source + question type */}
       <div className="space-y-2">
