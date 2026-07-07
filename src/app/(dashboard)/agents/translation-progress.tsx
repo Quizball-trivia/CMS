@@ -38,20 +38,34 @@ export function TranslationProgressStrip() {
     };
   }, []);
 
+  // Poll ALWAYS (not only with a localStorage run): a run started elsewhere —
+  // another tab, another admin, an API call — is auto-detected when the
+  // remaining count drops meaningfully from its max, and the strip appears.
+  const maxSeen = useRef<number | null>(null);
   useEffect(() => {
-    if (!run) return;
     let stopped = false;
     const tick = async () => {
       try {
         const c = await questionsService.translateStatus('agents');
         if (stopped) return;
         setRemaining(c.questions);
+        maxSeen.current = Math.max(maxSeen.current ?? c.questions, c.questions);
+        const droppedFromMax = (maxSeen.current ?? 0) - c.questions;
+        if (!run && c.questions > 0 && droppedFromMax >= 10) {
+          // a background run is in progress — synthesize a run record so the
+          // strip shows (total = the max we've observed this session)
+          const detected = { total: maxSeen.current!, ts: Date.now() };
+          try {
+            localStorage.setItem(RUN_KEY, JSON.stringify(detected));
+          } catch { /* private mode */ }
+          setRun(detected);
+        }
         if (prevRemaining.current != null && c.questions < prevRemaining.current) {
           // progress observed → refresh the review cards so ka fills in live
           queryClient.invalidateQueries({ queryKey: agentKeys.review() });
         }
         prevRemaining.current = c.questions;
-        if (c.questions === 0) {
+        if (run && c.questions === 0) {
           setFinished(true);
           localStorage.removeItem(RUN_KEY);
           setTimeout(() => {
@@ -64,7 +78,7 @@ export function TranslationProgressStrip() {
       }
     };
     void tick();
-    const iv = setInterval(tick, 6000);
+    const iv = setInterval(tick, 8000);
     return () => {
       stopped = true;
       clearInterval(iv);
