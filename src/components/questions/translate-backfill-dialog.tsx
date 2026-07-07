@@ -135,7 +135,7 @@ export function TranslateBackfillDialog({ scope = 'all' }: { scope?: 'all' | 'ag
     if (
       mode === 'redoDrafts' &&
       !window.confirm(
-        'Re-translate ALL draft questions from scratch? Their current Georgian (including manual edits on drafts) will be overwritten. Published questions are not touched.'
+        'Re-translate ALL agent-generated questions from scratch (drafts + approved)? Their current Georgian — including any manual edits — will be overwritten. Hand-written questions from the original bank are not touched.'
       )
     ) {
       return;
@@ -243,10 +243,11 @@ export function TranslateBackfillDialog({ scope = 'all' }: { scope?: 'all' | 'ag
               disabled={isStarting}
               className="w-full rounded-xl border border-amber-200 bg-amber-50/50 p-4 text-left transition hover:border-amber-300 hover:bg-amber-50 disabled:opacity-50"
             >
-              <div className="text-sm font-semibold text-amber-800">Re-translate drafts (overwrite)</div>
+              <div className="text-sm font-semibold text-amber-800">Re-translate agent questions (overwrite)</div>
               <p className="mt-1 text-xs text-amber-700">
-                Wipes and redoes the Georgian of every <b>draft</b> question in the review queue — use when old
-                translations are bad. Published questions are never touched.
+                Wipes and redoes the Georgian of every <b>agent-generated</b> question — drafts in review AND already
+                approved ones (their old in-pipeline translations were poor). Manual edits to their Georgian are lost.
+                Hand-written questions from the original bank are never touched.
               </p>
             </button>
           </div>
