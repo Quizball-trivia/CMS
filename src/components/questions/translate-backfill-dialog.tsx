@@ -165,11 +165,40 @@ export function TranslateBackfillDialog() {
       <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle>Translate Questions to Georgian</DialogTitle>
-          <DialogDescription>
-            Translate all English questions that don&apos;t have a Georgian translation yet.
-            Categories will also be translated.
-          </DialogDescription>
+          <DialogDescription>Choose how to translate:</DialogDescription>
         </DialogHeader>
+
+        {!isPolling && !isDone && !nothingToTranslate && (
+          <div className="space-y-2">
+            <button
+              type="button"
+              onClick={() => handleTranslate('missing')}
+              disabled={isStarting}
+              className="w-full rounded-xl border border-slate-200 bg-white p-4 text-left transition hover:border-slate-300 hover:bg-slate-50 disabled:opacity-50"
+            >
+              <div className="flex items-center gap-2 text-sm font-semibold text-slate-900">
+                {isStarting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Languages className="h-4 w-4 text-slate-500" />}
+                Translate missing only
+              </div>
+              <p className="mt-1 text-xs text-slate-500">
+                Fills Georgian only where it&apos;s empty — questions, options, and category names. Existing
+                translations are never touched. Safe to run anytime.
+              </p>
+            </button>
+            <button
+              type="button"
+              onClick={() => handleTranslate('redoDrafts')}
+              disabled={isStarting}
+              className="w-full rounded-xl border border-amber-200 bg-amber-50/50 p-4 text-left transition hover:border-amber-300 hover:bg-amber-50 disabled:opacity-50"
+            >
+              <div className="text-sm font-semibold text-amber-800">Re-translate drafts (overwrite)</div>
+              <p className="mt-1 text-xs text-amber-700">
+                Wipes and redoes the Georgian of every <b>draft</b> question in the review queue — use when old
+                translations are bad. Published questions are never touched.
+              </p>
+            </button>
+          </div>
+        )}
 
         {/* Nothing to translate */}
         {nothingToTranslate && (
@@ -221,28 +250,7 @@ export function TranslateBackfillDialog() {
           <Button variant="outline" onClick={() => handleClose(false)}>
             {isDone || nothingToTranslate ? 'Close' : isPolling ? 'Close (continues in background)' : 'Cancel'}
           </Button>
-          {!isPolling && !isDone && !nothingToTranslate && (
-            <>
-              <Button
-                variant="outline"
-                onClick={() => handleTranslate('redoDrafts')}
-                disabled={isStarting}
-                title="Wipe and re-translate the Georgian of every DRAFT question (review queue). Published questions are untouched."
-              >
-                Re-translate drafts (overwrite)
-              </Button>
-              <Button onClick={() => handleTranslate('missing')} disabled={isStarting}>
-                {isStarting ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Starting...
-                  </>
-                ) : (
-                  'Translate missing only'
-                )}
-              </Button>
-            </>
-          )}
+
         </DialogFooter>
       </DialogContent>
     </Dialog>
