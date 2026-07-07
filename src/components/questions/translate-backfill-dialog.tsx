@@ -34,6 +34,9 @@ export function TranslateBackfillDialog() {
   const [isDone, setIsDone] = useState(false);
   const [nothingToTranslate, setNothingToTranslate] = useState(false);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const idlePollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [idleCounts, setIdleCounts] = useState<{ questions: number; categories: number } | null>(null);
+  const [idleShrinking, setIdleShrinking] = useState(false);
   const pollErrorCountRef = useRef(0);
   const { errorFeedback, showErrorFeedback, closeErrorFeedback } = useErrorFeedbackDialog();
 
@@ -91,8 +94,42 @@ export function TranslateBackfillDialog() {
   useEffect(() => {
     return () => {
       if (pollRef.current) clearInterval(pollRef.current);
+      if (idlePollRef.current) clearInterval(idlePollRef.current);
     };
   }, []);
+
+  // While the dialog is open in the idle state, keep the "currently missing"
+  // count fresh — and if it's shrinking, a backfill is already running in the
+  // background (e.g. started earlier and the dialog was closed/reopened).
+  useEffect(() => {
+    if (!open || isPolling) {
+      if (idlePollRef.current) {
+        clearInterval(idlePollRef.current);
+        idlePollRef.current = null;
+      }
+      return;
+    }
+    let prev: number | null = null;
+    const tick = async () => {
+      try {
+        const c = await questionsService.translateStatus();
+        setIdleCounts(c);
+        if (prev != null && c.questions < prev) setIdleShrinking(true);
+        if (c.questions === 0) setIdleShrinking(false);
+        prev = c.questions;
+      } catch {
+        /* non-fatal */
+      }
+    };
+    void tick();
+    idlePollRef.current = setInterval(tick, 5000);
+    return () => {
+      if (idlePollRef.current) {
+        clearInterval(idlePollRef.current);
+        idlePollRef.current = null;
+      }
+    };
+  }, [open, isPolling]);
 
   const handleTranslate = async (mode: 'missing' | 'redoDrafts' = 'missing') => {
     if (
@@ -168,6 +205,14 @@ export function TranslateBackfillDialog() {
           <DialogDescription>Choose how to translate:</DialogDescription>
         </DialogHeader>
 
+        {!isPolling && !isDone && !nothingToTranslate && idleShrinking && idleCounts ? (
+          <div className="flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-700">
+            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            A translation run is already in progress — {idleCounts.questions.toLocaleString()} remaining. The count
+            updates every few seconds.
+          </div>
+        ) : null}
+
         {!isPolling && !isDone && !nothingToTranslate && (
           <div className="space-y-2">
             <button
@@ -184,6 +229,12 @@ export function TranslateBackfillDialog() {
                 Fills Georgian only where it&apos;s empty — questions, options, and category names. Existing
                 translations are never touched. Safe to run anytime.
               </p>
+              {idleCounts ? (
+                <p className="mt-1.5 text-xs font-semibold text-slate-700">
+                  {idleCounts.questions.toLocaleString()} question{idleCounts.questions === 1 ? '' : 's'}
+                  {idleCounts.categories ? ` + ${idleCounts.categories} categories` : ''} currently missing Georgian
+                </p>
+              ) : null}
             </button>
             <button
               type="button"
