@@ -35,7 +35,7 @@ export function TranslateBackfillDialog({ scope = 'all' }: { scope?: 'all' | 'ag
   const [nothingToTranslate, setNothingToTranslate] = useState(false);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const idlePollRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const [idleCounts, setIdleCounts] = useState<{ questions: number; categories: number } | null>(null);
+  const [idleCounts, setIdleCounts] = useState<{ questions: number; categories: number; agentTotal?: number } | null>(null);
   const [idleShrinking, setIdleShrinking] = useState(false);
   const pollErrorCountRef = useRef(0);
   const { errorFeedback, showErrorFeedback, closeErrorFeedback } = useErrorFeedbackDialog();
@@ -249,6 +249,12 @@ export function TranslateBackfillDialog({ scope = 'all' }: { scope?: 'all' | 'ag
                 approved ones (their old in-pipeline translations were poor). Manual edits to their Georgian are lost.
                 Hand-written questions from the original bank are never touched.
               </p>
+              {idleCounts?.agentTotal != null ? (
+                <p className="mt-1.5 text-xs font-bold text-amber-800">
+                  Will re-translate {idleCounts.agentTotal.toLocaleString()} agent question
+                  {idleCounts.agentTotal === 1 ? '' : 's'}
+                </p>
+              ) : null}
             </button>
           </div>
         )}
