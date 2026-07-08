@@ -10,9 +10,15 @@ import {
   CalendarDays,
   Users,
   Megaphone,
+  TrendingUp,
 } from 'lucide-react';
 
 const navItems = [
+  {
+    title: 'Stats',
+    href: '/stats',
+    icon: TrendingUp,
+  },
   {
     title: 'Categories',
     href: '/categories',
