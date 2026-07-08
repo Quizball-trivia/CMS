@@ -160,7 +160,7 @@ export interface UpdateAgentQuestionTypeRequest {
   description?: string;
 }
 
-export type AgentPromptRole = 'generator' | 'factcheck' | 'criteria' | 'dedupe';
+export type AgentPromptRole = 'generator' | 'factcheck' | 'criteria' | 'dedupe' | 'judge';
 
 // Prompts are stored per (role, type). A type of '*' is the role-level default
 // applied to every question type unless a type-specific override exists.

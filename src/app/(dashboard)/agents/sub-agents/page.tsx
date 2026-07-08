@@ -38,7 +38,7 @@ export default function SubAgentsPage() {
             <Bot className="h-6 w-6 text-slate-400" /> Sub-agents
           </h1>
           <p className="mt-1 text-sm text-slate-500">
-            The four specialist agents that generate and vet every question. Edit a prompt to change how it behaves.
+            The specialist agents that generate and vet every question — generator → dedupe → fact-check → final judge. Edit a prompt to change how it behaves.
           </p>
         </div>
         <Button variant="outline" asChild>
