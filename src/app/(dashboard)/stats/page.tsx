@@ -68,7 +68,7 @@ export default function StatsPage() {
   const now = useNow(30_000);
 
   const stats = useMemo(() => currentStats(now), [now]);
-  const daily = useMemo(() => dailySeries(now, 14), [now]);
+  const daily = useMemo(() => dailySeries(now, 30), [now]);
   const weekly = useMemo(() => weeklySeries(now, 8), [now]);
 
   const nextTick = TICK_MS - (now % TICK_MS);
@@ -127,7 +127,7 @@ export default function StatsPage() {
       <Card>
         <CardHeader>
           <CardTitle className="text-base font-semibold text-slate-900">
-            Daily Active Users · last 14 days
+            Daily Active Users · last 30 days
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -141,7 +141,7 @@ export default function StatsPage() {
                   </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="#eef2f7" vertical={false} />
-                <XAxis dataKey="label" tick={{ fontSize: 12, fill: '#64748b' }} axisLine={false} tickLine={false} />
+                <XAxis dataKey="label" tick={{ fontSize: 12, fill: '#64748b' }} axisLine={false} tickLine={false} interval={4} minTickGap={16} />
                 <YAxis tick={{ fontSize: 12, fill: '#64748b' }} axisLine={false} tickLine={false} width={48} />
                 <Tooltip
                   contentStyle={{ borderRadius: 12, border: '1px solid #e2e8f0', fontSize: 13 }}
