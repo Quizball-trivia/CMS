@@ -54,14 +54,14 @@ const ROLE_META: RoleMeta[] = [
     description: 'Verifies the drafted question and answer are factually correct.',
   },
   {
-    role: 'criteria',
-    label: 'Criteria',
-    description: 'Checks the draft meets quality rules — context, distractors, tone, naturalness.',
-  },
-  {
     role: 'dedupe',
     label: 'Dedupe',
     description: 'Compares the draft against existing questions to reject near-duplicates.',
+  },
+  {
+    role: 'judge',
+    label: 'Final Judge',
+    description: 'The editorial gate: accept → published live, reject → regenerate, unsure → review queue. Edit per-type contracts via the type selector.',
   },
 ];
 
