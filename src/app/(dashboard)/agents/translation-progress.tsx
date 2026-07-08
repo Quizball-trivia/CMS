@@ -49,6 +49,13 @@ export function TranslationProgressStrip() {
         const c = await questionsService.translateStatus('agents');
         if (stopped) return;
         setRemaining(c.questions);
+        // re-baseline a stale run record: runs get re-kicked (deploys/limits kill
+        // them) with ever-smaller totals, so an old total makes % nonsense
+        if (run && (Date.now() - run.ts > 6 * 3600_000 || c.questions > run.total)) {
+          const fresh = { total: c.questions, ts: Date.now() };
+          try { localStorage.setItem(RUN_KEY, JSON.stringify(fresh)); } catch { /* ignore */ }
+          setRun(fresh);
+        }
         maxSeen.current = Math.max(maxSeen.current ?? c.questions, c.questions);
         const droppedFromMax = (maxSeen.current ?? 0) - c.questions;
         if (!run && c.questions > 0 && droppedFromMax >= 10) {
