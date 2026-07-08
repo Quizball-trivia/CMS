@@ -232,6 +232,7 @@ export interface AgentActivity {
     approved: number;
     rejected: number;
     failed: number;
+    judged: number;
     windowHours: number;
   };
 }
