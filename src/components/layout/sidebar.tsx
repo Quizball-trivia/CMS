@@ -12,9 +12,15 @@ import {
   Megaphone,
   Gavel,
   Bot,
+  TrendingUp,
 } from 'lucide-react';
 
 const navItems = [
+  {
+    title: 'Stats',
+    href: '/stats',
+    icon: TrendingUp,
+  },
   {
     title: 'Categories',
     href: '/categories',
