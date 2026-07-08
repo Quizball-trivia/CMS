@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Users as UsersIcon, Activity, CalendarRange, TrendingUp } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
 import {
   AreaChart,
   Area,
@@ -19,7 +18,6 @@ import {
   currentStats,
   dailySeries,
   weeklySeries,
-  TICK_MS,
 } from '@/lib/stats-demo';
 
 function useNow(intervalMs: number): number {
@@ -71,31 +69,19 @@ export default function StatsPage() {
   const daily = useMemo(() => dailySeries(now, 30), [now]);
   const weekly = useMemo(() => weeklySeries(now, 8), [now]);
 
-  const nextTick = TICK_MS - (now % TICK_MS);
-  const nextMin = Math.max(1, Math.round(nextTick / 60_000));
-
   return (
     <div className="space-y-6 p-6">
       {/* Header */}
-      <div className="flex items-start justify-between gap-4">
-        <div className="flex items-center gap-3">
-          <div className="rounded-2xl bg-white p-2.5 shadow-sm border border-gray-200/50">
-            <TrendingUp className="h-6 w-6 text-slate-700" />
-          </div>
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight text-slate-900">Stats</h1>
-            <p className="text-sm text-slate-500">
-              Active users and growth — live overview.
-            </p>
-          </div>
+      <div className="flex items-center gap-3">
+        <div className="rounded-2xl bg-white p-2.5 shadow-sm border border-gray-200/50">
+          <TrendingUp className="h-6 w-6 text-slate-700" />
         </div>
-        <Badge variant="secondary" className="mt-1 gap-1.5 bg-amber-50 text-amber-700 border border-amber-200">
-          <span className="relative flex h-2 w-2">
-            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-amber-400 opacity-75" />
-            <span className="relative inline-flex h-2 w-2 rounded-full bg-amber-500" />
-          </span>
-          Demo data · updates in ~{nextMin}m
-        </Badge>
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight text-slate-900">Stats</h1>
+          <p className="text-sm text-slate-500">
+            Active users and growth — live overview.
+          </p>
+        </div>
       </div>
 
       {/* Stat cards */}
