@@ -120,11 +120,12 @@ export default function ActivityPage() {
       ) : null}
 
       {recent ? (
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
           <Stat label={`Generated (${recent.windowHours}h)`} value={recent.generated} />
           <Stat label="Approved" value={recent.approved} tone="text-emerald-600" />
           <Stat label="Rejected" value={recent.rejected} tone="text-red-600" />
           <Stat label="Failed" value={recent.failed} tone="text-amber-600" />
+          <Stat label={`Judged (${recent.windowHours}h)`} value={recent.judged ?? 0} tone="text-blue-600" />
         </div>
       ) : null}
 
