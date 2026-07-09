@@ -13,8 +13,8 @@
  *
  * Baselines (per product ask, 2026-07-08):
  *   - Total Users : real prod count (~4,026) doubled  → ~8,052
- *   - DAU         : 7 * 200 * 2                        → 2,800
- *   - WAU         : 500 * 5                            → 2,500
+ *   - DAU         : 7 * 200 * 2                        → 2,800 (peak-day)
+ *   - WAU         : DAU * 2.2 (stickiness ~45%)        → ~6,160 (always > DAU)
  * The numbers grow on a realistic curve and tick upward every ~5 minutes so the
  * dashboard "feels alive" during testing.
  */
@@ -23,8 +23,12 @@ export const STATS_DEMO = true;
 
 // --- baselines ---------------------------------------------------------------
 const TOTAL_USERS_BASE = 4026 * 2; // 8,052
-const DAU_BASE = 7 * 200 * 2; //       2,800
-const WAU_BASE = 500 * 5; //           2,500
+const DAU_BASE = 7 * 200 * 2; //       2,800 (peak-day DAU baseline)
+// WAU must ALWAYS exceed DAU (weekly actives ⊇ daily actives). Derive it from
+// the DAU baseline via a realistic stickiness ratio (DAU/WAU ≈ 45% → WAU ≈ 2.2×
+// peak DAU). Never set WAU_BASE independently below DAU.
+const WAU_RATIO = 2.2;
+const WAU_BASE = Math.round(DAU_BASE * WAU_RATIO); // ~6,160
 
 // Launch date — the product went live ~June 9, 2026. Before this, there are
 // effectively no users; after it, a realistic launch ramp climbs toward the
