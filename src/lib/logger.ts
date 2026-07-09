@@ -20,6 +20,8 @@ export type LogModule =
   | 'form'
   | 'admin-users'
   | 'announcements'
+  | 'auction'
+  | 'agents'
   | 'general';
 
 interface LogEntry {
@@ -32,7 +34,7 @@ interface LogEntry {
 
 // Enable/disable logging per module (can be controlled via localStorage in browser)
 const getEnabledModules = (): Set<LogModule> => {
-  if (typeof window === 'undefined') return new Set(['questions', 'categories', 'featured', 'auth', 'api', 'form', 'admin-users', 'announcements', 'general']);
+  if (typeof window === 'undefined') return new Set(['questions', 'categories', 'featured', 'auth', 'api', 'form', 'admin-users', 'announcements', 'auction', 'agents', 'general']);
   
   try {
     const stored = localStorage.getItem('cms_log_modules');
@@ -43,7 +45,7 @@ const getEnabledModules = (): Set<LogModule> => {
     // ignore
   }
   // Default: all modules enabled in development
-  return new Set(['questions', 'categories', 'featured', 'auth', 'api', 'form', 'admin-users', 'announcements', 'general']);
+  return new Set(['questions', 'categories', 'featured', 'auth', 'api', 'form', 'admin-users', 'announcements', 'auction', 'general']);
 };
 
 const isEnabled = (module: LogModule): boolean => {
@@ -122,7 +124,7 @@ export const logger = {
    * Enable all modules
    */
   enableAll: () => {
-    const all: LogModule[] = ['questions', 'categories', 'featured', 'auth', 'api', 'form', 'admin-users', 'announcements', 'general'];
+    const all: LogModule[] = ['questions', 'categories', 'featured', 'auth', 'api', 'form', 'admin-users', 'announcements', 'auction', 'general'];
     if (typeof window !== 'undefined') {
       localStorage.setItem('cms_log_modules', JSON.stringify(all));
     }

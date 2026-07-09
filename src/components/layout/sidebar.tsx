@@ -10,6 +10,8 @@ import {
   CalendarDays,
   Users,
   Megaphone,
+  Gavel,
+  Bot,
   TrendingUp,
 } from 'lucide-react';
 
@@ -33,6 +35,16 @@ const navItems = [
     title: 'Daily Challenges',
     href: '/daily-challenges',
     icon: CalendarDays,
+  },
+  {
+    title: 'Auction Cards',
+    href: '/auction',
+    icon: Gavel,
+  },
+  {
+    title: 'Agents',
+    href: '/agents',
+    icon: Bot,
   },
   {
     title: 'Users',

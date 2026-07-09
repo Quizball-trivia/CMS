@@ -1,0 +1,510 @@
+'use client';
+
+import { use, useState } from 'react';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import {
+  ArrowLeft,
+  ChevronDown,
+  ChevronRight,
+  ExternalLink,
+  Loader2,
+  RotateCcw,
+} from 'lucide-react';
+import { toast } from 'sonner';
+import { useAgentJob, useJobEvents, useJobTasks, useRetryTask } from '@/hooks';
+import type { AgentTask, AgentTaskVerdicts, AgentQuestionDraft, I18nField } from '@/types';
+import { getLocalizedText, getLocalizedTextByLang } from '@/lib/utils';
+import { Card, CardContent } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import {
+  DecisionBadge,
+  EventLevelDot,
+  formatCents,
+  formatTime,
+  JobStatusBadge,
+} from '../agent-ui';
+
+interface JobPageProps {
+  params: Promise<{ jobId: string }>;
+}
+
+function StatTile({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-xl border border-slate-200 bg-white px-4 py-3">
+      <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">{label}</div>
+      <div className="mt-1 text-lg font-bold text-slate-900">{value}</div>
+    </div>
+  );
+}
+
+function verdictText(value: unknown): string | null {
+  if (value === null || value === undefined) return null;
+  if (typeof value === 'string') return value;
+  if (typeof value === 'object') {
+    const obj = value as Record<string, unknown>;
+    const reason = obj.reason ?? obj.message ?? obj.detail ?? obj.suggestions;
+    // Criteria-style verdicts are boolean checks (context_complete, distractors_ok,
+    // not_dry, natural). Summarize them as readable pass/fail chips instead of raw JSON.
+    const boolKeys = ['context_complete', 'distractors_ok', 'not_dry', 'natural', 'correctness', 'factual'].filter(
+      (k) => typeof obj[k] === 'boolean'
+    );
+    if (boolKeys.length) {
+      const parts = boolKeys.map((k) => `${obj[k] ? '✓' : '✗'} ${k.replace(/_/g, ' ')}`);
+      const note = typeof reason === 'string' && reason.trim() ? ` — ${reason}` : '';
+      return parts.join('  ') + note;
+    }
+    if (typeof reason === 'string') return reason;
+    return JSON.stringify(value);
+  }
+  return String(value);
+}
+
+function VerdictsPanel({ verdicts }: { verdicts: AgentTaskVerdicts | null }) {
+  if (!verdicts) return null;
+  const factcheck = verdictText(verdicts.factcheck);
+  const criteria = verdictText(verdicts.criteria);
+  const dedupe = verdictText(verdicts.dedupe);
+  if (!factcheck && !criteria && !dedupe) return null;
+
+  return (
+    <div className="grid gap-2 sm:grid-cols-3">
+      {factcheck ? (
+        <div className="rounded-lg border border-slate-200 bg-white p-3">
+          <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">Fact check</div>
+          <p className="mt-1 whitespace-pre-wrap break-words text-xs text-slate-600">{factcheck}</p>
+        </div>
+      ) : null}
+      {criteria ? (
+        <div className="rounded-lg border border-slate-200 bg-white p-3">
+          <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">Criteria</div>
+          <p className="mt-1 whitespace-pre-wrap break-words text-xs text-slate-600">{criteria}</p>
+        </div>
+      ) : null}
+      {dedupe ? (
+        <div className="rounded-lg border border-slate-200 bg-white p-3">
+          <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">Dedupe</div>
+          <p className="mt-1 whitespace-pre-wrap break-words text-xs text-slate-600">{dedupe}</p>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+// Bilingual line: Georgian primary, English muted underneath.
+function BiLine({ value }: { value: I18nField | undefined }) {
+  const ka = getLocalizedTextByLang(value, 'ka', '—');
+  const en = getLocalizedTextByLang(value, 'en');
+  return (
+    <span className="flex min-w-0 flex-col">
+      <span className="break-words text-sm text-slate-700">{ka}</span>
+      {en && en !== ka ? <span className="break-words text-xs text-slate-400">{en}</span> : null}
+    </span>
+  );
+}
+
+// Renders the type-specific body of a draft (mcq options, clue chain, ordered
+// items, answer list, career path). Guards every field so a non-mcq draft never
+// crashes on a missing `options`.
+function DraftBody({ draft }: { draft: AgentQuestionDraft }) {
+  const type = draft.questionType ?? 'mcq_single';
+
+  if (draft.options?.length) {
+    return (
+      <div className="grid gap-2 sm:grid-cols-2">
+        {draft.options.map((option, index) => (
+          <div
+            key={index}
+            className={
+              option.is_correct
+                ? 'flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2'
+                : 'flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2'
+            }
+          >
+            {option.is_correct ? (
+              <Badge variant="outline" className="shrink-0 border-emerald-300 bg-emerald-100 text-emerald-700">
+                Correct
+              </Badge>
+            ) : null}
+            <BiLine value={option.text} />
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  if (type === 'clue_chain' && (draft.clues?.length || draft.display_answer)) {
+    return (
+      <div className="space-y-2">
+        <DraftAnswer answer={draft.display_answer} accepted={draft.accepted_answers} />
+        <ol className="space-y-1.5">
+          {(draft.clues ?? []).map((c, i) => (
+            <li key={i} className="flex gap-2 rounded-lg border border-slate-200 bg-white px-3 py-1.5">
+              <span className="mt-0.5 shrink-0 text-xs font-bold text-slate-400">{i + 1}</span>
+              <BiLine value={c.content} />
+            </li>
+          ))}
+        </ol>
+      </div>
+    );
+  }
+
+  if (type === 'career_path' && (draft.clubs?.length || draft.display_answer)) {
+    return (
+      <div className="space-y-2">
+        <DraftAnswer answer={draft.display_answer} accepted={draft.accepted_answers} />
+        <div className="flex flex-wrap items-center gap-1.5">
+          {(draft.clubs ?? []).map((club, i) => (
+            <span key={i} className="flex items-center gap-1.5">
+              {i > 0 ? <span className="text-slate-300">→</span> : null}
+              <span className="rounded-md border border-slate-200 bg-white px-2 py-1">
+                <BiLine value={club} />
+              </span>
+            </span>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  if (type === 'put_in_order' && draft.items?.length) {
+    const items = [...draft.items].sort((a, b) => (a.sort_value ?? 0) - (b.sort_value ?? 0));
+    return (
+      <ol className="space-y-1.5">
+        {items.map((it, i) => (
+          <li key={i} className="flex gap-2 rounded-lg border border-slate-200 bg-white px-3 py-1.5">
+            <span className="mt-0.5 shrink-0 text-xs font-bold text-slate-400">{it.sort_value ?? i + 1}</span>
+            <BiLine value={it.label} />
+          </li>
+        ))}
+      </ol>
+    );
+  }
+
+  if (type === 'countdown_list' && draft.answer_groups?.length) {
+    return (
+      <div className="grid gap-1.5 sm:grid-cols-2">
+        {draft.answer_groups.map((g, i) => (
+          <div key={i} className="rounded-lg border border-slate-200 bg-white px-3 py-1.5">
+            <BiLine value={g.display} />
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  return <p className="text-xs text-slate-400">No preview available for this question type.</p>;
+}
+
+function DraftAnswer({ answer, accepted }: { answer?: I18nField; accepted?: string[] }) {
+  const ka = getLocalizedTextByLang(answer, 'ka', '');
+  const en = getLocalizedTextByLang(answer, 'en', '');
+  return (
+    <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5">
+      <span className="text-[10px] font-black uppercase tracking-widest text-emerald-600">Answer</span>
+      <div className="text-sm font-semibold text-slate-800">
+        {ka || en || '—'}
+        {en && en !== ka ? <span className="ml-1 text-xs font-normal text-slate-400">({en})</span> : null}
+      </div>
+      {accepted?.length ? <div className="mt-0.5 text-[11px] text-slate-400">accepts: {accepted.join(', ')}</div> : null}
+    </div>
+  );
+}
+
+function TaskDetail({ task }: { task: AgentTask }) {
+  const draft = task.questionDraft;
+
+  return (
+    <div className="space-y-4 bg-slate-50 px-5 py-4">
+      {draft ? (
+        <div className="space-y-3">
+          <div>
+            <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">Prompt</div>
+            <p className="mt-1 break-words text-sm font-medium text-slate-900">
+              {getLocalizedTextByLang(draft.prompt, 'ka', '—')}
+            </p>
+            {getLocalizedTextByLang(draft.prompt, 'en') ? (
+              <p className="mt-0.5 break-words text-xs text-slate-400">
+                {getLocalizedTextByLang(draft.prompt, 'en')}
+              </p>
+            ) : null}
+          </div>
+          <DraftBody draft={draft} />
+        </div>
+      ) : (
+        <p className="text-sm text-slate-500">No draft generated yet.</p>
+      )}
+
+      <VerdictsPanel verdicts={task.verdicts} />
+
+      {task.warnings && task.warnings.length > 0 ? (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 p-3">
+          <div className="text-[10px] font-black uppercase tracking-widest text-amber-600">Warnings</div>
+          <ul className="mt-1 list-disc space-y-0.5 pl-4 text-xs text-amber-700">
+            {task.warnings.map((warning, index) => (
+              <li key={index}>{warning}</li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+
+      {task.rejectReason ? (
+        <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-xs text-red-700">
+          <span className="font-semibold">Rejected: </span>
+          {task.rejectReason}
+        </div>
+      ) : null}
+
+      {task.error ? (
+        <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-xs text-red-700">
+          <span className="font-semibold">Error: </span>
+          {task.error}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function TasksTable({ jobId }: { jobId: string }) {
+  const { data: tasks, isLoading } = useJobTasks(jobId);
+  const retryTask = useRetryTask();
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+
+  const toggle = (taskId: string) => {
+    setExpanded((current) => {
+      const next = new Set(current);
+      if (next.has(taskId)) next.delete(taskId);
+      else next.add(taskId);
+      return next;
+    });
+  };
+
+  const handleRetry = async (event: React.MouseEvent, taskId: string) => {
+    event.stopPropagation();
+    try {
+      await retryTask.mutateAsync({ taskId, jobId });
+      toast.success('Task retry queued');
+    } catch {
+      toast.error('Failed to retry task');
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <Card className="border-slate-200 shadow-sm">
+        <CardContent className="py-10 text-center text-sm text-slate-500">Loading tasks…</CardContent>
+      </Card>
+    );
+  }
+  if (!tasks || tasks.length === 0) {
+    return (
+      <Card className="border-slate-200 shadow-sm">
+        <CardContent className="py-10 text-center text-sm text-slate-500">No tasks yet.</CardContent>
+      </Card>
+    );
+  }
+
+  // Each task is its own card: a summary header row + an expandable detail BELOW
+  // it (not inside a scrollable table). This keeps the wide draft/options/criteria
+  // content at container width — no horizontal scroll, no clipped edges.
+  return (
+    <div className="space-y-3">
+      {tasks.map((task) => {
+        const isOpen = expanded.has(task.id);
+        const failed = task.status === 'failed' || !!task.error;
+        return (
+          <Card key={task.id} className="overflow-hidden border-slate-200 shadow-sm">
+            {/* row toggles expand; it's a div (not a button) so the Retry/View
+                buttons inside are valid (a button can't nest a button) */}
+            <div
+              role="button"
+              tabIndex={0}
+              onClick={() => toggle(task.id)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  toggle(task.id);
+                }
+              }}
+              className="flex w-full cursor-pointer items-center gap-3 px-4 py-3 text-left hover:bg-slate-50"
+            >
+              {isOpen ? (
+                <ChevronDown className="h-4 w-4 shrink-0 text-slate-400" />
+              ) : (
+                <ChevronRight className="h-4 w-4 shrink-0 text-slate-400" />
+              )}
+              <span className="w-6 shrink-0 text-sm text-slate-500">{task.seq}</span>
+              <span className="flex w-28 shrink-0 flex-col">
+                <span className="text-sm font-medium capitalize text-slate-900">{task.status}</span>
+                {task.stage ? <span className="text-xs text-slate-500">{task.stage}</span> : null}
+              </span>
+              <span className="shrink-0">
+                <DecisionBadge decision={task.decision} />
+              </span>
+              <span className="min-w-0 flex-1 truncate text-sm text-slate-700">
+                {task.questionDraft ? getLocalizedTextByLang(task.questionDraft.prompt, 'ka', '—') : '—'}
+              </span>
+              <span className="flex shrink-0 gap-2" onClick={(event) => event.stopPropagation()}>
+                {failed ? (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={(event) => handleRetry(event, task.id)}
+                    disabled={retryTask.isPending}
+                  >
+                    <RotateCcw className="h-4 w-4" />
+                    Retry
+                  </Button>
+                ) : null}
+                {task.publishedQuestionId ? (
+                  <Button variant="ghost" size="sm" asChild>
+                    <Link href={`/questions/${task.publishedQuestionId}`}>
+                      <ExternalLink className="h-4 w-4" />
+                      View
+                    </Link>
+                  </Button>
+                ) : null}
+              </span>
+            </div>
+            {isOpen ? (
+              <div className="border-t border-slate-100">
+                <TaskDetail task={task} />
+              </div>
+            ) : null}
+          </Card>
+        );
+      })}
+    </div>
+  );
+}
+
+// Some events (job_done) carry a raw JSON counts blob in their message. Render
+// it as a readable summary instead of leaking "{"generated":5,...}".
+function formatEventMessage(message: string | null | undefined): string {
+  if (!message) return '';
+  const braceAt = message.indexOf('{');
+  if (braceAt === -1) return message;
+  const prefix = message.slice(0, braceAt).trim();
+  try {
+    const obj = JSON.parse(message.slice(braceAt));
+    if (obj && typeof obj === 'object') {
+      const parts = Object.entries(obj)
+        .filter(([, v]) => typeof v === 'number' || typeof v === 'string')
+        .map(([k, v]) => `${v} ${k}`);
+      const summary = parts.join(' · ');
+      return prefix ? `${prefix} ${summary}` : summary;
+    }
+  } catch {
+    /* not JSON — fall through */
+  }
+  return message;
+}
+
+function EventsFeed({ jobId }: { jobId: string }) {
+  const { data: events, isLoading } = useJobEvents(jobId);
+
+  return (
+    <Card className="border-slate-200 shadow-sm">
+      <CardContent className="p-5">
+        <h2 className="mb-3 text-sm font-semibold text-slate-900">Events</h2>
+        <div className="max-h-[420px] space-y-2 overflow-y-auto">
+          {isLoading ? (
+            <p className="text-sm text-slate-500">Loading events…</p>
+          ) : !events || events.length === 0 ? (
+            <p className="text-sm text-slate-400">No events yet.</p>
+          ) : (
+            events.map((event) => (
+              <div key={event.id} className="flex gap-2 text-sm">
+                <EventLevelDot level={event.level} />
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-baseline justify-between gap-2">
+                    <span className="text-xs font-medium text-slate-500">{event.type}</span>
+                    <span className="shrink-0 text-[11px] text-slate-400">{formatTime(event.ts)}</span>
+                  </div>
+                  <p className="break-words text-slate-700">{formatEventMessage(event.message)}</p>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+export default function JobDetailPage({ params }: JobPageProps) {
+  const { jobId } = use(params);
+  const router = useRouter();
+  const { data: job, isLoading, error } = useAgentJob(jobId);
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center gap-2 py-10 text-sm text-slate-500">
+        <Loader2 className="h-4 w-4 animate-spin" />
+        Loading job…
+      </div>
+    );
+  }
+
+  if (error || !job) {
+    return (
+      <div className="space-y-6">
+        <Button variant="ghost" onClick={() => router.push('/agents')}>
+          <ArrowLeft className="h-4 w-4" />
+          Back to agents
+        </Button>
+        <Alert variant="destructive">
+          <AlertDescription>Job not found or failed to load.</AlertDescription>
+        </Alert>
+      </div>
+    );
+  }
+
+  const counts = job.counts ?? {};
+  const topic = typeof job.params?.topic === 'string' ? job.params.topic : 'Agent job';
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center gap-3">
+        <Button
+          variant="ghost"
+          onClick={() => router.push('/agents')}
+          className="text-sm font-medium text-slate-500 hover:text-slate-900"
+        >
+          <ArrowLeft className="h-4 w-4" />
+          Back
+        </Button>
+        <div className="flex min-w-0 items-center gap-3">
+          <h1 className="truncate text-2xl font-bold tracking-tight text-slate-900">{topic}</h1>
+          <JobStatusBadge status={job.status} />
+        </div>
+      </div>
+
+      <Card className="border-slate-200 shadow-sm">
+        <CardContent className="p-5">
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7">
+            <StatTile label="Target" value={String(counts.target ?? 0)} />
+            <StatTile label="Generated" value={String(counts.generated ?? 0)} />
+            <StatTile label="Approved" value={String(counts.approved ?? 0)} />
+            <StatTile label="Published" value={String(counts.published ?? 0)} />
+            <StatTile label="Rejected" value={String(counts.rejected ?? 0)} />
+            <StatTile label="Failed" value={String(counts.failed ?? 0)} />
+            <StatTile label="Spend" value={formatCents(job.spentCents)} />
+          </div>
+          {job.error ? (
+            <Alert variant="destructive" className="mt-4">
+              <AlertDescription>{job.error}</AlertDescription>
+            </Alert>
+          ) : null}
+        </CardContent>
+      </Card>
+
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
+        <TasksTable jobId={jobId} />
+        <EventsFeed jobId={jobId} />
+      </div>
+    </div>
+  );
+}

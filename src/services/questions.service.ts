@@ -214,7 +214,7 @@ export const questionsService = {
     return allIds;
   },
 
-  async translateBackfill(): Promise<{
+  async translateBackfill(scope: 'all' | 'agents' = 'all'): Promise<{
     status: 'started' | 'done';
     total: number;
     remaining: number;
@@ -226,17 +226,29 @@ export const questionsService = {
       total: number;
       remaining: number;
       categories: number;
-    }>('/questions/translate/backfill', {});
+    }>('/questions/translate/backfill', scope === 'agents' ? { scope } : {});
     logger.debug('api', 'POST /questions/translate/backfill response', result);
     return result;
   },
 
-  async translateStatus(): Promise<{
-    questions: number;
+  async translateRedoDrafts(): Promise<{
+    status: 'started' | 'done';
+    total: number;
+    remaining: number;
     categories: number;
   }> {
-    return apiClient.get<{ questions: number; categories: number }>('/questions/translate/status', {
+    logger.debug('api', 'POST /questions/translate/redo-drafts');
+    return apiClient.post('/questions/translate/redo-drafts', {});
+  },
+
+  async translateStatus(scope: 'all' | 'agents' = 'all'): Promise<{
+    questions: number;
+    categories: number;
+    agentTotal?: number;
+  }> {
+    return apiClient.get<{ questions: number; categories: number; agentTotal?: number }>('/questions/translate/status', {
       cache_bust: Date.now(),
+      ...(scope === 'agents' ? { scope } : {}),
     });
   },
 

@@ -24,7 +24,7 @@ import { ErrorFeedbackDialog } from '@/components/error-feedback-dialog';
 
 const POLL_INTERVAL_MS = 3000;
 
-export function TranslateBackfillDialog() {
+export function TranslateBackfillDialog({ scope = 'all' }: { scope?: 'all' | 'agents' } = {}) {
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
   const [isStarting, setIsStarting] = useState(false);
@@ -34,6 +34,9 @@ export function TranslateBackfillDialog() {
   const [isDone, setIsDone] = useState(false);
   const [nothingToTranslate, setNothingToTranslate] = useState(false);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const idlePollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [idleCounts, setIdleCounts] = useState<{ questions: number; categories: number; agentTotal?: number } | null>(null);
+  const [idleShrinking, setIdleShrinking] = useState(false);
   const pollErrorCountRef = useRef(0);
   const { errorFeedback, showErrorFeedback, closeErrorFeedback } = useErrorFeedbackDialog();
 
@@ -52,7 +55,7 @@ export function TranslateBackfillDialog() {
 
     pollRef.current = setInterval(async () => {
       try {
-        const status = await questionsService.translateStatus();
+        const status = await questionsService.translateStatus(scope);
         pollErrorCountRef.current = 0;
         setRemaining(status.questions);
 
@@ -91,17 +94,62 @@ export function TranslateBackfillDialog() {
   useEffect(() => {
     return () => {
       if (pollRef.current) clearInterval(pollRef.current);
+      if (idlePollRef.current) clearInterval(idlePollRef.current);
     };
   }, []);
 
-  const handleTranslate = async () => {
+  // While the dialog is open in the idle state, keep the "currently missing"
+  // count fresh — and if it's shrinking, a backfill is already running in the
+  // background (e.g. started earlier and the dialog was closed/reopened).
+  useEffect(() => {
+    if (!open || isPolling) {
+      if (idlePollRef.current) {
+        clearInterval(idlePollRef.current);
+        idlePollRef.current = null;
+      }
+      return;
+    }
+    let prev: number | null = null;
+    const tick = async () => {
+      try {
+        const c = await questionsService.translateStatus(scope);
+        setIdleCounts(c);
+        if (prev != null && c.questions < prev) setIdleShrinking(true);
+        if (c.questions === 0) setIdleShrinking(false);
+        prev = c.questions;
+      } catch {
+        /* non-fatal */
+      }
+    };
+    void tick();
+    idlePollRef.current = setInterval(tick, 5000);
+    return () => {
+      if (idlePollRef.current) {
+        clearInterval(idlePollRef.current);
+        idlePollRef.current = null;
+      }
+    };
+  }, [open, isPolling]);
+
+  const handleTranslate = async (mode: 'missing' | 'redoDrafts' = 'missing') => {
+    if (
+      mode === 'redoDrafts' &&
+      !window.confirm(
+        'Re-translate ALL agent-generated questions from scratch (drafts + approved)? Their current Georgian — including any manual edits — will be overwritten. Hand-written questions from the original bank are not touched.'
+      )
+    ) {
+      return;
+    }
     setIsStarting(true);
     setIsDone(false);
     setNothingToTranslate(false);
     pollErrorCountRef.current = 0;
 
     try {
-      const res = await questionsService.translateBackfill();
+      const res =
+        mode === 'redoDrafts'
+          ? await questionsService.translateRedoDrafts()
+          : await questionsService.translateBackfill(scope);
       logger.info('questions', 'Translation backfill started', res);
 
       if (res.status === 'done') {
@@ -109,6 +157,18 @@ export function TranslateBackfillDialog() {
         queryClient.invalidateQueries({ queryKey: questionKeys.all });
         queryClient.invalidateQueries({ queryKey: categoryKeys.all });
         toast.info('All questions are already translated');
+      } else if (scope === 'agents') {
+        // background-first UX: close the modal; the progress strip on the
+        // Review page (localStorage handoff) takes over as the progress surface
+        try {
+          localStorage.setItem('qb-agent-translate-run', JSON.stringify({ total: res.total, ts: Date.now() }));
+        } catch {
+          /* private mode — the strip just won't show */
+        }
+        toast.success(`Translation started — ${res.total.toLocaleString()} questions`, {
+          description: 'Runs in the background. Progress shows at the top of the review queue.',
+        });
+        setOpen(false);
       } else {
         startPolling(res.total);
       }
@@ -154,11 +214,62 @@ export function TranslateBackfillDialog() {
       <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle>Translate Questions to Georgian</DialogTitle>
-          <DialogDescription>
-            Translate all English questions that don&apos;t have a Georgian translation yet.
-            Categories will also be translated.
-          </DialogDescription>
+          <DialogDescription>Choose how to translate:</DialogDescription>
         </DialogHeader>
+
+        {!isPolling && !isDone && !nothingToTranslate && idleShrinking && idleCounts ? (
+          <div className="flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-700">
+            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            A translation run is already in progress — {idleCounts.questions.toLocaleString()} remaining. The count
+            updates every few seconds.
+          </div>
+        ) : null}
+
+        {!isPolling && !isDone && !nothingToTranslate && (
+          <div className="space-y-2">
+            <button
+              type="button"
+              onClick={() => handleTranslate('missing')}
+              disabled={isStarting}
+              className="w-full rounded-xl border border-slate-200 bg-white p-4 text-left transition hover:border-slate-300 hover:bg-slate-50 disabled:opacity-50"
+            >
+              <div className="flex items-center gap-2 text-sm font-semibold text-slate-900">
+                {isStarting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Languages className="h-4 w-4 text-slate-500" />}
+                Translate missing only
+              </div>
+              <p className="mt-1 text-xs text-slate-500">
+                {scope === 'agents'
+                  ? 'Fills Georgian only where it\u2019s empty — AGENT-GENERATED questions only (drafts and approved). The rest of the question bank is never touched.'
+                  : 'Fills Georgian only where it\u2019s empty — questions, options, and category names. Existing translations are never touched. Safe to run anytime.'}
+              </p>
+              {idleCounts ? (
+                <p className="mt-1.5 text-xs font-semibold text-slate-700">
+                  {idleCounts.questions.toLocaleString()} question{idleCounts.questions === 1 ? '' : 's'}
+                  {idleCounts.categories ? ` + ${idleCounts.categories} categories` : ''} currently missing Georgian
+                </p>
+              ) : null}
+            </button>
+            <button
+              type="button"
+              onClick={() => handleTranslate('redoDrafts')}
+              disabled={isStarting}
+              className="w-full rounded-xl border border-amber-200 bg-amber-50/50 p-4 text-left transition hover:border-amber-300 hover:bg-amber-50 disabled:opacity-50"
+            >
+              <div className="text-sm font-semibold text-amber-800">Re-translate agent questions (overwrite)</div>
+              <p className="mt-1 text-xs text-amber-700">
+                Wipes and redoes the Georgian of every <b>agent-generated</b> question — drafts in review AND already
+                approved ones (their old in-pipeline translations were poor). Manual edits to their Georgian are lost.
+                Hand-written questions from the original bank are never touched.
+              </p>
+              {idleCounts?.agentTotal != null ? (
+                <p className="mt-1.5 text-xs font-bold text-amber-800">
+                  Will re-translate {idleCounts.agentTotal.toLocaleString()} agent question
+                  {idleCounts.agentTotal === 1 ? '' : 's'}
+                </p>
+              ) : null}
+            </button>
+          </div>
+        )}
 
         {/* Nothing to translate */}
         {nothingToTranslate && (
@@ -210,18 +321,7 @@ export function TranslateBackfillDialog() {
           <Button variant="outline" onClick={() => handleClose(false)}>
             {isDone || nothingToTranslate ? 'Close' : isPolling ? 'Close (continues in background)' : 'Cancel'}
           </Button>
-          {!isPolling && !isDone && !nothingToTranslate && (
-            <Button onClick={handleTranslate} disabled={isStarting}>
-              {isStarting ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Starting...
-                </>
-              ) : (
-                'Start Translation'
-              )}
-            </Button>
-          )}
+
         </DialogFooter>
       </DialogContent>
     </Dialog>
