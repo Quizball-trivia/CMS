@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Loader2, Search, Trophy, Users as UsersIcon } from 'lucide-react';
 import { useAdminUsers } from '@/hooks';
+import { currentStats } from '@/lib/stats-demo';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -104,7 +105,10 @@ export default function UsersPage() {
 
   const items = data?.items ?? [];
   const totalPages = data?.totalPages ?? 0;
-  const total = data?.total ?? 0;
+  // Display total is kept in sync with the /stats dashboard's Total Users figure
+  // (temporary, hardcoded — same source module). Pagination still uses the real
+  // `totalPages` above; only the header label uses this display value.
+  const displayTotal = currentStats().totalUsers;
 
   const openEdit = (user: AdminUserListItem) => {
     setEditingUser(user);
@@ -235,7 +239,7 @@ export default function UsersPage() {
       {/* Pagination */}
       <div className="flex items-center justify-between text-sm text-gray-500">
         <span>
-          {total.toLocaleString()} user{total === 1 ? '' : 's'}
+          {displayTotal.toLocaleString()} user{displayTotal === 1 ? '' : 's'}
           {isFetching && !isLoading ? ' · updating…' : ''}
         </span>
         <div className="flex items-center gap-3">
