@@ -198,7 +198,16 @@ export function QuestionPreviewDialog({
           <Eye className="h-4 w-4" />
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-w-2xl" onClick={(e) => e.stopPropagation()}>
+      <DialogContent
+        className="max-w-2xl"
+        // The trigger lives inside a clickable table row, so we stop clicks
+        // INSIDE the body from bubbling to the row — but not on the built-in
+        // close (X) button, or its click gets swallowed and the dialog won't close.
+        onClick={(e) => {
+          if ((e.target as HTMLElement).closest('[data-slot="dialog-close"]')) return;
+          e.stopPropagation();
+        }}
+      >
         <DialogHeader className="pr-10">
           <div className="flex items-center justify-between">
             <DialogTitle>Question Preview</DialogTitle>
