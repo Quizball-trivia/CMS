@@ -60,13 +60,14 @@ export default function StatsPage() {
         </div>
       ) : (
         <>
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-            <Stat label="Generated" value={String(data.totals.generated)} sub="attempts" />
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-7">
+            <Stat label="Generated" value={String(data.totals.generated)} sub="total tasks" />
             <Stat label="Accepted" value={String(data.totals.approved)} />
             <Stat label="Rejected" value={String(data.totals.rejected)} />
+            <Stat label="In progress" value={String(data.totals.pending)} sub="not yet judged" />
             <Stat label="Failed" value={String(data.totals.failed)} />
-            <Stat label="Accept rate" value={`${data.totals.approvalRate}%`} />
-            <Stat label="Spend" value={formatCents(data.totals.costCents)} sub={`last ${data.days} days (GE time)`} />
+            <Stat label="Accept rate" value={`${data.totals.approvalRate}%`} sub="of judged" />
+            <Stat label="Spend" value={formatCents(data.totals.costCents)} sub={`last ${data.days}d (GE)`} />
           </div>
 
           <Panel title="Approved vs rejected per day">
