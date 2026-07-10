@@ -254,7 +254,7 @@ export interface AgentStats {
   daily: AgentStatsDay[];
   rejections: { stage: string; count: number }[];
   timings: { role: string; avgSeconds: number; runs: number }[];
-  totals: { generated: number; approved: number; rejected: number; failed: number; costCents: number; approvalRate: number };
+  totals: { generated: number; approved: number; rejected: number; failed: number; pending: number; costCents: number; approvalRate: number };
 }
 
 // ── Schedules (daily-challenge cron) ──
