@@ -240,8 +240,12 @@ export interface AgentActivity {
 // ── Stats rollups ──
 export interface AgentStatsDay {
   day: string;
+  generated: number;
   approved: number;
   rejected: number;
+  failed: number;
+  pending: number;
+  acceptPct: number;
   costCents: number;
 }
 
@@ -250,7 +254,7 @@ export interface AgentStats {
   daily: AgentStatsDay[];
   rejections: { stage: string; count: number }[];
   timings: { role: string; avgSeconds: number; runs: number }[];
-  totals: { approved: number; rejected: number; costCents: number; approvalRate: number };
+  totals: { generated: number; approved: number; rejected: number; failed: number; costCents: number; approvalRate: number };
 }
 
 // ── Schedules (daily-challenge cron) ──
