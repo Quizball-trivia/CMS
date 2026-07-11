@@ -360,10 +360,10 @@ function BudgetWidget() {
         <div className="flex items-center justify-between gap-2">
           <div className="flex min-w-0 items-center gap-2">
             <DollarSign className="h-4 w-4 shrink-0 text-slate-500" />
-            <span className="truncate text-sm font-semibold text-slate-900">Estimated spend</span>
+            <span className="truncate text-sm font-semibold text-slate-900">Estimated activity</span>
             <span
               className="shrink-0 text-slate-400"
-              title="Estimated equivalent API cost. Claude's actual subscription usage isn't queryable."
+              title="These are ESTIMATES of equivalent pay-as-you-go API cost — NOT a bill. Agents run on a flat Claude subscription, so you are not charged these amounts. Real usage is capped by the subscription's session window (see the pause banner), which is not queryable in dollars."
             >
               <Info className="h-3.5 w-3.5" />
             </span>
@@ -380,7 +380,8 @@ function BudgetWidget() {
         </div>
 
         <p className="text-[11px] leading-snug text-slate-400">
-          Estimated equivalent API cost. Claude&apos;s actual subscription usage isn&apos;t queryable.
+          Estimated equivalent API cost — <span className="font-semibold text-slate-500">not a bill</span>.
+          Agents run on a flat subscription; the real cap is the session window, not dollars.
         </p>
 
         <div className="grid grid-cols-3 gap-2">
@@ -389,30 +390,10 @@ function BudgetWidget() {
           <SpendRollup label="Month" cents={spentMonth} />
         </div>
 
-        <div>
-          <div className="flex items-baseline justify-between gap-2">
-            <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">
-              Monthly usage
-            </span>
-            <span className={`text-sm font-bold ${monthPct >= 90 ? 'text-red-600' : monthPct >= 70 ? 'text-amber-600' : 'text-slate-900'}`}>
-              {monthPct}% used
-            </span>
-          </div>
-          <div className="mt-1.5 h-2.5 w-full overflow-hidden rounded-full bg-slate-100">
-            <div
-              className={monthPct >= 90 ? 'h-full bg-red-500' : monthPct >= 70 ? 'h-full bg-amber-500' : 'h-full bg-emerald-500'}
-              style={{ width: `${monthPct}%` }}
-            />
-          </div>
-          <div className="mt-1 flex items-baseline justify-between text-[11px] text-slate-500">
-            <span>{formatCents(spentMonth)} of {formatCents(monthlyCredit)}</span>
-            <span className="font-medium text-slate-600">{Math.max(0, 100 - monthPct)}% left</span>
-          </div>
-        </div>
-
         <p className="text-[11px] leading-snug text-slate-400">
-          Daily kill-switch at {formatCents(dailyLimit)} — agents pause automatically once today&apos;s
-          estimate passes it.
+          The subscription&apos;s 5-hour session window is the real limit — when it&apos;s spent, agents
+          pause and auto-resume at the reset time shown in the pause banner. The dollar figures above are
+          only a rough equivalent-cost estimate.
         </p>
 
         <Button
