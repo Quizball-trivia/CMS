@@ -417,6 +417,17 @@ function ReviewItem({ item }: { item: AgentReviewItem }) {
 
   const factcheck = item.verdicts?.factcheck as { reason?: string; correct_answer?: string } | undefined;
   const criteria = item.verdicts?.criteria as { suggestions?: string } | undefined;
+  const judge = item.verdicts?.judge as { verdict?: string; reason?: string } | undefined;
+  // Why the AI judge sent this to a human instead of auto-deciding. Stored in
+  // tasks.warnings (an object {judge_unsure: "..."} on the pipeline path) — the
+  // judge verdict itself may also carry the reason.
+  const w = item.warnings as unknown;
+  const warningObj = w && typeof w === 'object' && !Array.isArray(w) ? (w as Record<string, unknown>) : null;
+  const judgeUnsureReason: string | undefined =
+    (typeof warningObj?.judge_unsure === 'string' ? warningObj.judge_unsure : undefined) ??
+    (judge?.verdict === 'unsure' && typeof judge?.reason === 'string' ? judge.reason : undefined);
+  // legacy array-shaped warnings (older tasks) — render as before
+  const legacyWarnings = Array.isArray(item.warnings) ? (item.warnings as string[]) : [];
 
   const handleApprove = () =>
     approve.mutate(item.id, {
@@ -518,6 +529,13 @@ function ReviewItem({ item }: { item: AgentReviewItem }) {
           {/* type-specific content (options / clues / items / …) */}
           <PayloadView type={item.type} payload={item.payload} />
 
+          {/* Why the AI judge couldn't auto-decide — the human's cue for what to check */}
+          {judgeUnsureReason ? (
+            <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+              <span className="font-semibold">Why a human is needed:</span> {judgeUnsureReason}
+            </div>
+          ) : null}
+
           {/* verdicts — why it passed the gates */}
           <div className="flex flex-wrap gap-2 text-xs">
             {factcheck?.reason ? (
@@ -530,9 +548,9 @@ function ReviewItem({ item }: { item: AgentReviewItem }) {
                 <span className="font-semibold text-slate-500">Criteria:</span> {criteria.suggestions}
               </span>
             ) : null}
-            {item.warnings && item.warnings.length > 0 ? (
+            {legacyWarnings.length > 0 ? (
               <span className="rounded-md border border-amber-200 bg-amber-50 px-2 py-1 text-amber-700">
-                ⚠ {item.warnings.join(', ')}
+                ⚠ {legacyWarnings.join(', ')}
               </span>
             ) : null}
           </div>
