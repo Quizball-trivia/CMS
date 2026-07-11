@@ -22,6 +22,21 @@ function fmtDuration(seconds: number): string {
   return `${m}m ${s}s`;
 }
 
+// The subscription-limit error text carries the reset time in UTC (e.g.
+// "resets 7:50am (UTC)"). We report everything in Georgia time, so rewrite any
+// "H:MMam/pm (UTC)" into Asia/Tbilisi (UTC+4, no DST).
+function utcResetToTbilisi(reason: string): string {
+  return reason.replace(/(\d{1,2}):(\d{2})\s*(am|pm)\s*\(UTC\)/gi, (_m, h, min, ap) => {
+    let hour = Number(h) % 12;
+    if (ap.toLowerCase() === 'pm') hour += 12;
+    let tb = (hour + 4) % 24; // UTC+4
+    const ampm = tb >= 12 ? 'pm' : 'am';
+    let h12 = tb % 12;
+    if (h12 === 0) h12 = 12;
+    return `${h12}:${min}${ampm} (Georgia time)`;
+  });
+}
+
 // The stage a role represents in the pipeline — shown so you know what a
 // long-running session is actually doing.
 const ROLE_STAGE: Record<string, string> = {
@@ -107,7 +122,7 @@ export default function ActivityPage() {
               {budget!.paused ? 'Agents are paused.' : 'Daily budget reached — generation is on hold.'}
             </span>{' '}
             {budget!.paused && budget!.pauseReason ? (
-              <>{budget!.pauseReason} Jobs stay queued and resume when unpaused (Jobs page → Resume).</>
+              <>{utcResetToTbilisi(budget!.pauseReason)} Jobs stay queued and resume automatically when the limit refills.</>
             ) : (
               <>
                 ${(budget!.spentTodayCents / 100).toFixed(2)} / ${(budget!.limitCents / 100).toFixed(0)} spent today.
