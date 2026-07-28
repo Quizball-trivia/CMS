@@ -49,6 +49,11 @@ export const auctionPipelineService = {
   },
 
   async requeue(data: AuctionPipelineRequeueRequest): Promise<{ requeued: number }> {
+    const hasTaskIds = (data.taskIds?.length ?? 0) > 0;
+    const hasFilter = data.filter !== undefined;
+    if (hasTaskIds === hasFilter) {
+      throw new Error('Requeue requires either taskIds or a filter, not both or neither');
+    }
     return apiClient.post<{ requeued: number }>(`${BASE_PATH}/requeue`, data);
   },
 };

@@ -253,7 +253,7 @@ function PromptEditor({
 }
 
 export function PipelinePrompts() {
-  const { data, isLoading } = useAuctionPipelinePrompts();
+  const { data, isLoading, isError, refetch } = useAuctionPipelinePrompts();
 
   if (isLoading) {
     return (
@@ -263,8 +263,21 @@ export function PipelinePrompts() {
     );
   }
 
-  const byKey = new Map((data?.items ?? []).map((prompt) => [prompt.key, prompt]));
-  const effectiveByKey = data?.effective ?? {};
+  // Rendering editors without the saved overrides would present every prompt
+  // as "default" and let a save silently clobber an override the user never saw.
+  if (isError || !data) {
+    return (
+      <div className="flex items-center gap-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2.5 text-sm text-red-700">
+        <span>Could not load the saved prompts.</span>
+        <Button variant="outline" size="sm" onClick={() => refetch()}>
+          Retry
+        </Button>
+      </div>
+    );
+  }
+
+  const byKey = new Map(data.items.map((prompt) => [prompt.key, prompt]));
+  const effectiveByKey = data.effective;
 
   return (
     <div className="space-y-3">

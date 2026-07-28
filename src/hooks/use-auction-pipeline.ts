@@ -34,11 +34,16 @@ export function useAuctionPipelineWorkers() {
   });
 }
 
-/** Prompts deliberately do not poll — a refetch would stomp an in-progress edit. */
+/** Prompts deliberately do not refetch on their own — a background refetch
+ * re-seeds the editors and would stomp an in-progress edit. Saves and resets
+ * invalidate the query explicitly. */
 export function useAuctionPipelinePrompts() {
   return useQuery({
     queryKey: auctionPipelineKeys.prompts(),
     queryFn: ({ signal }) => auctionPipelineService.listPrompts(signal),
+    staleTime: Infinity,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
   });
 }
 

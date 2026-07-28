@@ -80,7 +80,10 @@ function formatAgo(seconds: number): string {
 }
 
 function formatDateTime(iso: string): string {
+  // Fixed zone keeps SSR and client renders identical and matches how the
+  // team reads ops timestamps (Georgia time).
   return new Date(iso).toLocaleString('en-US', {
+    timeZone: 'Asia/Tbilisi',
     month: 'short',
     day: 'numeric',
     hour: '2-digit',
