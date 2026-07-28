@@ -4,6 +4,7 @@ import { Gavel } from 'lucide-react';
 import { AuctionCardList } from '@/components/auction';
 import { TranslateCluesDialog } from '@/components/auction/translate-clues-dialog';
 import { ImportCardsButton } from '@/components/player-clue-cards/import-cards-button';
+import { AuctionNav } from './auction-ui';
 
 export default function AuctionPage() {
   return (
@@ -24,6 +25,8 @@ export default function AuctionPage() {
             <ImportCardsButton />
           </div>
         </div>
+
+        <AuctionNav />
 
         <AuctionCardList />
       </div>

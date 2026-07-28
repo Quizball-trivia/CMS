@@ -9,3 +9,4 @@ export { adminUsersService } from './admin-users.service';
 export { announcementsService } from './announcements.service';
 export { auctionService } from './auction.service';
 export { playerClueCardsService } from './player-clue-cards.service';
+export { auctionPipelineService } from './auction-pipeline.service';
