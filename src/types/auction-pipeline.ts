@@ -56,6 +56,47 @@ export interface AuctionPipelineAttempts24h {
   by_error_class: AuctionPipelineErrorClass[];
 }
 
+export const AUCTION_PIPELINE_PROMPT_KEYS = [
+  'generator_rules',
+  'verifier_rules',
+  'judge_rules',
+  'variant_medium',
+  'variant_hard',
+] as const;
+
+export type AuctionPipelinePromptKey = (typeof AUCTION_PIPELINE_PROMPT_KEYS)[number];
+
+export interface AuctionPipelineWorker {
+  worker_id: string;
+  hostname: string;
+  task_id: string | null;
+  player_name: string | null;
+  variant_key: string | null;
+  stage: string | null;
+  started_at: string;
+  updated_at: string;
+  seconds_since_heartbeat: number;
+  is_stale: boolean;
+}
+
+export interface AuctionPipelineWorkers {
+  workers: AuctionPipelineWorker[];
+  live: number;
+  stale: number;
+}
+
+export interface AuctionPipelinePrompt {
+  key: string;
+  text: string;
+  updated_at: string;
+  updated_by: string | null;
+}
+
+export interface AuctionPipelineRequeueRequest {
+  taskIds?: string[];
+  filter?: 'failed' | 'rejected';
+}
+
 export interface AuctionPipelineStats {
   generated_at: string;
   totals: AuctionPipelineTotals;
