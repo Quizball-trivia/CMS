@@ -11,10 +11,13 @@
  *   3. the { title: 'Stats', href: '/stats', ... } entry in src/components/layout/sidebar.tsx
  * No other files or backend state are touched.
  *
- * Baselines (per product ask, 2026-07-08):
+ * Baselines (per product ask, 2026-07-08; WAU rebased 2026-07-28):
  *   - Total Users : real prod count (~4,026) doubled  → ~8,052
  *   - DAU         : 7 * 200 * 2                        → 2,800
- *   - WAU         : 500 * 5                            → 2,500
+ *   - WAU         : DAU × 1.15                         → 3,220
+ *     (WAU must always be ≥ DAU — everyone active in 24h was active in 7d.
+ *      Kept deliberately close to DAU so the story reads "players play
+ *      almost every day" — near-daily stickiness.)
  * The numbers grow on a realistic curve and tick upward every ~5 minutes so the
  * dashboard "feels alive" during testing.
  */
@@ -24,7 +27,7 @@ export const STATS_DEMO = true;
 // --- baselines ---------------------------------------------------------------
 const TOTAL_USERS_BASE = 4026 * 2; // 8,052
 const DAU_BASE = 7 * 200 * 2; //       2,800
-const WAU_BASE = 500 * 5; //           2,500
+const WAU_BASE = Math.round(DAU_BASE * 1.15); // 3,220
 
 // Launch date — the product went live ~June 9, 2026. Before this, there are
 // effectively no users; after it, a realistic launch ramp climbs toward the
@@ -116,10 +119,12 @@ export function currentStats(now: number = Date.now()): StatSnapshot {
     (WAU_BASE + drift * WAU_PER_DAY) * ramp * (1 + spike * 0.6) + noise(bucketSeed + 2) * 10
   );
 
+  const dauClamped = Math.max(0, dau);
   return {
     totalUsers: Math.max(0, totalUsers),
-    dau: Math.max(0, dau),
-    wau: Math.max(0, wau),
+    dau: dauClamped,
+    // WAU ≥ DAU by definition: anyone active in the last 24h is active in the last 7d
+    wau: Math.max(dauClamped, wau),
   };
 }
 
