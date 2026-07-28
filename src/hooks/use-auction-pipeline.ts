@@ -37,7 +37,7 @@ export function useAuctionPipelineWorkers() {
 export function useAuctionPipelinePrompts() {
   return useQuery({
     queryKey: auctionPipelineKeys.prompts(),
-    queryFn: async ({ signal }) => (await auctionPipelineService.listPrompts(signal)).items,
+    queryFn: ({ signal }) => auctionPipelineService.listPrompts(signal),
   });
 }
 

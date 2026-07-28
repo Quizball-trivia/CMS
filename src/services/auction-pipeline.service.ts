@@ -2,6 +2,7 @@ import { apiClient } from './api-client';
 import type {
   AuctionPipelinePrompt,
   AuctionPipelinePromptKey,
+  AuctionPipelinePromptsResponse,
   AuctionPipelineRequeueRequest,
   AuctionPipelineStats,
   AuctionPipelineWorkers,
@@ -26,8 +27,8 @@ export const auctionPipelineService = {
     );
   },
 
-  async listPrompts(signal?: AbortSignal): Promise<{ items: AuctionPipelinePrompt[] }> {
-    return apiClient.get<{ items: AuctionPipelinePrompt[] }>(
+  async listPrompts(signal?: AbortSignal): Promise<AuctionPipelinePromptsResponse> {
+    return apiClient.get<AuctionPipelinePromptsResponse>(
       `${BASE_PATH}/prompts`,
       undefined,
       signal

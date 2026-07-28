@@ -35,6 +35,13 @@ export interface AuctionPipelineSnapshot {
   promoted_at: string | null;
 }
 
+export interface AuctionPipelineWindowRate {
+  hours: number;
+  published: number;
+  terminal: number;
+  pass_rate: number | null;
+}
+
 export interface AuctionPipelineTotals {
   total_tasks: number;
   terminal_families: number;
@@ -42,6 +49,7 @@ export interface AuctionPipelineTotals {
   rejected_families: number;
   failed_families: number;
   pass_rate: number | null;
+  recent_pass_rates: AuctionPipelineWindowRate[];
   eligible_players: number;
   players_done: number;
   players_remaining: number;
@@ -90,6 +98,11 @@ export interface AuctionPipelinePrompt {
   text: string;
   updated_at: string;
   updated_by: string | null;
+}
+
+export interface AuctionPipelinePromptsResponse {
+  items: AuctionPipelinePrompt[];
+  effective: Record<string, AuctionPipelinePrompt>;
 }
 
 export interface AuctionPipelineRequeueRequest {

@@ -1,10 +1,11 @@
 'use client';
 
 import { useState } from 'react';
-import { Loader2, Save } from 'lucide-react';
+import { ChevronDown, ChevronRight, Loader2, Save } from 'lucide-react';
 import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { useAuctionPipelinePrompts, useSaveAuctionPipelinePrompt } from '@/hooks';
 import { AUCTION_PIPELINE_PROMPT_KEYS } from '@/types/auction-pipeline';
@@ -44,11 +45,21 @@ const PROMPT_META: PromptMeta[] = [
   },
 ];
 
-function PromptEditor({ meta, prompt }: { meta: PromptMeta; prompt: AuctionPipelinePrompt | undefined }) {
+function PromptEditor({
+  meta,
+  prompt,
+  effective,
+}: {
+  meta: PromptMeta;
+  prompt: AuctionPipelinePrompt | undefined;
+  effective: AuctionPipelinePrompt | undefined;
+}) {
   const savePrompt = useSaveAuctionPipelinePrompt();
   const [text, setText] = useState(prompt?.text ?? '');
+  const [showEffective, setShowEffective] = useState(false);
 
   const dirty = text !== (prompt?.text ?? '');
+  const effectiveLineCount = effective ? effective.text.split('\n').length : 0;
 
   const handleSave = async () => {
     if (!text.trim()) {
@@ -99,12 +110,47 @@ function PromptEditor({ meta, prompt }: { meta: PromptMeta; prompt: AuctionPipel
           Save
         </Button>
       </div>
+      {/* The rules the runner will actually send, published by the runner itself. */}
+      <button
+        type="button"
+        onClick={() => setShowEffective((open) => !open)}
+        className="mt-2 flex w-full items-center gap-1.5 rounded-md bg-slate-50 px-2 py-1.5 text-left text-xs font-medium text-slate-600 hover:bg-slate-100"
+      >
+        {showEffective ? (
+          <ChevronDown className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+        ) : (
+          <ChevronRight className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+        )}
+        {effective
+          ? `Rules in effect (${effectiveLineCount})`
+          : 'Rules in effect — not published yet'}
+        {effective ? (
+          <span className="ml-auto text-[11px] font-normal text-slate-400">
+            read-only · from runner
+          </span>
+        ) : null}
+      </button>
+      {showEffective ? (
+        effective ? (
+          <pre className="mt-1 max-h-64 overflow-y-auto whitespace-pre-wrap break-words rounded-md bg-slate-50 p-2 font-mono text-[11px] leading-relaxed text-slate-600">
+            {effective.text}
+          </pre>
+        ) : (
+          <p className="mt-1 rounded-md bg-slate-50 p-2 text-xs text-slate-500">
+            The runner publishes its assembled rules when it next starts a batch.
+          </p>
+        )
+      ) : null}
+
+      <Label className="mt-3 block text-[10px] font-black uppercase tracking-widest text-slate-400">
+        Add extra rules
+      </Label>
       <Textarea
         value={text}
         onChange={(event) => setText(event.target.value)}
         spellCheck={false}
-        className="mt-2 min-h-[110px] resize-y font-mono text-xs leading-relaxed"
-        placeholder="No override — the built-in rules apply. One rule per line."
+        className="mt-1 min-h-[90px] resize-y font-mono text-xs leading-relaxed"
+        placeholder="One extra rule per line. Appended to the rules above."
       />
     </div>
   );
@@ -121,20 +167,23 @@ export function PipelinePrompts() {
     );
   }
 
-  const byKey = new Map((data ?? []).map((prompt) => [prompt.key, prompt]));
+  const byKey = new Map((data?.items ?? []).map((prompt) => [prompt.key, prompt]));
+  const effectiveByKey = data?.effective ?? {};
 
   return (
     <div className="space-y-3">
       <p className="text-xs text-slate-500">
-        Overrides are <span className="font-medium text-slate-700">appended</span> to the built-in
-        rules, never replace them, so an edit here cannot remove the safety rules. Blank or
-        malformed overrides fall back to the defaults. Takes effect on the next batch.
+        Expand <span className="font-medium text-slate-700">Rules in effect</span> to read exactly
+        what the runner sends. Anything you add below is{' '}
+        <span className="font-medium text-slate-700">appended</span> to those rules, never replaces
+        them, so an edit here cannot remove the safety rules. Takes effect on the next batch.
       </p>
       {PROMPT_META.map((meta) => (
         <PromptEditor
           key={`${meta.key}:${byKey.get(meta.key)?.updated_at ?? 'none'}`}
           meta={meta}
           prompt={byKey.get(meta.key)}
+          effective={effectiveByKey[meta.key]}
         />
       ))}
       {AUCTION_PIPELINE_PROMPT_KEYS.length !== PROMPT_META.length ? (

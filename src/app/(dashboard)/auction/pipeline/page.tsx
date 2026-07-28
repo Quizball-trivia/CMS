@@ -248,6 +248,10 @@ export default function AuctionPipelinePage() {
     }
   };
 
+  // Prefer the tightest window that actually completed something, so a quiet
+  // couple of hours falls back to 24h rather than showing an empty rate.
+  const recentRate = (data?.totals.recent_pass_rates ?? []).find((entry) => entry.terminal > 0);
+
   const orderedStages = data
     ? [...data.stages].sort(
         (a, b) => STAGE_ORDER.indexOf(a.stage as never) - STAGE_ORDER.indexOf(b.stage as never)
@@ -315,7 +319,20 @@ export default function AuctionPipelinePage() {
             sub={`${formatNumber(data.cards.published_families)} families`}
             tone="text-emerald-600"
           />
-          <Stat label="Pass rate" value={formatPercent(data.totals.pass_rate)} />
+          <Stat
+            label="Pass rate"
+            value={formatPercent(recentRate?.pass_rate ?? data.totals.pass_rate)}
+            sub={
+              recentRate
+                ? `${recentRate.hours}h · ${formatPercent(data.totals.pass_rate)} all-time`
+                : 'all-time'
+            }
+            tone={
+              recentRate?.pass_rate != null && recentRate.pass_rate >= 0.5
+                ? 'text-emerald-600'
+                : undefined
+            }
+          />
           <Stat
             label="Players done"
             value={formatNumber(data.totals.players_done)}
@@ -470,6 +487,28 @@ export default function AuctionPipelinePage() {
           <Card className="border-slate-200 shadow-sm">
             <CardContent className="p-5">
               <h2 className="mb-3 text-sm font-semibold text-slate-900">Stage breakdown</h2>
+              {data && data.totals.recent_pass_rates.length > 0 ? (
+                <div className="mb-3 flex flex-wrap items-center gap-x-4 gap-y-1 rounded-lg bg-slate-50 px-3 py-2 text-xs">
+                  {data.totals.recent_pass_rates.map((entry) => (
+                    <span key={entry.hours} className="text-slate-500">
+                      <span className="font-mono font-semibold text-slate-800">
+                        {formatPercent(entry.pass_rate)}
+                      </span>{' '}
+                      last {entry.hours}h
+                      <span className="text-slate-400">
+                        {' '}
+                        ({formatNumber(entry.published)}/{formatNumber(entry.terminal)})
+                      </span>
+                    </span>
+                  ))}
+                  <span className="text-slate-500">
+                    <span className="font-mono font-semibold text-slate-800">
+                      {formatPercent(data.totals.pass_rate)}
+                    </span>{' '}
+                    all-time
+                  </span>
+                </div>
+              ) : null}
               {orderedStages.length === 0 ? (
                 <p className="py-6 text-center text-sm text-slate-400">No tasks yet.</p>
               ) : (
