@@ -4,6 +4,7 @@ import { logger } from '@/lib/logger';
 import { getErrorLogDetails } from '@/lib/error-feedback';
 import type {
   AuctionPipelinePromptKey,
+  AuctionPipelinePromptMode,
   AuctionPipelineRequeueRequest,
 } from '@/types/auction-pipeline';
 
@@ -45,14 +46,38 @@ export function useSaveAuctionPipelinePrompt() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ key, text }: { key: AuctionPipelinePromptKey; text: string }) =>
-      auctionPipelineService.savePrompt(key, text),
+    mutationFn: ({
+      key,
+      text,
+      mode,
+    }: {
+      key: AuctionPipelinePromptKey;
+      text: string;
+      mode: AuctionPipelinePromptMode;
+    }) => auctionPipelineService.savePrompt(key, text, mode),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: auctionPipelineKeys.prompts() });
     },
     onError: (error, variables) => {
       logger.error('auction', 'Failed to save pipeline prompt', {
         key: variables.key,
+        ...getErrorLogDetails(error),
+      });
+    },
+  });
+}
+
+export function useResetAuctionPipelinePrompt() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (key: AuctionPipelinePromptKey) => auctionPipelineService.resetPrompt(key),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: auctionPipelineKeys.prompts() });
+    },
+    onError: (error, key) => {
+      logger.error('auction', 'Failed to reset pipeline prompt', {
+        key,
         ...getErrorLogDetails(error),
       });
     },

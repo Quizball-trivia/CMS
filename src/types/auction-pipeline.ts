@@ -93,9 +93,12 @@ export interface AuctionPipelineWorkers {
   stale: number;
 }
 
+export type AuctionPipelinePromptMode = 'append' | 'replace';
+
 export interface AuctionPipelinePrompt {
   key: string;
   text: string;
+  mode: AuctionPipelinePromptMode;
   updated_at: string;
   updated_by: string | null;
 }

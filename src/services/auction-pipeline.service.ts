@@ -2,6 +2,7 @@ import { apiClient } from './api-client';
 import type {
   AuctionPipelinePrompt,
   AuctionPipelinePromptKey,
+  AuctionPipelinePromptMode,
   AuctionPipelinePromptsResponse,
   AuctionPipelineRequeueRequest,
   AuctionPipelineStats,
@@ -35,8 +36,16 @@ export const auctionPipelineService = {
     );
   },
 
-  async savePrompt(key: AuctionPipelinePromptKey, text: string): Promise<AuctionPipelinePrompt> {
-    return apiClient.put<AuctionPipelinePrompt>(`${BASE_PATH}/prompts/${key}`, { text });
+  async savePrompt(
+    key: AuctionPipelinePromptKey,
+    text: string,
+    mode: AuctionPipelinePromptMode
+  ): Promise<AuctionPipelinePrompt> {
+    return apiClient.put<AuctionPipelinePrompt>(`${BASE_PATH}/prompts/${key}`, { text, mode });
+  },
+
+  async resetPrompt(key: AuctionPipelinePromptKey): Promise<{ reset: boolean }> {
+    return apiClient.delete<{ reset: boolean }>(`${BASE_PATH}/prompts/${key}`);
   },
 
   async requeue(data: AuctionPipelineRequeueRequest): Promise<{ requeued: number }> {
