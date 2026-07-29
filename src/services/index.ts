@@ -10,3 +10,4 @@ export { announcementsService } from './announcements.service';
 export { auctionService } from './auction.service';
 export { playerClueCardsService } from './player-clue-cards.service';
 export { auctionPipelineService } from './auction-pipeline.service';
+export { botTuningService } from './bot-tuning.service';

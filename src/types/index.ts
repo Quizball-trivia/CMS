@@ -8,3 +8,4 @@ export * from './auction';
 export * from './auction-pipeline';
 export * from './player-clue-cards';
 export * from './agents';
+export * from './bot-tuning';
