@@ -9,3 +9,4 @@ export * from './use-auction';
 export * from './use-auction-pipeline';
 export * from './use-player-clue-cards';
 export * from './use-agents';
+export * from './use-bot-tuning';

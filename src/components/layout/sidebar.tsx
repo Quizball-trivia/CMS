@@ -12,6 +12,7 @@ import {
   Megaphone,
   Gavel,
   Bot,
+  SlidersHorizontal,
   TrendingUp,
 } from 'lucide-react';
 
@@ -45,6 +46,11 @@ const navItems = [
     title: 'Agents',
     href: '/agents',
     icon: Bot,
+  },
+  {
+    title: 'Bot Tuning',
+    href: '/bot-tuning',
+    icon: SlidersHorizontal,
   },
   {
     title: 'Users',
