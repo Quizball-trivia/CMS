@@ -106,6 +106,29 @@ export default function WeekendLeaguePage() {
   const [freeEntry, setFreeEntry] = useState(true);
 
   const createTest = useCallback(() => {
+    // Mirror the backend's zod ranges so a cleared field ("" → 0) or an
+    // out-of-range value fails HERE with a readable message instead of a
+    // raw server validation error.
+    const intIn = (label: string, v: number, min: number, max: number): string | null =>
+      Number.isInteger(v) && v >= min && v <= max
+        ? null
+        : `${label} must be a whole number between ${min} and ${max}.`;
+    const problems = [
+      ...(mode === 'compressed'
+        ? [
+            intIn('Entry window', entrySec, 10, 3600),
+            intIn('Check-in window', checkinSec, 10, 3600),
+            intIn('Qualifier → final', toFinalSec, 10, 7200),
+          ]
+        : []),
+      intIn('Question time', questionMs, 1000, 120_000),
+      intIn('Break', breakMs, 0, 30 * 60_000),
+      intIn('Spectator delay', specDelayMs, 1000, 120_000),
+    ].filter((p): p is string => p != null);
+    if (problems.length > 0) {
+      setActionError(problems.join(' '));
+      return;
+    }
     const config = {
       free_entry: freeEntry,
       question_time_ms: questionMs,
@@ -245,17 +268,17 @@ export default function WeekendLeaguePage() {
             <div className="mt-4 grid grid-cols-4 items-end gap-4">
               <label className="text-sm font-semibold text-gray-600">
                 Question time (ms)
-                <input type="number" min={2000} step={500} value={questionMs} onChange={(e) => setQuestionMs(Number(e.target.value))}
+                <input type="number" min={1000} max={120000} step={500} value={questionMs} onChange={(e) => setQuestionMs(Number(e.target.value))}
                   className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 font-mono" />
               </label>
               <label className="text-sm font-semibold text-gray-600">
                 Break between games (ms)
-                <input type="number" min={0} step={1000} value={breakMs} onChange={(e) => setBreakMs(Number(e.target.value))}
+                <input type="number" min={0} max={1800000} step={1000} value={breakMs} onChange={(e) => setBreakMs(Number(e.target.value))}
                   className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 font-mono" />
               </label>
               <label className="text-sm font-semibold text-gray-600">
                 Spectator delay (ms)
-                <input type="number" min={0} step={1000} value={specDelayMs} onChange={(e) => setSpecDelayMs(Number(e.target.value))}
+                <input type="number" min={1000} max={120000} step={1000} value={specDelayMs} onChange={(e) => setSpecDelayMs(Number(e.target.value))}
                   className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 font-mono" />
               </label>
               <div className="flex items-center justify-between gap-4">
