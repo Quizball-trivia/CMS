@@ -91,14 +91,78 @@ export default function WeekendLeaguePage() {
     }
   }, [selectedId, loadList, loadDetail]);
 
-  const createCompressedTest = useCallback(() => act('create', () =>
-    api.POST('/api/v1/admin/wl/create-test', {
-      body: {
-        compressed: { entry_seconds: 120, checkin_seconds: 60, to_final_seconds: 900 },
-        config: { free_entry: true, question_time_ms: 6_000, break_ms: 30_000, spectator_delay_ms: 15_000 },
-      },
-    })
-  ), [act]);
+  const [showCreate, setShowCreate] = useState(false);
+  const [mode, setMode] = useState<'compressed' | 'scheduled'>('compressed');
+  const [entrySec, setEntrySec] = useState(120);
+  const [checkinSec, setCheckinSec] = useState(60);
+  const [toFinalSec, setToFinalSec] = useState(900);
+  const [entryOpensAt, setEntryOpensAt] = useState('');
+  const [entryClosesAt, setEntryClosesAt] = useState('');
+  const [qualifierStartsAt, setQualifierStartsAt] = useState('');
+  const [finalStartsAt, setFinalStartsAt] = useState('');
+  const [questionMs, setQuestionMs] = useState(6_000);
+  const [breakMs, setBreakMs] = useState(30_000);
+  const [specDelayMs, setSpecDelayMs] = useState(15_000);
+  const [freeEntry, setFreeEntry] = useState(true);
+
+  const createTest = useCallback(() => {
+    // Mirror the backend's zod ranges so a cleared field ("" → 0) or an
+    // out-of-range value fails HERE with a readable message instead of a
+    // raw server validation error.
+    const intIn = (label: string, v: number, min: number, max: number): string | null =>
+      Number.isInteger(v) && v >= min && v <= max
+        ? null
+        : `${label} must be a whole number between ${min} and ${max}.`;
+    const problems = [
+      ...(mode === 'compressed'
+        ? [
+            intIn('Entry window', entrySec, 10, 3600),
+            intIn('Check-in window', checkinSec, 10, 3600),
+            intIn('Qualifier → final', toFinalSec, 10, 7200),
+          ]
+        : []),
+      intIn('Question time', questionMs, 1000, 120_000),
+      intIn('Break', breakMs, 0, 30 * 60_000),
+      intIn('Spectator delay', specDelayMs, 1000, 120_000),
+    ].filter((p): p is string => p != null);
+    if (problems.length > 0) {
+      setActionError(problems.join(' '));
+      return;
+    }
+    const config = {
+      free_entry: freeEntry,
+      question_time_ms: questionMs,
+      break_ms: breakMs,
+      spectator_delay_ms: specDelayMs,
+    };
+    if (mode === 'scheduled') {
+      if (!entryOpensAt || !entryClosesAt || !qualifierStartsAt || !finalStartsAt) {
+        setActionError('Scheduled mode needs all four times (entry opens/closes, qualifier, final).');
+        return;
+      }
+      void act('create', () =>
+        api.POST('/api/v1/admin/wl/create-test', {
+          body: {
+            entry_opens_at: new Date(entryOpensAt).toISOString(),
+            entry_closes_at: new Date(entryClosesAt).toISOString(),
+            qualifier_starts_at: new Date(qualifierStartsAt).toISOString(),
+            final_starts_at: new Date(finalStartsAt).toISOString(),
+            config,
+          },
+        })
+      );
+      return;
+    }
+    void act('create', () =>
+      api.POST('/api/v1/admin/wl/create-test', {
+        body: {
+          compressed: { entry_seconds: entrySec, checkin_seconds: checkinSec, to_final_seconds: toFinalSec },
+          config,
+        },
+      })
+    );
+  }, [act, mode, entrySec, checkinSec, toFinalSec, entryOpensAt, entryClosesAt,
+    qualifierStartsAt, finalStartsAt, questionMs, breakMs, specDelayMs, freeEntry]);
 
   const selected = useMemo(
     () => tournaments.find((t) => t['id'] === selectedId) ?? null,
@@ -134,14 +198,106 @@ export default function WeekendLeaguePage() {
             </button>
             <button
               type="button"
-              onClick={() => void createCompressedTest()}
+              onClick={() => setShowCreate((v) => !v)}
               disabled={busy != null}
               className="flex items-center gap-2 rounded-lg bg-gray-900 px-4 py-2 text-sm font-bold text-white hover:bg-gray-800 disabled:opacity-50"
             >
-              <Plus className="h-4 w-4" /> Compressed test event
+              <Plus className="h-4 w-4" /> Test event…
             </button>
           </div>
         </header>
+
+        {showCreate && (
+          <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
+            <div className="mb-4 flex items-center gap-6">
+              <span className="text-lg font-black text-gray-900">New test event</span>
+              <label className="flex items-center gap-2 text-sm font-semibold text-gray-700">
+                <input type="radio" checked={mode === 'compressed'} onChange={() => setMode('compressed')} />
+                Compressed (starts now)
+              </label>
+              <label className="flex items-center gap-2 text-sm font-semibold text-gray-700">
+                <input type="radio" checked={mode === 'scheduled'} onChange={() => setMode('scheduled')} />
+                Scheduled (pick times)
+              </label>
+            </div>
+            {mode === 'compressed' ? (
+              <div className="grid grid-cols-3 gap-4">
+                <label className="text-sm font-semibold text-gray-600">
+                  Entry window (sec)
+                  <input type="number" min={10} max={3600} value={entrySec} onChange={(e) => setEntrySec(Number(e.target.value))}
+                    className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 font-mono" />
+                </label>
+                <label className="text-sm font-semibold text-gray-600">
+                  Check-in window (sec)
+                  <input type="number" min={10} max={3600} value={checkinSec} onChange={(e) => setCheckinSec(Number(e.target.value))}
+                    className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 font-mono" />
+                </label>
+                <label className="text-sm font-semibold text-gray-600">
+                  Qualifier → final (sec)
+                  <input type="number" min={10} max={7200} value={toFinalSec} onChange={(e) => setToFinalSec(Number(e.target.value))}
+                    className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 font-mono" />
+                </label>
+              </div>
+            ) : (
+              <div className="grid grid-cols-4 gap-4">
+                <label className="text-sm font-semibold text-gray-600">
+                  Entry opens
+                  <input type="datetime-local" value={entryOpensAt} onChange={(e) => setEntryOpensAt(e.target.value)}
+                    className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2" />
+                </label>
+                <label className="text-sm font-semibold text-gray-600">
+                  Entry closes
+                  <input type="datetime-local" value={entryClosesAt} onChange={(e) => setEntryClosesAt(e.target.value)}
+                    className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2" />
+                </label>
+                <label className="text-sm font-semibold text-gray-600">
+                  Qualifiers start
+                  <input type="datetime-local" value={qualifierStartsAt} onChange={(e) => setQualifierStartsAt(e.target.value)}
+                    className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2" />
+                </label>
+                <label className="text-sm font-semibold text-gray-600">
+                  Final starts
+                  <input type="datetime-local" value={finalStartsAt} onChange={(e) => setFinalStartsAt(e.target.value)}
+                    className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2" />
+                </label>
+                <p className="col-span-4 text-xs font-medium text-gray-400">
+                  Times are entered in this browser&apos;s timezone and stored as UTC.
+                </p>
+              </div>
+            )}
+            <div className="mt-4 grid grid-cols-4 items-end gap-4">
+              <label className="text-sm font-semibold text-gray-600">
+                Question time (ms)
+                <input type="number" min={1000} max={120000} step={500} value={questionMs} onChange={(e) => setQuestionMs(Number(e.target.value))}
+                  className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 font-mono" />
+              </label>
+              <label className="text-sm font-semibold text-gray-600">
+                Break between games (ms)
+                <input type="number" min={0} max={1800000} step={1000} value={breakMs} onChange={(e) => setBreakMs(Number(e.target.value))}
+                  className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 font-mono" />
+              </label>
+              <label className="text-sm font-semibold text-gray-600">
+                Spectator delay (ms)
+                <input type="number" min={1000} max={120000} step={1000} value={specDelayMs} onChange={(e) => setSpecDelayMs(Number(e.target.value))}
+                  className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 font-mono" />
+              </label>
+              <div className="flex items-center justify-between gap-4">
+                <label className="flex items-center gap-2 text-sm font-semibold text-gray-700">
+                  <input type="checkbox" checked={freeEntry} onChange={(e) => setFreeEntry(e.target.checked)} />
+                  Free entry (no QP)
+                </label>
+                <button
+                  type="button"
+                  onClick={() => createTest()}
+                  disabled={busy != null}
+                  className="flex items-center gap-2 rounded-lg bg-gray-900 px-5 py-2.5 text-sm font-bold text-white hover:bg-gray-800 disabled:opacity-50"
+                >
+                  <Plus className="h-4 w-4" /> Create
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {error && (
           <div className="rounded-lg border border-red-200 bg-red-50 px-5 py-4 text-sm font-semibold text-red-800">
