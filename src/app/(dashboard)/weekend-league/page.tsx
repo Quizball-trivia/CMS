@@ -39,6 +39,7 @@ export default function WeekendLeaguePage() {
   const [detail, setDetail] = useState<Detail | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
   const [autoRefresh, setAutoRefresh] = useState(true);
 
   const loadList = useCallback(async () => {
@@ -77,12 +78,12 @@ export default function WeekendLeaguePage() {
     try {
       const result = (await fn()) as { error?: unknown } | undefined;
       if (result && typeof result === 'object' && 'error' in result && result.error) {
-        setError(`${label} failed: ${JSON.stringify(result.error).slice(0, 300)}`);
+        setActionError(`${label} failed: ${JSON.stringify(result.error).slice(0, 300)}`);
       } else {
-        setError(null);
+        setActionError(null);
       }
     } catch (e) {
-      setError(`${label} failed: ${e instanceof Error ? e.message : String(e)}`);
+      setActionError(`${label} failed: ${e instanceof Error ? e.message : String(e)}`);
     } finally {
       setBusy(null);
       void loadList();
@@ -90,14 +91,14 @@ export default function WeekendLeaguePage() {
     }
   }, [selectedId, loadList, loadDetail]);
 
-  const createCompressedTest = useCallback(() => act('create', async () => {
-    await api.POST('/api/v1/admin/wl/create-test', {
+  const createCompressedTest = useCallback(() => act('create', () =>
+    api.POST('/api/v1/admin/wl/create-test', {
       body: {
         compressed: { entry_seconds: 120, checkin_seconds: 60, to_final_seconds: 900 },
         config: { free_entry: true, question_time_ms: 6_000, break_ms: 30_000, spectator_delay_ms: 15_000 },
       },
-    });
-  }), [act]);
+    })
+  ), [act]);
 
   const selected = useMemo(
     () => tournaments.find((t) => t['id'] === selectedId) ?? null,
@@ -145,6 +146,12 @@ export default function WeekendLeaguePage() {
         {error && (
           <div className="rounded-lg border border-red-200 bg-red-50 px-5 py-4 text-sm font-semibold text-red-800">
             {error}
+          </div>
+        )}
+        {actionError && (
+          <div className="rounded-lg border border-amber-300 bg-amber-50 px-5 py-4 text-sm font-semibold text-amber-900">
+            {actionError}
+            <button type="button" className="ml-3 underline" onClick={() => setActionError(null)}>dismiss</button>
           </div>
         )}
 
