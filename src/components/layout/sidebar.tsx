@@ -23,6 +23,11 @@ const navItems = [
     icon: TrendingUp,
   },
   {
+    title: 'Weekend League',
+    href: '/weekend-league',
+    icon: Trophy,
+  },
+  {
     title: 'Categories',
     href: '/categories',
     icon: Layers,
