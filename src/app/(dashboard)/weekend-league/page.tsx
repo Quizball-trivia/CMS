@@ -67,9 +67,23 @@ export default function WeekendLeaguePage() {
   }, [autoRefresh, selectedId, loadList, loadDetail]);
   useEffect(() => { if (selectedId) void loadDetail(selectedId); }, [selectedId, loadDetail]);
 
-  const act = useCallback(async (label: string, fn: () => Promise<unknown>) => {
+  // openapi-fetch reports HTTP failures via the returned `error`, not by
+  // throwing — surface them, or a failed action looks like a success.
+  const act = useCallback(async (
+    label: string,
+    fn: () => Promise<{ error?: unknown } | unknown>,
+  ) => {
     setBusy(label);
-    try { await fn(); } finally {
+    try {
+      const result = (await fn()) as { error?: unknown } | undefined;
+      if (result && typeof result === 'object' && 'error' in result && result.error) {
+        setError(`${label} failed: ${JSON.stringify(result.error).slice(0, 300)}`);
+      } else {
+        setError(null);
+      }
+    } catch (e) {
+      setError(`${label} failed: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
       setBusy(null);
       void loadList();
       if (selectedId) void loadDetail(selectedId);
@@ -185,7 +199,11 @@ export default function WeekendLeaguePage() {
               <div className="flex items-center gap-2">
                 <button
                   type="button"
-                  onClick={() => void act('pause', () => api.POST('/api/v1/admin/wl/tournaments/{id}/pause', { params: { path: { id: String(selected['id']) } } }))}
+                  onClick={() => {
+                    if (window.confirm('Pause this tournament? Players will be stuck until resume.')) {
+                      void act('pause', () => api.POST('/api/v1/admin/wl/tournaments/{id}/pause', { params: { path: { id: String(selected['id']) } } }));
+                    }
+                  }}
                   disabled={busy != null}
                   className="flex items-center gap-1.5 rounded-lg border border-gray-300 px-3 py-1.5 text-sm font-bold text-gray-700 hover:bg-gray-50 disabled:opacity-50"
                 ><Pause className="h-4 w-4" /> Pause</button>
@@ -197,9 +215,13 @@ export default function WeekendLeaguePage() {
                 ><Play className="h-4 w-4" /> Resume</button>
                 <button
                   type="button"
-                  onClick={() => void act('bots', () => api.POST('/api/v1/admin/wl/tournaments/{id}/fill-bots', {
-                    params: { path: { id: String(selected['id']) } }, body: { min_field: 100 },
-                  }))}
+                  onClick={() => {
+                    if (window.confirm('Top the field up to 100 with roster bots? Bots cannot be removed once entered.')) {
+                      void act('fill bots', () => api.POST('/api/v1/admin/wl/tournaments/{id}/fill-bots', {
+                        params: { path: { id: String(selected['id']) } }, body: { min_field: 100 },
+                      }));
+                    }
+                  }}
                   disabled={busy != null}
                   className="flex items-center gap-1.5 rounded-lg border border-gray-300 px-3 py-1.5 text-sm font-bold text-gray-700 hover:bg-gray-50 disabled:opacity-50"
                 ><Bot className="h-4 w-4" /> Fill bots →100</button>
