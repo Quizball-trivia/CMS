@@ -784,6 +784,10 @@ export interface paths {
                             };
                             /** Format: date-time */
                             created_at: string;
+                            nickname_changes_remaining?: number;
+                            nickname_changes_total?: number;
+                            /** Format: date-time */
+                            nickname_next_change_at?: string | null;
                         };
                     };
                 };
@@ -1131,9 +1135,9 @@ export interface paths {
                                 /** Format: uuid */
                                 matchId: string;
                                 /** @enum {string} */
-                                mode: "friendly" | "ranked";
+                                mode: "friendly" | "ranked" | "auction";
                                 /** @enum {string} */
-                                competition: "friendly" | "placement" | "ranked";
+                                competition: "friendly" | "placement" | "ranked" | "auction";
                                 /** @enum {string} */
                                 status: "completed" | "abandoned";
                                 /** @enum {string} */
@@ -1148,7 +1152,34 @@ export interface paths {
                                 opponentPenaltyGoals: number;
                                 /** @enum {string|null} */
                                 winnerDecisionMethod: "goals" | "penalty_goals" | "total_points" | "total_points_fallback" | "forfeit" | null;
+                                /** @default false */
+                                cancelledNoContest: boolean;
                                 rpDelta: number | null;
+                                placement: number | null;
+                                /** @default 2 */
+                                playerCount: number;
+                                /** @default [] */
+                                opponents: {
+                                    /** Format: uuid */
+                                    id: string | null;
+                                    username: string;
+                                    /** Format: uri */
+                                    avatarUrl: string | null;
+                                    avatarCustomization: {
+                                        /** @enum {string} */
+                                        skin?: "skin_male_white" | "skin_male_white_alt" | "skin_male_dark" | "skin_male_dark_alt";
+                                        /** @enum {string} */
+                                        jersey?: "jersey_green" | "jersey_blue" | "jersey_yellow" | "jersey_red" | "jersey_violet" | "jersey_pink" | "jersey_real" | "jersey_liverpool" | "jersey_barcelona" | "jersey_milan" | "jersey_bayern" | "jersey_brazil_retro" | "jersey_argentina_retro" | "jersey_france_retro" | "jersey_germany_retro" | "jersey_netherlands_retro" | "jersey_georgia_retro" | "jersey_psg_retro";
+                                        /** @enum {string} */
+                                        hair?: "hair_boy_basic" | "hair_girl_basic" | "hair_hamsik" | "hair_ramos" | "hair_ronaldo_brazil" | "hair_ronaldo_goat";
+                                        /** @enum {string} */
+                                        glasses?: "glasses_wayfarer" | "glasses_round" | "glasses_aviator";
+                                        /** @enum {string} */
+                                        facialHair?: "stache" | "beard";
+                                    } | null;
+                                    isAi: boolean;
+                                    placement: number | null;
+                                }[];
                                 opponent: {
                                     /** Format: uuid */
                                     id: string | null;
@@ -1240,20 +1271,22 @@ export interface paths {
                                 winRate: number;
                             };
                             rankedSeasons: {
-                                regular: {
+                                current: {
                                     gamesPlayed: number;
                                     wins: number;
                                     losses: number;
                                     draws: number;
                                     winRate: number;
                                 };
-                                event: {
+                                previous: {
                                     gamesPlayed: number;
                                     wins: number;
                                     losses: number;
                                     draws: number;
                                     winRate: number;
                                 };
+                                currentSeasonNumber: number;
+                                previousSeasonNumber: number | null;
                             };
                         };
                     };
@@ -1415,6 +1448,209 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/ranked/leaderboard": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List the live or archived ranked leaderboard */
+        get: {
+            parameters: {
+                query?: {
+                    scope?: "global" | "country";
+                    limit?: number;
+                    offset?: number | null;
+                    season?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Ranked leaderboard */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            entries: {
+                                /** Format: uuid */
+                                userId: string;
+                                username: string;
+                                avatarUrl: string | null;
+                                avatarCustomization?: unknown;
+                                rp: number;
+                                /** @enum {string} */
+                                tier: "Academy" | "Youth Prospect" | "Reserve" | "Bench" | "Rotation" | "Starting11" | "Key Player" | "Captain" | "World-Class" | "Legend" | "GOAT";
+                                country: string | null;
+                                rank: number;
+                                /** @enum {string} */
+                                trend: "up" | "down" | "same";
+                                trendValue: number;
+                            }[];
+                        };
+                    };
+                };
+                /** @description Invalid query parameters */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Authentication required */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/ranked/leaderboard/me": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get the authenticated user's live or archived rank */
+        get: {
+            parameters: {
+                query?: {
+                    scope?: "global" | "country";
+                    season?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Rank information, or null when unranked */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** Format: uuid */
+                            userId: string;
+                            username: string;
+                            avatarUrl: string | null;
+                            avatarCustomization?: unknown;
+                            rp: number;
+                            /** @enum {string} */
+                            tier: "Academy" | "Youth Prospect" | "Reserve" | "Bench" | "Rotation" | "Starting11" | "Key Player" | "Captain" | "World-Class" | "Legend" | "GOAT";
+                            country: string | null;
+                            rank: number;
+                            /** @enum {string} */
+                            trend: "up" | "down" | "same";
+                            trendValue: number;
+                            total: number;
+                        } | null;
+                    };
+                };
+                /** @description Invalid query parameters */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Authentication required */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/ranked/leaderboard/seasons": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List completed ranked seasons */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Completed seasons and current season number */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            seasons: {
+                                /** Format: uuid */
+                                id: string;
+                                seasonNumber: number;
+                                /** Format: date-time */
+                                startedAt: string;
+                                /** Format: date-time */
+                                endedAt: string;
+                            }[];
+                            currentSeasonNumber: number;
+                        };
+                    };
+                };
+                /** @description Authentication required */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/leaderboard/reset": {
         parameters: {
             query?: never;
@@ -1441,6 +1677,7 @@ export interface paths {
                         /** @enum {boolean} */
                         confirm: true;
                         notes?: string;
+                        seasonNumber?: number;
                     };
                 };
             };
@@ -2008,7 +2245,7 @@ export interface paths {
                 query?: {
                     userId?: string;
                     purchaseId?: string;
-                    eventType?: "checkout_session_created" | "checkout_session_failed" | "webhook_received" | "webhook_signature_invalid" | "fulfillment_succeeded" | "fulfillment_failed" | "manual_adjustment_succeeded" | "manual_adjustment_failed" | "objective_reward_succeeded" | "admin_progression_adjustment" | "leaderboard_reset" | "admin_ticket_window_reset";
+                    eventType?: "checkout_session_created" | "checkout_session_failed" | "webhook_received" | "webhook_signature_invalid" | "fulfillment_succeeded" | "fulfillment_failed" | "manual_adjustment_succeeded" | "manual_adjustment_failed" | "objective_reward_succeeded" | "admin_progression_adjustment" | "leaderboard_reset" | "admin_ticket_window_reset" | "admin_account_ban" | "admin_account_unban";
                     outcome?: "success" | "failure";
                     from?: string;
                     to?: string;
@@ -2032,7 +2269,7 @@ export interface paths {
                                 /** Format: uuid */
                                 id: string;
                                 /** @enum {string} */
-                                eventType: "checkout_session_created" | "checkout_session_failed" | "webhook_received" | "webhook_signature_invalid" | "fulfillment_succeeded" | "fulfillment_failed" | "manual_adjustment_succeeded" | "manual_adjustment_failed" | "objective_reward_succeeded" | "admin_progression_adjustment" | "leaderboard_reset" | "admin_ticket_window_reset";
+                                eventType: "checkout_session_created" | "checkout_session_failed" | "webhook_received" | "webhook_signature_invalid" | "fulfillment_succeeded" | "fulfillment_failed" | "manual_adjustment_succeeded" | "manual_adjustment_failed" | "objective_reward_succeeded" | "admin_progression_adjustment" | "leaderboard_reset" | "admin_ticket_window_reset" | "admin_account_ban" | "admin_account_unban";
                                 /** @enum {string} */
                                 outcome: "success" | "failure";
                                 /** Format: uuid */
@@ -3892,7 +4129,7 @@ export interface paths {
         };
         /**
          * Get category dependencies
-         * @description Returns child categories, associated questions, and featured status
+         * @description Returns child categories, associated questions, and featured status. Requires admin role.
          */
         get: {
             parameters: {
@@ -3912,6 +4149,24 @@ export interface paths {
                     };
                     content: {
                         "application/json": components["schemas"]["CategoryDependenciesResponse"];
+                    };
+                };
+                /** @description Not authenticated */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Insufficient permissions (admin role required) */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
                     };
                 };
                 /** @description Category not found */
@@ -4274,7 +4529,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List questions with pagination and filters */
+        /**
+         * List questions with pagination and filters
+         * @description Requires authentication. Players are restricted to published questions; full filters and search require admin role. Search terms shorter than 3 characters are ignored.
+         */
         get: {
             parameters: {
                 query?: {
@@ -4299,6 +4557,15 @@ export interface paths {
                     };
                     content: {
                         "application/json": components["schemas"]["PaginatedQuestionsResponse"];
+                    };
+                };
+                /** @description Not authenticated */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
                     };
                 };
             };
@@ -4326,6 +4593,8 @@ export interface paths {
                         difficulty: "easy" | "medium" | "hard";
                         /** @enum {string} */
                         status?: "draft" | "published" | "archived";
+                        /** @enum {string} */
+                        visibility?: "public" | "wl_private";
                         prompt: components["schemas"]["I18nField"];
                         explanation?: components["schemas"]["I18nField"] & unknown;
                         payload: components["schemas"]["QuestionPayload"];
@@ -4384,7 +4653,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Get question by ID with payload */
+        /**
+         * Get question by ID with payload
+         * @description Requires authentication. Players can retrieve published questions only; admins can retrieve any status.
+         */
         get: {
             parameters: {
                 query?: never;
@@ -4403,6 +4675,15 @@ export interface paths {
                     };
                     content: {
                         "application/json": components["schemas"]["QuestionResponse"];
+                    };
+                };
+                /** @description Not authenticated */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
                     };
                 };
                 /** @description Question not found */
@@ -4440,6 +4721,8 @@ export interface paths {
                         difficulty?: "easy" | "medium" | "hard";
                         /** @enum {string} */
                         status?: "draft" | "published" | "archived";
+                        /** @enum {string} */
+                        visibility?: "public" | "wl_private";
                         prompt?: components["schemas"]["I18nField"];
                         explanation?: components["schemas"]["I18nField"] & unknown;
                         payload?: components["schemas"]["QuestionPayload"];
@@ -4593,6 +4876,8 @@ export interface paths {
                             difficulty: "easy" | "medium" | "hard";
                             /** @enum {string} */
                             status?: "draft" | "published" | "archived";
+                            /** @enum {string} */
+                            visibility?: "public" | "wl_private";
                             prompt: components["schemas"]["I18nField"];
                             explanation?: components["schemas"]["I18nField"] & unknown;
                             payload: components["schemas"]["QuestionPayload"];
@@ -5717,6 +6002,619 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/weekend-league/current": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Current Weekend League tournament + the caller's standing */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Tournament phase, timestamps, counts, entry and QP */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["WlCurrentResponse"];
+                    };
+                };
+                /** @description Not authenticated */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/weekend-league/qp": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Caller's QP running balance (resets when a ticket is claimed) */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description QP total, W/L and qualification state */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["WlQpResponse"];
+                    };
+                };
+                /** @description Not authenticated */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/weekend-league/enter": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Claim entry into the open tournament */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Entry outcome (idempotent) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["WlEnterResponse"];
+                    };
+                };
+                /** @description Not authenticated */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/weekend-league/checkin": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Check in during the pre-kickoff window (Saturday or final) */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Check-in outcome (idempotent) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["WlCheckinResponse"];
+                    };
+                };
+                /** @description Not authenticated */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/wl/tournaments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Recent WL tournaments with live counts (admin) */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Tournament list */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["WlAdminTournamentsResponse"];
+                    };
+                };
+                /** @description Not authenticated */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Not an admin */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/wl/tournaments/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** One WL tournament: field, standings, awards, stream health (admin) */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Tournament detail */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["WlAdminTournamentDetailResponse"];
+                    };
+                };
+                /** @description Not authenticated */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/wl/create-test": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create a compressed/any-date TEST tournament (admin, non-prod) */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        /** Format: date-time */
+                        entry_opens_at?: string;
+                        /** Format: date-time */
+                        entry_closes_at?: string;
+                        /** Format: date-time */
+                        qualifier_starts_at?: string;
+                        /** Format: date-time */
+                        final_starts_at?: string;
+                        compressed?: {
+                            entry_seconds: number;
+                            checkin_seconds: number;
+                            to_final_seconds: number;
+                        };
+                        config?: {
+                            /** @enum {number} */
+                            rules_version?: 1;
+                            launch_edition?: boolean;
+                            /**
+                             * @default live
+                             * @enum {string}
+                             */
+                            engine?: "live" | "stub";
+                            /** @default false */
+                            free_entry?: boolean;
+                            qp_target?: number;
+                            question_time_ms?: number;
+                            dispatch_lead_ms?: number;
+                            break_ms?: number;
+                            checkin_window_ms?: number;
+                            /** @default 30000 */
+                            spectator_delay_ms?: number;
+                            /** @default 0 */
+                            bot_fill_min_field?: number;
+                        };
+                    };
+                };
+            };
+            responses: {
+                /** @description Created */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["WlAdminCreateTestResponse"];
+                    };
+                };
+                /** @description Not authenticated */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/wl/tournaments/{id}/pause": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** pause a WL tournament (admin) */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Outcome */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["WlAdminPauseResponse"];
+                    };
+                };
+                /** @description Not authenticated */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/wl/tournaments/{id}/resume": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** resume a WL tournament (admin) */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Outcome */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["WlAdminResumeResponse"];
+                    };
+                };
+                /** @description Not authenticated */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/wl/tournaments/{id}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** cancel a WL tournament (admin) */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Outcome */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["WlAdminCancelResponse"];
+                    };
+                };
+                /** @description Not authenticated */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/wl/tournaments/{id}/fill-bots": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Top the field up with roster bots (admin) */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        min_field: number;
+                    };
+                };
+            };
+            responses: {
+                /** @description Bots entered */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["WlAdminFillBotsResponse"];
+                    };
+                };
+                /** @description Not authenticated */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/wl/force-tick": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Run one locked orchestrator tick now (admin) */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Tick outcome */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["WlAdminForceTickResponse"];
+                    };
+                };
+                /** @description Not authenticated */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/announcements": {
         parameters: {
             query?: never;
@@ -5859,6 +6757,15 @@ export interface paths {
                         "application/json": components["schemas"]["ErrorResponse"];
                     };
                 };
+                /** @description Not authenticated */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
                 /** @description Not an admin */
                 403: {
                     headers: {
@@ -5904,6 +6811,24 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content?: never;
+                };
+                /** @description Invalid announcement id */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Not authenticated */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
                 };
                 /** @description Not an admin */
                 403: {
@@ -5975,6 +6900,15 @@ export interface paths {
                         "application/json": components["schemas"]["ErrorResponse"];
                     };
                 };
+                /** @description Not authenticated */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
                 /** @description Not an admin */
                 403: {
                     headers: {
@@ -5995,6 +6929,1203 @@ export interface paths {
                 };
             };
         };
+        trace?: never;
+    };
+    "/api/v1/feedback": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Submit contact / bug-report feedback (emailed to support) */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        /** @enum {string} */
+                        category: "bug" | "feedback" | "other";
+                        message: string;
+                        /** Format: email */
+                        email: string;
+                        nickname: string;
+                        context?: string;
+                        attachments?: string[];
+                    };
+                };
+            };
+            responses: {
+                /** @description Feedback received */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["SubmitFeedbackResponse"];
+                    };
+                };
+                /** @description Invalid input */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Too many submissions (rate limited) */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Email provider error */
+                502: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/auction/cards": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Auction cards for CMS review */
+        get: {
+            parameters: {
+                query?: {
+                    page?: number;
+                    limit?: number;
+                    status?: "draft" | "needs_review" | "approved" | "published" | "rejected";
+                    position_group?: "GK" | "DEF" | "MID" | "FWD";
+                    card_type?: "normal" | "safe_star" | "bargain" | "trap" | "obscure_gem" | "lookalike_story" | "legend";
+                    difficulty?: "easy" | "medium" | "hard" | "expert";
+                    fame_bucket?: "superstar" | "known" | "niche" | "obscure" | "legend";
+                    verification_status?: "passed" | "failed" | "needs_review";
+                    search?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Paginated Auction card summaries */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["PaginatedAuctionCardsResponse"];
+                    };
+                };
+                /** @description Not authenticated */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Not an admin */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/auction/cards/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Auction card detail for CMS review */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Auction card detail */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["AuctionCardDetail"];
+                    };
+                };
+                /** @description Invalid card id */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Not authenticated */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Not an admin */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Auction card not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Update editable Auction card fields and clues */
+        patch: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        true_value_eur?: number;
+                        starting_price_eur?: number;
+                        /** @enum {string} */
+                        value_type?: "current" | "peak" | "synthetic";
+                        /** @enum {string} */
+                        card_type?: "normal" | "safe_star" | "bargain" | "trap" | "obscure_gem" | "lookalike_story" | "legend";
+                        /** @enum {string} */
+                        difficulty?: "easy" | "medium" | "hard" | "expert";
+                        /** @enum {string} */
+                        verification_status?: "passed" | "failed" | "needs_review";
+                        verification_notes?: string | null;
+                        editor_notes?: string | null;
+                        clues?: {
+                            clue_order: number;
+                            clue_en: string;
+                            clue_ka: string;
+                            clue_kind: string;
+                            /** @default [] */
+                            supported_fact_ids?: string[];
+                        }[];
+                    };
+                };
+            };
+            responses: {
+                /** @description Updated Auction card detail */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["AuctionCardDetail"];
+                    };
+                };
+                /** @description Invalid card content */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Not authenticated */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Not an admin */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Auction card not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        trace?: never;
+    };
+    "/api/v1/admin/auction/cards/{id}/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Update Auction card status */
+        patch: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        /** @enum {string} */
+                        status: "draft" | "needs_review" | "approved" | "published" | "rejected";
+                        /** @default false */
+                        force?: boolean;
+                    };
+                };
+            };
+            responses: {
+                /** @description Updated Auction card detail */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["AuctionCardDetail"];
+                    };
+                };
+                /** @description Card is not publishable */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Not authenticated */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Not an admin */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Auction card not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        trace?: never;
+    };
+    "/api/v1/auction/leaderboard": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List the Auction leaderboard */
+        get: {
+            parameters: {
+                query?: {
+                    scope?: "global" | "country";
+                    limit?: number;
+                    offset?: number | null;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Auction leaderboard */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            entries: {
+                                /** Format: uuid */
+                                userId: string;
+                                username: string;
+                                avatarUrl: string | null;
+                                avatarCustomization?: unknown;
+                                auctionPoints: number;
+                                country: string | null;
+                                rank: number;
+                            }[];
+                        };
+                    };
+                };
+                /** @description Invalid query parameters */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Authentication required */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auction/leaderboard/me": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get the authenticated user's Auction rank */
+        get: {
+            parameters: {
+                query?: {
+                    scope?: "global" | "country";
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Rank information, or null when unranked */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** Format: uuid */
+                            userId: string;
+                            username: string;
+                            avatarUrl: string | null;
+                            avatarCustomization?: unknown;
+                            auctionPoints: number;
+                            country: string | null;
+                            rank: number;
+                            total: number;
+                        } | null;
+                    };
+                };
+                /** @description Invalid query parameters */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Authentication required */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/player-clue-cards/import/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Preview parsed player clue card import (no DB writes) */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        text: string;
+                        /** @enum {string} */
+                        locale: "en" | "ka";
+                        /** @default cms-import */
+                        promptVersion?: string;
+                        /**
+                         * @default medium
+                         * @enum {string}
+                         */
+                        defaultDifficulty?: "easy" | "medium" | "hard";
+                        /** @default editor_first_person */
+                        style?: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description Parsed preview with match results */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["PlayerClueCardPreviewResponse"];
+                    };
+                };
+                /** @description Invalid input */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Not authenticated */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Not an admin */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/player-clue-cards/import/commit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Commit player clue card import rows as needs_review or approved */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        /** @enum {string} */
+                        locale: "en" | "ka";
+                        /** @default cms-import */
+                        promptVersion?: string;
+                        /**
+                         * @default medium
+                         * @enum {string}
+                         */
+                        defaultDifficulty?: "easy" | "medium" | "hard";
+                        /**
+                         * @default needs_review
+                         * @enum {string}
+                         */
+                        status?: "needs_review" | "approved";
+                        /** @default false */
+                        force?: boolean;
+                        rows: {
+                            rowIndex: number;
+                            answerName: string;
+                            /** @enum {string|null} */
+                            difficulty?: "easy" | "medium" | "hard" | null;
+                            clue1: string;
+                            clue2: string;
+                            clue3: string;
+                            /** Format: uuid */
+                            footballPlayerId: string;
+                            /** @default  */
+                            originalText?: string;
+                            sourcePlayerNumber?: number | null;
+                            /** @default false */
+                            manualMapping?: boolean;
+                            matchMethod?: string | null;
+                            /** @enum {string|null} */
+                            matchConfidence?: "high" | "medium" | "low" | null;
+                            /** @default [] */
+                            factRiskFlags?: string[];
+                        }[];
+                    };
+                };
+            };
+            responses: {
+                /** @description Commit result with per-row status */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["PlayerClueCardCommitResponse"];
+                    };
+                };
+                /** @description Invalid input */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Not authenticated */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Not an admin */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/player-clue-cards/{id}/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Update player clue card status (approve, publish, reject) */
+        patch: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        /** @enum {string} */
+                        status: "needs_review" | "approved" | "published" | "rejected";
+                        reviewNotes?: string | null;
+                        rejectionReason?: string | null;
+                    };
+                };
+            };
+            responses: {
+                /** @description Updated player clue card */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["PlayerClueCardDetail"];
+                    };
+                };
+                /** @description Not authenticated */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Not an admin */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Card not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        trace?: never;
+    };
+    "/api/v1/admin/player-clue-cards/status/bulk": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Bulk update player clue card status (approve, publish, reject) */
+        patch: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        ids: string[];
+                        /** @enum {string} */
+                        status: "approved" | "published" | "rejected";
+                        reviewNotes?: string | null;
+                    };
+                };
+            };
+            responses: {
+                /** @description Number of updated cards */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            updated: number;
+                        };
+                    };
+                };
+                /** @description Not authenticated */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Not an admin */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        trace?: never;
+    };
+    "/api/v1/admin/auction-pipeline/stats": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Auction card generation pipeline status counters */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Pipeline stage, attempt and coverage counters */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["AuctionPipelineStatsResponse"];
+                    };
+                };
+                /** @description Not authenticated */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Not an admin */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/auction-pipeline/workers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Live card generation worker heartbeats */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Workers with stale flags */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["AuctionPipelineWorkersResponse"];
+                    };
+                };
+                /** @description Not authenticated */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Not an admin */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/auction-pipeline/prompts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Operator prompt overrides for the card pipeline */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Stored prompt overrides */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["AuctionPipelinePromptsResponse"];
+                    };
+                };
+                /** @description Not authenticated */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Not an admin */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/auction-pipeline/prompts/{key}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Create or replace a card pipeline prompt override */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    key: "generator_rules" | "verifier_rules" | "judge_rules" | "variant_medium" | "variant_hard";
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        text: string;
+                        /**
+                         * @default append
+                         * @enum {string}
+                         */
+                        mode?: "append" | "replace";
+                    };
+                };
+            };
+            responses: {
+                /** @description Stored prompt override */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["AuctionPipelinePrompt"];
+                    };
+                };
+                /** @description Not authenticated */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Not an admin */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Invalid prompt key or text */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        post?: never;
+        /** Reset a prompt override so the built-in rules apply again */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    key: "generator_rules" | "verifier_rules" | "judge_rules" | "variant_medium" | "variant_hard";
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Whether an override was removed */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["AuctionPipelinePromptResetResponse"];
+                    };
+                };
+                /** @description Not authenticated */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Not an admin */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Invalid prompt key */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/auction-pipeline/requeue": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Reset rejected or failed generation tasks back to queued */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        taskIds?: string[];
+                        /** @enum {string} */
+                        filter?: "failed" | "rejected";
+                    };
+                };
+            };
+            responses: {
+                /** @description Number of tasks requeued */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["AuctionPipelineRequeueResponse"];
+                    };
+                };
+                /** @description Not authenticated */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Not an admin */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Invalid requeue selector */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
 }
@@ -6067,9 +8198,9 @@ export interface components {
                 /** Format: uuid */
                 matchId: string;
                 /** @enum {string} */
-                mode: "friendly" | "ranked";
+                mode: "friendly" | "ranked" | "auction";
                 /** @enum {string} */
-                competition: "friendly" | "placement" | "ranked";
+                competition: "friendly" | "placement" | "ranked" | "auction";
                 /** @enum {string} */
                 status: "completed" | "abandoned";
                 /** @enum {string} */
@@ -6084,7 +8215,34 @@ export interface components {
                 opponentPenaltyGoals: number;
                 /** @enum {string|null} */
                 winnerDecisionMethod: "goals" | "penalty_goals" | "total_points" | "total_points_fallback" | "forfeit" | null;
+                /** @default false */
+                cancelledNoContest: boolean;
                 rpDelta: number | null;
+                placement: number | null;
+                /** @default 2 */
+                playerCount: number;
+                /** @default [] */
+                opponents: {
+                    /** Format: uuid */
+                    id: string | null;
+                    username: string;
+                    /** Format: uri */
+                    avatarUrl: string | null;
+                    avatarCustomization: {
+                        /** @enum {string} */
+                        skin?: "skin_male_white" | "skin_male_white_alt" | "skin_male_dark" | "skin_male_dark_alt";
+                        /** @enum {string} */
+                        jersey?: "jersey_green" | "jersey_blue" | "jersey_yellow" | "jersey_red" | "jersey_violet" | "jersey_pink" | "jersey_real" | "jersey_liverpool" | "jersey_barcelona" | "jersey_milan" | "jersey_bayern" | "jersey_brazil_retro" | "jersey_argentina_retro" | "jersey_france_retro" | "jersey_germany_retro" | "jersey_netherlands_retro" | "jersey_georgia_retro" | "jersey_psg_retro";
+                        /** @enum {string} */
+                        hair?: "hair_boy_basic" | "hair_girl_basic" | "hair_hamsik" | "hair_ramos" | "hair_ronaldo_brazil" | "hair_ronaldo_goat";
+                        /** @enum {string} */
+                        glasses?: "glasses_wayfarer" | "glasses_round" | "glasses_aviator";
+                        /** @enum {string} */
+                        facialHair?: "stache" | "beard";
+                    } | null;
+                    isAi: boolean;
+                    placement: number | null;
+                }[];
                 opponent: {
                     /** Format: uuid */
                     id: string | null;
@@ -6132,20 +8290,22 @@ export interface components {
                 winRate: number;
             };
             rankedSeasons: {
-                regular: {
+                current: {
                     gamesPlayed: number;
                     wins: number;
                     losses: number;
                     draws: number;
                     winRate: number;
                 };
-                event: {
+                previous: {
                     gamesPlayed: number;
                     wins: number;
                     losses: number;
                     draws: number;
                     winRate: number;
                 };
+                currentSeasonNumber: number;
+                previousSeasonNumber: number | null;
             };
         };
         RankedProfileResponse: {
@@ -6266,7 +8426,7 @@ export interface components {
             /** Format: uuid */
             id: string;
             /** @enum {string} */
-            eventType: "checkout_session_created" | "checkout_session_failed" | "webhook_received" | "webhook_signature_invalid" | "fulfillment_succeeded" | "fulfillment_failed" | "manual_adjustment_succeeded" | "manual_adjustment_failed" | "objective_reward_succeeded" | "admin_progression_adjustment" | "leaderboard_reset" | "admin_ticket_window_reset";
+            eventType: "checkout_session_created" | "checkout_session_failed" | "webhook_received" | "webhook_signature_invalid" | "fulfillment_succeeded" | "fulfillment_failed" | "manual_adjustment_succeeded" | "manual_adjustment_failed" | "objective_reward_succeeded" | "admin_progression_adjustment" | "leaderboard_reset" | "admin_ticket_window_reset" | "admin_account_ban" | "admin_account_unban";
             /** @enum {string} */
             outcome: "success" | "failure";
             /** Format: uuid */
@@ -6300,7 +8460,7 @@ export interface components {
                 /** Format: uuid */
                 id: string;
                 /** @enum {string} */
-                eventType: "checkout_session_created" | "checkout_session_failed" | "webhook_received" | "webhook_signature_invalid" | "fulfillment_succeeded" | "fulfillment_failed" | "manual_adjustment_succeeded" | "manual_adjustment_failed" | "objective_reward_succeeded" | "admin_progression_adjustment" | "leaderboard_reset" | "admin_ticket_window_reset";
+                eventType: "checkout_session_created" | "checkout_session_failed" | "webhook_received" | "webhook_signature_invalid" | "fulfillment_succeeded" | "fulfillment_failed" | "manual_adjustment_succeeded" | "manual_adjustment_failed" | "objective_reward_succeeded" | "admin_progression_adjustment" | "leaderboard_reset" | "admin_ticket_window_reset" | "admin_account_ban" | "admin_account_unban";
                 /** @enum {string} */
                 outcome: "success" | "failure";
                 /** Format: uuid */
@@ -6387,6 +8547,10 @@ export interface components {
             progression: components["schemas"]["ProgressionResponse"];
             /** Format: date-time */
             created_at: string;
+            nickname_changes_remaining?: number;
+            nickname_changes_total?: number;
+            /** Format: date-time */
+            nickname_next_change_at?: string | null;
         };
         PublicProfileResponse: {
             /** Format: uuid */
@@ -6420,6 +8584,11 @@ export interface components {
                 rank: number;
                 total: number;
             } | null;
+            previousNicknames: {
+                nickname: string;
+                /** Format: date-time */
+                changedAt: string;
+            }[];
         };
         AccountDeletionResponse: {
             /** Format: date-time */
@@ -6463,6 +8632,7 @@ export interface components {
                 tickets: number;
                 /** Format: date-time */
                 created_at: string;
+                is_banned: boolean;
             }[];
             page: number;
             limit: number;
@@ -6857,6 +9027,8 @@ export interface components {
             difficulty: "easy" | "medium" | "hard";
             /** @enum {string} */
             status: "draft" | "published" | "archived";
+            /** @enum {string} */
+            visibility: "public" | "wl_private";
             prompt: components["schemas"]["I18nField"];
             explanation: components["schemas"]["I18nField"] & unknown;
             payload: components["schemas"]["QuestionPayload"] | null;
@@ -7313,7 +9485,7 @@ export interface components {
                 /** Format: uuid */
                 id: string;
                 /** @enum {string} */
-                type: "points_adjustment" | "season_award" | "announcement" | "friend_request";
+                type: "points_adjustment" | "season_award" | "announcement" | "friend_request" | "weekend_league";
                 title: {
                     [key: string]: string;
                 };
@@ -7332,6 +9504,93 @@ export interface components {
         };
         UnreadCountResponse: {
             unreadCount: number;
+        };
+        WlCurrentResponse: {
+            tournament: {
+                /** Format: uuid */
+                id: string;
+                week_key: string | null;
+                /** @enum {string} */
+                status: "scheduled" | "content_pending" | "ready" | "entry_open" | "entry_closed" | "checkin" | "game_live" | "break" | "qualifier_done" | "final_checkin" | "final_live" | "completed" | "cancelled" | "voided" | "paused";
+                is_test: boolean;
+                entry_opens_at: string | null;
+                entry_closes_at: string | null;
+                qualifier_starts_at: string | null;
+                final_starts_at: string | null;
+                registered_count: number;
+                checked_in_count: number;
+                launch_edition: boolean;
+                qp_target: number;
+            } | null;
+            you: {
+                entered: boolean;
+                /** @enum {string|null} */
+                state: "entered" | "playing" | "eliminated" | "finalist" | "champion" | "no_show" | "withdrawn" | "disqualified" | "cancelled" | null;
+                checked_in: boolean;
+                final_checked_in: boolean;
+                qp: {
+                    week_key: string | null;
+                    points: number;
+                    wins: number;
+                    losses: number;
+                    target: number;
+                    qualified: boolean;
+                };
+            } | null;
+        };
+        WlQpResponse: {
+            week_key: string | null;
+            points: number;
+            wins: number;
+            losses: number;
+            target: number;
+            qualified: boolean;
+        };
+        WlEnterResponse: {
+            entered: boolean;
+            already_entered: boolean;
+            /** @enum {string} */
+            reason?: "ok" | "no_tournament" | "window_closed" | "not_qualified";
+        };
+        WlCheckinResponse: {
+            checked_in: boolean;
+            already_checked_in: boolean;
+            /** @enum {string} */
+            reason?: "ok" | "no_tournament" | "window_closed" | "not_entered" | "not_finalist";
+        };
+        WlAdminTournamentRow: {
+            [key: string]: unknown;
+        };
+        WlAdminTournamentsResponse: {
+            tournaments: components["schemas"]["WlAdminTournamentRow"][];
+        };
+        WlAdminTournamentDetailResponse: {
+            tournament: components["schemas"]["WlAdminTournamentRow"];
+            entry_states: {
+                state: string;
+                n: number;
+                bots: number;
+            }[];
+            current_game_index: number;
+            board: {
+                user_id: string;
+                points: number;
+                time_ms_total: number;
+                rank: number;
+                nickname: string | null;
+                is_ai: boolean | null;
+            }[];
+            game_results: {
+                [key: string]: unknown;
+            }[];
+            awards: {
+                [key: string]: unknown;
+            }[];
+            stream: {
+                head: number | null;
+                pending: number;
+                poisonish: number;
+            } | null;
         };
         Announcement: {
             /** Format: uuid */
@@ -7376,6 +9635,478 @@ export interface components {
                 /** Format: date-time */
                 updatedAt: string;
             }[];
+        };
+        SubmitFeedbackResponse: {
+            ok: boolean;
+        };
+        AuctionCardSummary: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            player_id: string;
+            /** @enum {string} */
+            position_group: "GK" | "DEF" | "MID" | "FWD";
+            true_value_eur: number;
+            starting_price_eur: number;
+            /** @enum {string} */
+            value_type: "current" | "peak" | "synthetic";
+            /** @enum {string} */
+            card_type: "normal" | "safe_star" | "bargain" | "trap" | "obscure_gem" | "lookalike_story" | "legend";
+            /** @enum {string} */
+            difficulty: "easy" | "medium" | "hard" | "expert";
+            /** @enum {string} */
+            status: "draft" | "needs_review" | "approved" | "published" | "rejected";
+            generator_model: string | null;
+            verifier_model: string | null;
+            prompt_version: string | null;
+            /** @enum {string} */
+            verification_status: "passed" | "failed" | "needs_review";
+            /** Format: date-time */
+            published_at: string | null;
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            updated_at: string;
+            player: {
+                /** Format: uuid */
+                id: string;
+                name: string;
+                display_name: {
+                    [key: string]: unknown;
+                };
+                nationality: string | null;
+                nationality_code: string | null;
+                /** @enum {string|null} */
+                position_group: "GK" | "DEF" | "MID" | "FWD" | null;
+                current_club: string | null;
+                /** @enum {string} */
+                active_status: "active" | "retired" | "legend" | "unknown";
+                image_url: string | null;
+                fame_score: number | null;
+                /** @enum {string|null} */
+                fame_bucket: "superstar" | "known" | "niche" | "obscure" | "legend" | null;
+                /** @enum {string} */
+                data_quality_status: "pending" | "usable" | "needs_review" | "rejected";
+            };
+            clue_count: number;
+        };
+        AuctionCardDetail: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            player_id: string;
+            /** @enum {string} */
+            position_group: "GK" | "DEF" | "MID" | "FWD";
+            true_value_eur: number;
+            starting_price_eur: number;
+            /** @enum {string} */
+            value_type: "current" | "peak" | "synthetic";
+            /** @enum {string} */
+            card_type: "normal" | "safe_star" | "bargain" | "trap" | "obscure_gem" | "lookalike_story" | "legend";
+            /** @enum {string} */
+            difficulty: "easy" | "medium" | "hard" | "expert";
+            /** @enum {string} */
+            status: "draft" | "needs_review" | "approved" | "published" | "rejected";
+            generator_model: string | null;
+            verifier_model: string | null;
+            prompt_version: string | null;
+            /** Format: uuid */
+            generation_run_id: string | null;
+            /** @enum {string} */
+            verification_status: "passed" | "failed" | "needs_review";
+            verification_notes: string | null;
+            editor_notes: string | null;
+            /** Format: date-time */
+            published_at: string | null;
+            /** Format: uuid */
+            published_by: string | null;
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            updated_at: string;
+            player: {
+                /** Format: uuid */
+                id: string;
+                name: string;
+                display_name: {
+                    [key: string]: unknown;
+                };
+                nationality: string | null;
+                nationality_code: string | null;
+                /** @enum {string|null} */
+                position_group: "GK" | "DEF" | "MID" | "FWD" | null;
+                current_club: string | null;
+                /** @enum {string} */
+                active_status: "active" | "retired" | "legend" | "unknown";
+                image_url: string | null;
+                fame_score: number | null;
+                /** @enum {string|null} */
+                fame_bucket: "superstar" | "known" | "niche" | "obscure" | "legend" | null;
+                /** @enum {string} */
+                data_quality_status: "pending" | "usable" | "needs_review" | "rejected";
+                transfermarkt_id: string | null;
+                wikidata_id: string | null;
+                date_of_birth: string | null;
+                current_value_eur: number | null;
+                peak_value_eur: number | null;
+                source_payload: {
+                    [key: string]: unknown;
+                };
+                /** Format: date-time */
+                created_at: string;
+                /** Format: date-time */
+                updated_at: string;
+            };
+            clues: {
+                /** Format: uuid */
+                id: string;
+                /** Format: uuid */
+                auction_card_id: string;
+                clue_order: number;
+                clue_en: string;
+                clue_ka: string;
+                clue_kind: string;
+                supported_fact_ids: string[];
+                /** Format: date-time */
+                created_at: string;
+                /** Format: date-time */
+                updated_at: string;
+            }[];
+            supported_facts: {
+                /** Format: uuid */
+                id: string;
+                /** Format: uuid */
+                player_id: string;
+                fact_type: string;
+                fact_text_en: string;
+                fact_text_ka: string | null;
+                source_name: string | null;
+                source_url: string | null;
+                evidence_quote: string | null;
+                confidence: number | null;
+                /** @enum {string} */
+                status: "candidate" | "verified" | "rejected" | "needs_review";
+                /** @enum {string} */
+                discovered_by: "transfermarkt_dataset" | "wikidata" | "wikipedia" | "llm_research" | "manual" | "derived";
+                verified_by_model: string | null;
+                verifier_notes: string | null;
+                /** Format: date-time */
+                created_at: string;
+                /** Format: date-time */
+                updated_at: string;
+            }[];
+            generation_run: {
+                /** Format: uuid */
+                id: string;
+                job_name: string;
+                model_name: string;
+                /** @enum {string} */
+                model_role: "researcher" | "generator" | "verifier" | "translator";
+                prompt_version: string;
+                /** @enum {string} */
+                status: "success" | "failed" | "invalid_json" | "rejected";
+                error_message: string | null;
+                latency_ms: number | null;
+                token_usage: {
+                    [key: string]: unknown;
+                };
+                cost_estimate: number | null;
+                editor_rating: number | null;
+                editor_selected: boolean;
+                /** Format: date-time */
+                created_at: string;
+            } | null;
+        };
+        PaginatedAuctionCardsResponse: {
+            data: {
+                /** Format: uuid */
+                id: string;
+                /** Format: uuid */
+                player_id: string;
+                /** @enum {string} */
+                position_group: "GK" | "DEF" | "MID" | "FWD";
+                true_value_eur: number;
+                starting_price_eur: number;
+                /** @enum {string} */
+                value_type: "current" | "peak" | "synthetic";
+                /** @enum {string} */
+                card_type: "normal" | "safe_star" | "bargain" | "trap" | "obscure_gem" | "lookalike_story" | "legend";
+                /** @enum {string} */
+                difficulty: "easy" | "medium" | "hard" | "expert";
+                /** @enum {string} */
+                status: "draft" | "needs_review" | "approved" | "published" | "rejected";
+                generator_model: string | null;
+                verifier_model: string | null;
+                prompt_version: string | null;
+                /** @enum {string} */
+                verification_status: "passed" | "failed" | "needs_review";
+                /** Format: date-time */
+                published_at: string | null;
+                /** Format: date-time */
+                created_at: string;
+                /** Format: date-time */
+                updated_at: string;
+                player: {
+                    /** Format: uuid */
+                    id: string;
+                    name: string;
+                    display_name: {
+                        [key: string]: unknown;
+                    };
+                    nationality: string | null;
+                    nationality_code: string | null;
+                    /** @enum {string|null} */
+                    position_group: "GK" | "DEF" | "MID" | "FWD" | null;
+                    current_club: string | null;
+                    /** @enum {string} */
+                    active_status: "active" | "retired" | "legend" | "unknown";
+                    image_url: string | null;
+                    fame_score: number | null;
+                    /** @enum {string|null} */
+                    fame_bucket: "superstar" | "known" | "niche" | "obscure" | "legend" | null;
+                    /** @enum {string} */
+                    data_quality_status: "pending" | "usable" | "needs_review" | "rejected";
+                };
+                clue_count: number;
+            }[];
+            page: number;
+            limit: number;
+            total: number;
+            total_pages: number;
+        };
+        PlayerClueCardPreviewResponse: {
+            rowsParsed: number;
+            matchedCount: number;
+            ambiguousCount: number;
+            unmatchedCount: number;
+            warningCount: number;
+            rows: {
+                rowIndex: number;
+                sourcePlayerNumber: number | null;
+                answerName: string;
+                /** @enum {string} */
+                difficulty: "easy" | "medium" | "hard";
+                clue1: string;
+                clue2: string;
+                clue3: string;
+                warnings: string[];
+                validationErrors: string[];
+                factRiskFlags: string[];
+                originalText: string;
+                /** @enum {string} */
+                matchStatus: "matched" | "ambiguous" | "unmatched";
+                matchedPlayer: {
+                    /** Format: uuid */
+                    footballPlayerId: string;
+                    transfermarktId?: number | null;
+                    name: string;
+                    currentClub?: string | null;
+                    nationality?: string | null;
+                    positionGroup?: string | null;
+                    imageUrl?: string | null;
+                    currentValueEur?: number | null;
+                } | null;
+                candidates: {
+                    /** Format: uuid */
+                    footballPlayerId: string;
+                    transfermarktId?: number | null;
+                    name: string;
+                    currentClub?: string | null;
+                    nationality?: string | null;
+                    positionGroup?: string | null;
+                    imageUrl?: string | null;
+                    currentValueEur?: number | null;
+                }[];
+                matchMethod?: string | null;
+                /** @enum {string|null} */
+                matchConfidence?: "high" | "medium" | "low" | null;
+            }[];
+        };
+        PlayerClueCardCommitResponse: {
+            total: number;
+            inserted: number;
+            updated: number;
+            skippedExisting: number;
+            failed: number;
+            rows: {
+                rowIndex: number;
+                /** @enum {string} */
+                status: "inserted" | "updated" | "skipped_existing" | "failed";
+                /** Format: uuid */
+                clueCardId: string | null;
+                error: string | null;
+            }[];
+        };
+        PlayerClueCardDetail: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            football_player_id: string;
+            transfermarkt_id: number | null;
+            locale: string;
+            clue_1: string;
+            clue_2: string;
+            clue_3: string;
+            difficulty: string;
+            status: string;
+            source: string;
+            generation_provider: string | null;
+            generation_model: string | null;
+            prompt_version: string;
+            evidence: {
+                [key: string]: unknown;
+            };
+            source_payload: {
+                [key: string]: unknown;
+            };
+            review_notes: string | null;
+            rejection_reason: string | null;
+            created_at: string;
+            updated_at: string;
+            playerName: string;
+            playerImageUrl: string | null;
+            playerPositionGroup: string | null;
+            playerNationality: string | null;
+            playerCurrentClub: string | null;
+        };
+        AuctionPipelineStatsResponse: {
+            generated_at: string;
+            totals: {
+                total_tasks: number;
+                terminal_families: number;
+                published_families: number;
+                rejected_families: number;
+                failed_families: number;
+                pass_rate: number | null;
+                recent_pass_rates: {
+                    hours: number;
+                    published: number;
+                    terminal: number;
+                    pass_rate: number | null;
+                }[];
+                eligible_players: number;
+                players_done: number;
+                players_remaining: number;
+                completion_rate: number | null;
+            };
+            stages: {
+                stage: string;
+                count: number;
+            }[];
+            variants: {
+                variant_key: string;
+                count: number;
+                published: number;
+            }[];
+            cards: {
+                published: number;
+                needs_review: number;
+                superseded: number;
+                rejected: number;
+                published_families: number;
+            };
+            attempts_24h: {
+                total: number;
+                success: number;
+                rejected: number;
+                failed: number;
+                by_error_class: {
+                    error_class: string;
+                    count: number;
+                }[];
+            };
+            recent_failures: {
+                /** Format: uuid */
+                id: string;
+                /** Format: uuid */
+                task_id: string;
+                task_stage: string;
+                status: string;
+                error_class: string | null;
+                error_message: string | null;
+                external_call: string | null;
+                created_at: string;
+            }[];
+            latest_snapshot: {
+                /** Format: uuid */
+                id: string;
+                source: string;
+                status: string;
+                player_row_count: number;
+                valuation_row_count: number;
+                created_at: string;
+                promoted_at: string | null;
+            } | null;
+        };
+        AuctionPipelineWorkersResponse: {
+            workers: {
+                worker_id: string;
+                hostname: string;
+                /** Format: uuid */
+                task_id: string | null;
+                player_name: string | null;
+                variant_key: string | null;
+                stage: string | null;
+                started_at: string;
+                updated_at: string;
+                seconds_since_heartbeat: number;
+                is_stale: boolean;
+            }[];
+            live: number;
+            stale: number;
+        };
+        AuctionPipelinePromptsResponse: {
+            items: {
+                key: string;
+                text: string;
+                /** @enum {string} */
+                mode: "append" | "replace";
+                updated_at: string;
+                updated_by: string | null;
+            }[];
+            effective: {
+                [key: string]: {
+                    key: string;
+                    text: string;
+                    /** @enum {string} */
+                    mode: "append" | "replace";
+                    updated_at: string;
+                    updated_by: string | null;
+                };
+            };
+        };
+        AuctionPipelinePrompt: {
+            key: string;
+            text: string;
+            /** @enum {string} */
+            mode: "append" | "replace";
+            updated_at: string;
+            updated_by: string | null;
+        };
+        AuctionPipelineRequeueResponse: {
+            requeued: number;
+        };
+        AuctionPipelinePromptResetResponse: {
+            reset: boolean;
+        };
+        WlAdminCreateTestResponse: {
+            /** Format: uuid */
+            tournament_id: string;
+        };
+        WlAdminPauseResponse: {
+            paused: boolean;
+        };
+        WlAdminResumeResponse: {
+            resumed: boolean;
+        };
+        WlAdminCancelResponse: {
+            cancelled: boolean;
+        };
+        WlAdminFillBotsResponse: {
+            filled: number;
+        };
+        WlAdminForceTickResponse: {
+            ticked: boolean;
         };
     };
     responses: never;
