@@ -68,31 +68,6 @@ export default function WeekendLeaguePage() {
   }, [autoRefresh, selectedId, loadList, loadDetail]);
   useEffect(() => { if (selectedId) void loadDetail(selectedId); }, [selectedId, loadDetail]);
 
-  // openapi-fetch reports HTTP failures via the returned `error`, not by
-  // throwing — surface them, or a failed action looks like a success.
-  const act = useCallback(async (
-    label: string,
-    fn: () => Promise<{ error?: unknown } | unknown>,
-  ) => {
-    setBusy(label);
-    try {
-      const result = (await fn()) as { error?: unknown } | undefined;
-      if (result && typeof result === 'object' && 'error' in result && result.error) {
-        setActionError(`${label} failed: ${JSON.stringify(result.error).slice(0, 300)}`);
-      } else {
-        setActionError(null);
-      }
-    } catch (e) {
-      setActionError(`${label} failed: ${e instanceof Error ? e.message : String(e)}`);
-    } finally {
-      setBusy(null);
-      void loadList();
-      if (selectedId) void loadDetail(selectedId);
-    }
-  }, [selectedId, loadList, loadDetail]);
-
-  const [showCreate, setShowCreate] = useState(false);
-
   // Bot fill: arbitrary target, optionally reached gradually so the joined
   // counter climbs like real sign-ups instead of jumping in one tick. The
   // ramp runs client-side (this page must stay open) by stepping the
@@ -112,11 +87,38 @@ export default function WeekendLeaguePage() {
   }, []);
   useEffect(() => () => stopRamp(), [stopRamp]);
   useEffect(() => { stopRamp(); }, [selectedId, stopRamp]);
+
+  // openapi-fetch reports HTTP failures via the returned `error`, not by
+  // throwing — surface them, or a failed action looks like a success.
+  const act = useCallback(async (
+    label: string,
+    fn: () => Promise<{ error?: unknown } | unknown>,
+  ) => {
+    // Any explicit action supersedes a running bot ramp — a cancel must
+    // never be followed by a scheduled fill.
+    stopRamp();
+    setBusy(label);
+    try {
+      const result = (await fn()) as { error?: unknown } | undefined;
+      if (result && typeof result === 'object' && 'error' in result && result.error) {
+        setActionError(`${label} failed: ${JSON.stringify(result.error).slice(0, 300)}`);
+      } else {
+        setActionError(null);
+      }
+    } catch (e) {
+      setActionError(`${label} failed: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setBusy(null);
+      void loadList();
+      if (selectedId) void loadDetail(selectedId);
+    }
+  }, [selectedId, loadList, loadDetail, stopRamp]);
+
+  const [showCreate, setShowCreate] = useState(false);
+
   const clampInt = (v: number, lo: number, hi: number, fallback: number) =>
     Number.isFinite(v) ? Math.max(lo, Math.min(hi, Math.round(v))) : fallback;
-  const startBotFill = useCallback((id: string, currentField: number) => {
-    const target = clampInt(botTarget, 1, 2000, 100);
-    const rampMin = clampInt(botRampMin, 0, 240, 0);
+  const startBotFill = useCallback((id: string, currentField: number, target: number, rampMin: number) => {
     if (rampMin <= 0) {
       void act('fill bots', () => api.POST('/api/v1/admin/wl/tournaments/{id}/fill-bots', {
         params: { path: { id } }, body: { min_field: target },
@@ -145,7 +147,7 @@ export default function WeekendLeaguePage() {
           stopRamp();
           return;
         }
-        void loadList();
+        await loadList().catch(() => {});
       } catch (e) {
         if (gen !== rampGen.current) return;
         setActionError(`bot ramp failed: ${e instanceof Error ? e.message : String(e)}`);
@@ -156,7 +158,7 @@ export default function WeekendLeaguePage() {
       rampNext.current = setTimeout(() => { void step(); }, 15_000);
     };
     void step();
-  }, [act, botTarget, botRampMin, loadList, stopRamp]);
+  }, [act, loadList, stopRamp]);
   const [mode, setMode] = useState<'compressed' | 'scheduled'>('compressed');
   const [entrySec, setEntrySec] = useState(120);
   const [checkinSec, setCheckinSec] = useState(60);
@@ -461,8 +463,12 @@ export default function WeekendLeaguePage() {
                     <button
                       type="button"
                       onClick={() => {
-                        if (window.confirm(`Fill the field to ${botTarget} with roster bots${botRampMin > 0 ? ` over ${botRampMin} min` : ''}? Bots cannot be removed once entered.`)) {
-                          startBotFill(String(selected['id']), Number(selected['registered'] ?? 0));
+                        const target = clampInt(botTarget, 1, 2000, 100);
+                        const rampMin = clampInt(botRampMin, 0, 240, 0);
+                        setBotTarget(target);
+                        setBotRampMin(rampMin);
+                        if (window.confirm(`Fill the field to ${target} with roster bots${rampMin > 0 ? ` over ${rampMin} min` : ''}? Bots cannot be removed once entered.`)) {
+                          startBotFill(String(selected['id']), Number(selected['registered'] ?? 0), target, rampMin);
                         }
                       }}
                       disabled={busy != null}
