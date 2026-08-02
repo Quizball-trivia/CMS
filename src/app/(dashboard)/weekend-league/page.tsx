@@ -100,41 +100,61 @@ export default function WeekendLeaguePage() {
   const [botTarget, setBotTarget] = useState(100);
   const [botRampMin, setBotRampMin] = useState(0);
   const [ramp, setRamp] = useState<{ from: number; target: number; startedAt: number; endsAt: number } | null>(null);
-  const rampTimer = useRef<ReturnType<typeof setInterval> | null>(null);
+  // Generation token: bumping it invalidates any in-flight step and its
+  // self-scheduled successor — the definitive double-start/stale-loop guard.
+  const rampGen = useRef(0);
+  const rampNext = useRef<ReturnType<typeof setTimeout> | null>(null);
   const stopRamp = useCallback(() => {
-    if (rampTimer.current) clearInterval(rampTimer.current);
-    rampTimer.current = null;
+    rampGen.current += 1;
+    if (rampNext.current) clearTimeout(rampNext.current);
+    rampNext.current = null;
     setRamp(null);
   }, []);
   useEffect(() => () => stopRamp(), [stopRamp]);
   useEffect(() => { stopRamp(); }, [selectedId, stopRamp]);
+  const clampInt = (v: number, lo: number, hi: number, fallback: number) =>
+    Number.isFinite(v) ? Math.max(lo, Math.min(hi, Math.round(v))) : fallback;
   const startBotFill = useCallback((id: string, currentField: number) => {
-    const target = Math.max(1, Math.min(2000, Math.round(botTarget)));
-    if (botRampMin <= 0) {
+    const target = clampInt(botTarget, 1, 2000, 100);
+    const rampMin = clampInt(botRampMin, 0, 240, 0);
+    if (rampMin <= 0) {
       void act('fill bots', () => api.POST('/api/v1/admin/wl/tournaments/{id}/fill-bots', {
         params: { path: { id } }, body: { min_field: target },
       }));
       return;
     }
+    stopRamp();
+    const gen = rampGen.current;
     const startedAt = Date.now();
-    const endsAt = startedAt + botRampMin * 60_000;
-    const from = Math.min(currentField, target);
+    const endsAt = startedAt + rampMin * 60_000;
+    const from = Math.min(Number.isFinite(currentField) ? currentField : 0, target);
     setRamp({ from, target, startedAt, endsAt });
+    // Self-scheduling: the next step only arms after this one finishes, so
+    // slow requests can never overlap, and failures never orphan a loop.
     const step = async () => {
+      if (gen !== rampGen.current) return;
       const progress = Math.min(1, (Date.now() - startedAt) / (endsAt - startedAt));
-      const next = Math.round(from + (target - from) * progress);
-      const result = await api.POST('/api/v1/admin/wl/tournaments/{id}/fill-bots', {
-        params: { path: { id } }, body: { min_field: Math.max(1, next) },
-      });
-      if (result.error) {
-        setActionError(`bot ramp failed: ${JSON.stringify(result.error).slice(0, 200)}`);
+      try {
+        const next = Math.round(from + (target - from) * progress);
+        const result = await api.POST('/api/v1/admin/wl/tournaments/{id}/fill-bots', {
+          params: { path: { id } }, body: { min_field: Math.max(1, next) },
+        });
+        if (gen !== rampGen.current) return;
+        if (result.error) {
+          setActionError(`bot ramp failed: ${JSON.stringify(result.error).slice(0, 200)}`);
+          stopRamp();
+          return;
+        }
+        void loadList();
+      } catch (e) {
+        if (gen !== rampGen.current) return;
+        setActionError(`bot ramp failed: ${e instanceof Error ? e.message : String(e)}`);
         stopRamp();
         return;
       }
-      void loadList();
-      if (progress >= 1) stopRamp();
+      if (progress >= 1) { stopRamp(); return; }
+      rampNext.current = setTimeout(() => { void step(); }, 15_000);
     };
-    rampTimer.current = setInterval(() => { void step(); }, 15_000);
     void step();
   }, [act, botTarget, botRampMin, loadList, stopRamp]);
   const [mode, setMode] = useState<'compressed' | 'scheduled'>('compressed');
