@@ -16,7 +16,12 @@ import createClient from 'openapi-fetch';
 import type { paths } from '@/types/api.generated';
 import { AUTH_TOKEN_KEY } from './constants';
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8001';
+// The generated paths already carry the /api/v1 prefix; some environments
+// set NEXT_PUBLIC_API_URL with the prefix baked in (the legacy relative-path
+// clients want it that way). Strip it so both env shapes work — otherwise
+// requests go to /api/v1/api/v1/... and 404.
+const API_BASE_URL = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8001')
+  .replace(/\/api\/v1\/?$/, '');
 
 /**
  * Type-safe API client instance.
