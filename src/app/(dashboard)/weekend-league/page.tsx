@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Trophy, RefreshCw, Play, Pause, XCircle, Bot, Zap, Plus } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { components } from '@/types/api.generated';
@@ -92,6 +92,51 @@ export default function WeekendLeaguePage() {
   }, [selectedId, loadList, loadDetail]);
 
   const [showCreate, setShowCreate] = useState(false);
+
+  // Bot fill: arbitrary target, optionally reached gradually so the joined
+  // counter climbs like real sign-ups instead of jumping in one tick. The
+  // ramp runs client-side (this page must stay open) by stepping the
+  // idempotent fill-bots target upward on an interval.
+  const [botTarget, setBotTarget] = useState(100);
+  const [botRampMin, setBotRampMin] = useState(0);
+  const [ramp, setRamp] = useState<{ from: number; target: number; startedAt: number; endsAt: number } | null>(null);
+  const rampTimer = useRef<ReturnType<typeof setInterval> | null>(null);
+  const stopRamp = useCallback(() => {
+    if (rampTimer.current) clearInterval(rampTimer.current);
+    rampTimer.current = null;
+    setRamp(null);
+  }, []);
+  useEffect(() => () => stopRamp(), [stopRamp]);
+  useEffect(() => { stopRamp(); }, [selectedId, stopRamp]);
+  const startBotFill = useCallback((id: string, currentField: number) => {
+    const target = Math.max(1, Math.min(2000, Math.round(botTarget)));
+    if (botRampMin <= 0) {
+      void act('fill bots', () => api.POST('/api/v1/admin/wl/tournaments/{id}/fill-bots', {
+        params: { path: { id } }, body: { min_field: target },
+      }));
+      return;
+    }
+    const startedAt = Date.now();
+    const endsAt = startedAt + botRampMin * 60_000;
+    const from = Math.min(currentField, target);
+    setRamp({ from, target, startedAt, endsAt });
+    const step = async () => {
+      const progress = Math.min(1, (Date.now() - startedAt) / (endsAt - startedAt));
+      const next = Math.round(from + (target - from) * progress);
+      const result = await api.POST('/api/v1/admin/wl/tournaments/{id}/fill-bots', {
+        params: { path: { id } }, body: { min_field: Math.max(1, next) },
+      });
+      if (result.error) {
+        setActionError(`bot ramp failed: ${JSON.stringify(result.error).slice(0, 200)}`);
+        stopRamp();
+        return;
+      }
+      void loadList();
+      if (progress >= 1) stopRamp();
+    };
+    rampTimer.current = setInterval(() => { void step(); }, 15_000);
+    void step();
+  }, [act, botTarget, botRampMin, loadList, stopRamp]);
   const [mode, setMode] = useState<'compressed' | 'scheduled'>('compressed');
   const [entrySec, setEntrySec] = useState(120);
   const [checkinSec, setCheckinSec] = useState(60);
@@ -376,18 +421,41 @@ export default function WeekendLeaguePage() {
                   disabled={busy != null}
                   className="flex items-center gap-1.5 rounded-lg border border-gray-300 px-3 py-1.5 text-sm font-bold text-gray-700 hover:bg-gray-50 disabled:opacity-50"
                 ><Play className="h-4 w-4" /> Resume</button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (window.confirm('Top the field up to 100 with roster bots? Bots cannot be removed once entered.')) {
-                      void act('fill bots', () => api.POST('/api/v1/admin/wl/tournaments/{id}/fill-bots', {
-                        params: { path: { id: String(selected['id']) } }, body: { min_field: 100 },
-                      }));
-                    }
-                  }}
-                  disabled={busy != null}
-                  className="flex items-center gap-1.5 rounded-lg border border-gray-300 px-3 py-1.5 text-sm font-bold text-gray-700 hover:bg-gray-50 disabled:opacity-50"
-                ><Bot className="h-4 w-4" /> Fill bots →100</button>
+                <span className="flex items-center gap-1.5 rounded-lg border border-gray-300 px-2 py-1">
+                  <Bot className="h-4 w-4 text-gray-500" />
+                  <input
+                    type="number" min={1} max={2000} value={botTarget}
+                    onChange={(e) => setBotTarget(Number(e.target.value))}
+                    title="Fill the field up to this many entrants"
+                    className="w-16 rounded border border-gray-200 px-1.5 py-0.5 text-sm font-bold text-gray-800"
+                  />
+                  <span className="text-xs font-semibold text-gray-400">over</span>
+                  <input
+                    type="number" min={0} max={240} value={botRampMin}
+                    onChange={(e) => setBotRampMin(Number(e.target.value))}
+                    title="Minutes to spread the fill over (0 = instant)"
+                    className="w-12 rounded border border-gray-200 px-1.5 py-0.5 text-sm font-bold text-gray-800"
+                  />
+                  <span className="text-xs font-semibold text-gray-400">min</span>
+                  {ramp == null ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (window.confirm(`Fill the field to ${botTarget} with roster bots${botRampMin > 0 ? ` over ${botRampMin} min` : ''}? Bots cannot be removed once entered.`)) {
+                          startBotFill(String(selected['id']), Number(selected['registered'] ?? 0));
+                        }
+                      }}
+                      disabled={busy != null}
+                      className="rounded-lg bg-gray-900 px-3 py-1 text-sm font-bold text-white hover:bg-gray-800 disabled:opacity-50"
+                    >Fill bots</button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={stopRamp}
+                      className="rounded-lg bg-amber-600 px-3 py-1 text-sm font-bold text-white hover:bg-amber-700"
+                    >Ramping → {ramp.target} (stop)</button>
+                  )}
+                </span>
                 <button
                   type="button"
                   onClick={() => {
