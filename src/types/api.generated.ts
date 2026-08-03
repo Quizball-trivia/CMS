@@ -6610,6 +6610,51 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/wl/stock": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** WL question-stock levels per kind and visibility (admin) */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Stock counts */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["WlAdminStockResponse"];
+                    };
+                };
+                /** @description Not authenticated */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/wl/force-tick": {
         parameters: {
             query?: never;
@@ -10147,6 +10192,13 @@ export interface components {
         };
         WlAdminFillBotsResponse: {
             filled: number;
+        };
+        WlAdminStockResponse: {
+            stock: {
+                type: string;
+                visibility: string;
+                n: number;
+            }[];
         };
         WlAdminDeleteTestResponse: {
             deleted: boolean;
