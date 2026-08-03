@@ -49,18 +49,38 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
   }, []);
 
+  const clearSession = useCallback(() => {
+    localStorage.removeItem(AUTH_TOKEN_KEY);
+    localStorage.removeItem(REFRESH_TOKEN_KEY);
+    localStorage.removeItem(AUTH_EXPIRY_KEY);
+  }, []);
+
   // Silent renewal: Supabase access tokens die at 1h — without this, every
   // CMS action starts failing mid-session (the Saturday event-ops killer).
-  const refreshSession = useCallback(async (): Promise<boolean> => {
+  // Returns 'ok' | 'terminal' | 'transient'; the ROTATED token set is only
+  // committed when complete (Supabase always rotates all three fields — a
+  // partial response is treated as failure rather than half-stored).
+  // A localStorage mutex keeps a second tab from racing the single-use
+  // refresh token (reuse detection would kill both sessions otherwise).
+  const refreshSession = useCallback(async (): Promise<'ok' | 'terminal' | 'transient'> => {
     const refreshToken = localStorage.getItem(REFRESH_TOKEN_KEY);
-    if (!refreshToken) return false;
+    if (!refreshToken) return 'terminal';
+    const LOCK_KEY = 'quizball_refresh_lock';
+    const lock = Number(localStorage.getItem(LOCK_KEY) ?? '0');
+    if (Number.isFinite(lock) && Date.now() - lock < 30_000) return 'transient';
+    localStorage.setItem(LOCK_KEY, String(Date.now()));
     try {
       const response = await authService.refresh(refreshToken);
-      if (!response.access_token) return false;
+      if (!response.access_token || !response.refresh_token || !response.expires_in) {
+        return 'transient';
+      }
       storeSession(response);
-      return true;
-    } catch {
-      return false;
+      return 'ok';
+    } catch (e) {
+      const status = (e as { status?: number }).status;
+      return status != null && status >= 400 && status < 500 ? 'terminal' : 'transient';
+    } finally {
+      localStorage.removeItem(LOCK_KEY);
     }
   }, [storeSession]);
 
@@ -77,10 +97,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
       if (expiresAt) {
         const expiryTime = Number(expiresAt);
         const nearExpiry = !Number.isFinite(expiryTime) || Date.now() > expiryTime - 5 * 60_000;
-        if (nearExpiry && !(await refreshSession())) {
-          localStorage.removeItem(AUTH_TOKEN_KEY);
-          localStorage.removeItem(REFRESH_TOKEN_KEY);
-          localStorage.removeItem(AUTH_EXPIRY_KEY);
+        if (nearExpiry && (await refreshSession()) === 'terminal') {
+          clearSession();
           setIsLoading(false);
           return;
         }
@@ -97,7 +115,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     } finally {
       setIsLoading(false);
     }
-  }, [refreshSession]);
+  }, [refreshSession, clearSession]);
 
   useEffect(() => {
     checkAuth();
@@ -109,9 +127,19 @@ export function AuthProvider({ children }: AuthProviderProps) {
   useEffect(() => {
     if (user == null) return;
     const id = setInterval(() => {
-      const expiresAt = Number(localStorage.getItem(AUTH_EXPIRY_KEY));
+      const raw = localStorage.getItem(AUTH_EXPIRY_KEY);
+      if (raw == null) return; // no expiry known — nothing to renew against
+      const expiresAt = Number(raw);
       if (!Number.isFinite(expiresAt)) return;
-      if (Date.now() > expiresAt - 5 * 60_000) void refreshSession();
+      if (Date.now() > expiresAt - 5 * 60_000) {
+        void refreshSession().then((result) => {
+          // Terminal rejection = the session is genuinely dead: clear and
+          // route to login instead of silently retrying forever.
+          if (result === 'terminal') {
+            window.dispatchEvent(new Event('auth:session-expired'));
+          }
+        });
+      }
     }, 60_000);
     return () => clearInterval(id);
   }, [user, refreshSession]);
