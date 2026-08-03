@@ -496,10 +496,28 @@ export default function WeekendLeaguePage() {
                   <button
                     type="button"
                     onClick={() => {
-                      if (window.confirm('Delete this TEST event permanently? Its entries, results and questions rows go with it.')) {
-                        void act('delete', () => api.DELETE('/api/v1/admin/wl/tournaments/{id}', { params: { path: { id: String(selected['id']) } } }));
-                        setSelectedId(null);
-                      }
+                      if (!window.confirm('Delete this TEST event permanently? Its entries, results and questions rows go with it.')) return;
+                      // Not act(): the selection must clear only AFTER a
+                      // successful delete, and the post-action detail reload
+                      // would 404 against the removed id.
+                      void (async () => {
+                        setBusy('delete');
+                        try {
+                          const result = await api.DELETE('/api/v1/admin/wl/tournaments/{id}', { params: { path: { id: String(selected['id']) } } });
+                          if (result.error) {
+                            setActionError(`delete failed: ${JSON.stringify(result.error).slice(0, 300)}`);
+                          } else {
+                            setActionError(null);
+                            setSelectedId(null);
+                            setDetail(null);
+                          }
+                        } catch (e) {
+                          setActionError(`delete failed: ${e instanceof Error ? e.message : String(e)}`);
+                        } finally {
+                          setBusy(null);
+                          void loadList();
+                        }
+                      })();
                     }}
                     disabled={busy != null}
                     className="flex items-center gap-1.5 rounded-lg bg-red-600 px-3 py-1.5 text-sm font-bold text-white hover:bg-red-700 disabled:opacity-50"
