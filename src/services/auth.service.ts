@@ -13,4 +13,9 @@ export const authService = {
   async logout(): Promise<void> {
     return apiClient.post<void>('/auth/logout');
   },
+
+  /** Exchange the stored refresh token for a fresh session. */
+  async refresh(refreshToken: string): Promise<LoginResponse> {
+    return apiClient.postNoAuth<LoginResponse>('/auth/refresh', { refresh_token: refreshToken });
+  },
 };

@@ -41,6 +41,29 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const [isLoading, setIsLoading] = useState(true);
   const router = useRouter();
 
+  const storeSession = useCallback((response: { access_token?: string | null; refresh_token?: string | null; expires_in?: number | null }) => {
+    if (response.access_token) localStorage.setItem(AUTH_TOKEN_KEY, response.access_token);
+    if (response.refresh_token) localStorage.setItem(REFRESH_TOKEN_KEY, response.refresh_token);
+    if (response.expires_in) {
+      localStorage.setItem(AUTH_EXPIRY_KEY, String(Date.now() + response.expires_in * 1000));
+    }
+  }, []);
+
+  // Silent renewal: Supabase access tokens die at 1h — without this, every
+  // CMS action starts failing mid-session (the Saturday event-ops killer).
+  const refreshSession = useCallback(async (): Promise<boolean> => {
+    const refreshToken = localStorage.getItem(REFRESH_TOKEN_KEY);
+    if (!refreshToken) return false;
+    try {
+      const response = await authService.refresh(refreshToken);
+      if (!response.access_token) return false;
+      storeSession(response);
+      return true;
+    } catch {
+      return false;
+    }
+  }, [storeSession]);
+
   const checkAuth = useCallback(async () => {
     try {
       const token = localStorage.getItem(AUTH_TOKEN_KEY);
@@ -49,11 +72,12 @@ export function AuthProvider({ children }: AuthProviderProps) {
         return;
       }
 
-      // Check if token has expired (treat invalid/NaN values as expired)
+      // Expired or expiring soon → try the refresh token BEFORE giving up.
       const expiresAt = localStorage.getItem(AUTH_EXPIRY_KEY);
       if (expiresAt) {
         const expiryTime = Number(expiresAt);
-        if (!Number.isFinite(expiryTime) || Date.now() > expiryTime) {
+        const nearExpiry = !Number.isFinite(expiryTime) || Date.now() > expiryTime - 5 * 60_000;
+        if (nearExpiry && !(await refreshSession())) {
           localStorage.removeItem(AUTH_TOKEN_KEY);
           localStorage.removeItem(REFRESH_TOKEN_KEY);
           localStorage.removeItem(AUTH_EXPIRY_KEY);
@@ -73,11 +97,24 @@ export function AuthProvider({ children }: AuthProviderProps) {
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [refreshSession]);
 
   useEffect(() => {
     checkAuth();
   }, [checkAuth]);
+
+  // Proactive renewal loop: check every minute, refresh once inside the
+  // final 5 minutes of validity. Cheap, drift-proof, and survives laptop
+  // sleep (the next tick refreshes immediately if the window was crossed).
+  useEffect(() => {
+    if (user == null) return;
+    const id = setInterval(() => {
+      const expiresAt = Number(localStorage.getItem(AUTH_EXPIRY_KEY));
+      if (!Number.isFinite(expiresAt)) return;
+      if (Date.now() > expiresAt - 5 * 60_000) void refreshSession();
+    }, 60_000);
+    return () => clearInterval(id);
+  }, [user, refreshSession]);
 
   // Listen for session expiry events from API client
   useEffect(() => {
@@ -100,25 +137,13 @@ export function AuthProvider({ children }: AuthProviderProps) {
     const response = await authService.login(data);
 
     // Backend returns tokens directly on the response object
-    if (response.access_token) {
-      localStorage.setItem(AUTH_TOKEN_KEY, response.access_token);
-    }
-    if (response.refresh_token) {
-      localStorage.setItem(REFRESH_TOKEN_KEY, response.refresh_token);
-    }
-    // Store expiry timestamp for client-side validation
-    // Clear any stale expiry if not provided to avoid incorrect validation
-    if (response.expires_in) {
-      const expiresAt = Date.now() + response.expires_in * 1000;
-      localStorage.setItem(AUTH_EXPIRY_KEY, String(expiresAt));
-    } else {
-      localStorage.removeItem(AUTH_EXPIRY_KEY);
-    }
+    storeSession(response);
+    if (!response.expires_in) localStorage.removeItem(AUTH_EXPIRY_KEY);
 
     // Fetch full user profile after login
     const userData = await authService.getMe();
     setUser(userData);
-  }, []);
+  }, [storeSession]);
 
   const logout = useCallback(async () => {
     try {
