@@ -6286,7 +6286,47 @@ export interface paths {
         };
         put?: never;
         post?: never;
-        delete?: never;
+        /** Delete a TEST tournament (real events must be cancelled instead) */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Deleted */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["WlAdminDeleteTestResponse"];
+                    };
+                };
+                /** @description Not a test event */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Not authenticated */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
         options?: never;
         head?: never;
         patch?: never;
@@ -9566,6 +9606,9 @@ export interface components {
         };
         WlAdminTournamentDetailResponse: {
             tournament: components["schemas"]["WlAdminTournamentRow"];
+            registrants: {
+                [key: string]: unknown;
+            }[];
             entry_states: {
                 state: string;
                 n: number;
@@ -10104,6 +10147,9 @@ export interface components {
         };
         WlAdminFillBotsResponse: {
             filled: number;
+        };
+        WlAdminDeleteTestResponse: {
+            deleted: boolean;
         };
         WlAdminForceTickResponse: {
             ticked: boolean;

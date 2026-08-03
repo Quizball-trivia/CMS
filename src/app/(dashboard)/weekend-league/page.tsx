@@ -492,8 +492,58 @@ export default function WeekendLeaguePage() {
                   disabled={busy != null}
                   className="flex items-center gap-1.5 rounded-lg border border-red-200 px-3 py-1.5 text-sm font-bold text-red-700 hover:bg-red-50 disabled:opacity-50"
                 ><XCircle className="h-4 w-4" /> Cancel</button>
+                {Boolean(selected['is_test']) && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (window.confirm('Delete this TEST event permanently? Its entries, results and questions rows go with it.')) {
+                        void act('delete', () => api.DELETE('/api/v1/admin/wl/tournaments/{id}', { params: { path: { id: String(selected['id']) } } }));
+                        setSelectedId(null);
+                      }
+                    }}
+                    disabled={busy != null}
+                    className="flex items-center gap-1.5 rounded-lg bg-red-600 px-3 py-1.5 text-sm font-bold text-white hover:bg-red-700 disabled:opacity-50"
+                  ><XCircle className="h-4 w-4" /> Delete</button>
+                )}
               </div>
             </div>
+
+            {Array.isArray(detail['registrants']) && (detail['registrants'] as Array<Record<string, unknown>>).length > 0 && (
+              <div className="mt-6">
+                <h3 className="mb-2 text-sm font-bold uppercase tracking-wide text-gray-500">
+                  Registered players ({(detail['registrants'] as Array<Record<string, unknown>>).length})
+                </h3>
+                <div className="max-h-80 overflow-y-auto rounded-lg border border-gray-100">
+                  <table className="w-full text-sm">
+                    <thead className="sticky top-0 bg-gray-50 text-left text-xs uppercase tracking-wide text-gray-500">
+                      <tr>
+                        <th className="px-3 py-2">Player</th>
+                        <th className="px-3 py-2">QP at entry</th>
+                        <th className="px-3 py-2">Entered</th>
+                        <th className="px-3 py-2">Checked in</th>
+                        <th className="px-3 py-2">State</th>
+                        <th className="px-3 py-2 text-right">Final rank</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(detail['registrants'] as Array<Record<string, unknown>>).map((r, i) => (
+                        <tr key={i} className="border-b border-gray-50">
+                          <td className="px-3 py-1.5 font-semibold text-gray-800">
+                            {String(r['nickname'] ?? '—')}
+                            {r['is_ai'] ? <span className="ml-1.5 text-xs text-purple-500">bot</span> : null}
+                          </td>
+                          <td className="px-3 py-1.5 tabular-nums">{Number(r['qp_at_entry'] ?? 0)}</td>
+                          <td className="px-3 py-1.5 text-xs text-gray-500">{fmt(r['entered_at'])}</td>
+                          <td className="px-3 py-1.5 text-xs text-gray-500">{r['checked_in_at'] ? fmt(r['checked_in_at']) : '—'}</td>
+                          <td className="px-3 py-1.5 text-xs font-semibold text-gray-600">{String(r['state'] ?? '')}</td>
+                          <td className="px-3 py-1.5 text-right tabular-nums">{r['final_rank'] != null ? `#${r['final_rank']}` : '—'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
 
             <div className="grid grid-cols-3 gap-6">
               <div>
