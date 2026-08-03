@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Trophy, RefreshCw, Play, Pause, XCircle, Bot, Zap, Plus } from 'lucide-react';
 import { api } from '@/lib/api';
+import { agentsApi } from '@/lib/agents-api';
+import type { AgentJob } from '@/types/agents';
 import type { components } from '@/types/api.generated';
 
 type TournamentRow = Record<string, unknown>;
@@ -28,6 +30,16 @@ function StatusPill({ status }: { status: string }) {
   );
 }
 
+const WL_KINDS = ['true_false', 'high_low', 'mcq_single', 'career_path', 'clue_chain'] as const;
+
+const AGENT_STATUS_TONE: Record<string, string> = {
+  queued: 'bg-gray-100 text-gray-600',
+  running: 'bg-amber-100 text-amber-800',
+  completed: 'bg-emerald-100 text-emerald-800',
+  failed: 'bg-red-100 text-red-800',
+  cancelled: 'bg-gray-100 text-gray-500',
+};
+
 function fmt(ts: unknown): string {
   if (typeof ts !== 'string') return '—';
   return new Date(ts).toLocaleString('en-GB', { timeZone: 'Asia/Tbilisi', dateStyle: 'short', timeStyle: 'short' });
@@ -48,6 +60,45 @@ export default function WeekendLeaguePage() {
     setError(null);
     setTournaments((data?.tournaments ?? []) as TournamentRow[]);
   }, []);
+
+  // WL question-agent visibility: recent weekend_league jobs from the same
+  // agents surface the Agents tab uses, plus the protected-stock fuel gauge.
+  // null = never loaded successfully — rendered as unknown, not as zero stock.
+  const [agentJobs, setAgentJobs] = useState<AgentJob[] | null>(null);
+  const [stock, setStock] = useState<Array<{ type: string; visibility: string; n: number }> | null>(null);
+  const [agentPanelError, setAgentPanelError] = useState(false);
+  // In-flight guard + generation counter: a slow poll can neither overlap the
+  // next one nor overwrite a newer snapshot after being superseded.
+  const panelBusy = useRef(false);
+  const panelGen = useRef(0);
+  const loadAgentPanel = useCallback(async () => {
+    if (panelBusy.current) return;
+    panelBusy.current = true;
+    const gen = ++panelGen.current;
+    let failed = false;
+    try {
+      try {
+        const jobs = await agentsApi.listJobs({ limit: 100 });
+        if (gen !== panelGen.current) return;
+        setAgentJobs((jobs.items ?? []).filter((j) => j.type === 'weekend_league').slice(0, 12));
+      } catch { failed = true; }
+      try {
+        const { data, error: stockError } = await api.GET('/api/v1/admin/wl/stock');
+        if (gen !== panelGen.current) return;
+        if (data && !stockError) setStock(data.stock);
+        else failed = true;
+      } catch { failed = true; }
+      if (gen === panelGen.current) setAgentPanelError(failed);
+    } finally {
+      panelBusy.current = false;
+    }
+  }, []);
+  useEffect(() => { void loadAgentPanel(); }, [loadAgentPanel]);
+  useEffect(() => {
+    if (!autoRefresh) return;
+    const id = setInterval(() => { void loadAgentPanel(); }, 15_000);
+    return () => clearInterval(id);
+  }, [autoRefresh, loadAgentPanel]);
 
   const loadDetail = useCallback(async (id: string) => {
     const { data, error: apiError } = await api.GET('/api/v1/admin/wl/tournaments/{id}', {
@@ -634,6 +685,95 @@ export default function WeekendLeaguePage() {
             <RefreshCw className="h-4 w-4" /> Select a tournament to see its field, standings and awards.
           </p>
         )}
+
+        <section className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
+          <div className="mb-4 flex items-center gap-3">
+            <Bot className="h-5 w-5 text-gray-700" />
+            <h2 className="text-xl font-black text-gray-900">Question agent</h2>
+            <span className="text-sm font-medium text-gray-400">
+              daily WL stock generation on the VPS
+            </span>
+            {agentPanelError && (
+              <span className="ml-auto text-xs font-semibold text-amber-600">
+                {agentJobs == null && stock == null
+                  ? 'could not load agent data'
+                  : 'refresh failed — data may be stale or incomplete'}
+              </span>
+            )}
+          </div>
+
+          <div className="mb-6 grid grid-cols-5 gap-3">
+            {WL_KINDS.map((kind) => {
+              const priv = stock?.find((s) => s.type === kind && s.visibility === 'wl_private')?.n ?? 0;
+              const pub = stock?.find((s) => s.type === kind && s.visibility === 'public')?.n ?? 0;
+              return (
+                <div key={kind} className="rounded-lg border border-gray-200 bg-gray-50 px-4 py-3">
+                  <div className="text-xs font-bold uppercase tracking-wide text-gray-500">{kind.replace('_', ' ')}</div>
+                  <div className="mt-1 flex items-baseline gap-2">
+                    {stock == null ? (
+                      <span className="text-2xl font-black text-gray-300">—</span>
+                    ) : (
+                      <>
+                        <span className={`text-2xl font-black tabular-nums ${priv > 0 ? 'text-gray-900' : 'text-red-500'}`}>{priv}</span>
+                        <span className="text-xs font-semibold text-gray-400">WL</span>
+                        <span className="ml-auto text-sm font-semibold tabular-nums text-gray-400">{pub} public</span>
+                      </>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          <h3 className="mb-2 text-sm font-bold uppercase tracking-wide text-gray-500">Recent WL generation jobs</h3>
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-gray-200 text-left text-xs font-bold uppercase tracking-wide text-gray-400">
+                <th className="py-2">Created</th>
+                <th className="py-2">Kind</th>
+                <th className="py-2">Topic</th>
+                <th className="py-2">Visibility</th>
+                <th className="py-2 text-right">Target</th>
+                <th className="py-2 text-right">Generated</th>
+                <th className="py-2 text-right">Published</th>
+                <th className="py-2">Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {(agentJobs ?? []).map((j) => (
+                <tr key={j.id} className="border-b border-gray-100">
+                  <td className="py-2 text-gray-500">{fmt(j.createdAt)}</td>
+                  <td className="py-2 font-semibold text-gray-800">{String(j.params['questionType'] ?? '—')}</td>
+                  <td className="py-2 text-gray-600">{String(j.params['topic'] ?? '—')}</td>
+                  <td className="py-2">
+                    <code className={`font-mono text-xs ${j.params['visibility'] === 'wl_private' ? 'text-gray-500' : 'font-bold text-amber-700'}`}>
+                      {String(j.params['visibility'] ?? 'public')}
+                    </code>
+                  </td>
+                  <td className="py-2 text-right tabular-nums">{j.counts.target ?? (Number(j.params['count'] ?? 0) || '—')}</td>
+                  <td className="py-2 text-right tabular-nums">{j.counts.generated ?? '—'}</td>
+                  <td className="py-2 text-right tabular-nums font-bold">{j.counts.published ?? '—'}</td>
+                  <td className="py-2">
+                    <span className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-bold uppercase tracking-wide ${AGENT_STATUS_TONE[j.status] ?? 'bg-blue-100 text-blue-800'}`}>
+                      {j.status}
+                    </span>
+                    {j.error ? <span className="ml-2 text-xs text-red-500" title={j.error}>{j.error.slice(0, 60)}</span> : null}
+                  </td>
+                </tr>
+              ))}
+              {agentJobs == null && (
+                <tr>
+                  <td colSpan={8} className="py-4 text-gray-400">
+                    {agentPanelError ? 'Could not load jobs from the agents API.' : 'Loading jobs…'}
+                  </td>
+                </tr>
+              )}
+              {agentJobs != null && agentJobs.length === 0 && (
+                <tr><td colSpan={8} className="py-4 text-gray-400">No WL generation jobs yet — the schedule fires daily at 05:00 Tbilisi.</td></tr>
+              )}
+            </tbody>
+          </table>
+        </section>
       </div>
     </div>
   );
