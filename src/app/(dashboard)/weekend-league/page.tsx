@@ -695,7 +695,9 @@ export default function WeekendLeaguePage() {
             </span>
             {agentPanelError && (
               <span className="ml-auto text-xs font-semibold text-amber-600">
-                refresh failed — showing last known data
+                {agentJobs == null && stock == null
+                  ? 'could not load agent data'
+                  : 'refresh failed — data may be stale or incomplete'}
               </span>
             )}
           </div>
@@ -760,7 +762,11 @@ export default function WeekendLeaguePage() {
                 </tr>
               ))}
               {agentJobs == null && (
-                <tr><td colSpan={8} className="py-4 text-gray-400">Loading jobs…</td></tr>
+                <tr>
+                  <td colSpan={8} className="py-4 text-gray-400">
+                    {agentPanelError ? 'Could not load jobs from the agents API.' : 'Loading jobs…'}
+                  </td>
+                </tr>
               )}
               {agentJobs != null && agentJobs.length === 0 && (
                 <tr><td colSpan={8} className="py-4 text-gray-400">No WL generation jobs yet — the schedule fires daily at 05:00 Tbilisi.</td></tr>
