@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Trophy, RefreshCw, Play, Pause, XCircle, Bot, Zap, Plus } from 'lucide-react';
+import { Trophy, RefreshCw, Play, Pause, XCircle, Bot, Zap, Plus, X, Rocket } from 'lucide-react';
 import { api } from '@/lib/api';
 import { agentsApi } from '@/lib/agents-api';
 import type { AgentJob } from '@/types/agents';
@@ -282,6 +282,40 @@ export default function WeekendLeaguePage() {
   }, [act, mode, entrySec, checkinSec, toFinalSec, entryOpensAt, entryClosesAt,
     qualifierStartsAt, finalStartsAt, questionMs, breakMs, specDelayMs, freeEntry]);
 
+  /** One-click playtest: compressed event with the current windows, then fill
+   *  bots the moment it exists. The multi-step dance (create → find → select →
+   *  fill) was the slowest part of every playtest. */
+  const quickLaunch = useCallback((bots: number) => {
+    void (async () => {
+      setBusy('create');
+      setActionError(null);
+      try {
+        const created = await api.POST('/api/v1/admin/wl/create-test', {
+          body: {
+            compressed: { entry_seconds: entrySec, checkin_seconds: checkinSec, to_final_seconds: toFinalSec },
+            config: {
+              free_entry: true,
+              question_time_ms: questionMs,
+              break_ms: breakMs,
+              spectator_delay_ms: specDelayMs,
+            },
+          },
+        });
+        if (created.error) {
+          setActionError(`create failed: ${JSON.stringify(created.error).slice(0, 300)}`);
+          return;
+        }
+        const id = String((created.data as Record<string, unknown> | undefined)?.['tournament_id'] ?? '');
+        if (!id) { setActionError('create returned no id'); return; }
+        setSelectedId(id);
+        if (bots > 0) startBotFill(id, 0, bots, 0);
+        await loadList();
+      } finally {
+        setBusy(null);
+      }
+    })();
+  }, [entrySec, checkinSec, toFinalSec, questionMs, breakMs, specDelayMs, startBotFill, loadList]);
+
   const selected = useMemo(
     () => tournaments.find((t) => t['id'] === selectedId) ?? null,
     [tournaments, selectedId],
@@ -314,6 +348,18 @@ export default function WeekendLeaguePage() {
             >
               <Zap className="h-4 w-4" /> Force tick
             </button>
+            <button
+              type="button"
+              onClick={() => {
+                const bots = clampInt(botTarget, 0, 2000, 93);
+                if (window.confirm(`Launch a test event now (entry ${entrySec}s, check-in ${checkinSec}s) and fill ${bots} bots?`)) {
+                  quickLaunch(bots);
+                }
+              }}
+              disabled={busy != null}
+              title="Create a compressed test event with the current windows and fill bots immediately"
+              className="flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-bold text-white hover:bg-emerald-700 disabled:opacity-50"
+            ><Rocket className="h-4 w-4" /> Quick launch</button>
             <button
               type="button"
               onClick={() => setShowCreate((v) => !v)}
@@ -467,8 +513,20 @@ export default function WeekendLeaguePage() {
           </table>
         </section>
 
+        {/* Detail is a MODAL: it used to render below the table, so selecting a
+            row meant scrolling to find what you clicked. */}
         {selected && detail && (
-          <section className="space-y-6 rounded-lg border border-gray-200 bg-white p-6">
+          <div
+            className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/40 p-4 sm:p-8"
+            onClick={(e) => { if (e.target === e.currentTarget) setSelectedId(null); }}
+          >
+          <section className="relative my-4 w-full max-w-6xl space-y-6 rounded-lg border border-gray-200 bg-white p-6 shadow-2xl">
+            <button
+              type="button"
+              onClick={() => setSelectedId(null)}
+              aria-label="Close"
+              className="absolute right-4 top-4 rounded-lg p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-700"
+            ><X className="h-5 w-5" /></button>
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <h2 className="text-2xl font-black text-gray-900">
@@ -678,6 +736,7 @@ export default function WeekendLeaguePage() {
               </div>
             </div>
           </section>
+          </div>
         )}
 
         {!selected && tournaments.length > 0 && (
