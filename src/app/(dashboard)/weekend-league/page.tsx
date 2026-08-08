@@ -316,6 +316,34 @@ export default function WeekendLeaguePage() {
     })();
   }, [entrySec, checkinSec, toFinalSec, questionMs, breakMs, specDelayMs, startBotFill, loadList]);
 
+  /** Real-timing rehearsal: starts in ~2 minutes, then plays with the exact
+   *  production pacing — only free entry is forced so testers can join. */
+  const realLaunch = useCallback((bots: number) => {
+    void (async () => {
+      setBusy('create');
+      setActionError(null);
+      try {
+        const created = await api.POST('/api/v1/admin/wl/create-test', {
+          body: {
+            compressed: { entry_seconds: 60, checkin_seconds: 60, to_final_seconds: 3600 },
+            config: { free_entry: true },
+          },
+        });
+        if (created.error) {
+          setActionError(`create failed: ${JSON.stringify(created.error).slice(0, 300)}`);
+          return;
+        }
+        const id = String((created.data as Record<string, unknown> | undefined)?.['tournament_id'] ?? '');
+        if (!id) { setActionError('create returned no id'); return; }
+        setSelectedId(id);
+        if (bots > 0) startBotFill(id, 0, bots, 0);
+        await loadList();
+      } finally {
+        setBusy(null);
+      }
+    })();
+  }, [startBotFill, loadList]);
+
   const selected = useMemo(
     () => tournaments.find((t) => t['id'] === selectedId) ?? null,
     [tournaments, selectedId],
@@ -360,6 +388,18 @@ export default function WeekendLeaguePage() {
               title="Create a compressed test event with the current windows and fill bots immediately"
               className="flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-bold text-white hover:bg-emerald-700 disabled:opacity-50"
             ><Rocket className="h-4 w-4" /> Quick launch</button>
+            <button
+              type="button"
+              onClick={() => {
+                const bots = clampInt(botTarget, 0, 2000, 93);
+                if (window.confirm(`REAL-TIMING event: entry opens now, play starts in ~2 minutes, production question/break timers. Fill ${bots} bots?`)) {
+                  realLaunch(bots);
+                }
+              }}
+              disabled={busy != null}
+              title="Rehearsal with the exact production pacing — only the start is moved to ~2 minutes from now"
+              className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-bold text-white hover:bg-blue-700 disabled:opacity-50"
+            ><Rocket className="h-4 w-4" /> Real launch</button>
             <button
               type="button"
               onClick={() => setShowCreate((v) => !v)}
