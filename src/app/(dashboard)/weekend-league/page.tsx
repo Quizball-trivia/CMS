@@ -344,6 +344,34 @@ export default function WeekendLeaguePage() {
     })();
   }, [startBotFill, loadList]);
 
+  /** Sunday-final rehearsal: ONE game, all 5 rounds, production timers,
+   *  champion ceremony at the end. Starts in ~2 minutes. */
+  const finalRehearsal = useCallback((bots: number) => {
+    void (async () => {
+      setBusy('create');
+      setActionError(null);
+      try {
+        const created = await api.POST('/api/v1/admin/wl/create-test', {
+          body: {
+            compressed: { entry_seconds: 60, checkin_seconds: 60, to_final_seconds: 3600 },
+            config: { free_entry: true, single_game: true },
+          },
+        });
+        if (created.error) {
+          setActionError(`create failed: ${JSON.stringify(created.error).slice(0, 300)}`);
+          return;
+        }
+        const id = String((created.data as Record<string, unknown> | undefined)?.['tournament_id'] ?? '');
+        if (!id) { setActionError('create returned no id'); return; }
+        setSelectedId(id);
+        if (bots > 0) startBotFill(id, 0, bots, 0);
+        await loadList();
+      } finally {
+        setBusy(null);
+      }
+    })();
+  }, [startBotFill, loadList]);
+
   const selected = useMemo(
     () => tournaments.find((t) => t['id'] === selectedId) ?? null,
     [tournaments, selectedId],
@@ -400,6 +428,18 @@ export default function WeekendLeaguePage() {
               title="Rehearsal with the exact production pacing — only the start is moved to ~2 minutes from now"
               className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-bold text-white hover:bg-blue-700 disabled:opacity-50"
             ><Rocket className="h-4 w-4" /> Real launch</button>
+            <button
+              type="button"
+              onClick={() => {
+                const bots = clampInt(botTarget, 0, 2000, 27);
+                if (window.confirm(`FINAL REHEARSAL: one game, 5 rounds, production timers, champion at the end. Starts in ~2 minutes. Fill ${bots} bots?`)) {
+                  finalRehearsal(bots);
+                }
+              }}
+              disabled={busy != null}
+              title="Sunday-final shape: a single 5-round game at production pacing, champion ceremony at the end"
+              className="flex items-center gap-2 rounded-lg bg-purple-600 px-4 py-2 text-sm font-bold text-white hover:bg-purple-700 disabled:opacity-50"
+            ><Rocket className="h-4 w-4" /> Final rehearsal</button>
             <button
               type="button"
               onClick={() => setShowCreate((v) => !v)}
