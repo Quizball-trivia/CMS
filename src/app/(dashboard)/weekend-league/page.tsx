@@ -77,7 +77,8 @@ function PlayerCell({
             // is unavailable in insecure contexts and can be denied.
             void (async () => {
               try {
-                await navigator.clipboard?.writeText(mail);
+                if (!navigator.clipboard) return;
+                await navigator.clipboard.writeText(mail);
                 setCopied(true);
                 if (copyTimer.current) window.clearTimeout(copyTimer.current);
                 copyTimer.current = window.setTimeout(() => setCopied(false), 1200);
@@ -785,7 +786,7 @@ export default function WeekendLeaguePage() {
                     </thead>
                     <tbody>
                       {(detail['registrants'] as Array<Record<string, unknown>>).map((r, i) => (
-                        <tr key={String(r['email'] ?? r['nickname'] ?? i)} className="border-b border-gray-50">
+                        <tr key={String(r['user_id'] ?? r['email'] ?? r['nickname'] ?? i)} className="border-b border-gray-50">
                           <td className="px-3 py-1.5 font-semibold text-gray-800">
                             <PlayerCell nickname={r['nickname']} email={r['email']} isAi={r['is_ai']} />
                           </td>
