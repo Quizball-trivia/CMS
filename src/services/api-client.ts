@@ -299,7 +299,7 @@ export const apiClient = {
     }
   },
 
-  async delete<T>(endpoint: string, signal?: AbortSignal): Promise<T> {
+  async delete<T>(endpoint: string, data?: unknown, signal?: AbortSignal): Promise<T> {
     const { signal: timeoutSignal, cleanup } = createTimeoutController(DEFAULT_TIMEOUT_MS, signal);
 
     try {
@@ -307,6 +307,7 @@ export const apiClient = {
         () => fetch(buildUrl(endpoint), {
           method: 'DELETE',
           headers: getHeaders(),
+          body: data ? JSON.stringify(data) : undefined,
           signal: timeoutSignal,
         }),
         endpoint
