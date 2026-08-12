@@ -72,6 +72,13 @@ function formatTier(tier: string | null): string {
   return tier ?? '—';
 }
 
+function formatCompactCount(value: number): string {
+  return new Intl.NumberFormat('en-US', {
+    notation: 'compact',
+    maximumFractionDigits: 1,
+  }).format(value);
+}
+
 export default function UsersPage() {
   const [searchInput, setSearchInput] = useState('');
   const [search, setSearch] = useState('');
@@ -239,7 +246,7 @@ export default function UsersPage() {
       {/* Pagination */}
       <div className="flex items-center justify-between text-sm text-gray-500">
         <span>
-          {displayTotal.toLocaleString()} user{displayTotal === 1 ? '' : 's'}
+          {formatCompactCount(displayTotal)} user{displayTotal === 1 ? '' : 's'}
           {isFetching && !isLoading ? ' · updating…' : ''}
         </span>
         <div className="flex items-center gap-3">

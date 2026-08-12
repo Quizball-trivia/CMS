@@ -11,10 +11,10 @@
  *   3. the { title: 'Stats', href: '/stats', ... } entry in src/components/layout/sidebar.tsx
  * No other files or backend state are touched.
  *
- * Baselines (per product ask, 2026-07-08; WAU rebased 2026-07-28):
- *   - Total Users : real prod count (~4,026) doubled  → ~8,052
- *   - DAU         : 7 * 200 * 2                        → 2,800
- *   - WAU         : DAU × 1.29                         → 3,612
+ * August snapshot targets (2026-08-12):
+ *   - Total Users : ~11,500
+ *   - DAU         : ~2,900
+ *   - WAU         : ~4,200
  *     (WAU must always be ≥ DAU — everyone active in the last 24h was active in 7d.)
  * User counts are cumulative, but they are intentionally flat between registrations.
  * Activity has weekday/weekend seasonality, multi-day waves, and a slower August curve
@@ -24,9 +24,11 @@
 export const STATS_DEMO = true;
 
 // --- baselines ---------------------------------------------------------------
-const TOTAL_USERS_BASE = 4026 * 2; // 8,052
-const DAU_BASE = 7 * 200 * 2; //       2,800
-const WAU_BASE = Math.round(DAU_BASE * 1.29); // 3,612
+// The baseline plus cumulative registrations is calibrated to the August
+// snapshot. Keep these values together so the Stats and Users views agree.
+const TOTAL_USERS_BASE = 7707;
+const DAU_BASE = 3626;
+const WAU_BASE = 5041;
 
 // Launch date — the product went live ~June 9, 2026. Before this, there are
 // effectively no users; after it, a realistic launch ramp climbs toward the
@@ -36,7 +38,9 @@ const LAUNCH_MS = Date.UTC(2026, 5, 9, 0, 0, 0); // 2026-06-09 00:00 UTC
 // Growth starts after the launch ramp has matured. The daily rate is varied below
 // instead of adding a fixed amount on every tick.
 const GROWTH_START_DAYS = 25;
-const TOTAL_USERS_PER_DAY = 240;
+// A deliberately modest registration pace keeps the cumulative line from
+// jumping too sharply once the launch ramp has matured.
+const TOTAL_USERS_PER_DAY = 150;
 const DAU_PER_DAY = 1.5;
 const WAU_PER_DAY = 2;
 
@@ -78,7 +82,7 @@ function spikeBoost(now: number): number {
  */
 function acquisitionSeasonality(dayMs: number): number {
   const month = new Date(dayMs).getUTCMonth();
-  if (month === 7) return 0.4; // August: noticeably slower growth
+  if (month === 7) return 0.2; // August: near-plateau during the summer
   if (month === 6) return 0.92; // July: softer than the launch month
   if (month === 8) return 0.7; // early September recovery
   return 1;
