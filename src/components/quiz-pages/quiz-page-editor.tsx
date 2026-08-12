@@ -48,11 +48,18 @@ import {
 } from '@/components/ui/dialog';
 import { campaignQuizPagesService } from '@/services';
 import {
+  useCreateQuizPage,
+  useDeleteQuizPage,
+  usePreviewQuizPage,
+  usePublishQuizPage,
   useQuizPageRevisions,
   useQuizPages,
   useQuizQuestionSets,
   useRestoreQuizPageRevision,
+  useUnpublishQuizPage,
+  useUpdateQuizPage,
 } from '@/hooks';
+import { generateAnswerId } from '@/lib/question-utils';
 import type {
   QuizAboutBlock,
   QuizPage,
@@ -85,6 +92,15 @@ function messageFor(error: unknown): string {
     return error.message;
   }
   return error instanceof Error ? error.message : 'Something went wrong.';
+}
+
+function safePreviewUrl(value: string): string | null {
+  try {
+    const url = new URL(value, window.location.origin);
+    return url.protocol === 'https:' || url.protocol === 'http:' ? url.toString() : null;
+  } catch {
+    return null;
+  }
 }
 
 function inputFromPage(page: QuizPage): QuizPageInput {
@@ -231,6 +247,12 @@ export function QuizPageEditor({ existing }: { existing?: QuizPage }) {
   const { data: allPages = [] } = useQuizPages();
   const { data: revisions = [], refetch: refetchRevisions } = useQuizPageRevisions(currentSlug || undefined);
   const restoreRevision = useRestoreQuizPageRevision();
+  const createPage = useCreateQuizPage();
+  const updatePage = useUpdateQuizPage();
+  const previewPage = usePreviewQuizPage();
+  const publishPage = usePublishQuizPage();
+  const unpublishPage = useUnpublishQuizPage();
+  const deletePage = useDeleteQuizPage();
 
   const selectedSet = sets.find((set) => set.slug === form.question_set_slug);
   const manualParse = useMemo(
@@ -298,8 +320,8 @@ export function QuizPageEditor({ existing }: { existing?: QuizPage }) {
           : [],
       };
       const page = currentSlug
-        ? await campaignQuizPagesService.update(currentSlug, input)
-        : await campaignQuizPagesService.create(input);
+        ? await updatePage.mutateAsync({ currentSlug, input })
+        : await createPage.mutateAsync(input);
       setCurrentSlug(page.slug);
       setSavedPage(page);
       setForm(inputFromPage(page));
@@ -326,12 +348,16 @@ export function QuizPageEditor({ existing }: { existing?: QuizPage }) {
     const page = await save();
     if (page) {
       try {
-        const previewPage = await campaignQuizPagesService.preview(page.slug);
-        setSavedPage(previewPage);
-        if (previewWindow) {
-          previewWindow.location.replace(previewPage.preview_url);
+        const previewedPage = await previewPage.mutateAsync(page.slug);
+        setSavedPage(previewedPage);
+        const target = safePreviewUrl(previewedPage.preview_url);
+        if (!target) {
+          previewWindow?.close();
+          toast.error('The preview URL is not valid.');
+        } else if (previewWindow) {
+          previewWindow.location.replace(target);
         } else {
-          window.location.assign(previewPage.preview_url);
+          window.location.assign(target);
         }
       } catch (error) {
         previewWindow?.close();
@@ -348,7 +374,10 @@ export function QuizPageEditor({ existing }: { existing?: QuizPage }) {
     const page = await save();
     if (page) {
       try {
-        const published = await campaignQuizPagesService.publish(page.slug, scheduledAt ? new Date(scheduledAt).toISOString() : null);
+        const published = await publishPage.mutateAsync({
+          slug: page.slug,
+          scheduledAt: scheduledAt ? new Date(scheduledAt).toISOString() : null,
+        });
         setSavedPage(published);
         setForm(inputFromPage(published));
         setPublishOpen(false);
@@ -404,15 +433,15 @@ export function QuizPageEditor({ existing }: { existing?: QuizPage }) {
     setAction(retireAction);
     const input: QuizPageRetireInput = { route_mode: routeMode, target_slug: routeMode === 'redirect' ? targetSlug : null };
     try {
-      if (retireAction === 'delete') await campaignQuizPagesService.remove(currentSlug, input);
-      else await campaignQuizPagesService.unpublish(currentSlug, input);
+      if (retireAction === 'delete') await deletePage.mutateAsync({ slug: currentSlug, input });
+      else await unpublishPage.mutateAsync({ slug: currentSlug, input });
       toast.success(retireAction === 'delete' ? 'Quiz page deleted' : 'Quiz page unpublished');
       router.push('/quiz-pages');
     } catch (error) { toast.error(messageFor(error)); }
     setAction(null);
   };
 
-  const addBlock = () => patch('about_blocks', [...form.about_blocks, { id: crypto.randomUUID(), type: 'paragraph', text: '' }]);
+  const addBlock = () => patch('about_blocks', [...form.about_blocks, { id: generateAnswerId(), type: 'paragraph', text: '' }]);
   const updateBlock = (index: number, next: Partial<QuizAboutBlock>) => patch('about_blocks', form.about_blocks.map((block, i) => i === index ? { ...block, ...next } : block));
   const removeBlock = (index: number) => patch('about_blocks', form.about_blocks.filter((_, i) => i !== index));
   const moveRelated = (index: number, direction: -1 | 1) => {
@@ -596,7 +625,7 @@ export function QuizPageEditor({ existing }: { existing?: QuizPage }) {
       <Dialog open={retireOpen} onOpenChange={setRetireOpen}>
         <DialogContent className="rounded-3xl sm:max-w-lg">
           <DialogHeader><DialogTitle className="text-2xl font-black">{retireAction === 'delete' ? 'Delete quiz page' : 'Unpublish quiz page'}</DialogTitle><DialogDescription>Choose what visitors and search engines should receive at the old URL.</DialogDescription></DialogHeader>
-          <div className="space-y-3 py-4"><label className={`block cursor-pointer rounded-2xl border p-4 ${routeMode === 'gone' ? 'border-blue-500 bg-blue-50' : 'border-slate-200'}`}><input type="radio" className="mr-3" checked={routeMode === 'gone'} onChange={() => setRouteMode('gone')} /><span className="font-bold">410 Gone</span><p className="ml-6 mt-1 text-xs text-slate-500">Tell search engines this page was intentionally removed.</p></label><label className={`block cursor-pointer rounded-2xl border p-4 ${routeMode === 'redirect' ? 'border-blue-500 bg-blue-50' : 'border-slate-200'}`}><input type="radio" className="mr-3" checked={routeMode === 'redirect'} onChange={() => setRouteMode('redirect')} /><span className="font-bold">301 redirect</span><p className="ml-6 mt-1 text-xs text-slate-500">Send visitors permanently to another published quiz.</p></label>{routeMode === 'redirect' && <select value={targetSlug} onChange={(e) => setTargetSlug(e.target.value)} className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-bold"><option value="">Choose destination…</option>{allPages.filter((page) => page.status === 'published' && page.slug !== currentSlug).map((page) => <option key={page.slug} value={page.slug}>{page.internal_name}</option>)}</select>}</div>
+          <div className="space-y-3 py-4"><label className={`block cursor-pointer rounded-2xl border p-4 ${routeMode === 'gone' ? 'border-blue-500 bg-blue-50' : 'border-slate-200'}`}><input type="radio" name="route-mode" className="mr-3" checked={routeMode === 'gone'} onChange={() => setRouteMode('gone')} /><span className="font-bold">410 Gone</span><p className="ml-6 mt-1 text-xs text-slate-500">Tell search engines this page was intentionally removed.</p></label><label className={`block cursor-pointer rounded-2xl border p-4 ${routeMode === 'redirect' ? 'border-blue-500 bg-blue-50' : 'border-slate-200'}`}><input type="radio" name="route-mode" className="mr-3" checked={routeMode === 'redirect'} onChange={() => setRouteMode('redirect')} /><span className="font-bold">301 redirect</span><p className="ml-6 mt-1 text-xs text-slate-500">Send visitors permanently to another published quiz.</p></label>{routeMode === 'redirect' && <select value={targetSlug} onChange={(e) => setTargetSlug(e.target.value)} className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-bold"><option value="">Choose destination…</option>{allPages.filter((page) => page.status === 'published' && page.slug !== currentSlug).map((page) => <option key={page.slug} value={page.slug}>{page.internal_name}</option>)}</select>}</div>
           <DialogFooter><Button variant="outline" onClick={() => setRetireOpen(false)}>Cancel</Button><Button variant="destructive" onClick={retire} disabled={action === retireAction}>{action === retireAction && <Loader2 className="animate-spin" />}{retireAction === 'delete' ? 'Delete page' : 'Unpublish page'}</Button></DialogFooter>
         </DialogContent>
       </Dialog>
