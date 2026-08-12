@@ -45,6 +45,57 @@ function fmt(ts: unknown): string {
   return new Date(ts).toLocaleString('en-GB', { timeZone: 'Asia/Tbilisi', dateStyle: 'short', timeStyle: 'short' });
 }
 
+
+/** Player identity cell: nickname with the email underneath — hover shows the
+ *  full address, click copies it (prize fulfilment + support lookups happen
+ *  off this screen). */
+function PlayerCell({
+  nickname,
+  email,
+  isAi,
+}: {
+  nickname: unknown;
+  email: unknown;
+  isAi: unknown;
+}) {
+  const [copied, setCopied] = useState(false);
+  const copyTimer = useRef<number | null>(null);
+  useEffect(() => () => { if (copyTimer.current) window.clearTimeout(copyTimer.current); }, []);
+  const mail = typeof email === 'string' && email.length > 0 ? email : null;
+  return (
+    <div className="min-w-0">
+      <div className="flex items-center gap-1.5">
+        <span className="truncate">{String(nickname ?? '—')}</span>
+        {isAi ? <span className="text-xs text-purple-500">bot</span> : null}
+      </div>
+      {mail && (
+        <button
+          type="button"
+          title={`${mail} — click to copy`}
+          onClick={() => {
+            // Only claim success once the write actually resolved — clipboard
+            // is unavailable in insecure contexts and can be denied.
+            void (async () => {
+              try {
+                if (!navigator.clipboard) return;
+                await navigator.clipboard.writeText(mail);
+                setCopied(true);
+                if (copyTimer.current) window.clearTimeout(copyTimer.current);
+                copyTimer.current = window.setTimeout(() => setCopied(false), 1200);
+              } catch {
+                /* leave the address visible — the admin can select it manually */
+              }
+            })();
+          }}
+          className="max-w-[220px] truncate text-left text-[11px] font-medium text-gray-400 hover:text-blue-600"
+        >
+          {copied ? 'copied!' : mail}
+        </button>
+      )}
+    </div>
+  );
+}
+
 export default function WeekendLeaguePage() {
   const [tournaments, setTournaments] = useState<TournamentRow[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -729,20 +780,25 @@ export default function WeekendLeaguePage() {
                         <th className="px-3 py-2">Entered</th>
                         <th className="px-3 py-2">Checked in</th>
                         <th className="px-3 py-2">State</th>
+                        <th className="px-3 py-2 text-right">Qualifier</th>
                         <th className="px-3 py-2 text-right">Final rank</th>
                       </tr>
                     </thead>
                     <tbody>
                       {(detail['registrants'] as Array<Record<string, unknown>>).map((r, i) => (
-                        <tr key={i} className="border-b border-gray-50">
+                        <tr key={String(r['user_id'] ?? r['email'] ?? r['nickname'] ?? i)} className="border-b border-gray-50">
                           <td className="px-3 py-1.5 font-semibold text-gray-800">
-                            {String(r['nickname'] ?? '—')}
-                            {r['is_ai'] ? <span className="ml-1.5 text-xs text-purple-500">bot</span> : null}
+                            <PlayerCell nickname={r['nickname']} email={r['email']} isAi={r['is_ai']} />
                           </td>
                           <td className="px-3 py-1.5 tabular-nums">{Number(r['qp_at_entry'] ?? 0)}</td>
                           <td className="px-3 py-1.5 text-xs text-gray-500">{fmt(r['entered_at'])}</td>
                           <td className="px-3 py-1.5 text-xs text-gray-500">{r['checked_in_at'] ? fmt(r['checked_in_at']) : '—'}</td>
                           <td className="px-3 py-1.5 text-xs font-semibold text-gray-600">{String(r['state'] ?? '')}</td>
+                          <td className="px-3 py-1.5 text-right text-xs tabular-nums text-gray-600">
+                            {r['qualifier_rank'] != null
+                              ? `#${r['qualifier_rank']} · G${Number(r['qualifier_game_index'] ?? 0) + 1} · ${r['qualifier_score'] ?? 0}`
+                              : '—'}
+                          </td>
                           <td className="px-3 py-1.5 text-right tabular-nums">{r['final_rank'] != null ? `#${r['final_rank']}` : '—'}</td>
                         </tr>
                       ))}
@@ -752,7 +808,7 @@ export default function WeekendLeaguePage() {
               </div>
             )}
 
-            <div className="grid grid-cols-3 gap-6">
+            <div className="mt-6 grid grid-cols-1 items-start gap-6 lg:grid-cols-3">
               <div>
                 <h3 className="mb-2 text-sm font-bold uppercase tracking-wide text-gray-500">Entry states</h3>
                 <table className="w-full text-sm">
@@ -778,6 +834,7 @@ export default function WeekendLeaguePage() {
                 <h3 className="mb-2 text-sm font-bold uppercase tracking-wide text-gray-500">
                   Board — game {detail.current_game_index}
                 </h3>
+                <div className="max-h-80 overflow-y-auto">
                 <table className="w-full text-sm">
                   <tbody>
                     {detail.board.slice(0, 15).map((row) => (
@@ -795,17 +852,21 @@ export default function WeekendLeaguePage() {
                     )}
                   </tbody>
                 </table>
+                </div>
               </div>
 
               <div>
                 <h3 className="mb-2 text-sm font-bold uppercase tracking-wide text-gray-500">Awards</h3>
+                <div className="max-h-80 overflow-y-auto">
                 <table className="w-full text-sm">
                   <tbody>
                     {(detail.awards as Array<Record<string, unknown>>).map((a) => (
                       <tr key={String(a['user_id'])} className="border-b border-gray-100">
-                        <td className="py-1.5 font-bold uppercase text-xs text-amber-700">{String(a['band'])}</td>
-                        <td className="py-1.5 font-semibold text-gray-800">{String(a['nickname'] ?? '')}</td>
-                        <td className="py-1.5 text-right text-xs text-gray-500">{String(a['status'])}</td>
+                        <td className="py-1.5 align-top font-bold uppercase text-xs text-amber-700">{String(a['band'])}</td>
+                        <td className="py-1.5 font-semibold text-gray-800">
+                          <PlayerCell nickname={a['nickname']} email={a['email']} isAi={false} />
+                        </td>
+                        <td className="py-1.5 text-right align-top text-xs text-gray-500">{String(a['status'])}</td>
                       </tr>
                     ))}
                     {detail.awards.length === 0 && (
@@ -813,6 +874,7 @@ export default function WeekendLeaguePage() {
                     )}
                   </tbody>
                 </table>
+                </div>
               </div>
             </div>
           </section>
