@@ -26,9 +26,9 @@ export const STATS_DEMO = true;
 // --- baselines ---------------------------------------------------------------
 // The baseline plus cumulative registrations is calibrated to the August
 // snapshot. Keep these values together so the Stats and Users views agree.
-const TOTAL_USERS_BASE = 7707;
-const DAU_BASE = 3626;
-const WAU_BASE = 5041;
+const TOTAL_USERS_BASE = 7739;
+const DAU_BASE = 3680;
+const WAU_BASE = 5049;
 
 // Launch date — the product went live ~June 9, 2026. Before this, there are
 // effectively no users; after it, a realistic launch ramp climbs toward the

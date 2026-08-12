@@ -33,13 +33,6 @@ function fmt(n: number): string {
   return n.toLocaleString('en-US');
 }
 
-function fmtCompact(n: number): string {
-  return new Intl.NumberFormat('en-US', {
-    notation: 'compact',
-    maximumFractionDigits: 1,
-  }).format(n);
-}
-
 interface StatCardProps {
   label: string;
   value: number;
@@ -59,7 +52,7 @@ function StatCard({ label, value, sub, icon: Icon, accent }: StatCardProps) {
       </CardHeader>
       <CardContent>
         <div className="text-3xl font-bold tracking-tight text-slate-900 tabular-nums">
-          {fmtCompact(value)}
+          {fmt(value)}
         </div>
         <p className="mt-1 text-xs text-slate-500">{sub}</p>
       </CardContent>

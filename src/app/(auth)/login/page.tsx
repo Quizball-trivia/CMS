@@ -85,7 +85,7 @@ export default function LoginPage() {
             Welcome Back
           </CardTitle>
           <CardDescription className="text-muted-foreground/60 font-medium text-sm tracking-tight">
-            CMS-ი, სიმონ!
+            Welcome back!
           </CardDescription>
         </div>
       </CardHeader>
