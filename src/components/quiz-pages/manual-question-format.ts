@@ -38,6 +38,7 @@ function parseBlock(block: string, index: number): { question?: QuizManualQuesti
   const fields: QuestionFields = {};
   const errors: string[] = [];
   let activeField: FieldName | null = null;
+  let reportedStrayLine = false;
 
   for (const rawLine of block.split(/\r?\n/)) {
     const line = rawLine.trim();
@@ -50,7 +51,8 @@ function parseBlock(block: string, index: number): { question?: QuizManualQuesti
     }
     if (activeField) {
       fields[activeField] = `${fields[activeField] ?? ''} ${line}`.trim();
-    } else {
+    } else if (!reportedStrayLine) {
+      reportedStrayLine = true;
       errors.push(`Question ${index}: every line must start with a field name such as “Question:” or “A:”.`);
     }
   }

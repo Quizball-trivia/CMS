@@ -91,15 +91,19 @@ function HubOrderDialog({
 
   const save = async () => {
     const positions = new Map<QuizPageCategory, number>();
-    await updateOrder.mutateAsync({
-      items: ordered.map((page) => {
-        const position = (positions.get(page.category) ?? 0) + 1;
-        positions.set(page.category, position);
-        return { slug: page.slug, hub_order: position, is_pinned: page.is_hub_pinned };
-      }),
-    });
-    toast.success('Football quiz hub order saved');
-    onOpenChange(false);
+    try {
+      await updateOrder.mutateAsync({
+        items: ordered.map((page) => {
+          const position = (positions.get(page.category) ?? 0) + 1;
+          positions.set(page.category, position);
+          return { slug: page.slug, hub_order: position, is_pinned: page.is_hub_pinned };
+        }),
+      });
+      toast.success('Football quiz hub order saved');
+      onOpenChange(false);
+    } catch {
+      toast.error('The hub order could not be saved.');
+    }
   };
 
   return (
