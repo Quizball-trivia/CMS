@@ -15,6 +15,7 @@ import {
   Bot,
   SlidersHorizontal,
   TrendingUp,
+  PanelsTopLeft,
 } from 'lucide-react';
 
 const navItems = [
@@ -32,6 +33,11 @@ const navItems = [
     title: 'Categories',
     href: '/categories',
     icon: Layers,
+  },
+  {
+    title: 'Quiz Pages',
+    href: '/quiz-pages',
+    icon: PanelsTopLeft,
   },
   {
     title: 'Questions',

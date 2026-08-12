@@ -9,3 +9,4 @@ export * from './auction-pipeline';
 export * from './player-clue-cards';
 export * from './agents';
 export * from './bot-tuning';
+export * from './campaign-quiz-page';
