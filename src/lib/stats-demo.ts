@@ -13,8 +13,8 @@
  *
  * August snapshot targets (2026-08-12):
  *   - Total Users : ~11,500
- *   - DAU         : ~2,900
- *   - WAU         : ~4,200
+ *   - DAU         : ~2,945
+ *   - WAU         : ~4,207
  *     (WAU must always be ≥ DAU — everyone active in the last 24h was active in 7d.)
  * User counts are cumulative, but they are intentionally flat between registrations.
  * Activity has weekday/weekend seasonality, multi-day waves, and a slower August curve
@@ -27,8 +27,8 @@ export const STATS_DEMO = true;
 // The baseline plus cumulative registrations is calibrated to the August
 // snapshot. Keep these values together so the Stats and Users views agree.
 const TOTAL_USERS_BASE = 7739;
-const DAU_BASE = 3680;
-const WAU_BASE = 5049;
+const DAU_BASE = 3539;
+const WAU_BASE = 4985;
 
 // Launch date — the product went live ~June 9, 2026. Before this, there are
 // effectively no users; after it, a realistic launch ramp climbs toward the
