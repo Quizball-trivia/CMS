@@ -170,6 +170,7 @@ export interface ListQuestionsParams {
   difficulty?: Difficulty;
   type?: QuestionType;
   mcq_image?: 'with' | 'without';
+  visibility?: 'public' | 'wl_private';
   search?: string;
   page?: number;
   limit?: number;
