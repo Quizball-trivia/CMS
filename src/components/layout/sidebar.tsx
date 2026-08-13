@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
@@ -93,11 +94,19 @@ export function Sidebar() {
 
   return (
     <aside className="sticky top-0 z-[100] flex h-screen w-20 shrink-0 flex-col border-r border-slate-200/80 bg-white lg:w-60">
-      <Link href="/stats" className="flex h-20 items-center justify-center gap-3 border-b border-slate-100 px-4 lg:justify-start lg:px-6">
-        <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-blue-50 text-blue-600">
-          <Trophy className="size-5" />
-        </span>
-        <span className="hidden text-xl font-black tracking-[-0.04em] text-slate-950 lg:block">QuizBall</span>
+      <Link
+        href="/stats"
+        aria-label="QuizBall CMS home"
+        className="flex h-24 items-center justify-center border-b border-slate-100 px-3 lg:justify-start lg:px-6"
+      >
+        <Image
+          src="/assets/brand/quizball-logo.webp"
+          alt="QuizBall"
+          width={181}
+          height={148}
+          priority
+          className="h-14 w-auto object-contain lg:h-16"
+        />
       </Link>
 
       <nav className="scrollbar-hide flex-1 space-y-1 overflow-y-auto px-3 py-5 lg:px-4" aria-label="CMS navigation">
