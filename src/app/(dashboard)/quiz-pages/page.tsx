@@ -3,14 +3,32 @@
 import Link from 'next/link';
 import { useMemo, useState } from 'react';
 import {
-  ArrowDown,
+  closestCenter,
+  DndContext,
+  DragOverlay,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+  type DragStartEvent,
+} from '@dnd-kit/core';
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+import {
   ArrowRight,
-  ArrowUp,
   BarChart3,
   CalendarClock,
   CheckCircle2,
   FileText,
   Globe2,
+  GripVertical,
   ImageIcon,
   ListOrdered,
   Pin,
@@ -52,6 +70,96 @@ const categoryLabel: Record<QuizPageCategory, string> = {
 
 const categoryOrder: QuizPageCategory[] = ['team', 'league', 'quiz_type', 'article'];
 
+function HubCard({
+  page,
+  onTogglePin,
+}: {
+  page: QuizPageListItem;
+  onTogglePin: (slug: string) => void;
+}) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({
+    id: page.slug,
+    data: { category: page.category },
+  });
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={{ transform: CSS.Transform.toString(transform), transition }}
+      className={`flex items-center gap-3 rounded-2xl border bg-white p-3 transition-shadow ${
+        isDragging
+          ? 'border-blue-300 opacity-40 shadow-lg'
+          : 'border-slate-200 hover:border-blue-200 hover:shadow-sm'
+      }`}
+    >
+      <button
+        type="button"
+        {...attributes}
+        {...listeners}
+        className="grid size-9 shrink-0 touch-none cursor-grab place-items-center rounded-xl text-slate-300 transition hover:bg-blue-50 hover:text-blue-600 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-100 active:cursor-grabbing"
+        aria-label={`Drag ${page.internal_name} to reorder`}
+      >
+        <GripVertical className="size-5" />
+      </button>
+      <div className="grid size-10 shrink-0 place-items-center overflow-hidden rounded-xl bg-slate-100">
+        {page.hero_image_url ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={page.hero_image_url} alt="" className="size-full object-cover" />
+        ) : <ImageIcon className="size-4 text-slate-300" />}
+      </div>
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-sm font-extrabold text-slate-900">{page.internal_name}</p>
+        <p className="truncate font-mono text-[11px] text-slate-400">/{page.slug}</p>
+      </div>
+      <button
+        type="button"
+        onClick={() => onTogglePin(page.slug)}
+        className={`grid size-9 place-items-center rounded-xl border transition ${page.is_hub_pinned ? 'border-blue-200 bg-blue-50 text-blue-600' : 'border-slate-200 text-slate-400 hover:text-slate-700'}`}
+        aria-label={page.is_hub_pinned ? `Unpin ${page.internal_name}` : `Pin ${page.internal_name}`}
+      >
+        <Pin className={`size-4 ${page.is_hub_pinned ? 'fill-current' : ''}`} />
+      </button>
+    </div>
+  );
+}
+
+function HubCardOverlay({ page }: { page: QuizPageListItem }) {
+  return (
+    <div className="flex items-center gap-3 rounded-2xl border border-blue-200 bg-white p-3 shadow-2xl shadow-blue-950/15">
+      <div className="grid size-9 shrink-0 place-items-center rounded-xl bg-blue-50 text-blue-600">
+        <GripVertical className="size-5" />
+      </div>
+      <div className="grid size-10 shrink-0 place-items-center overflow-hidden rounded-xl bg-slate-100">
+        {page.hero_image_url ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={page.hero_image_url} alt="" className="size-full object-cover" />
+        ) : <ImageIcon className="size-4 text-slate-300" />}
+      </div>
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-sm font-extrabold text-slate-900">{page.internal_name}</p>
+        <p className="truncate font-mono text-[11px] text-slate-400">/{page.slug}</p>
+      </div>
+      {page.is_hub_pinned && (
+        <button
+          type="button"
+          className="grid size-9 place-items-center rounded-xl border border-blue-200 bg-blue-50 text-blue-600"
+          aria-label={`${page.internal_name} is pinned`}
+          disabled
+        >
+          <Pin className="size-4 fill-current" />
+        </button>
+      )}
+    </div>
+  );
+}
+
 function HubOrderDialog({
   open,
   onOpenChange,
@@ -61,25 +169,34 @@ function HubOrderDialog({
   onOpenChange: (open: boolean) => void;
   pages: QuizPageListItem[];
 }) {
-  const [ordered, setOrdered] = useState<QuizPageListItem[]>(() => (
+  const sortedPages = useMemo(() => (
     [...pages].sort((left, right) => (
       categoryOrder.indexOf(left.category) - categoryOrder.indexOf(right.category)
       || Number(right.is_hub_pinned) - Number(left.is_hub_pinned)
       || left.hub_order - right.hub_order
       || left.internal_name.localeCompare(right.internal_name)
     ))
-  ));
+  ), [pages]);
+  const [ordered, setOrdered] = useState<QuizPageListItem[]>(sortedPages);
+  const [activeSlug, setActiveSlug] = useState<string | null>(null);
   const updateOrder = useUpdateQuizHubOrder();
 
-  const move = (slug: string, direction: -1 | 1) => {
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
+
+  const handleDragStart = ({ active }: DragStartEvent) => setActiveSlug(String(active.id));
+
+  const handleDragEnd = ({ active, over }: DragEndEvent) => {
+    setActiveSlug(null);
+    if (!over || active.id === over.id) return;
+    if (active.data.current?.category !== over.data.current?.category) return;
+
     setOrdered((current) => {
-      const index = current.findIndex((page) => page.slug === slug);
-      const target = index + direction;
-      if (index < 0 || target < 0 || target >= current.length) return current;
-      if (current[index].category !== current[target].category) return current;
-      const next = [...current];
-      [next[index], next[target]] = [next[target], next[index]];
-      return next;
+      const from = current.findIndex((page) => page.slug === active.id);
+      const to = current.findIndex((page) => page.slug === over.id);
+      return from < 0 || to < 0 ? current : arrayMove(current, from, to);
     });
   };
 
@@ -114,52 +231,46 @@ function HubOrderDialog({
             <ListOrdered className="size-5 text-blue-600" /> Arrange the quiz hub
           </DialogTitle>
           <DialogDescription>
-            Pinned cards appear first. Arrow controls set the order inside each category.
+            Drag cards by the handle to set their order. Pinned cards appear first on the public hub.
           </DialogDescription>
         </DialogHeader>
-        <div className="max-h-[62vh] overflow-y-auto px-6 py-4">
-          {categoryOrder.map((category) => {
-            const categoryPages = ordered.filter((page) => page.category === category);
-            if (categoryPages.length === 0) return null;
-            return (
-              <section key={category} className="mb-6 last:mb-0">
-                <h3 className="mb-2 text-xs font-black uppercase tracking-[0.16em] text-slate-400">
-                  {categoryLabel[category]}
-                </h3>
-                <div className="space-y-2">
-                  {categoryPages.map((page, index) => (
-                    <div key={page.slug} className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white p-3">
-                      <div className="grid size-10 shrink-0 place-items-center overflow-hidden rounded-xl bg-slate-100">
-                        {page.hero_image_url ? (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img src={page.hero_image_url} alt="" className="size-full object-cover" />
-                        ) : <ImageIcon className="size-4 text-slate-300" />}
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-extrabold text-slate-900">{page.internal_name}</p>
-                        <p className="truncate font-mono text-[11px] text-slate-400">/{page.slug}</p>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => togglePin(page.slug)}
-                        className={`grid size-9 place-items-center rounded-xl border transition ${page.is_hub_pinned ? 'border-blue-200 bg-blue-50 text-blue-600' : 'border-slate-200 text-slate-400 hover:text-slate-700'}`}
-                        aria-label={page.is_hub_pinned ? `Unpin ${page.internal_name}` : `Pin ${page.internal_name}`}
-                      >
-                        <Pin className={`size-4 ${page.is_hub_pinned ? 'fill-current' : ''}`} />
-                      </button>
-                      <button type="button" onClick={() => move(page.slug, -1)} disabled={index === 0} className="grid size-9 place-items-center rounded-xl border border-slate-200 text-slate-500 transition hover:bg-slate-50 disabled:opacity-25" aria-label={`Move ${page.internal_name} up`}>
-                        <ArrowUp className="size-4" />
-                      </button>
-                      <button type="button" onClick={() => move(page.slug, 1)} disabled={index === categoryPages.length - 1} className="grid size-9 place-items-center rounded-xl border border-slate-200 text-slate-500 transition hover:bg-slate-50 disabled:opacity-25" aria-label={`Move ${page.internal_name} down`}>
-                        <ArrowDown className="size-4" />
-                      </button>
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCenter}
+          onDragStart={handleDragStart}
+          onDragEnd={handleDragEnd}
+          onDragCancel={() => setActiveSlug(null)}
+        >
+          <div className="max-h-[62vh] overflow-y-auto px-6 py-4">
+            {categoryOrder.map((category) => {
+              const categoryPages = ordered.filter((page) => page.category === category);
+              if (categoryPages.length === 0) return null;
+              return (
+                <section key={category} className="mb-6 last:mb-0">
+                  <h3 className="mb-2 text-xs font-black uppercase tracking-[0.16em] text-slate-400">
+                    {categoryLabel[category]}
+                  </h3>
+                  <SortableContext items={categoryPages.map((page) => page.slug)} strategy={verticalListSortingStrategy}>
+                    <div className="space-y-2">
+                      {categoryPages.map((page) => (
+                        <HubCard key={page.slug} page={page} onTogglePin={togglePin} />
+                      ))}
                     </div>
-                  ))}
-                </div>
-              </section>
-            );
-          })}
-        </div>
+                  </SortableContext>
+                </section>
+              );
+            })}
+          </div>
+          <DragOverlay>
+            {activeSlug ? (
+              <div className="w-[min(680px,calc(100vw-4rem))]">
+                {ordered.find((page) => page.slug === activeSlug) ? (
+                  <HubCardOverlay page={ordered.find((page) => page.slug === activeSlug)!} />
+                ) : null}
+              </div>
+            ) : null}
+          </DragOverlay>
+        </DndContext>
         <DialogFooter className="border-t border-slate-100 bg-slate-50 px-6 py-4">
           <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
           <Button onClick={save} disabled={updateOrder.isPending} className="bg-blue-600 text-white hover:bg-blue-700">
@@ -172,6 +283,7 @@ function HubOrderDialog({
 }
 
 export default function QuizPagesPage() {
+  const [view, setView] = useState<'pages' | 'hub' | 'search'>('pages');
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState<QuizPageStatus | 'all'>('all');
   const [arranging, setArranging] = useState(false);
@@ -194,7 +306,21 @@ export default function QuizPagesPage() {
   const scheduled = data.filter((page) => page.scheduled_publish_at && new Date(page.scheduled_publish_at) > new Date()).length;
 
   return (
-    <div className="min-h-screen bg-[#f8f9fb] px-2 py-8 text-slate-950">
+    <div className="min-h-screen bg-[#f8f9fb] px-2 pb-8 text-slate-950">
+      <div className="-mx-8 mb-8 border-b border-slate-200 bg-white px-8">
+        <div className="mx-auto flex max-w-[1420px] gap-1 overflow-x-auto">
+          {([
+            ['pages', 'Pages'],
+            ['hub', 'Hub layout'],
+            ['search', 'Search performance'],
+          ] as const).map(([id, label]) => (
+            <button key={id} type="button" onClick={() => setView(id)} className={`relative h-14 shrink-0 px-4 text-sm font-bold transition ${view === id ? 'text-blue-700' : 'text-slate-400 hover:text-slate-700'}`}>
+              {label}
+              {view === id && <span className="absolute inset-x-4 bottom-0 h-0.5 rounded-full bg-blue-600" />}
+            </button>
+          ))}
+        </div>
+      </div>
       <div className="mx-auto max-w-[1420px] space-y-8">
         <header className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
           <div>
@@ -208,16 +334,13 @@ export default function QuizPagesPage() {
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
-            <Button variant="outline" onClick={() => setArranging(true)} className="h-11 rounded-xl px-5 font-bold">
-              <ListOrdered className="size-4" /> Arrange hub
-            </Button>
             <Button asChild className="h-11 rounded-xl bg-slate-950 px-5 font-bold text-white shadow-lg shadow-slate-200">
               <Link href="/quiz-pages/new"><Plus className="size-4" /> New quiz page</Link>
             </Button>
           </div>
         </header>
 
-        <section className="grid gap-3 sm:grid-cols-3">
+        {view === 'pages' && <section className="grid gap-3 sm:grid-cols-3">
           {[
             { label: 'All pages', value: data.length, icon: FileText },
             { label: 'Published', value: published, icon: CheckCircle2 },
@@ -228,9 +351,9 @@ export default function QuizPagesPage() {
               <div><p className="text-2xl font-black tracking-tight">{value}</p><p className="text-xs font-bold uppercase tracking-wider text-slate-400">{label}</p></div>
             </div>
           ))}
-        </section>
+        </section>}
 
-        {searchConsole.data && !searchConsole.data.configured && (
+        {view === 'search' && searchConsole.data && !searchConsole.data.configured && (
           <section className="flex items-start gap-4 rounded-2xl border border-blue-100 bg-blue-50 p-5 text-blue-950">
             <div className="grid size-10 shrink-0 place-items-center rounded-xl bg-white text-blue-600"><Unplug className="size-5" /></div>
             <div>
@@ -242,7 +365,24 @@ export default function QuizPagesPage() {
           </section>
         )}
 
-        <section className="overflow-hidden rounded-3xl border border-slate-200/80 bg-white shadow-sm">
+        {view === 'hub' && (
+          <section className="rounded-3xl border border-slate-200/80 bg-white p-8 shadow-sm">
+            <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
+              <div><div className="mb-3 flex items-center gap-2 text-xs font-black uppercase tracking-[0.18em] text-blue-600"><ListOrdered className="size-4" /> Football quiz hub</div><h2 className="text-2xl font-black">Card order and featured quizzes</h2><p className="mt-2 max-w-2xl text-sm leading-6 text-slate-500">Pin important quizzes and arrange cards within Teams, Leagues, Quiz types and Articles.</p></div>
+              <Button onClick={() => setArranging(true)} className="h-11 rounded-xl bg-blue-600 px-5 text-white hover:bg-blue-700"><ListOrdered className="size-4" />Arrange hub</Button>
+            </div>
+            <div className="mt-7 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">{categoryOrder.map((category) => <div key={category} className="rounded-2xl bg-slate-50 p-5"><p className="text-xs font-black uppercase tracking-wider text-slate-400">{categoryLabel[category]}</p><p className="mt-2 text-3xl font-black text-slate-900">{publishedPages.filter((page) => page.category === category).length}</p><p className="mt-1 text-xs text-slate-500">published cards</p></div>)}</div>
+          </section>
+        )}
+
+        {view === 'search' && searchConsole.data?.configured && (
+          <section className="overflow-hidden rounded-3xl border border-slate-200/80 bg-white shadow-sm">
+            <div className="border-b border-slate-100 p-6"><div className="flex items-center gap-2 text-xs font-black uppercase tracking-[0.18em] text-blue-600"><BarChart3 className="size-4" /> Google Search Console</div><h2 className="mt-2 text-2xl font-black">Search performance</h2><p className="mt-1 text-sm text-slate-500">Clicks, impressions, CTR and average position for the latest complete 28-day period.</p></div>
+            <div className="divide-y divide-slate-100">{publishedPages.map((page) => { const metric = metricsBySlug.get(page.slug); return <div key={page.slug} className="grid gap-4 p-5 sm:grid-cols-[1fr_repeat(4,minmax(80px,120px))] sm:items-center"><div><p className="font-extrabold">{page.internal_name}</p><p className="mt-1 font-mono text-xs text-slate-400">/{page.slug}</p></div><div><p className="text-lg font-black">{metric?.clicks ?? 0}</p><p className="text-[10px] font-bold uppercase text-slate-400">Clicks</p></div><div><p className="text-lg font-black">{metric?.impressions ?? 0}</p><p className="text-[10px] font-bold uppercase text-slate-400">Impressions</p></div><div><p className="text-lg font-black">{((metric?.ctr ?? 0) * 100).toFixed(1)}%</p><p className="text-[10px] font-bold uppercase text-slate-400">CTR</p></div><div><p className="text-lg font-black">{metric?.position?.toFixed(1) ?? '—'}</p><p className="text-[10px] font-bold uppercase text-slate-400">Position</p></div></div>; })}</div>
+          </section>
+        )}
+
+        {view === 'pages' && <section className="overflow-hidden rounded-3xl border border-slate-200/80 bg-white shadow-sm">
           <div className="flex flex-col gap-4 border-b border-slate-100 p-5 md:flex-row md:items-center md:justify-between">
             <div className="relative w-full md:max-w-sm">
               <Search className="absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
@@ -308,9 +448,16 @@ export default function QuizPagesPage() {
               })}
             </div>
           )}
-        </section>
+        </section>}
       </div>
-      {arranging && <HubOrderDialog open onOpenChange={setArranging} pages={publishedPages} />}
+      {arranging && (
+        <HubOrderDialog
+          key={publishedPages.map((page) => `${page.slug}:${page.hub_order}:${page.is_hub_pinned}`).join('|')}
+          open
+          onOpenChange={setArranging}
+          pages={publishedPages}
+        />
+      )}
     </div>
   );
 }
