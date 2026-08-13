@@ -120,7 +120,7 @@ export function QuestionList() {
   // Reset loaded questions when filters change
   useEffect(() => {
     setQuestionsByPage(new Map());
-  }, [params.category_id, params.status, params.difficulty, params.type, params.mcq_image, params.search]);
+  }, [params.category_id, params.status, params.difficulty, params.type, params.mcq_image, params.visibility, params.search]);
 
   useEffect(() => {
     const controllers = inFlightControllersRef.current;
@@ -659,6 +659,20 @@ export function QuestionList() {
                 ))}
               </SelectContent>
             </Select>
+
+            <Select
+              value={params.visibility || 'all'}
+              onValueChange={(v) => handleFilterChange('visibility', v)}
+            >
+              <SelectTrigger className="w-[150px] h-10 bg-white border-gray-200 rounded-xl text-xs font-bold text-gray-600 hover:bg-gray-50 transition-colors">
+                <SelectValue placeholder="Pool" />
+              </SelectTrigger>
+              <SelectContent className="rounded-xl border-gray-200 bg-white shadow-xl">
+                <SelectItem value="all" className="text-xs font-medium">Pool</SelectItem>
+                <SelectItem value="public" className="text-xs font-medium">Public</SelectItem>
+                <SelectItem value="wl_private" className="text-xs font-medium text-purple-600">Weekend League</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
 
           {selectedIds.length > 0 && (
@@ -866,6 +880,9 @@ export function QuestionList() {
                           {getQuestionTypeDisplayLabel(question)}
                         </span>
                       </div>
+                      {question.visibility === 'wl_private' && (
+                        <span className="rounded-md bg-purple-100 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-purple-700">WL</span>
+                      )}
                       <div className="flex items-center gap-2">
                         <DifficultySignal difficulty={question.difficulty} size="sm" />
                         <span className={cn("text-xs font-bold capitalize", getDifficultyTextColor(question.difficulty))}>
