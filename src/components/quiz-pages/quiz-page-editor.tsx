@@ -11,7 +11,6 @@ import {
   Check,
   CheckCircle2,
   ClipboardPaste,
-  Code2,
   Database,
   Eye,
   FileText,
@@ -74,6 +73,15 @@ import {
   MANUAL_QUESTION_EXAMPLE,
   parseManualQuestions,
 } from './manual-question-format';
+
+type EditorStep = 'content' | 'questions' | 'seo' | 'publishing';
+
+const editorSteps: Array<{ id: EditorStep; label: string; description: string }> = [
+  { id: 'content', label: 'Content', description: 'Page copy, artwork and internal links' },
+  { id: 'questions', label: 'Questions', description: 'Public-only quiz question pool' },
+  { id: 'seo', label: 'SEO', description: 'Search metadata and languages' },
+  { id: 'publishing', label: 'Publishing', description: 'Preview, checks and release' },
+];
 
 function words(value: string): number {
   return value.trim() ? value.trim().split(/\s+/).length : 0;
@@ -243,6 +251,7 @@ export function QuizPageEditor({ existing }: { existing?: QuizPage }) {
   const [historyOpen, setHistoryOpen] = useState(false);
   const [googlebotOpen, setGooglebotOpen] = useState(false);
   const [googlebotResult, setGooglebotResult] = useState<QuizPageGooglebotInspection | null>(null);
+  const [activeStep, setActiveStep] = useState<EditorStep>('content');
   const { data: sets = [], isLoading: setsLoading } = useQuizQuestionSets();
   const { data: allPages = [] } = useQuizPages();
   const { data: revisions = [], refetch: refetchRevisions } = useQuizPageRevisions(currentSlug || undefined);
@@ -494,9 +503,6 @@ export function QuizPageEditor({ existing }: { existing?: QuizPage }) {
             <div className="min-w-0"><div className="flex items-center gap-2"><h1 className="truncate text-xl font-black">{form.internal_name || 'New quiz page'}</h1><Badge variant="outline" className="capitalize">{status}</Badge></div><p className="truncate font-mono text-xs text-slate-400">/en/football-quiz/{form.slug || 'your-slug'}</p></div>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            {currentSlug && <Button variant="outline" className="rounded-xl text-red-600" onClick={() => { setRetireAction(status === 'published' ? 'retire' : 'delete'); setRetireOpen(true); }}><Trash2 />{status === 'published' ? 'Unpublish' : 'Delete'}</Button>}
-            {currentSlug && <Button variant="outline" className="rounded-xl" onClick={() => { setHistoryOpen(true); void refetchRevisions(); }} disabled={saving || action !== null}><History />History</Button>}
-            {currentSlug && <Button variant="outline" className="rounded-xl" onClick={inspectGooglebot} disabled={saving || action !== null}><Code2 />{action === 'googlebot' ? 'Checking…' : 'Google check'}</Button>}
             <Button variant="outline" className="rounded-xl" onClick={preview} disabled={saving || action !== null}><Eye />{action === 'preview' ? 'Opening…' : 'Preview'}</Button>
             <Button variant="outline" className="rounded-xl" onClick={save} disabled={saving || action !== null}>{saving ? <Loader2 className="animate-spin" /> : <Save />}{status === 'published' ? 'Save changes' : 'Save draft'}</Button>
             <Button className="rounded-xl bg-blue-600 px-5 font-bold text-white hover:bg-blue-700" onClick={() => setPublishOpen(true)} disabled={saving || action !== null}><Send />Publish</Button>
@@ -504,8 +510,33 @@ export function QuizPageEditor({ existing }: { existing?: QuizPage }) {
         </div>
       </div>
 
-      <div className="mx-auto grid max-w-[1480px] gap-7 xl:grid-cols-[minmax(0,1fr)_360px]">
+      <nav className="mx-auto mb-7 max-w-[1480px] overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm" aria-label="Quiz page editor steps">
+        <div className="grid sm:grid-cols-2 xl:grid-cols-4">
+          {editorSteps.map((step, index) => {
+            const active = activeStep === step.id;
+            return (
+              <button
+                key={step.id}
+                type="button"
+                onClick={() => setActiveStep(step.id)}
+                aria-current={active ? 'step' : undefined}
+                className={`group relative flex min-h-20 items-center gap-3 border-b border-slate-100 px-5 text-left transition last:border-b-0 sm:[&:nth-child(odd)]:border-r xl:border-b-0 xl:border-r xl:last:border-r-0 ${active ? 'bg-blue-50/70' : 'hover:bg-slate-50'}`}
+              >
+                <span className={`grid size-9 shrink-0 place-items-center rounded-full text-sm font-black transition ${active ? 'bg-blue-600 text-white shadow-md shadow-blue-200' : 'border border-slate-200 bg-white text-slate-400 group-hover:text-slate-700'}`}>{index + 1}</span>
+                <span className="min-w-0">
+                  <span className={`block text-sm font-black ${active ? 'text-blue-700' : 'text-slate-700'}`}>{step.label}</span>
+                  <span className="mt-0.5 hidden truncate text-[11px] font-medium text-slate-400 2xl:block">{step.description}</span>
+                </span>
+                {active && <span className="absolute inset-x-5 bottom-0 h-0.5 rounded-full bg-blue-600" />}
+              </button>
+            );
+          })}
+        </div>
+      </nav>
+
+      <div className={`mx-auto grid max-w-[1480px] gap-7 ${activeStep === 'content' || activeStep === 'seo' ? 'xl:grid-cols-[minmax(0,1fr)_360px]' : ''}`}>
         <main className="space-y-7">
+          {activeStep === 'content' && <>
           <Section icon={Settings2} eyebrow="Page setup" title="Basics" description="The CMS name, public URL and placement on the football quiz hub.">
             <div className="grid gap-5 md:grid-cols-2">
               <Field label="Internal name" hint="Only visible in this CMS."><Input value={form.internal_name} onChange={(e) => updateInternalName(e.target.value)} placeholder="Arsenal Quiz" className="h-11 rounded-xl" /></Field>
@@ -520,7 +551,9 @@ export function QuizPageEditor({ existing }: { existing?: QuizPage }) {
             <Field label="H1"><Input value={form.h1} onChange={(e) => patch('h1', e.target.value)} className="h-11 rounded-xl" placeholder="Arsenal Quiz — Test Your Gunners Knowledge" /></Field>
             <Field label="Lede" hint="Use {count} where the verified question count belongs." counter={`${words(form.lede)} words · target 40–60`}><Textarea value={form.lede} onChange={(e) => patch('lede', e.target.value)} className="min-h-32 rounded-xl leading-6" /></Field>
           </Section>
+          </>}
 
+          {activeStep === 'questions' && (
           <Section icon={SearchCheck} eyebrow="Question bank" title="Quiz questions" description="Choose an existing campaign set or enter questions here. Both routes are permanently excluded from ranked matches.">
             <div className="grid gap-3 sm:grid-cols-2">
               <button type="button" onClick={() => setQuestionSource('existing')} className={`rounded-2xl border p-4 text-left transition ${form.question_source === 'existing' ? 'border-blue-500 bg-blue-50 ring-4 ring-blue-50' : 'border-slate-200 hover:border-slate-300'}`}>
@@ -565,7 +598,9 @@ export function QuizPageEditor({ existing }: { existing?: QuizPage }) {
               </div>
             )}
           </Section>
+          )}
 
+          {activeStep === 'content' && <>
           <Section icon={FileText} eyebrow="Editorial" title="About this quiz" description="Add paragraphs or bullet points in the order they should appear.">
             <Field label="H2 heading"><Input value={form.about_heading} onChange={(e) => patch('about_heading', e.target.value)} className="h-11 rounded-xl" /></Field>
             <div className="space-y-3">
@@ -590,29 +625,54 @@ export function QuizPageEditor({ existing }: { existing?: QuizPage }) {
             {form.related_slugs.length < 6 && <select value="" onChange={(e) => e.target.value && patch('related_slugs', [...form.related_slugs, e.target.value])} className="h-11 w-full rounded-xl border border-dashed border-slate-300 bg-white px-3 text-sm font-bold text-slate-500"><option value="">+ Add a published quiz…</option>{relatedOptions.map((page) => <option key={page.slug} value={page.slug}>{page.internal_name}</option>)}</select>}
             {form.related_slugs.length < 3 && <p className="flex items-center gap-2 text-xs font-semibold text-amber-700"><AlertTriangle className="size-4" />Add at least {3 - form.related_slugs.length} more related quiz{3 - form.related_slugs.length === 1 ? '' : 'zes'} before publishing.</p>}
           </Section>
+          </>}
 
+          {activeStep === 'seo' && (
           <Section icon={Languages} eyebrow="Localisation" title="Language variant" description="English-only pages emit only an English alternate; bilingual pages emit the en/ka pair.">
             <div className="grid grid-cols-2 gap-3"><button type="button" onClick={() => patch('locale_mode', 'en_only')} className={`rounded-2xl border p-4 text-left ${form.locale_mode === 'en_only' ? 'border-blue-500 bg-blue-50 ring-4 ring-blue-50' : 'border-slate-200'}`}><p className="font-black">English only</p><p className="mt-1 text-xs text-slate-500">No Georgian URL is published.</p></button><button type="button" onClick={() => patch('locale_mode', 'en_ka')} className={`rounded-2xl border p-4 text-left ${form.locale_mode === 'en_ka' ? 'border-blue-500 bg-blue-50 ring-4 ring-blue-50' : 'border-slate-200'}`}><p className="font-black">English + Georgian</p><p className="mt-1 text-xs text-slate-500">Emit matching hreflang pages.</p></button></div>
             {form.locale_mode === 'en_ka' && <div className="space-y-5 rounded-2xl bg-slate-50 p-5"><Field label="Georgian title tag" counter={`${renderedKaSeoTitle.length}/60 rendered`}><Input value={form.ka_seo_title ?? ''} onChange={(e) => patch('ka_seo_title', e.target.value)} className={`h-11 rounded-xl bg-white ${renderedKaSeoTitle.length > 60 ? 'border-amber-400' : ''}`} /></Field><Field label="Georgian meta description" counter={`${renderedKaMetaDescription.length}/155 rendered`}><Textarea value={form.ka_meta_description ?? ''} onChange={(e) => patch('ka_meta_description', e.target.value)} className={`rounded-xl bg-white ${renderedKaMetaDescription.length > 155 ? 'border-amber-400' : ''}`} /></Field><Field label="Georgian H1"><Input value={form.ka_h1 ?? ''} onChange={(e) => patch('ka_h1', e.target.value)} className="h-11 rounded-xl bg-white" /></Field><Field label="Georgian lede"><Textarea value={form.ka_lede ?? ''} onChange={(e) => patch('ka_lede', e.target.value)} className="min-h-28 rounded-xl bg-white" /></Field></div>}
           </Section>
+          )}
+
+          {activeStep === 'publishing' && (
+            <Section icon={Send} eyebrow="Release" title="Publishing controls" description="Review the page, verify its server-rendered SEO output and choose when it should go live.">
+              <div className="grid gap-4 md:grid-cols-3">
+                <button type="button" onClick={preview} disabled={saving || action !== null} className="rounded-2xl border border-slate-200 p-5 text-left transition hover:border-blue-300 hover:bg-blue-50/40 disabled:opacity-50"><Eye className="mb-4 size-5 text-blue-600" /><p className="font-black">Preview page</p><p className="mt-1 text-xs leading-5 text-slate-500">Open the exact SSR page before publishing.</p></button>
+                <button type="button" onClick={inspectGooglebot} disabled={!currentSlug || saving || action !== null} className="rounded-2xl border border-slate-200 p-5 text-left transition hover:border-blue-300 hover:bg-blue-50/40 disabled:opacity-50"><SearchCheck className="mb-4 size-5 text-blue-600" /><p className="font-black">Google check</p><p className="mt-1 text-xs leading-5 text-slate-500">Inspect raw HTML, metadata and schema.</p></button>
+                <button type="button" onClick={() => { setHistoryOpen(true); void refetchRevisions(); }} disabled={!currentSlug || saving || action !== null} className="rounded-2xl border border-slate-200 p-5 text-left transition hover:border-blue-300 hover:bg-blue-50/40 disabled:opacity-50"><History className="mb-4 size-5 text-blue-600" /><p className="font-black">Revision history</p><p className="mt-1 text-xs leading-5 text-slate-500">Review or restore earlier saved versions.</p></button>
+              </div>
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
+                <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+                  <div><p className="text-sm font-black text-slate-900">Current status: <span className="capitalize text-blue-600">{status}</span></p><p className="mt-1 text-xs leading-5 text-slate-500">Publishing automatically adds the page to the hub and sitemap.</p></div>
+                  <div className="flex flex-wrap gap-2"><Button variant="outline" onClick={save} disabled={saving || action !== null}>{saving ? <Loader2 className="animate-spin" /> : <Save />}Save draft</Button><Button className="bg-blue-600 text-white hover:bg-blue-700" onClick={() => setPublishOpen(true)} disabled={saving || action !== null}><Send />Publish or schedule</Button></div>
+                </div>
+              </div>
+              {currentSlug && <Button variant="outline" className="text-red-600" onClick={() => { setRetireAction(status === 'published' ? 'retire' : 'delete'); setRetireOpen(true); }}><Trash2 />{status === 'published' ? 'Unpublish page' : 'Delete draft'}</Button>}
+            </Section>
+          )}
         </main>
 
-        <aside className="space-y-7 xl:self-start">
+        {(activeStep === 'content' || activeStep === 'seo') && <aside className="space-y-7 xl:self-start">
+          {activeStep === 'content' && (
           <Section icon={ImagePlus} eyebrow="Media" title="Artwork" description="Optimised to WebP and served from QuizBall storage.">
             <ImageUploader label="Hero/category artwork" value={form.hero_image_url} alt={form.hero_image_alt} kind="hero" slug={form.slug} onUploaded={(url) => patch('hero_image_url', url)} onAltChange={(alt) => patch('hero_image_alt', alt)} />
             <ImageUploader label="OG image override (optional)" value={form.og_image_url} alt={form.og_image_alt ?? ''} kind="og" slug={form.slug} onUploaded={(url) => patch('og_image_url', url)} onAltChange={(alt) => patch('og_image_alt', alt)} />
           </Section>
+          )}
 
+          {activeStep === 'seo' && (
           <Section icon={Globe2} eyebrow="Search appearance" title="SEO metadata" description="Canonical, hreflang and structured data are generated automatically.">
             <Field label="Title tag" counter={`${renderedSeoTitle.length}/60 rendered`}><Input value={form.seo_title} onChange={(e) => patch('seo_title', e.target.value)} className={`h-11 rounded-xl ${renderedSeoTitle.length > 60 ? 'border-amber-400' : ''}`} /></Field>
             <Field label="Meta description" hint="Use {count} for the attached set size." counter={`${renderedMetaDescription.length}/155 rendered`}><Textarea value={form.meta_description} onChange={(e) => patch('meta_description', e.target.value)} className={`min-h-28 rounded-xl ${renderedMetaDescription.length > 155 ? 'border-amber-400' : ''}`} /></Field>
             <Field label="Breadcrumb label"><Input value={form.breadcrumb_label} onChange={(e) => patch('breadcrumb_label', e.target.value)} className="h-11 rounded-xl" /></Field>
             <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4"><p className="mb-2 text-xs font-black uppercase tracking-wider text-slate-400">Generated automatically</p>{['Production canonical', 'en/ka hreflang', 'WebPage + BreadcrumbList', 'Game structured data', 'XML sitemap entry'].map((item) => <p key={item} className="flex items-center gap-2 py-1 text-xs font-semibold text-slate-600"><Check className="size-3.5 text-emerald-600" />{item}</p>)}</div>
           </Section>
+          )}
 
-          {savedPage?.warnings?.length ? <div className="rounded-2xl border border-amber-200 bg-amber-50 p-5"><p className="mb-3 flex items-center gap-2 text-sm font-black text-amber-900"><AlertTriangle className="size-4" />Checks to review</p><ul className="space-y-2 text-xs font-semibold leading-5 text-amber-800">{savedPage.warnings.map((warning) => <li key={warning}>• {warning}</li>)}</ul></div> : null}
-        </aside>
+        </aside>}
       </div>
+
+      {activeStep === 'publishing' && savedPage?.warnings?.length ? <div className="mx-auto mt-7 max-w-[1480px] rounded-2xl border border-amber-200 bg-amber-50 p-5"><p className="mb-3 flex items-center gap-2 text-sm font-black text-amber-900"><AlertTriangle className="size-4" />Checks to review</p><ul className="space-y-2 text-xs font-semibold leading-5 text-amber-800">{savedPage.warnings.map((warning) => <li key={warning}>• {warning}</li>)}</ul></div> : null}
 
       <Dialog open={publishOpen} onOpenChange={setPublishOpen}>
         <DialogContent className="rounded-3xl sm:max-w-lg">
