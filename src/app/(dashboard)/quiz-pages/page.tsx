@@ -191,7 +191,10 @@ function HubOrderDialog({
   const handleDragEnd = ({ active, over }: DragEndEvent) => {
     setActiveSlug(null);
     if (!over || active.id === over.id) return;
-    if (active.data.current?.category !== over.data.current?.category) return;
+    if (active.data.current?.category !== over.data.current?.category) {
+      toast.error('Cards can only be reordered inside their own category.');
+      return;
+    }
 
     setOrdered((current) => {
       const from = current.findIndex((page) => page.slug === active.id);

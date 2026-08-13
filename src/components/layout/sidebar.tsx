@@ -125,6 +125,31 @@ export function Sidebar() {
               </Link>
 
               {isGroupActive && (
+                <div className="space-y-1 pb-2 pt-1 lg:hidden">
+                  {group.children.map((item) => {
+                    const isActive = matches(pathname, item.href);
+                    const ItemIcon = item.icon;
+                    return (
+                      <Link
+                        key={item.href}
+                        href={item.href}
+                        title={item.title}
+                        aria-label={item.title}
+                        className={cn(
+                          'mx-auto grid size-10 place-items-center rounded-xl transition',
+                          isActive
+                            ? 'bg-blue-50 text-blue-700 ring-1 ring-blue-100'
+                            : 'text-slate-400 hover:bg-slate-50 hover:text-slate-700',
+                        )}
+                      >
+                        <ItemIcon className="size-4" />
+                      </Link>
+                    );
+                  })}
+                </div>
+              )}
+
+              {isGroupActive && (
                 <div className="hidden space-y-1 pb-2 pl-4 pt-1 lg:block">
                   {group.children.map((item) => {
                     const isActive = matches(pathname, item.href);
