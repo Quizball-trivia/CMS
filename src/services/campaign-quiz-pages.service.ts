@@ -10,6 +10,7 @@ import type {
   QuizPageHubOrderInput,
   QuizPageRevision,
   QuizPageSearchConsoleMetrics,
+  QuizPageGeneratedImage,
 } from '@/types';
 
 const BASE = '/admin/campaign-quizzes';
@@ -66,5 +67,8 @@ export const campaignQuizPagesService = {
     environment: 'local' | 'staging' | 'prod';
   }> {
     return apiClient.post(`${BASE}/images`, { data_url: dataUrl, kind, slug }, { timeoutMs: 180_000 });
+  },
+  generateImage(prompt: string): Promise<QuizPageGeneratedImage> {
+    return apiClient.post(`${BASE}/images/generate`, { prompt }, { timeoutMs: 180_000 });
   },
 };
