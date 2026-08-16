@@ -145,6 +145,15 @@ export interface QuizPageHubOrderInput {
   }>;
 }
 
+export interface QuizPageGeneratedImage {
+  data_url: string;
+  prompt: string;
+  model: string;
+  quality: 'low' | 'medium' | 'high';
+  width: number;
+  height: number;
+}
+
 export const EMPTY_QUIZ_PAGE: QuizPageInput = {
   internal_name: '',
   slug: '',

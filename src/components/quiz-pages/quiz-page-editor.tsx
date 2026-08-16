@@ -25,6 +25,9 @@ import {
   SearchCheck,
   Send,
   Settings2,
+  Sparkles,
+  RefreshCw,
+  Upload,
   Trash2,
   Undo2,
   X,
@@ -64,6 +67,8 @@ import type {
   QuizPage,
   QuizPageGooglebotInspection,
   QuizPageInput,
+  QuizPageGeneratedImage,
+  QuizPageCategory,
   QuizPageRetireInput,
 } from '@/types';
 import { EMPTY_QUIZ_PAGE } from '@/types';
@@ -89,6 +94,42 @@ function words(value: string): number {
 
 function withVerifiedCount(value: string, count: number): string {
   return value.replaceAll('{count}', String(count));
+}
+
+const categoryNames: Record<QuizPageCategory, string> = {
+  team: 'football club or national team',
+  league: 'football league or tournament',
+  quiz_type: 'football quiz category',
+  article: 'football editorial topic',
+};
+
+function buildArtworkPrompt(input: {
+  internalName: string;
+  h1: string;
+  category: QuizPageCategory;
+  kind: 'hero' | 'og';
+}): string {
+  const subject = input.internalName.trim() || input.h1.trim() || 'football knowledge quiz';
+  const placement = input.kind === 'hero'
+    ? 'category card and quiz-page hero artwork'
+    : 'social sharing preview artwork';
+
+  return [
+    `Create a square 1024x1024 premium ${placement} for “${subject}”, a ${categoryNames[input.category]}.`,
+    '',
+    'Visual direction:',
+    '- Cinematic, richly detailed digital football illustration with the polished, high-energy feel of QuizBall category artwork.',
+    '- A dramatic night stadium atmosphere, powerful floodlights, subtle crowd energy and deep navy shadows.',
+    '- Use a bold colour palette and one central original symbol that clearly evokes the named team, league or quiz topic.',
+    '- For a club or team, use colours and generic visual motifs associated with the subject, but do not reproduce an official crest, badge, wordmark or sponsor mark exactly.',
+    '- Strong, symmetrical composition with a crisp silhouette that remains readable as a small card thumbnail.',
+    '- The main subject should fill roughly 70% of the frame, with important details kept inside a safe central area.',
+    '',
+    'Hard rules:',
+    '- No text, letters, numbers, dates, mottos, captions, UI, watermark or border.',
+    '- No separate card frame and no empty transparent background; the illustration should fill the square canvas edge to edge.',
+    '- One coherent focal subject, not a collage of unrelated objects.',
+  ].join('\n');
 }
 
 function messageFor(error: unknown): string {
@@ -172,16 +213,74 @@ function Section({ icon: Icon, eyebrow, title, description, children }: {
   );
 }
 
-function ImageUploader({ label, value, alt, kind, slug, onUploaded, onAltChange }: {
+function ImageUploader({ label, value, alt, kind, slug, quizContext, onUploaded, onAltChange }: {
   label: string;
   value: string | null;
   alt: string;
   kind: 'hero' | 'og';
   slug: string;
+  quizContext: {
+    internalName: string;
+    h1: string;
+    category: QuizPageCategory;
+  };
   onUploaded: (url: string | null) => void;
   onAltChange: (alt: string) => void;
 }) {
   const [uploading, setUploading] = useState(false);
+  const [generatorOpen, setGeneratorOpen] = useState(false);
+  const [generating, setGenerating] = useState(false);
+  const [generatedImage, setGeneratedImage] = useState<QuizPageGeneratedImage | null>(null);
+  const [prompt, setPrompt] = useState('');
+  const suggestedPrompt = useMemo(
+    () => buildArtworkPrompt({ ...quizContext, kind }),
+    [kind, quizContext],
+  );
+
+  const openGenerator = () => {
+    setPrompt((current) => current.trim() ? current : suggestedPrompt);
+    setGeneratedImage(null);
+    setGeneratorOpen(true);
+  };
+
+  const generate = async () => {
+    if (!quizContext.internalName.trim() && !quizContext.h1.trim()) {
+      return toast.error('Add the quiz name before generating artwork.');
+    }
+    if (prompt.trim().length < 40) {
+      return toast.error('Add a little more detail to the image prompt.');
+    }
+    setGenerating(true);
+    try {
+      setGeneratedImage(await campaignQuizPagesService.generateImage(prompt.trim()));
+      toast.success('Artwork generated. Review it before adding it to the page.');
+    } catch (error) {
+      toast.error(messageFor(error));
+    } finally {
+      setGenerating(false);
+    }
+  };
+
+  const acceptGeneratedImage = async () => {
+    if (!generatedImage) return;
+    if (!slug) return toast.error('Add the slug before using generated artwork.');
+    setUploading(true);
+    try {
+      const result = await campaignQuizPagesService.uploadImage(generatedImage.data_url, kind, slug);
+      onUploaded(result.url);
+      if (!alt.trim()) {
+        const subject = quizContext.internalName.trim() || quizContext.h1.trim();
+        onAltChange(`${subject} ${kind === 'hero' ? 'category artwork' : 'social sharing artwork'}`);
+      }
+      setGeneratorOpen(false);
+      const destination = result.environment === 'prod' ? 'production' : result.environment;
+      toast.success(`Generated artwork added to ${destination} media`);
+    } catch (error) {
+      toast.error(messageFor(error));
+    } finally {
+      setUploading(false);
+    }
+  };
 
   const upload = async (file?: File) => {
     if (!file) return;
@@ -209,14 +308,19 @@ function ImageUploader({ label, value, alt, kind, slug, onUploaded, onAltChange 
 
   return (
     <div className="space-y-3">
-      <Label className="text-sm font-bold text-slate-800">{label}</Label>
+      <div className="flex items-center justify-between gap-3">
+        <Label className="text-sm font-bold text-slate-800">{label}</Label>
+        <Button type="button" variant="outline" size="sm" onClick={openGenerator} className="rounded-xl border-blue-200 text-blue-700 hover:bg-blue-50">
+          <Sparkles className="size-3.5" />Generate
+        </Button>
+      </div>
       <label className="group relative flex min-h-52 cursor-pointer items-center justify-center overflow-hidden rounded-2xl border border-dashed border-slate-300 bg-slate-50 transition hover:border-blue-400 hover:bg-blue-50/30">
         {value ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img src={value} alt="" className="absolute inset-0 size-full object-cover" />
         ) : null}
         <div className={`relative z-10 flex flex-col items-center rounded-2xl px-5 py-4 text-center ${value ? 'bg-slate-950/75 text-white backdrop-blur-sm' : 'text-slate-500'}`}>
-          {uploading ? <Loader2 className="mb-2 size-6 animate-spin" /> : <ImagePlus className="mb-2 size-6" />}
+          {uploading ? <Loader2 className="mb-2 size-6 animate-spin" /> : <Upload className="mb-2 size-6" />}
           <span className="text-sm font-bold">{value ? 'Replace artwork' : 'Upload artwork'}</span>
           <span className="mt-1 text-xs opacity-70">PNG, JPEG or WebP · cropped to square</span>
         </div>
@@ -226,6 +330,55 @@ function ImageUploader({ label, value, alt, kind, slug, onUploaded, onAltChange 
       <Field label="Alt text" hint={kind === 'hero' ? 'Required before publish.' : 'Required when using an OG override.'}>
         <Input value={alt} onChange={(event) => onAltChange(event.target.value)} placeholder="Describe the artwork for screen readers" className="h-11 rounded-xl" />
       </Field>
+
+      <Dialog open={generatorOpen} onOpenChange={setGeneratorOpen}>
+        <DialogContent className="max-h-[92vh] overflow-hidden rounded-3xl p-0 sm:max-w-5xl">
+          <DialogHeader className="border-b border-slate-100 px-6 py-5">
+            <DialogTitle className="flex items-center gap-2 text-2xl font-black"><Sparkles className="size-5 text-blue-600" />Generate {label.toLowerCase()}</DialogTitle>
+            <DialogDescription>Edit the exact prompt QuizBall will send. Generate as many drafts as you need; only the image you accept is uploaded.</DialogDescription>
+          </DialogHeader>
+          <div className="grid min-h-0 lg:grid-cols-[minmax(0,1.02fr)_minmax(0,0.98fr)]">
+            <div className="flex min-h-[440px] items-center justify-center bg-[#0b1220] p-6">
+              <div className="relative aspect-square w-full max-w-[500px] overflow-hidden rounded-3xl border border-white/10 bg-[radial-gradient(circle_at_50%_35%,#173679_0%,#0b1220_66%)] shadow-2xl">
+                {generatedImage ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={generatedImage.data_url} alt="Generated preview" className="size-full object-cover" />
+                ) : (
+                  <div className="flex size-full flex-col items-center justify-center px-10 text-center text-white/55">
+                    {generating ? <Loader2 className="mb-5 size-10 animate-spin text-blue-400" /> : <Sparkles className="mb-5 size-10 text-blue-400" />}
+                    <p className="text-lg font-black text-white">{generating ? 'Creating your artwork…' : 'Your draft will appear here'}</p>
+                    <p className="mt-2 max-w-xs text-sm leading-6">{generating ? 'Detailed images can take up to two minutes.' : 'Nothing is uploaded until you choose to use it.'}</p>
+                  </div>
+                )}
+                {generatedImage && <div className="absolute bottom-3 left-3 rounded-full bg-slate-950/75 px-3 py-1.5 text-[10px] font-bold text-white/80 backdrop-blur">{generatedImage.model} · {generatedImage.quality}</div>}
+              </div>
+            </div>
+            <div className="flex min-h-0 flex-col bg-white p-6">
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <div><p className="text-xs font-black uppercase tracking-[0.16em] text-blue-600">Editable prompt</p><p className="mt-1 text-xs text-slate-500">Change colours, subject or composition before regenerating.</p></div>
+                <button type="button" onClick={() => { setPrompt(suggestedPrompt); setGeneratedImage(null); }} disabled={generating || uploading} className="shrink-0 text-xs font-bold text-blue-600 hover:underline disabled:opacity-50">Reset prompt</button>
+              </div>
+              <Textarea
+                value={prompt}
+                onChange={(event) => { setPrompt(event.target.value); setGeneratedImage(null); }}
+                disabled={generating || uploading}
+                maxLength={4000}
+                className="min-h-[320px] flex-1 resize-none rounded-2xl border-slate-200 bg-slate-50 font-mono text-xs leading-5"
+              />
+              <p className="mt-2 text-right text-[11px] font-semibold text-slate-400">{prompt.length}/4000</p>
+              <div className="mt-5 flex flex-wrap justify-end gap-2 border-t border-slate-100 pt-5">
+                <Button type="button" variant="outline" onClick={() => setGeneratorOpen(false)} disabled={generating || uploading}>Cancel</Button>
+                <Button type="button" variant="outline" onClick={generate} disabled={generating || uploading || prompt.trim().length < 40} className="border-blue-200 text-blue-700">
+                  {generating ? <Loader2 className="animate-spin" /> : generatedImage ? <RefreshCw /> : <Sparkles />}
+                  {generatedImage ? 'Regenerate' : 'Generate image'}
+                </Button>
+                {generatedImage && <Button type="button" onClick={acceptGeneratedImage} disabled={generating || uploading || !slug} className="bg-blue-600 text-white hover:bg-blue-700">{uploading ? <Loader2 className="animate-spin" /> : <Check />}Use this image</Button>}
+              </div>
+              {generatedImage && !slug && <p className="mt-2 text-right text-xs font-semibold text-amber-600">Add a slug before using this image.</p>}
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -655,8 +808,8 @@ export function QuizPageEditor({ existing }: { existing?: QuizPage }) {
         {(activeStep === 'content' || activeStep === 'seo') && <aside className="space-y-7 xl:self-start">
           {activeStep === 'content' && (
           <Section icon={ImagePlus} eyebrow="Media" title="Artwork" description="Optimised to WebP and served from QuizBall storage.">
-            <ImageUploader label="Hero/category artwork" value={form.hero_image_url} alt={form.hero_image_alt} kind="hero" slug={form.slug} onUploaded={(url) => patch('hero_image_url', url)} onAltChange={(alt) => patch('hero_image_alt', alt)} />
-            <ImageUploader label="OG image override (optional)" value={form.og_image_url} alt={form.og_image_alt ?? ''} kind="og" slug={form.slug} onUploaded={(url) => patch('og_image_url', url)} onAltChange={(alt) => patch('og_image_alt', alt)} />
+            <ImageUploader label="Hero/category artwork" value={form.hero_image_url} alt={form.hero_image_alt} kind="hero" slug={form.slug} quizContext={{ internalName: form.internal_name, h1: form.h1, category: form.category }} onUploaded={(url) => patch('hero_image_url', url)} onAltChange={(alt) => patch('hero_image_alt', alt)} />
+            <ImageUploader label="OG image override (optional)" value={form.og_image_url} alt={form.og_image_alt ?? ''} kind="og" slug={form.slug} quizContext={{ internalName: form.internal_name, h1: form.h1, category: form.category }} onUploaded={(url) => patch('og_image_url', url)} onAltChange={(alt) => patch('og_image_alt', alt)} />
           </Section>
           )}
 

@@ -158,12 +158,13 @@ async function parseResponse<T>(response: Response): Promise<T> {
  */
 async function executeWithRetry<T>(
   requestFn: () => Promise<Response>,
-  endpoint: string
+  endpoint: string,
+  retryOnUnauthorized = true,
 ): Promise<T> {
   const response = await requestFn();
 
   // If 401 and not an auth endpoint, try to refresh and retry
-  if (response.status === 401 && !endpoint.startsWith('/auth/')) {
+  if (response.status === 401 && retryOnUnauthorized && !endpoint.startsWith('/auth/')) {
     logger.debug('api', 'Got 401, attempting token refresh', { endpoint });
 
     const refreshed = await refreshTokenIfNeeded();
@@ -241,7 +242,7 @@ export const apiClient = {
   async post<T>(
     endpoint: string,
     data?: unknown,
-    options?: { signal?: AbortSignal; timeoutMs?: number }
+    options?: { signal?: AbortSignal; timeoutMs?: number; retryOnUnauthorized?: boolean }
   ): Promise<T> {
     const { signal: timeoutSignal, cleanup } = createTimeoutController(
       options?.timeoutMs ?? DEFAULT_TIMEOUT_MS,
@@ -256,7 +257,8 @@ export const apiClient = {
           body: data ? JSON.stringify(data) : undefined,
           signal: timeoutSignal,
         }),
-        endpoint
+        endpoint,
+        options?.retryOnUnauthorized ?? true,
       );
     } finally {
       cleanup();
