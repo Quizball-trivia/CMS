@@ -331,7 +331,7 @@ function ImageUploader({ label, value, alt, kind, slug, quizContext, onUploaded,
         <Input value={alt} onChange={(event) => onAltChange(event.target.value)} placeholder="Describe the artwork for screen readers" className="h-11 rounded-xl" />
       </Field>
 
-      <Dialog open={generatorOpen} onOpenChange={(open) => !generating && !uploading && setGeneratorOpen(open)}>
+      <Dialog open={generatorOpen} onOpenChange={setGeneratorOpen}>
         <DialogContent className="max-h-[92vh] overflow-hidden rounded-3xl p-0 sm:max-w-5xl">
           <DialogHeader className="border-b border-slate-100 px-6 py-5">
             <DialogTitle className="flex items-center gap-2 text-2xl font-black"><Sparkles className="size-5 text-blue-600" />Generate {label.toLowerCase()}</DialogTitle>
