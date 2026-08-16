@@ -69,6 +69,10 @@ export const campaignQuizPagesService = {
     return apiClient.post(`${BASE}/images`, { data_url: dataUrl, kind, slug }, { timeoutMs: 180_000 });
   },
   generateImage(prompt: string): Promise<QuizPageGeneratedImage> {
-    return apiClient.post(`${BASE}/images/generate`, { prompt }, { timeoutMs: 180_000 });
+    return apiClient.post(
+      `${BASE}/images/generate`,
+      { prompt },
+      { timeoutMs: 180_000, retryOnUnauthorized: false },
+    );
   },
 };
