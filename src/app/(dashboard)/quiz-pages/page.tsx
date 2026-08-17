@@ -430,7 +430,7 @@ export default function QuizPagesPage() {
                         {page.is_hub_pinned && <Pin className="size-3.5 fill-blue-600 text-blue-600" aria-label="Pinned on hub" />}
                       </div>
                       <p className="mt-1 truncate font-mono text-xs text-slate-400">/en/football-quiz/{page.slug}</p>
-                      <p className="mt-2 text-xs font-semibold text-slate-500">{page.question_count} verified questions · Updated {new Date(page.updated_at).toLocaleDateString('en-GB')}</p>
+                      <p className="mt-2 text-xs font-semibold text-slate-500">{page.question_count} verified questions · Updated {new Date(page.updated_at).toLocaleDateString('en-GB', { timeZone: 'UTC' })}</p>
                     </div>
                     {searchConsole.data?.configured && page.status === 'published' && (
                       <div className="min-w-64 rounded-2xl bg-slate-50 px-4 py-3">

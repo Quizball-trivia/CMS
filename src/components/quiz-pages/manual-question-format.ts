@@ -45,8 +45,14 @@ function parseBlock(block: string, index: number): { question?: QuizManualQuesti
     if (!line) continue;
     const match = line.match(FIELD_PATTERN);
     if (match) {
-      activeField = match[1].toLowerCase() as FieldName;
-      fields[activeField] = match[2].trim();
+      const nextField = match[1].toLowerCase() as FieldName;
+      if (fields[nextField] !== undefined) {
+        errors.push(`Question ${index}: ${match[1]} can only be provided once.`);
+        activeField = null;
+        continue;
+      }
+      activeField = nextField;
+      fields[nextField] = match[2].trim();
       continue;
     }
     if (activeField) {
@@ -119,18 +125,20 @@ export function parseManualQuestions(value: string): ManualQuestionParseResult {
 }
 
 export function formatManualQuestions(questions: QuizManualQuestion[]): string {
+  const oneLine = (value: string) => value.replace(/\s*\r?\n\s*/g, ' ').trim();
+
   return questions
     .map((question) => {
       const lines = [
-        `Question: ${question.prompt}`,
-        `A: ${question.options[0]}`,
-        `B: ${question.options[1]}`,
-        `C: ${question.options[2]}`,
-        `D: ${question.options[3]}`,
+        `Question: ${oneLine(question.prompt)}`,
+        `A: ${oneLine(question.options[0])}`,
+        `B: ${oneLine(question.options[1])}`,
+        `C: ${oneLine(question.options[2])}`,
+        `D: ${oneLine(question.options[3])}`,
         `Answer: ${question.correct_option.toUpperCase()}`,
         `Difficulty: ${question.difficulty}`,
       ];
-      if (question.explanation) lines.push(`Explanation: ${question.explanation}`);
+      if (question.explanation) lines.push(`Explanation: ${oneLine(question.explanation)}`);
       return lines.join('\n');
     })
     .join('\n---\n');
