@@ -135,7 +135,7 @@ export default function RetentionPage() {
           </div>
           <h1 className="mt-3 text-3xl font-black tracking-tight text-slate-950">Dormant player comeback</h1>
           <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-500">
-            A controlled email journey for Georgian players who stop playing. Players leave automatically after their next real match.
+            A controlled worldwide email journey for players who stop playing. Georgia receives Georgian copy; every other or missing country receives English.
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -247,7 +247,8 @@ export default function RetentionPage() {
             <CardContent className="p-5">
               <div className="flex items-center gap-2"><ShieldCheck className="size-4 text-blue-600" /><h2 className="font-black text-slate-950">Safety gates</h2></div>
               <ul className="mt-3 space-y-2 text-xs leading-5 text-slate-600">
-                <li>• Georgia quiet hours: {data.config.quiet_hours_start}:00–{data.config.quiet_hours_end}:00</li>
+                <li>• Language: GE → Georgian; all other or missing countries → English</li>
+                <li>• Send window: {data.config.quiet_hours_end}:00–{data.config.quiet_hours_start}:00 Georgia time</li>
                 <li>• Daily send cap: {number(data.config.daily_send_cap)}</li>
                 <li>• Daily enrollment cap: {number(data.config.daily_assignment_cap)}</li>
                 <li>• Control group receives no message</li>
