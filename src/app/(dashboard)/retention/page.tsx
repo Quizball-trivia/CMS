@@ -2,6 +2,7 @@
 
 import {
   ArrowRight,
+  AlertTriangle,
   CheckCircle2,
   Clock3,
   FlaskConical,
@@ -82,7 +83,7 @@ export default function RetentionPage() {
     );
   }
 
-  if (dashboard.isError || !dashboard.data) {
+  if (!dashboard.data) {
     return (
       <div className="mx-auto max-w-2xl py-20 text-center">
         <div className="mx-auto grid size-12 place-items-center rounded-2xl bg-red-50 text-red-600">
@@ -150,6 +151,13 @@ export default function RetentionPage() {
           ) : null}
         </div>
       </header>
+
+      {dashboard.isRefetchError ? (
+        <div className="flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs font-semibold text-amber-800">
+          <AlertTriangle className="size-4 shrink-0" />
+          Live refresh failed. Showing the last successful retention snapshot.
+        </div>
+      ) : null}
 
       <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <Metric label="Dormant players" value={number(dormantPlayers)} note="Players inactive for at least 3 days" icon={UsersRound} />
