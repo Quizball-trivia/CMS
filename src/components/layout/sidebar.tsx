@@ -14,6 +14,7 @@ import {
   FolderKanban,
   Gamepad2,
   Gavel,
+  Mail,
   Megaphone,
   PanelsTopLeft,
   Settings2,
@@ -39,10 +40,11 @@ const navGroups: NavGroup[] = [
     title: 'Analytics',
     href: '/stats',
     icon: Activity,
-    routes: ['/stats', '/activity'],
+    routes: ['/stats', '/activity', '/retention'],
     children: [
       { title: 'Dashboard', href: '/stats', icon: CircleGauge },
       { title: 'Activity', href: '/activity', icon: Activity },
+      { title: 'Retention', href: '/retention', icon: Mail },
     ],
   },
   {
