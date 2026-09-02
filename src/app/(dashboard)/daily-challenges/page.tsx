@@ -13,6 +13,7 @@ import {
   Timer,
   TrendingUp,
   Users,
+  WalletCards,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useDailyChallenges, useUpdateDailyChallenge } from '@/hooks';
@@ -41,7 +42,16 @@ const ICONS: Record<DailyChallengeIconToken, typeof DollarSign> = {
   route: Route,
   trendingUp: TrendingUp,
   image: ImageIcon,
+  cards: WalletCards,
 };
+
+// A challenge can ship on the backend before the CMS knows its icon; never crash the page over it.
+const FALLBACK_ICON = Lightbulb;
+
+// FIFA Cards is served from the fifa_cards pool, so question categories do not apply to it.
+function usesQuestionPool(type: DailyChallengeType): boolean {
+  return type !== 'fifaCards';
+}
 
 function cloneConfig(config: AdminDailyChallengeConfig): UpdateDailyChallengeConfigRequest {
   return {
@@ -74,6 +84,8 @@ function getChallengeQuestionLabel(type: DailyChallengeType): string {
       return 'High Low';
     case 'footballLogic':
       return 'Football Logic';
+    case 'fifaCards':
+      return 'FIFA Cards';
   }
 }
 
@@ -199,7 +211,7 @@ function ChallengeEditor({
   onDraftChange: (updater: (current: UpdateDailyChallengeConfigRequest) => UpdateDailyChallengeConfigRequest) => void;
   onSave: () => void;
 }) {
-  const Icon = ICONS[config.iconToken];
+  const Icon = ICONS[config.iconToken] ?? FALLBACK_ICON;
 
   return (
     <Card className="border-slate-200 shadow-sm">
@@ -267,6 +279,7 @@ function ChallengeEditor({
 
         <SettingsFields draft={draft} onChange={onDraftChange} />
 
+        {usesQuestionPool(config.challengeType) && (
         <div className="space-y-2">
           <div className="flex items-end justify-between gap-3">
             <div>
@@ -312,6 +325,7 @@ function ChallengeEditor({
               }))}
           />
         </div>
+        )}
       </CardContent>
     </Card>
   );
@@ -400,6 +414,15 @@ function SettingsFields({
           }))} />
         </div>
       );
+    case 'fifaCards':
+      return (
+        <div className="grid gap-4 md:grid-cols-2">
+          <NumberField label="Cards / Day" min={1} max={10} value={draft.settings.cardCount} onChange={(value) => onChange((current) => ({
+            ...current,
+            settings: { ...current.settings, cardCount: value },
+          }))} />
+        </div>
+      );
   }
 }
 
@@ -407,18 +430,25 @@ function NumberField({
   label,
   value,
   onChange,
+  min,
+  max,
 }: {
   label: string;
   value: number;
   onChange: (value: number) => void;
+  min?: number;
+  max?: number;
 }) {
+  const clamp = (next: number) => Math.min(max ?? Infinity, Math.max(min ?? -Infinity, next));
   return (
     <div className="space-y-2">
       <Label className="text-[10px] font-black uppercase tracking-widest text-slate-400">{label}</Label>
       <Input
         type="number"
         value={value}
-        onChange={(event) => onChange(updateNumber(event.target.value, value))}
+        min={min}
+        max={max}
+        onChange={(event) => onChange(clamp(updateNumber(event.target.value, value)))}
         className="h-10"
       />
     </div>
@@ -503,7 +533,7 @@ export default function DailyChallengesPage() {
           <CardContent className="p-2">
             <div className="space-y-1">
               {orderedChallenges.map((config) => {
-                const Icon = ICONS[config.iconToken];
+                const Icon = ICONS[config.iconToken] ?? FALLBACK_ICON;
                 const draft = drafts[config.challengeType];
                 const isSelected = selectedConfig?.challengeType === config.challengeType;
                 return (
@@ -529,8 +559,12 @@ export default function DailyChallengesPage() {
                         </div>
                         <div className={cn('mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px]', isSelected ? 'text-slate-300' : 'text-slate-500')}>
                           <span>{getChallengeQuestionLabel(config.challengeType)}</span>
-                          <span>·</span>
-                          <span>{draft?.settings.categoryIds.length ?? 0} cats</span>
+                          {usesQuestionPool(config.challengeType) && (
+                            <>
+                              <span>·</span>
+                              <span>{draft?.settings.categoryIds.length ?? 0} cats</span>
+                            </>
+                          )}
                           <span>·</span>
                           <span>{draft?.coinReward ?? config.coinReward} coins</span>
                         </div>

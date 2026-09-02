@@ -30,7 +30,7 @@ export interface paths {
                         /** Format: uri */
                         redirect_to?: string;
                         /** @enum {string} */
-                        locale?: "en" | "ka";
+                        locale?: "en" | "ka" | "es";
                     };
                 };
             };
@@ -761,16 +761,11 @@ export interface paths {
                             /** Format: uri */
                             avatar_url: string | null;
                             avatar_customization: {
-                                /** @enum {string} */
-                                skin?: "skin_male_white" | "skin_male_white_alt" | "skin_male_dark" | "skin_male_dark_alt";
-                                /** @enum {string} */
-                                jersey?: "jersey_green" | "jersey_blue" | "jersey_yellow" | "jersey_red" | "jersey_violet" | "jersey_pink" | "jersey_real" | "jersey_liverpool" | "jersey_barcelona" | "jersey_milan" | "jersey_bayern" | "jersey_brazil_retro" | "jersey_argentina_retro" | "jersey_france_retro" | "jersey_germany_retro" | "jersey_netherlands_retro" | "jersey_georgia_retro" | "jersey_psg_retro";
-                                /** @enum {string} */
-                                hair?: "hair_boy_basic" | "hair_girl_basic" | "hair_hamsik" | "hair_ramos" | "hair_ronaldo_brazil" | "hair_ronaldo_goat";
-                                /** @enum {string} */
-                                glasses?: "glasses_wayfarer" | "glasses_round" | "glasses_aviator";
-                                /** @enum {string} */
-                                facialHair?: "stache" | "beard";
+                                skin?: string;
+                                jersey?: string;
+                                hair?: string;
+                                glasses?: string;
+                                facialHair?: string;
                             } | null;
                             favorite_club: string | null;
                             preferred_language: string | null;
@@ -1166,16 +1161,11 @@ export interface paths {
                                     /** Format: uri */
                                     avatarUrl: string | null;
                                     avatarCustomization: {
-                                        /** @enum {string} */
-                                        skin?: "skin_male_white" | "skin_male_white_alt" | "skin_male_dark" | "skin_male_dark_alt";
-                                        /** @enum {string} */
-                                        jersey?: "jersey_green" | "jersey_blue" | "jersey_yellow" | "jersey_red" | "jersey_violet" | "jersey_pink" | "jersey_real" | "jersey_liverpool" | "jersey_barcelona" | "jersey_milan" | "jersey_bayern" | "jersey_brazil_retro" | "jersey_argentina_retro" | "jersey_france_retro" | "jersey_germany_retro" | "jersey_netherlands_retro" | "jersey_georgia_retro" | "jersey_psg_retro";
-                                        /** @enum {string} */
-                                        hair?: "hair_boy_basic" | "hair_girl_basic" | "hair_hamsik" | "hair_ramos" | "hair_ronaldo_brazil" | "hair_ronaldo_goat";
-                                        /** @enum {string} */
-                                        glasses?: "glasses_wayfarer" | "glasses_round" | "glasses_aviator";
-                                        /** @enum {string} */
-                                        facialHair?: "stache" | "beard";
+                                        skin?: string;
+                                        jersey?: string;
+                                        hair?: string;
+                                        glasses?: string;
+                                        facialHair?: string;
                                     } | null;
                                     isAi: boolean;
                                     placement: number | null;
@@ -1187,16 +1177,11 @@ export interface paths {
                                     /** Format: uri */
                                     avatarUrl: string | null;
                                     avatarCustomization: {
-                                        /** @enum {string} */
-                                        skin?: "skin_male_white" | "skin_male_white_alt" | "skin_male_dark" | "skin_male_dark_alt";
-                                        /** @enum {string} */
-                                        jersey?: "jersey_green" | "jersey_blue" | "jersey_yellow" | "jersey_red" | "jersey_violet" | "jersey_pink" | "jersey_real" | "jersey_liverpool" | "jersey_barcelona" | "jersey_milan" | "jersey_bayern" | "jersey_brazil_retro" | "jersey_argentina_retro" | "jersey_france_retro" | "jersey_germany_retro" | "jersey_netherlands_retro" | "jersey_georgia_retro" | "jersey_psg_retro";
-                                        /** @enum {string} */
-                                        hair?: "hair_boy_basic" | "hair_girl_basic" | "hair_hamsik" | "hair_ramos" | "hair_ronaldo_brazil" | "hair_ronaldo_goat";
-                                        /** @enum {string} */
-                                        glasses?: "glasses_wayfarer" | "glasses_round" | "glasses_aviator";
-                                        /** @enum {string} */
-                                        facialHair?: "stache" | "beard";
+                                        skin?: string;
+                                        jersey?: string;
+                                        hair?: string;
+                                        glasses?: string;
+                                        facialHair?: string;
                                     } | null;
                                     isAi: boolean;
                                     /** @enum {string|null} */
@@ -1343,7 +1328,7 @@ export interface paths {
                                 inviteCode: string;
                                 displayName: string;
                                 /** @enum {string} */
-                                gameMode: "friendly_possession" | "friendly_party_quiz" | "ranked_sim";
+                                gameMode: "friendly_possession" | "friendly_party_quiz" | "auction" | "ranked_sim";
                                 isPublic: boolean;
                                 /** Format: date-time */
                                 createdAt: string;
@@ -1356,16 +1341,11 @@ export interface paths {
                                     /** Format: uri */
                                     avatarUrl: string | null;
                                     avatarCustomization: {
-                                        /** @enum {string} */
-                                        skin?: "skin_male_white" | "skin_male_white_alt" | "skin_male_dark" | "skin_male_dark_alt";
-                                        /** @enum {string} */
-                                        jersey?: "jersey_green" | "jersey_blue" | "jersey_yellow" | "jersey_red" | "jersey_violet" | "jersey_pink" | "jersey_real" | "jersey_liverpool" | "jersey_barcelona" | "jersey_milan" | "jersey_bayern" | "jersey_brazil_retro" | "jersey_argentina_retro" | "jersey_france_retro" | "jersey_germany_retro" | "jersey_netherlands_retro" | "jersey_georgia_retro" | "jersey_psg_retro";
-                                        /** @enum {string} */
-                                        hair?: "hair_boy_basic" | "hair_girl_basic" | "hair_hamsik" | "hair_ramos" | "hair_ronaldo_brazil" | "hair_ronaldo_goat";
-                                        /** @enum {string} */
-                                        glasses?: "glasses_wayfarer" | "glasses_round" | "glasses_aviator";
-                                        /** @enum {string} */
-                                        facialHair?: "stache" | "beard";
+                                        skin?: string;
+                                        jersey?: string;
+                                        hair?: string;
+                                        glasses?: string;
+                                        facialHair?: string;
                                     } | null;
                                 };
                             }[];
@@ -2245,7 +2225,7 @@ export interface paths {
                 query?: {
                     userId?: string;
                     purchaseId?: string;
-                    eventType?: "checkout_session_created" | "checkout_session_failed" | "webhook_received" | "webhook_signature_invalid" | "fulfillment_succeeded" | "fulfillment_failed" | "manual_adjustment_succeeded" | "manual_adjustment_failed" | "objective_reward_succeeded" | "admin_progression_adjustment" | "leaderboard_reset" | "admin_ticket_window_reset" | "admin_account_ban" | "admin_account_unban";
+                    eventType?: "checkout_session_created" | "checkout_session_failed" | "webhook_received" | "webhook_signature_invalid" | "fulfillment_succeeded" | "fulfillment_failed" | "manual_adjustment_succeeded" | "manual_adjustment_failed" | "objective_reward_succeeded" | "admin_progression_adjustment" | "leaderboard_reset" | "admin_ticket_window_reset" | "admin_account_ban" | "admin_account_unban" | "guess_the_goal_reward";
                     outcome?: "success" | "failure";
                     from?: string;
                     to?: string;
@@ -2269,7 +2249,7 @@ export interface paths {
                                 /** Format: uuid */
                                 id: string;
                                 /** @enum {string} */
-                                eventType: "checkout_session_created" | "checkout_session_failed" | "webhook_received" | "webhook_signature_invalid" | "fulfillment_succeeded" | "fulfillment_failed" | "manual_adjustment_succeeded" | "manual_adjustment_failed" | "objective_reward_succeeded" | "admin_progression_adjustment" | "leaderboard_reset" | "admin_ticket_window_reset" | "admin_account_ban" | "admin_account_unban";
+                                eventType: "checkout_session_created" | "checkout_session_failed" | "webhook_received" | "webhook_signature_invalid" | "fulfillment_succeeded" | "fulfillment_failed" | "manual_adjustment_succeeded" | "manual_adjustment_failed" | "objective_reward_succeeded" | "admin_progression_adjustment" | "leaderboard_reset" | "admin_ticket_window_reset" | "admin_account_ban" | "admin_account_unban" | "guess_the_goal_reward";
                                 /** @enum {string} */
                                 outcome: "success" | "failure";
                                 /** Format: uuid */
@@ -2460,16 +2440,11 @@ export interface paths {
                         /** Format: uri */
                         avatar_url?: string | null;
                         avatar_customization?: {
-                            /** @enum {string} */
-                            skin?: "skin_male_white" | "skin_male_white_alt" | "skin_male_dark" | "skin_male_dark_alt";
-                            /** @enum {string} */
-                            jersey?: "jersey_green" | "jersey_blue" | "jersey_yellow" | "jersey_red" | "jersey_violet" | "jersey_pink" | "jersey_real" | "jersey_liverpool" | "jersey_barcelona" | "jersey_milan" | "jersey_bayern" | "jersey_brazil_retro" | "jersey_argentina_retro" | "jersey_france_retro" | "jersey_germany_retro" | "jersey_netherlands_retro" | "jersey_georgia_retro" | "jersey_psg_retro";
-                            /** @enum {string} */
-                            hair?: "hair_boy_basic" | "hair_girl_basic" | "hair_hamsik" | "hair_ramos" | "hair_ronaldo_brazil" | "hair_ronaldo_goat";
-                            /** @enum {string} */
-                            glasses?: "glasses_wayfarer" | "glasses_round" | "glasses_aviator";
-                            /** @enum {string} */
-                            facialHair?: "stache" | "beard";
+                            skin?: string;
+                            jersey?: string;
+                            hair?: string;
+                            glasses?: string;
+                            facialHair?: string;
                         } | null;
                         favorite_club?: string;
                         preferred_language?: string;
@@ -2588,6 +2563,66 @@ export interface paths {
                 };
             };
         };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/users/by-nickname/{nickname}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Resolve a nickname to a user id */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    nickname: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Owner of the nickname */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** Format: uuid */
+                            user_id: string;
+                            nickname: string;
+                        };
+                    };
+                };
+                /** @description Not authenticated */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description No user with that nickname */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -3076,16 +3111,11 @@ export interface paths {
                                 /** Format: uri */
                                 avatarUrl: string | null;
                                 avatarCustomization: {
-                                    /** @enum {string} */
-                                    skin?: "skin_male_white" | "skin_male_white_alt" | "skin_male_dark" | "skin_male_dark_alt";
-                                    /** @enum {string} */
-                                    jersey?: "jersey_green" | "jersey_blue" | "jersey_yellow" | "jersey_red" | "jersey_violet" | "jersey_pink" | "jersey_real" | "jersey_liverpool" | "jersey_barcelona" | "jersey_milan" | "jersey_bayern" | "jersey_brazil_retro" | "jersey_argentina_retro" | "jersey_france_retro" | "jersey_germany_retro" | "jersey_netherlands_retro" | "jersey_georgia_retro" | "jersey_psg_retro";
-                                    /** @enum {string} */
-                                    hair?: "hair_boy_basic" | "hair_girl_basic" | "hair_hamsik" | "hair_ramos" | "hair_ronaldo_brazil" | "hair_ronaldo_goat";
-                                    /** @enum {string} */
-                                    glasses?: "glasses_wayfarer" | "glasses_round" | "glasses_aviator";
-                                    /** @enum {string} */
-                                    facialHair?: "stache" | "beard";
+                                    skin?: string;
+                                    jersey?: string;
+                                    hair?: string;
+                                    glasses?: string;
+                                    facialHair?: string;
                                 } | null;
                                 level: number;
                                 pendingDeletion: boolean;
@@ -3158,16 +3188,11 @@ export interface paths {
                                 /** Format: uri */
                                 avatarUrl: string | null;
                                 avatarCustomization: {
-                                    /** @enum {string} */
-                                    skin?: "skin_male_white" | "skin_male_white_alt" | "skin_male_dark" | "skin_male_dark_alt";
-                                    /** @enum {string} */
-                                    jersey?: "jersey_green" | "jersey_blue" | "jersey_yellow" | "jersey_red" | "jersey_violet" | "jersey_pink" | "jersey_real" | "jersey_liverpool" | "jersey_barcelona" | "jersey_milan" | "jersey_bayern" | "jersey_brazil_retro" | "jersey_argentina_retro" | "jersey_france_retro" | "jersey_germany_retro" | "jersey_netherlands_retro" | "jersey_georgia_retro" | "jersey_psg_retro";
-                                    /** @enum {string} */
-                                    hair?: "hair_boy_basic" | "hair_girl_basic" | "hair_hamsik" | "hair_ramos" | "hair_ronaldo_brazil" | "hair_ronaldo_goat";
-                                    /** @enum {string} */
-                                    glasses?: "glasses_wayfarer" | "glasses_round" | "glasses_aviator";
-                                    /** @enum {string} */
-                                    facialHair?: "stache" | "beard";
+                                    skin?: string;
+                                    jersey?: string;
+                                    hair?: string;
+                                    glasses?: string;
+                                    facialHair?: string;
                                 } | null;
                                 level: number;
                                 pendingDeletion: boolean;
@@ -3245,16 +3270,11 @@ export interface paths {
                                     /** Format: uri */
                                     avatarUrl: string | null;
                                     avatarCustomization: {
-                                        /** @enum {string} */
-                                        skin?: "skin_male_white" | "skin_male_white_alt" | "skin_male_dark" | "skin_male_dark_alt";
-                                        /** @enum {string} */
-                                        jersey?: "jersey_green" | "jersey_blue" | "jersey_yellow" | "jersey_red" | "jersey_violet" | "jersey_pink" | "jersey_real" | "jersey_liverpool" | "jersey_barcelona" | "jersey_milan" | "jersey_bayern" | "jersey_brazil_retro" | "jersey_argentina_retro" | "jersey_france_retro" | "jersey_germany_retro" | "jersey_netherlands_retro" | "jersey_georgia_retro" | "jersey_psg_retro";
-                                        /** @enum {string} */
-                                        hair?: "hair_boy_basic" | "hair_girl_basic" | "hair_hamsik" | "hair_ramos" | "hair_ronaldo_brazil" | "hair_ronaldo_goat";
-                                        /** @enum {string} */
-                                        glasses?: "glasses_wayfarer" | "glasses_round" | "glasses_aviator";
-                                        /** @enum {string} */
-                                        facialHair?: "stache" | "beard";
+                                        skin?: string;
+                                        jersey?: string;
+                                        hair?: string;
+                                        glasses?: string;
+                                        facialHair?: string;
                                     } | null;
                                     level: number;
                                     pendingDeletion: boolean;
@@ -3287,16 +3307,11 @@ export interface paths {
                                     /** Format: uri */
                                     avatarUrl: string | null;
                                     avatarCustomization: {
-                                        /** @enum {string} */
-                                        skin?: "skin_male_white" | "skin_male_white_alt" | "skin_male_dark" | "skin_male_dark_alt";
-                                        /** @enum {string} */
-                                        jersey?: "jersey_green" | "jersey_blue" | "jersey_yellow" | "jersey_red" | "jersey_violet" | "jersey_pink" | "jersey_real" | "jersey_liverpool" | "jersey_barcelona" | "jersey_milan" | "jersey_bayern" | "jersey_brazil_retro" | "jersey_argentina_retro" | "jersey_france_retro" | "jersey_germany_retro" | "jersey_netherlands_retro" | "jersey_georgia_retro" | "jersey_psg_retro";
-                                        /** @enum {string} */
-                                        hair?: "hair_boy_basic" | "hair_girl_basic" | "hair_hamsik" | "hair_ramos" | "hair_ronaldo_brazil" | "hair_ronaldo_goat";
-                                        /** @enum {string} */
-                                        glasses?: "glasses_wayfarer" | "glasses_round" | "glasses_aviator";
-                                        /** @enum {string} */
-                                        facialHair?: "stache" | "beard";
+                                        skin?: string;
+                                        jersey?: string;
+                                        hair?: string;
+                                        glasses?: string;
+                                        facialHair?: string;
                                     } | null;
                                     level: number;
                                     pendingDeletion: boolean;
@@ -4129,7 +4144,7 @@ export interface paths {
         };
         /**
          * Get category dependencies
-         * @description Returns child categories, associated questions, and featured status. Requires admin role.
+         * @description Returns child categories, associated questions, and featured status
          */
         get: {
             parameters: {
@@ -4149,24 +4164,6 @@ export interface paths {
                     };
                     content: {
                         "application/json": components["schemas"]["CategoryDependenciesResponse"];
-                    };
-                };
-                /** @description Not authenticated */
-                401: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["ErrorResponse"];
-                    };
-                };
-                /** @description Insufficient permissions (admin role required) */
-                403: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["ErrorResponse"];
                     };
                 };
                 /** @description Category not found */
@@ -4540,6 +4537,7 @@ export interface paths {
                     status?: "draft" | "published" | "archived";
                     difficulty?: "easy" | "medium" | "hard";
                     type?: "mcq_single" | "true_false" | "input_text" | "countdown_list" | "clue_chain" | "put_in_order" | "imposter_multi_select" | "career_path" | "high_low" | "football_logic";
+                    visibility?: "public" | "wl_private";
                     search?: string;
                     page?: number;
                     limit?: number;
@@ -5177,11 +5175,11 @@ export interface paths {
                         "application/json": {
                             items: {
                                 /** @enum {string} */
-                                challengeType: "moneyDrop" | "trueFalse" | "clues" | "countdown" | "putInOrder" | "imposter" | "careerPath" | "highLow" | "footballLogic";
+                                challengeType: "moneyDrop" | "trueFalse" | "clues" | "countdown" | "putInOrder" | "imposter" | "careerPath" | "highLow" | "footballLogic" | "fifaCards";
                                 title: string;
                                 description: string;
                                 /** @enum {string} */
-                                iconToken: "dollarSign" | "checkCircle" | "lightbulb" | "timer" | "list" | "users" | "route" | "trendingUp" | "image";
+                                iconToken: "dollarSign" | "checkCircle" | "lightbulb" | "timer" | "list" | "users" | "route" | "trendingUp" | "image" | "cards";
                                 coinReward: number;
                                 xpReward: number;
                                 showOnHome: boolean;
@@ -5227,7 +5225,7 @@ export interface paths {
                 };
                 header?: never;
                 path: {
-                    challengeType: "moneyDrop" | "trueFalse" | "clues" | "countdown" | "putInOrder" | "imposter" | "careerPath" | "highLow" | "footballLogic";
+                    challengeType: "moneyDrop" | "trueFalse" | "clues" | "countdown" | "putInOrder" | "imposter" | "careerPath" | "highLow" | "footballLogic" | "fifaCards";
                 };
                 cookie?: never;
             };
@@ -5420,6 +5418,38 @@ export interface paths {
                                 acceptedAnswers: string[];
                                 explanation: string | null;
                             }[];
+                        } | {
+                            /** @enum {string} */
+                            challengeType: "fifaCards";
+                            title: string;
+                            description: string;
+                            cardCount: number;
+                            pointsPerSolve: number;
+                            cards: {
+                                /** Format: uuid */
+                                id: string;
+                                edition: string;
+                                editionLabel: string;
+                                name: string;
+                                acceptedAnswers: string[];
+                                overall: number;
+                                position: string;
+                                nation: string;
+                                nationCode: string;
+                                league: string;
+                                club: string;
+                                stats: {
+                                    pac: number;
+                                    sho: number;
+                                    pas: number;
+                                    dri: number;
+                                    def: number;
+                                    phy: number;
+                                };
+                                faceUrl: string | null;
+                                /** @enum {string} */
+                                difficulty: "easy" | "medium" | "hard";
+                            }[];
                         };
                     };
                 };
@@ -5458,6 +5488,123 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/daily-challenges/comeback": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get server-authoritative Daily comeback streak and reminder state */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Projected streak, bonus, and reminder availability */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            projectedStreakDays: number;
+                            tomorrowBonusCoins: number;
+                            rewardEnabled: boolean;
+                            remindersEnabled: boolean;
+                            reminderScheduled: boolean;
+                            /** Format: date-time */
+                            reminderAt: string | null;
+                        };
+                    };
+                };
+                /** @description Not authenticated */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/daily-challenges/comeback/reminder": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Schedule or cancel the next Daily Challenge reminder */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        enabled: boolean;
+                    };
+                };
+            };
+            responses: {
+                /** @description Reminder state updated */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            enabled: boolean;
+                            /** Format: date-time */
+                            reminderAt: string | null;
+                        };
+                    };
+                };
+                /** @description Daily reminders are not enabled */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Not authenticated */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/daily-challenges/{challengeType}/complete": {
         parameters: {
             query?: never;
@@ -5473,7 +5620,7 @@ export interface paths {
                 query?: never;
                 header?: never;
                 path: {
-                    challengeType: "moneyDrop" | "trueFalse" | "clues" | "countdown" | "putInOrder" | "imposter" | "careerPath" | "highLow" | "footballLogic";
+                    challengeType: "moneyDrop" | "trueFalse" | "clues" | "countdown" | "putInOrder" | "imposter" | "careerPath" | "highLow" | "footballLogic" | "fifaCards";
                 };
                 cookie?: never;
             };
@@ -5482,6 +5629,13 @@ export interface paths {
                     "application/json": {
                         /** @default 0 */
                         score?: number;
+                        outcomes?: {
+                            /** Format: uuid */
+                            cardId: string;
+                            solved: boolean;
+                            /** @default 0 */
+                            cluesRevealed?: number;
+                        }[];
                     };
                 };
             };
@@ -5494,10 +5648,13 @@ export interface paths {
                     content: {
                         "application/json": {
                             /** @enum {string} */
-                            challengeType: "moneyDrop" | "trueFalse" | "clues" | "countdown" | "putInOrder" | "imposter" | "careerPath" | "highLow" | "footballLogic";
+                            challengeType: "moneyDrop" | "trueFalse" | "clues" | "countdown" | "putInOrder" | "imposter" | "careerPath" | "highLow" | "footballLogic" | "fifaCards";
                             /** @enum {boolean} */
                             completedToday: true;
                             coinsAwarded: number;
+                            streakBonusAwarded: number;
+                            dailyStreakDays: number;
+                            nextStreakBonusCoins: number;
                             xpAwarded: number;
                             wallet?: {
                                 coins: number;
@@ -5533,6 +5690,15 @@ export interface paths {
                         "application/json": components["schemas"]["ErrorResponse"];
                     };
                 };
+                /** @description Invalid completion (e.g. FIFA Cards outcomes missing, unknown or duplicate, or no set served today) */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
             };
         };
         delete?: never;
@@ -5557,7 +5723,7 @@ export interface paths {
                 query?: never;
                 header?: never;
                 path: {
-                    challengeType: "moneyDrop" | "trueFalse" | "clues" | "countdown" | "putInOrder" | "imposter" | "careerPath" | "highLow" | "footballLogic";
+                    challengeType: "moneyDrop" | "trueFalse" | "clues" | "countdown" | "putInOrder" | "imposter" | "careerPath" | "highLow" | "footballLogic" | "fifaCards";
                 };
                 cookie?: never;
             };
@@ -5571,7 +5737,7 @@ export interface paths {
                     content: {
                         "application/json": {
                             /** @enum {string} */
-                            challengeType: "moneyDrop" | "trueFalse" | "clues" | "countdown" | "putInOrder" | "imposter" | "careerPath" | "highLow" | "footballLogic";
+                            challengeType: "moneyDrop" | "trueFalse" | "clues" | "countdown" | "putInOrder" | "imposter" | "careerPath" | "highLow" | "footballLogic" | "fifaCards";
                             /** @enum {boolean} */
                             reset: true;
                         };
@@ -5628,11 +5794,11 @@ export interface paths {
                         "application/json": {
                             items: {
                                 /** @enum {string} */
-                                challengeType: "moneyDrop" | "trueFalse" | "clues" | "countdown" | "putInOrder" | "imposter" | "careerPath" | "highLow" | "footballLogic";
+                                challengeType: "moneyDrop" | "trueFalse" | "clues" | "countdown" | "putInOrder" | "imposter" | "careerPath" | "highLow" | "footballLogic" | "fifaCards";
                                 title: string;
                                 description: string;
                                 /** @enum {string} */
-                                iconToken: "dollarSign" | "checkCircle" | "lightbulb" | "timer" | "list" | "users" | "route" | "trendingUp" | "image";
+                                iconToken: "dollarSign" | "checkCircle" | "lightbulb" | "timer" | "list" | "users" | "route" | "trendingUp" | "image" | "cards";
                                 coinReward: number;
                                 xpReward: number;
                                 showOnHome: boolean;
@@ -5702,6 +5868,12 @@ export interface paths {
                                     secondsPerQuestion: number;
                                     /** @enum {string} */
                                     challengeType: "footballLogic";
+                                } | {
+                                    /** @default [] */
+                                    categoryIds: string[];
+                                    cardCount: number;
+                                    /** @enum {string} */
+                                    challengeType: "fifaCards";
                                 };
                                 sortOrder: number;
                                 isActive: boolean;
@@ -5763,7 +5935,7 @@ export interface paths {
                 query?: never;
                 header?: never;
                 path: {
-                    challengeType: "moneyDrop" | "trueFalse" | "clues" | "countdown" | "putInOrder" | "imposter" | "careerPath" | "highLow" | "footballLogic";
+                    challengeType: "moneyDrop" | "trueFalse" | "clues" | "countdown" | "putInOrder" | "imposter" | "careerPath" | "highLow" | "footballLogic" | "fifaCards";
                 };
                 cookie?: never;
             };
@@ -6366,8 +6538,7 @@ export interface paths {
                             to_final_seconds: number;
                         };
                         config?: {
-                            /** @enum {number} */
-                            rules_version?: 1;
+                            rules_version?: 1 | 2 | 3;
                             launch_edition?: boolean;
                             /**
                              * @default live
@@ -7432,6 +7603,7 @@ export interface paths {
                                 avatarCustomization?: unknown;
                                 auctionPoints: number;
                                 country: string | null;
+                                tier: string | null;
                                 rank: number;
                             }[];
                         };
@@ -7498,6 +7670,7 @@ export interface paths {
                             avatarCustomization?: unknown;
                             auctionPoints: number;
                             country: string | null;
+                            tier: string | null;
                             rank: number;
                             total: number;
                         } | null;
@@ -7553,7 +7726,7 @@ export interface paths {
                     "application/json": {
                         text: string;
                         /** @enum {string} */
-                        locale: "en" | "ka";
+                        locale: "en" | "ka" | "es";
                         /** @default cms-import */
                         promptVersion?: string;
                         /**
@@ -7632,7 +7805,7 @@ export interface paths {
                 content: {
                     "application/json": {
                         /** @enum {string} */
-                        locale: "en" | "ka";
+                        locale: "en" | "ka" | "es";
                         /** @default cms-import */
                         promptVersion?: string;
                         /**
@@ -8314,16 +8487,11 @@ export interface components {
                     /** Format: uri */
                     avatarUrl: string | null;
                     avatarCustomization: {
-                        /** @enum {string} */
-                        skin?: "skin_male_white" | "skin_male_white_alt" | "skin_male_dark" | "skin_male_dark_alt";
-                        /** @enum {string} */
-                        jersey?: "jersey_green" | "jersey_blue" | "jersey_yellow" | "jersey_red" | "jersey_violet" | "jersey_pink" | "jersey_real" | "jersey_liverpool" | "jersey_barcelona" | "jersey_milan" | "jersey_bayern" | "jersey_brazil_retro" | "jersey_argentina_retro" | "jersey_france_retro" | "jersey_germany_retro" | "jersey_netherlands_retro" | "jersey_georgia_retro" | "jersey_psg_retro";
-                        /** @enum {string} */
-                        hair?: "hair_boy_basic" | "hair_girl_basic" | "hair_hamsik" | "hair_ramos" | "hair_ronaldo_brazil" | "hair_ronaldo_goat";
-                        /** @enum {string} */
-                        glasses?: "glasses_wayfarer" | "glasses_round" | "glasses_aviator";
-                        /** @enum {string} */
-                        facialHair?: "stache" | "beard";
+                        skin?: string;
+                        jersey?: string;
+                        hair?: string;
+                        glasses?: string;
+                        facialHair?: string;
                     } | null;
                     isAi: boolean;
                     placement: number | null;
@@ -8335,16 +8503,11 @@ export interface components {
                     /** Format: uri */
                     avatarUrl: string | null;
                     avatarCustomization: {
-                        /** @enum {string} */
-                        skin?: "skin_male_white" | "skin_male_white_alt" | "skin_male_dark" | "skin_male_dark_alt";
-                        /** @enum {string} */
-                        jersey?: "jersey_green" | "jersey_blue" | "jersey_yellow" | "jersey_red" | "jersey_violet" | "jersey_pink" | "jersey_real" | "jersey_liverpool" | "jersey_barcelona" | "jersey_milan" | "jersey_bayern" | "jersey_brazil_retro" | "jersey_argentina_retro" | "jersey_france_retro" | "jersey_germany_retro" | "jersey_netherlands_retro" | "jersey_georgia_retro" | "jersey_psg_retro";
-                        /** @enum {string} */
-                        hair?: "hair_boy_basic" | "hair_girl_basic" | "hair_hamsik" | "hair_ramos" | "hair_ronaldo_brazil" | "hair_ronaldo_goat";
-                        /** @enum {string} */
-                        glasses?: "glasses_wayfarer" | "glasses_round" | "glasses_aviator";
-                        /** @enum {string} */
-                        facialHair?: "stache" | "beard";
+                        skin?: string;
+                        jersey?: string;
+                        hair?: string;
+                        glasses?: string;
+                        facialHair?: string;
                     } | null;
                     isAi: boolean;
                     /** @enum {string|null} */
@@ -8511,7 +8674,7 @@ export interface components {
             /** Format: uuid */
             id: string;
             /** @enum {string} */
-            eventType: "checkout_session_created" | "checkout_session_failed" | "webhook_received" | "webhook_signature_invalid" | "fulfillment_succeeded" | "fulfillment_failed" | "manual_adjustment_succeeded" | "manual_adjustment_failed" | "objective_reward_succeeded" | "admin_progression_adjustment" | "leaderboard_reset" | "admin_ticket_window_reset" | "admin_account_ban" | "admin_account_unban";
+            eventType: "checkout_session_created" | "checkout_session_failed" | "webhook_received" | "webhook_signature_invalid" | "fulfillment_succeeded" | "fulfillment_failed" | "manual_adjustment_succeeded" | "manual_adjustment_failed" | "objective_reward_succeeded" | "admin_progression_adjustment" | "leaderboard_reset" | "admin_ticket_window_reset" | "admin_account_ban" | "admin_account_unban" | "guess_the_goal_reward";
             /** @enum {string} */
             outcome: "success" | "failure";
             /** Format: uuid */
@@ -8545,7 +8708,7 @@ export interface components {
                 /** Format: uuid */
                 id: string;
                 /** @enum {string} */
-                eventType: "checkout_session_created" | "checkout_session_failed" | "webhook_received" | "webhook_signature_invalid" | "fulfillment_succeeded" | "fulfillment_failed" | "manual_adjustment_succeeded" | "manual_adjustment_failed" | "objective_reward_succeeded" | "admin_progression_adjustment" | "leaderboard_reset" | "admin_ticket_window_reset" | "admin_account_ban" | "admin_account_unban";
+                eventType: "checkout_session_created" | "checkout_session_failed" | "webhook_received" | "webhook_signature_invalid" | "fulfillment_succeeded" | "fulfillment_failed" | "manual_adjustment_succeeded" | "manual_adjustment_failed" | "objective_reward_succeeded" | "admin_progression_adjustment" | "leaderboard_reset" | "admin_ticket_window_reset" | "admin_account_ban" | "admin_account_unban" | "guess_the_goal_reward";
                 /** @enum {string} */
                 outcome: "success" | "failure";
                 /** Format: uuid */
@@ -8615,16 +8778,11 @@ export interface components {
             /** Format: uri */
             avatar_url: string | null;
             avatar_customization: {
-                /** @enum {string} */
-                skin?: "skin_male_white" | "skin_male_white_alt" | "skin_male_dark" | "skin_male_dark_alt";
-                /** @enum {string} */
-                jersey?: "jersey_green" | "jersey_blue" | "jersey_yellow" | "jersey_red" | "jersey_violet" | "jersey_pink" | "jersey_real" | "jersey_liverpool" | "jersey_barcelona" | "jersey_milan" | "jersey_bayern" | "jersey_brazil_retro" | "jersey_argentina_retro" | "jersey_france_retro" | "jersey_germany_retro" | "jersey_netherlands_retro" | "jersey_georgia_retro" | "jersey_psg_retro";
-                /** @enum {string} */
-                hair?: "hair_boy_basic" | "hair_girl_basic" | "hair_hamsik" | "hair_ramos" | "hair_ronaldo_brazil" | "hair_ronaldo_goat";
-                /** @enum {string} */
-                glasses?: "glasses_wayfarer" | "glasses_round" | "glasses_aviator";
-                /** @enum {string} */
-                facialHair?: "stache" | "beard";
+                skin?: string;
+                jersey?: string;
+                hair?: string;
+                glasses?: string;
+                facialHair?: string;
             } | null;
             favorite_club: string | null;
             preferred_language: string | null;
@@ -8644,16 +8802,11 @@ export interface components {
             /** Format: uri */
             avatarUrl: string | null;
             avatarCustomization: {
-                /** @enum {string} */
-                skin?: "skin_male_white" | "skin_male_white_alt" | "skin_male_dark" | "skin_male_dark_alt";
-                /** @enum {string} */
-                jersey?: "jersey_green" | "jersey_blue" | "jersey_yellow" | "jersey_red" | "jersey_violet" | "jersey_pink" | "jersey_real" | "jersey_liverpool" | "jersey_barcelona" | "jersey_milan" | "jersey_bayern" | "jersey_brazil_retro" | "jersey_argentina_retro" | "jersey_france_retro" | "jersey_germany_retro" | "jersey_netherlands_retro" | "jersey_georgia_retro" | "jersey_psg_retro";
-                /** @enum {string} */
-                hair?: "hair_boy_basic" | "hair_girl_basic" | "hair_hamsik" | "hair_ramos" | "hair_ronaldo_brazil" | "hair_ronaldo_goat";
-                /** @enum {string} */
-                glasses?: "glasses_wayfarer" | "glasses_round" | "glasses_aviator";
-                /** @enum {string} */
-                facialHair?: "stache" | "beard";
+                skin?: string;
+                jersey?: string;
+                hair?: string;
+                glasses?: string;
+                facialHair?: string;
             } | null;
             country: string | null;
             favoriteClub: string | null;
@@ -8740,16 +8893,11 @@ export interface components {
                 /** Format: uri */
                 avatarUrl: string | null;
                 avatarCustomization: {
-                    /** @enum {string} */
-                    skin?: "skin_male_white" | "skin_male_white_alt" | "skin_male_dark" | "skin_male_dark_alt";
-                    /** @enum {string} */
-                    jersey?: "jersey_green" | "jersey_blue" | "jersey_yellow" | "jersey_red" | "jersey_violet" | "jersey_pink" | "jersey_real" | "jersey_liverpool" | "jersey_barcelona" | "jersey_milan" | "jersey_bayern" | "jersey_brazil_retro" | "jersey_argentina_retro" | "jersey_france_retro" | "jersey_germany_retro" | "jersey_netherlands_retro" | "jersey_georgia_retro" | "jersey_psg_retro";
-                    /** @enum {string} */
-                    hair?: "hair_boy_basic" | "hair_girl_basic" | "hair_hamsik" | "hair_ramos" | "hair_ronaldo_brazil" | "hair_ronaldo_goat";
-                    /** @enum {string} */
-                    glasses?: "glasses_wayfarer" | "glasses_round" | "glasses_aviator";
-                    /** @enum {string} */
-                    facialHair?: "stache" | "beard";
+                    skin?: string;
+                    jersey?: string;
+                    hair?: string;
+                    glasses?: string;
+                    facialHair?: string;
                 } | null;
                 level: number;
                 pendingDeletion: boolean;
@@ -8783,16 +8931,11 @@ export interface components {
                     /** Format: uri */
                     avatarUrl: string | null;
                     avatarCustomization: {
-                        /** @enum {string} */
-                        skin?: "skin_male_white" | "skin_male_white_alt" | "skin_male_dark" | "skin_male_dark_alt";
-                        /** @enum {string} */
-                        jersey?: "jersey_green" | "jersey_blue" | "jersey_yellow" | "jersey_red" | "jersey_violet" | "jersey_pink" | "jersey_real" | "jersey_liverpool" | "jersey_barcelona" | "jersey_milan" | "jersey_bayern" | "jersey_brazil_retro" | "jersey_argentina_retro" | "jersey_france_retro" | "jersey_germany_retro" | "jersey_netherlands_retro" | "jersey_georgia_retro" | "jersey_psg_retro";
-                        /** @enum {string} */
-                        hair?: "hair_boy_basic" | "hair_girl_basic" | "hair_hamsik" | "hair_ramos" | "hair_ronaldo_brazil" | "hair_ronaldo_goat";
-                        /** @enum {string} */
-                        glasses?: "glasses_wayfarer" | "glasses_round" | "glasses_aviator";
-                        /** @enum {string} */
-                        facialHair?: "stache" | "beard";
+                        skin?: string;
+                        jersey?: string;
+                        hair?: string;
+                        glasses?: string;
+                        facialHair?: string;
                     } | null;
                     level: number;
                     pendingDeletion: boolean;
@@ -8825,16 +8968,11 @@ export interface components {
                     /** Format: uri */
                     avatarUrl: string | null;
                     avatarCustomization: {
-                        /** @enum {string} */
-                        skin?: "skin_male_white" | "skin_male_white_alt" | "skin_male_dark" | "skin_male_dark_alt";
-                        /** @enum {string} */
-                        jersey?: "jersey_green" | "jersey_blue" | "jersey_yellow" | "jersey_red" | "jersey_violet" | "jersey_pink" | "jersey_real" | "jersey_liverpool" | "jersey_barcelona" | "jersey_milan" | "jersey_bayern" | "jersey_brazil_retro" | "jersey_argentina_retro" | "jersey_france_retro" | "jersey_germany_retro" | "jersey_netherlands_retro" | "jersey_georgia_retro" | "jersey_psg_retro";
-                        /** @enum {string} */
-                        hair?: "hair_boy_basic" | "hair_girl_basic" | "hair_hamsik" | "hair_ramos" | "hair_ronaldo_brazil" | "hair_ronaldo_goat";
-                        /** @enum {string} */
-                        glasses?: "glasses_wayfarer" | "glasses_round" | "glasses_aviator";
-                        /** @enum {string} */
-                        facialHair?: "stache" | "beard";
+                        skin?: string;
+                        jersey?: string;
+                        hair?: string;
+                        glasses?: string;
+                        facialHair?: string;
                     } | null;
                     level: number;
                     pendingDeletion: boolean;
@@ -9185,11 +9323,11 @@ export interface components {
         };
         DailyChallengeMetadata: {
             /** @enum {string} */
-            challengeType: "moneyDrop" | "trueFalse" | "clues" | "countdown" | "putInOrder" | "imposter" | "careerPath" | "highLow" | "footballLogic";
+            challengeType: "moneyDrop" | "trueFalse" | "clues" | "countdown" | "putInOrder" | "imposter" | "careerPath" | "highLow" | "footballLogic" | "fifaCards";
             title: string;
             description: string;
             /** @enum {string} */
-            iconToken: "dollarSign" | "checkCircle" | "lightbulb" | "timer" | "list" | "users" | "route" | "trendingUp" | "image";
+            iconToken: "dollarSign" | "checkCircle" | "lightbulb" | "timer" | "list" | "users" | "route" | "trendingUp" | "image" | "cards";
             coinReward: number;
             xpReward: number;
             showOnHome: boolean;
@@ -9260,6 +9398,12 @@ export interface components {
             secondsPerQuestion: number;
             /** @enum {string} */
             challengeType: "footballLogic";
+        } | {
+            /** @default [] */
+            categoryIds: string[];
+            cardCount: number;
+            /** @enum {string} */
+            challengeType: "fifaCards";
         };
         AdminDailyChallengeCategoryOption: {
             /** Format: uuid */
@@ -9454,32 +9598,81 @@ export interface components {
                 acceptedAnswers: string[];
                 explanation: string | null;
             }[];
+        } | {
+            /** @enum {string} */
+            challengeType: "fifaCards";
+            title: string;
+            description: string;
+            cardCount: number;
+            pointsPerSolve: number;
+            cards: {
+                /** Format: uuid */
+                id: string;
+                edition: string;
+                editionLabel: string;
+                name: string;
+                acceptedAnswers: string[];
+                overall: number;
+                position: string;
+                nation: string;
+                nationCode: string;
+                league: string;
+                club: string;
+                stats: {
+                    pac: number;
+                    sho: number;
+                    pas: number;
+                    dri: number;
+                    def: number;
+                    phy: number;
+                };
+                faceUrl: string | null;
+                /** @enum {string} */
+                difficulty: "easy" | "medium" | "hard";
+            }[];
         };
         CompleteDailyChallengeResponse: {
             /** @enum {string} */
-            challengeType: "moneyDrop" | "trueFalse" | "clues" | "countdown" | "putInOrder" | "imposter" | "careerPath" | "highLow" | "footballLogic";
+            challengeType: "moneyDrop" | "trueFalse" | "clues" | "countdown" | "putInOrder" | "imposter" | "careerPath" | "highLow" | "footballLogic" | "fifaCards";
             /** @enum {boolean} */
             completedToday: true;
             coinsAwarded: number;
+            streakBonusAwarded: number;
+            dailyStreakDays: number;
+            nextStreakBonusCoins: number;
             xpAwarded: number;
             wallet?: {
                 coins: number;
                 tickets: number;
             };
         };
+        DailyComebackStateResponse: {
+            projectedStreakDays: number;
+            tomorrowBonusCoins: number;
+            rewardEnabled: boolean;
+            remindersEnabled: boolean;
+            reminderScheduled: boolean;
+            /** Format: date-time */
+            reminderAt: string | null;
+        };
+        SetDailyComebackReminderResponse: {
+            enabled: boolean;
+            /** Format: date-time */
+            reminderAt: string | null;
+        };
         ResetDailyChallengeResponse: {
             /** @enum {string} */
-            challengeType: "moneyDrop" | "trueFalse" | "clues" | "countdown" | "putInOrder" | "imposter" | "careerPath" | "highLow" | "footballLogic";
+            challengeType: "moneyDrop" | "trueFalse" | "clues" | "countdown" | "putInOrder" | "imposter" | "careerPath" | "highLow" | "footballLogic" | "fifaCards";
             /** @enum {boolean} */
             reset: true;
         };
         AdminDailyChallengeConfigResponse: {
             /** @enum {string} */
-            challengeType: "moneyDrop" | "trueFalse" | "clues" | "countdown" | "putInOrder" | "imposter" | "careerPath" | "highLow" | "footballLogic";
+            challengeType: "moneyDrop" | "trueFalse" | "clues" | "countdown" | "putInOrder" | "imposter" | "careerPath" | "highLow" | "footballLogic" | "fifaCards";
             title: string;
             description: string;
             /** @enum {string} */
-            iconToken: "dollarSign" | "checkCircle" | "lightbulb" | "timer" | "list" | "users" | "route" | "trendingUp" | "image";
+            iconToken: "dollarSign" | "checkCircle" | "lightbulb" | "timer" | "list" | "users" | "route" | "trendingUp" | "image" | "cards";
             coinReward: number;
             xpReward: number;
             showOnHome: boolean;
@@ -9549,6 +9742,12 @@ export interface components {
                 secondsPerQuestion: number;
                 /** @enum {string} */
                 challengeType: "footballLogic";
+            } | {
+                /** @default [] */
+                categoryIds: string[];
+                cardCount: number;
+                /** @enum {string} */
+                challengeType: "fifaCards";
             };
             sortOrder: number;
             isActive: boolean;
@@ -9606,6 +9805,10 @@ export interface components {
                 checked_in_count: number;
                 launch_edition: boolean;
                 qp_target: number;
+                current_game_index: number;
+                break_until_ms: number | null;
+                spectator_delay_ms: number;
+                server_now_ms: number;
             } | null;
             you: {
                 entered: boolean;
@@ -9613,6 +9816,7 @@ export interface components {
                 state: "entered" | "playing" | "eliminated" | "finalist" | "champion" | "no_show" | "withdrawn" | "disqualified" | "cancelled" | null;
                 checked_in: boolean;
                 final_checked_in: boolean;
+                last_game_rank: number | null;
                 qp: {
                     week_key: string | null;
                     points: number;
