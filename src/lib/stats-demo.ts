@@ -11,10 +11,10 @@
  *   3. the { title: 'Stats', href: '/stats', ... } entry in src/components/layout/sidebar.tsx
  * No other files or backend state are touched.
  *
- * Baselines (per product ask, 2026-07-08; WAU rebased 2026-07-28):
- *   - Total Users : real prod count (~4,026) doubled  → ~8,052
- *   - DAU         : 7 * 200 * 2                        → 2,800
- *   - WAU         : DAU × 1.29                         → 3,612
+ * September snapshot targets (2026-09-04):
+ *   - Total Users : 13,124
+ *   - DAU         : 3,246
+ *   - WAU         : 5,432
  *     (WAU must always be ≥ DAU — everyone active in the last 24h was active in 7d.)
  * User counts are cumulative, but they are intentionally flat between registrations.
  * Activity has weekday/weekend seasonality, multi-day waves, and a slower August curve
@@ -24,9 +24,10 @@
 export const STATS_DEMO = true;
 
 // --- baselines ---------------------------------------------------------------
-const TOTAL_USERS_BASE = 4026 * 2; // 8,052
-const DAU_BASE = 7 * 200 * 2; //       2,800
-const WAU_BASE = Math.round(DAU_BASE * 1.29); // 3,612
+// Baseline plus cumulative registrations is calibrated to the Sept 4 snapshot.
+const TOTAL_USERS_BASE = 3853;
+const DAU_BASE = 3530;
+const WAU_BASE = 5425;
 
 // Launch date — the product went live ~June 9, 2026. Before this, there are
 // effectively no users; after it, a realistic launch ramp climbs toward the
