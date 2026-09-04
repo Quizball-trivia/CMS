@@ -114,10 +114,13 @@ function registrationsForDay(dayMs: number): number {
   return Math.max(0, rate);
 }
 
+// After the Sept 4 snapshot, total users tick +10 per completed day.
+const SNAPSHOT_MS = Date.UTC(2026, 8, 4, 0, 0, 0); // 2026-09-04
+const USERS_PER_DAY_AFTER_SNAPSHOT = 10;
+
 /**
- * Cumulative registrations since the ramp matured. This is the key distinction
- * from the old fixed drift: it stays flat during the day, then moves in uneven
- * but monotonic daily steps as the next day's registrations are recorded.
+ * Cumulative registrations since the ramp matured. History is frozen at the
+ * Sept 4 snapshot; each later day adds 10 users.
  */
 function cumulativeRegistrations(now: number): number {
   const days = daysSinceLaunch(now);
@@ -125,11 +128,17 @@ function cumulativeRegistrations(now: number): number {
 
   const firstDay = Math.floor(GROWTH_START_DAYS);
   const lastDay = Math.floor(days);
+  const snapshotDay = Math.floor(daysSinceLaunch(SNAPSHOT_MS));
+  const historyEnd = Math.min(lastDay, snapshotDay);
   let total = 0;
 
-  for (let dayIndex = firstDay; dayIndex < lastDay; dayIndex += 1) {
+  for (let dayIndex = firstDay; dayIndex < historyEnd; dayIndex += 1) {
     const dayMs = LAUNCH_MS + dayIndex * 86_400_000;
     total += registrationsForDay(dayMs);
+  }
+
+  for (let dayIndex = snapshotDay; dayIndex < lastDay; dayIndex += 1) {
+    total += USERS_PER_DAY_AFTER_SNAPSHOT;
   }
 
   return total;
