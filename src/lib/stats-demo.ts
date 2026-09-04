@@ -11,10 +11,10 @@
  *   3. the { title: 'Stats', href: '/stats', ... } entry in src/components/layout/sidebar.tsx
  * No other files or backend state are touched.
  *
- * August snapshot targets (2026-08-12):
- *   - Total Users : ~11,500
- *   - DAU         : ~2,945
- *   - WAU         : ~4,207
+ * September snapshot targets (2026-09-04):
+ *   - Total Users : 13,124
+ *   - DAU         : 3,246
+ *   - WAU         : 5,432
  *     (WAU must always be ≥ DAU — everyone active in the last 24h was active in 7d.)
  * User counts are cumulative, but they are intentionally flat between registrations.
  * Activity has weekday/weekend seasonality, multi-day waves, and a slower August curve
@@ -24,11 +24,20 @@
 export const STATS_DEMO = true;
 
 // --- baselines ---------------------------------------------------------------
-// The baseline plus cumulative registrations is calibrated to the August
-// snapshot. Keep these values together so the Stats and Users views agree.
-const TOTAL_USERS_BASE = 7739;
-const DAU_BASE = 3539;
-const WAU_BASE = 4985;
+// Baseline plus cumulative registrations is calibrated to the Sept 4 snapshot.
+const TOTAL_USERS_BASE = 3853;
+const DAU_BASE = 3530;
+const WAU_BASE = 5425;
+
+// --- calibration anchor (product ask 2026-09-04) -----------------------------
+// Pin the headline values displayed ON the anchor day to exact targets while
+// keeping every curve shape (ramp, waves, seasonality, spike) unchanged: all
+// raw outputs are multiplied by constant factors computed once against the
+// anchor timestamp, so the series stays deterministic and monotonic.
+const ANCHOR_MS = Date.UTC(2026, 8, 4, 12, 0, 0); // 2026-09-04 12:00 UTC
+const TARGET_TOTAL_AT_ANCHOR = 13_124;
+const TARGET_DAU_AT_ANCHOR = 3_246;
+const TARGET_WAU_AT_ANCHOR = 5_432;
 
 // Launch date — the product went live ~June 9, 2026. Before this, there are
 // effectively no users; after it, a realistic launch ramp climbs toward the
@@ -38,9 +47,7 @@ const LAUNCH_MS = Date.UTC(2026, 5, 9, 0, 0, 0); // 2026-06-09 00:00 UTC
 // Growth starts after the launch ramp has matured. The daily rate is varied below
 // instead of adding a fixed amount on every tick.
 const GROWTH_START_DAYS = 25;
-// A deliberately modest registration pace keeps the cumulative line from
-// jumping too sharply once the launch ramp has matured.
-const TOTAL_USERS_PER_DAY = 150;
+const TOTAL_USERS_PER_DAY = 240;
 const DAU_PER_DAY = 1.5;
 const WAU_PER_DAY = 2;
 
@@ -82,7 +89,7 @@ function spikeBoost(now: number): number {
  */
 function acquisitionSeasonality(dayMs: number): number {
   const month = new Date(dayMs).getUTCMonth();
-  if (month === 7) return 0.2; // August: near-plateau during the summer
+  if (month === 7) return 0.4; // August: noticeably slower growth
   if (month === 6) return 0.92; // July: softer than the launch month
   if (month === 8) return 0.7; // early September recovery
   return 1;
@@ -107,10 +114,13 @@ function registrationsForDay(dayMs: number): number {
   return Math.max(0, rate);
 }
 
+// After the Sept 4 snapshot, total users tick +10 per completed day.
+const SNAPSHOT_MS = Date.UTC(2026, 8, 4, 0, 0, 0); // 2026-09-04
+const USERS_PER_DAY_AFTER_SNAPSHOT = 10;
+
 /**
- * Cumulative registrations since the ramp matured. This is the key distinction
- * from the old fixed drift: it stays flat during the day, then moves in uneven
- * but monotonic daily steps as the next day's registrations are recorded.
+ * Cumulative registrations since the ramp matured. History is frozen at the
+ * Sept 4 snapshot; each later day adds 10 users.
  */
 function cumulativeRegistrations(now: number): number {
   const days = daysSinceLaunch(now);
@@ -118,11 +128,17 @@ function cumulativeRegistrations(now: number): number {
 
   const firstDay = Math.floor(GROWTH_START_DAYS);
   const lastDay = Math.floor(days);
+  const snapshotDay = Math.floor(daysSinceLaunch(SNAPSHOT_MS));
+  const historyEnd = Math.min(lastDay, snapshotDay);
   let total = 0;
 
-  for (let dayIndex = firstDay; dayIndex < lastDay; dayIndex += 1) {
+  for (let dayIndex = firstDay; dayIndex < historyEnd; dayIndex += 1) {
     const dayMs = LAUNCH_MS + dayIndex * 86_400_000;
     total += registrationsForDay(dayMs);
+  }
+
+  for (let dayIndex = snapshotDay; dayIndex < lastDay; dayIndex += 1) {
+    total += USERS_PER_DAY_AFTER_SNAPSHOT;
   }
 
   return total;
@@ -175,8 +191,8 @@ export interface StatSnapshot {
   wau: number;
 }
 
-/** Current headline numbers, quantized to the 5-min tick. */
-export function currentStats(now: number = Date.now()): StatSnapshot {
+/** Unscaled headline numbers — calibration factors are applied on top. */
+function rawStats(now: number): StatSnapshot {
   const t = bucketed(now);
   const ramp = rampFraction(daysSinceLaunch(t));
   const spike = spikeBoost(t);
@@ -208,6 +224,24 @@ export function currentStats(now: number = Date.now()): StatSnapshot {
     dau: dauClamped,
     // WAU ≥ DAU by definition: anyone active in the last 24h is active in the last 7d
     wau: Math.max(dauClamped, wau),
+  };
+}
+
+// Constant calibration factors: evaluated once against the deterministic anchor.
+const RAW_AT_ANCHOR = rawStats(ANCHOR_MS);
+const TOTAL_SCALE = TARGET_TOTAL_AT_ANCHOR / Math.max(1, RAW_AT_ANCHOR.totalUsers);
+const DAU_SCALE = TARGET_DAU_AT_ANCHOR / Math.max(1, RAW_AT_ANCHOR.dau);
+const WAU_SCALE = TARGET_WAU_AT_ANCHOR / Math.max(1, RAW_AT_ANCHOR.wau);
+
+/** Current headline numbers, quantized to the 5-min tick. */
+export function currentStats(now: number = Date.now()): StatSnapshot {
+  const raw = rawStats(now);
+  const dau = Math.round(raw.dau * DAU_SCALE);
+  const wau = Math.round(raw.wau * WAU_SCALE);
+  return {
+    totalUsers: Math.round(raw.totalUsers * TOTAL_SCALE),
+    dau,
+    wau: Math.max(dau, wau),
   };
 }
 
@@ -250,7 +284,7 @@ export function dailySeries(now: number = Date.now(), count = 14): DailyPoint[] 
       )
     );
     const d = new Date(dayMs);
-    out.push({ date: d.toISOString().slice(0, 10), label: fmtDay(d), dau });
+    out.push({ date: d.toISOString().slice(0, 10), label: fmtDay(d), dau: Math.round(dau * DAU_SCALE) });
   }
   return out;
 }
@@ -279,7 +313,7 @@ export function weeklySeries(now: number = Date.now(), count = 8): WeeklyPoint[]
       )
     );
     const d = new Date(weekMs);
-    out.push({ week: d.toISOString().slice(0, 10), label: `W of ${fmtDay(d)}`, wau });
+    out.push({ week: d.toISOString().slice(0, 10), label: `W of ${fmtDay(d)}`, wau: Math.round(wau * WAU_SCALE) });
   }
   return out;
 }
