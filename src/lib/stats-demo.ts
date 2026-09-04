@@ -29,6 +29,16 @@ const TOTAL_USERS_BASE = 3853;
 const DAU_BASE = 3530;
 const WAU_BASE = 5425;
 
+// --- calibration anchor (product ask 2026-09-04) -----------------------------
+// Pin the headline values displayed ON the anchor day to exact targets while
+// keeping every curve shape (ramp, waves, seasonality, spike) unchanged: all
+// raw outputs are multiplied by constant factors computed once against the
+// anchor timestamp, so the series stays deterministic and monotonic.
+const ANCHOR_MS = Date.UTC(2026, 8, 4, 12, 0, 0); // 2026-09-04 12:00 UTC
+const TARGET_TOTAL_AT_ANCHOR = 13_124;
+const TARGET_DAU_AT_ANCHOR = 3_246;
+const TARGET_WAU_AT_ANCHOR = 5_432;
+
 // Launch date — the product went live ~June 9, 2026. Before this, there are
 // effectively no users; after it, a realistic launch ramp climbs toward the
 // baseline targets. History before launch reads as ~0 (not a flat line).
@@ -172,8 +182,8 @@ export interface StatSnapshot {
   wau: number;
 }
 
-/** Current headline numbers, quantized to the 5-min tick. */
-export function currentStats(now: number = Date.now()): StatSnapshot {
+/** Unscaled headline numbers — calibration factors are applied on top. */
+function rawStats(now: number): StatSnapshot {
   const t = bucketed(now);
   const ramp = rampFraction(daysSinceLaunch(t));
   const spike = spikeBoost(t);
@@ -205,6 +215,24 @@ export function currentStats(now: number = Date.now()): StatSnapshot {
     dau: dauClamped,
     // WAU ≥ DAU by definition: anyone active in the last 24h is active in the last 7d
     wau: Math.max(dauClamped, wau),
+  };
+}
+
+// Constant calibration factors: evaluated once against the deterministic anchor.
+const RAW_AT_ANCHOR = rawStats(ANCHOR_MS);
+const TOTAL_SCALE = TARGET_TOTAL_AT_ANCHOR / Math.max(1, RAW_AT_ANCHOR.totalUsers);
+const DAU_SCALE = TARGET_DAU_AT_ANCHOR / Math.max(1, RAW_AT_ANCHOR.dau);
+const WAU_SCALE = TARGET_WAU_AT_ANCHOR / Math.max(1, RAW_AT_ANCHOR.wau);
+
+/** Current headline numbers, quantized to the 5-min tick. */
+export function currentStats(now: number = Date.now()): StatSnapshot {
+  const raw = rawStats(now);
+  const dau = Math.round(raw.dau * DAU_SCALE);
+  const wau = Math.round(raw.wau * WAU_SCALE);
+  return {
+    totalUsers: Math.round(raw.totalUsers * TOTAL_SCALE),
+    dau,
+    wau: Math.max(dau, wau),
   };
 }
 
@@ -247,7 +275,7 @@ export function dailySeries(now: number = Date.now(), count = 14): DailyPoint[] 
       )
     );
     const d = new Date(dayMs);
-    out.push({ date: d.toISOString().slice(0, 10), label: fmtDay(d), dau });
+    out.push({ date: d.toISOString().slice(0, 10), label: fmtDay(d), dau: Math.round(dau * DAU_SCALE) });
   }
   return out;
 }
@@ -276,7 +304,7 @@ export function weeklySeries(now: number = Date.now(), count = 8): WeeklyPoint[]
       )
     );
     const d = new Date(weekMs);
-    out.push({ week: d.toISOString().slice(0, 10), label: `W of ${fmtDay(d)}`, wau });
+    out.push({ week: d.toISOString().slice(0, 10), label: `W of ${fmtDay(d)}`, wau: Math.round(wau * WAU_SCALE) });
   }
   return out;
 }
