@@ -1,9 +1,11 @@
 'use client';
 
+import { auctionStatusClass } from './auction-status';
+
 import { AlertCircle, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
 import { useAuctionCard } from '@/hooks';
 import { cn } from '@/lib/utils';
-import type { AuctionCardStatus, AuctionCardSummary } from '@/types';
+import type { AuctionCardSummary } from '@/types';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -30,22 +32,6 @@ function formatLabel(value: string | null | undefined): string {
     .split('_')
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
     .join(' ');
-}
-
-function statusClass(status: AuctionCardStatus): string {
-  switch (status) {
-    case 'published':
-      return 'bg-emerald-50 text-emerald-700 border-emerald-100';
-    case 'needs_review':
-      return 'bg-amber-50 text-amber-700 border-amber-100';
-    case 'rejected':
-      return 'bg-rose-50 text-rose-700 border-rose-100';
-    case 'archived':
-      return 'bg-slate-100 text-slate-500 border-slate-200';
-    case 'draft':
-    default:
-      return 'bg-blue-50 text-blue-700 border-blue-100';
-  }
 }
 
 export function AuctionCardReviewDialog({
@@ -88,7 +74,7 @@ export function AuctionCardReviewDialog({
                   <span className="text-sm font-semibold text-slate-500">{clubName}</span>
                 )}
                 {status && (
-                  <Badge variant="outline" className={cn('rounded-md font-bold', statusClass(status))}>
+                  <Badge variant="outline" className={cn('rounded-md font-bold', auctionStatusClass(status))}>
                     {formatLabel(status)}
                   </Badge>
                 )}
