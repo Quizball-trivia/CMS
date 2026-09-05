@@ -28,13 +28,14 @@ export const questionKeys = {
 export function useQuestions(params?: ListQuestionsParams) {
   return useQuery({
     queryKey: questionKeys.list(params),
-    queryFn: () => questionsService.list(params),
+    queryFn: ({ signal }) => questionsService.list(params, signal),
   });
 }
 
 export function useQuestion(id: string, enabled = true) {
   return useQuery({
     queryKey: questionKeys.detail(id),
+    staleTime: 0, // Always revalidate the record before editing it.
     queryFn: async () => {
       logger.debug('questions', 'Fetching question by ID', { id });
       const result = await questionsService.getById(id);
@@ -74,9 +75,8 @@ export function useUpdateQuestion() {
       logger.info('questions', 'Question updated', { id, result });
       return result;
     },
-    onSuccess: (_, variables) => {
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: questionKeys.all });
-      queryClient.invalidateQueries({ queryKey: questionKeys.detail(variables.id) });
     },
     onError: (error, variables) => {
       logger.error('questions', 'Failed to update question', { id: variables.id, ...getErrorLogDetails(error) });
@@ -104,9 +104,8 @@ export function useUpdateQuestionStatus() {
   return useMutation({
     mutationFn: ({ id, data }: { id: string; data: UpdateQuestionStatusRequest }) =>
       questionsService.updateStatus(id, data),
-    onSuccess: (_, variables) => {
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: questionKeys.all });
-      queryClient.invalidateQueries({ queryKey: questionKeys.detail(variables.id) });
     },
     onError: (error, variables) => {
       logger.error('questions', 'Failed to update question status', {

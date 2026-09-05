@@ -13,8 +13,8 @@ export function QueryProvider({ children }: QueryProviderProps) {
       new QueryClient({
         defaultOptions: {
           queries: {
-            staleTime: 0, // Always refetch - no caching
-            gcTime: 0, // Don't keep in cache
+            staleTime: 30_000, // Reuse recent reads; mutations invalidate affected queries.
+            gcTime: 5 * 60_000, // Keep inactive pages warm during navigation.
             refetchOnWindowFocus: true, // Refetch when window regains focus
           },
         },

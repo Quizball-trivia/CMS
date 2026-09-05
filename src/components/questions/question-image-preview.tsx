@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { ImageOff } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { questionImageProps } from '@/lib/cms-image';
 
 interface QuestionImagePreviewProps {
   src: string;
@@ -34,7 +35,10 @@ export function preloadQuestionImage(src: string | null | undefined): Promise<vo
       preloadingImageUrls.delete(src);
       resolve();
     };
-    image.src = src;
+    const props = questionImageProps(src);
+    if (props.sizes) image.sizes = props.sizes;
+    if (props.srcSet) image.srcset = props.srcSet;
+    image.src = props.src;
   });
 
   preloadingImageUrls.set(src, preload);
@@ -93,7 +97,7 @@ function QuestionImagePreviewFrame({
         )}
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
-          src={src}
+          {...questionImageProps(src)}
           alt={alt}
           loading="eager"
           decoding="async"

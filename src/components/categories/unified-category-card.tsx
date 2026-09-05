@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import Image from 'next/image';
+import { canOptimizeCmsImage } from '@/lib/cms-image';
 import type { Category } from '@/types';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -64,7 +65,7 @@ export function UnifiedCategoryCard({
                 src={category.image_url}
                 alt=""
                 fill
-                unoptimized
+                unoptimized={!canOptimizeCmsImage(category.image_url)}
                 sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 420px"
                 className="object-cover transition-transform duration-500 group-hover/card:scale-105"
               />
