@@ -1,5 +1,7 @@
 'use client';
 
+import { auctionStatusClass } from './auction-status';
+
 import { useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { AlertTriangle, Archive, CheckCircle2, RotateCcw, Save, Send, XCircle } from 'lucide-react';
@@ -212,22 +214,6 @@ function getPublishErrors(form: FormState): string[] {
   return [...errors];
 }
 
-function statusClass(status: AuctionCardStatus): string {
-  switch (status) {
-    case 'published':
-      return 'bg-emerald-50 text-emerald-700 border-emerald-100';
-    case 'needs_review':
-      return 'bg-amber-50 text-amber-700 border-amber-100';
-    case 'rejected':
-      return 'bg-rose-50 text-rose-700 border-rose-100';
-    case 'archived':
-      return 'bg-slate-100 text-slate-500 border-slate-200';
-    case 'draft':
-    default:
-      return 'bg-blue-50 text-blue-700 border-blue-100';
-  }
-}
-
 interface AuctionCardEditorProps {
   card: AuctionCardDetail;
   variant?: 'page' | 'modal';
@@ -372,7 +358,7 @@ export function AuctionCardEditor({ card, variant = 'page' }: AuctionCardEditorP
             <div className="flex flex-wrap items-start justify-between gap-4">
               <div className="space-y-1">
                 <div className="flex items-center gap-2">
-                  <Badge variant="outline" className={cn('rounded-md font-bold', statusClass(card.status))}>
+                  <Badge variant="outline" className={cn('rounded-md font-bold', auctionStatusClass(card.status))}>
                     {formatLabel(card.status)}
                   </Badge>
                 </div>

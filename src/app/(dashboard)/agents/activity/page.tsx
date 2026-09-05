@@ -29,7 +29,7 @@ function utcResetToTbilisi(reason: string): string {
   return reason.replace(/(\d{1,2}):(\d{2})\s*(am|pm)\s*\(UTC\)/gi, (_m, h, min, ap) => {
     let hour = Number(h) % 12;
     if (ap.toLowerCase() === 'pm') hour += 12;
-    let tb = (hour + 4) % 24; // UTC+4
+    const tb = (hour + 4) % 24; // UTC+4
     const ampm = tb >= 12 ? 'pm' : 'am';
     let h12 = tb % 12;
     if (h12 === 0) h12 = 12;

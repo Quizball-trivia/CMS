@@ -79,7 +79,7 @@ export default function StatsPage() {
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-slate-900">Stats</h1>
           <p className="text-sm text-slate-500">
-            Active users and growth — live overview.
+            Active users and growth — demo data preview.
           </p>
         </div>
       </div>

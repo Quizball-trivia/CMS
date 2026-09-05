@@ -57,20 +57,15 @@ export function useUpdateCategory() {
       // Update the detail cache
       queryClient.setQueryData(categoryKeys.detail(variables.id), updatedCategory);
       
-      // Update the list cache directly with the new data (instant update)
-      queryClient.setQueriesData<{ data: typeof updatedCategory[] }>(
+      queryClient.setQueriesData<typeof updatedCategory[]>(
         { queryKey: categoryKeys.lists() },
-        (old) => {
-          if (!old?.data) return old;
-          return {
-            ...old,
-            data: old.data.map((cat) =>
-              cat.id === variables.id ? updatedCategory : cat
-            ),
-          };
-        }
+        (old) => old?.map((category) => category.id === variables.id ? updatedCategory : category)
       );
-      
+
+      // Refetch filtered lists: changing parent/active status can add or remove
+      // a category from a cached result, which an in-place replacement cannot do.
+      void queryClient.invalidateQueries({ queryKey: categoryKeys.lists() });
+
       // Also update featured categories cache (they contain nested category data)
       queryClient.setQueriesData<FeaturedCategory[]>(
         { queryKey: featuredKeys.list() },
