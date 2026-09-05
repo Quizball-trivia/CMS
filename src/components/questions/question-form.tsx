@@ -24,6 +24,7 @@ import {
   generateAnswerId,
   getAdvancedPayloadSaveError,
   prepareAdvancedPayloadForSave,
+  prepareQuestionUpdate,
   stripEmptyTranslations,
   type AdvancedQuestionPayload,
 } from '@/lib/question-utils';
@@ -279,20 +280,16 @@ export function QuestionForm({ question, onSuccess }: QuestionFormProps) {
                 {
                   id: 'true',
                   text: {
+                    ...mcqOptions.find((option) => option.id === 'true')?.text,
                     en: mcqOptions.find((option) => option.id === 'true')?.text.en || 'True',
-                    ...(mcqOptions.find((option) => option.id === 'true')?.text.ka
-                      ? { ka: mcqOptions.find((option) => option.id === 'true')?.text.ka }
-                      : {}),
                   },
                   is_correct: mcqOptions.find((option) => option.id === 'true')?.is_correct ?? true,
                 },
                 {
                   id: 'false',
                   text: {
+                    ...mcqOptions.find((option) => option.id === 'false')?.text,
                     en: mcqOptions.find((option) => option.id === 'false')?.text.en || 'False',
-                    ...(mcqOptions.find((option) => option.id === 'false')?.text.ka
-                      ? { ka: mcqOptions.find((option) => option.id === 'false')?.text.ka }
-                      : {}),
                   },
                   is_correct: mcqOptions.find((option) => option.id === 'false')?.is_correct ?? false,
                 },
@@ -326,26 +323,26 @@ export function QuestionForm({ question, onSuccess }: QuestionFormProps) {
         status: data.status,
         prompt: {
           en: data.prompt_en,
-          ...(data.prompt_ka && { ka: data.prompt_ka }),
+          ka: data.prompt_ka ?? '',
         },
-        explanation:
-          data.explanation_en || data.explanation_ka
-            ? {
-                ...(data.explanation_en && { en: data.explanation_en }),
-                ...(data.explanation_ka && { ka: data.explanation_ka }),
-              }
-            : null,
-        payload: stripEmptyTranslations(payload),
+        explanation: { en: data.explanation_en ?? '', ka: data.explanation_ka ?? '' },
+        payload,
       };
 
       logger.info('questions', 'Sending question to API', { questionData, isEditing });
 
       if (isEditing) {
-        const result = await updateQuestion.mutateAsync({ id: question.id, data: questionData });
+        const result = await updateQuestion.mutateAsync({ id: question.id, data: prepareQuestionUpdate(question, questionData) });
         logger.info('questions', 'Question updated successfully', { result });
         toast.success('Question updated successfully');
       } else {
-        const result = await createQuestion.mutateAsync(questionData);
+        const result = await createQuestion.mutateAsync({
+          ...questionData,
+          payload: stripEmptyTranslations(questionData.payload),
+          prompt: stripEmptyTranslations(questionData.prompt),
+          explanation: Object.values(questionData.explanation).some((text) => text.trim())
+            ? stripEmptyTranslations(questionData.explanation) : null,
+        });
         logger.info('questions', 'Question created successfully', { result });
         toast.success('Question created successfully');
       }
@@ -673,6 +670,7 @@ export function QuestionForm({ question, onSuccess }: QuestionFormProps) {
               <div className="space-y-10">
                 <FormField
                   control={form.control}
+                  key={`${previewLang}-prompt`}
                   name={previewLang === 'ka' ? 'prompt_ka' : 'prompt_en'}
                   render={({ field }) => (
                     <FormItem className="space-y-3">
@@ -691,6 +689,7 @@ export function QuestionForm({ question, onSuccess }: QuestionFormProps) {
 
                 <FormField
                   control={form.control}
+                  key={`${previewLang}-explanation`}
                   name={previewLang === 'ka' ? 'explanation_ka' : 'explanation_en'}
                   render={({ field }) => (
                     <FormItem className="space-y-3">
