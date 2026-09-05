@@ -95,3 +95,20 @@ it('removes an explicitly cleared option translation instead of restoring it fro
   expect(update.mock.calls[0][0].data.prompt).toEqual(question('mcq_single').prompt);
   expect(update.mock.calls[0][0].data.explanation).toEqual(question('mcq_single').explanation);
 });
+
+it.each([false, true])('does not create absent true/false translations when changing correctness=%s', async (changeCorrectness) => {
+  const existing = question('true_false');
+  if (existing.payload?.type !== 'true_false') throw new Error('expected true/false fixture');
+  for (const option of existing.payload.options) delete option.text.ka;
+  const expected = structuredClone(existing.payload);
+  render(<QuestionDialog open question={existing} initialLocale="ka" />);
+  fireEvent.click(screen.getByRole('button', { name: 'Edit Details' }));
+  fireEvent.change(screen.getByPlaceholderText('Enter your question here...'), { target: { value: 'Edited Georgian prompt' } });
+  if (changeCorrectness) {
+    fireEvent.click(screen.getByRole('button', { name: 'False' }));
+    expected.options.forEach(option => { option.is_correct = option.id === 'false'; });
+  }
+  fireEvent.click(screen.getByRole('button', { name: 'Save Changes' }));
+  await waitFor(() => expect(update).toHaveBeenCalledOnce());
+  expect(update.mock.calls[0][0].data.payload).toEqual(expected);
+});

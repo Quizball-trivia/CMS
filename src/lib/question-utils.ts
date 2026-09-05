@@ -90,7 +90,7 @@ export function questionToFormData(question: Question, preferredLocale: 'en' | '
       ...baseData,
       options: payload?.options?.map(opt => ({
         id: opt.id,
-        text: opt.text?.[locale] || opt.text?.en || '',
+        text: opt.text?.[locale] ?? '',
         is_correct: opt.is_correct,
       })) || [],
       acceptedAnswers: [],
