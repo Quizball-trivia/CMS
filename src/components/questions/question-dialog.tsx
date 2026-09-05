@@ -968,7 +968,7 @@ export function QuestionDialog({
           <TrueFalseEditor
             options={formData.options.map((option) => ({
               id: option.id,
-              text: { [formData.locale]: option.text, en: option.id === 'true' ? 'True' : 'False' },
+              text: { en: option.id === 'true' ? 'True' : 'False', [formData.locale]: option.text },
               is_correct: option.is_correct,
             }))}
             locale={formData.locale}
@@ -977,7 +977,7 @@ export function QuestionDialog({
                 ...prev,
                 options: options.map((option) => ({
                   id: option.id,
-                  text: option.text[formData.locale] || option.text.en || '',
+                  text: option.text[formData.locale] ?? '',
                   is_correct: option.is_correct,
                 })),
               }));
