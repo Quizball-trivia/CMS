@@ -210,7 +210,7 @@ function BiEditField({
   multiline?: boolean;
 }) {
   const v = value ?? { en: '', ka: '' };
-  const Field: any = multiline ? Textarea : Input;
+  const Field = multiline ? Textarea : Input;
   const tag = 'mt-2.5 w-7 shrink-0 text-[9px] font-black uppercase tracking-widest text-slate-400';
   return (
     <div className="flex min-w-0 flex-1 flex-col gap-1">
@@ -218,7 +218,7 @@ function BiEditField({
         <span className={tag}>ქარ</span>
         <Field
           value={v.ka ?? ''}
-          onChange={(e: React.ChangeEvent<HTMLInputElement>) => onChange({ ...v, ka: e.target.value })}
+          onChange={(e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => onChange({ ...v, ka: e.target.value })}
           placeholder="ქართული — Translate All fills this if left empty"
           className="text-sm"
         />
@@ -227,7 +227,7 @@ function BiEditField({
         <span className={tag}>EN</span>
         <Field
           value={v.en ?? ''}
-          onChange={(e: React.ChangeEvent<HTMLInputElement>) => onChange({ ...v, en: e.target.value })}
+          onChange={(e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => onChange({ ...v, en: e.target.value })}
           placeholder="English"
           className="text-xs text-slate-500"
         />

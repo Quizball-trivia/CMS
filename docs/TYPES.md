@@ -1,270 +1,44 @@
-# CMS Types Guide
+# CMS API types and services
 
-This app uses auto-generated TypeScript types from the backend's OpenAPI spec for full type safety.
+The backend OpenAPI document generates `src/types/api.generated.ts`. Domain types in `src/types/` reuse those schemas and add editor-specific payload types where needed. Do not edit the generated file by hand.
 
-## How Types Flow
-
-```
-Backend (Zod Schemas)
-       ↓
-OpenAPI Spec (http://localhost:8001/openapi.json)
-       ↓
-npm run api:sync:local
-       ↓
-src/types/api.generated.ts
-       ↓
-src/lib/api.ts (type-safe client)
-```
-
-## Quick Start
+With the backend running on port 8001:
 
 ```bash
-# Generate/update types from running backend
-npm run api:sync:local
-
-# Check types compile correctly
+npm run generate:api
 npm run typecheck
 ```
 
-## Commands
+Review the generated diff before committing it; a different backend branch can change unrelated routes. This repository does not define `api:sync:local`, `api:sync:staging`, `api:sync:prod`, or `api:check` scripts.
 
-| Command | Description |
-|---------|-------------|
-| `npm run api:sync:local` | Sync types from localhost:8001 |
-| `npm run api:sync:staging` | Sync from `$STAGING_API_URL` |
-| `npm run api:sync:prod` | Sync from `$PROD_API_URL` |
-| `npm run api:check` | CI: Verify types match (fails if out of sync) |
-| `npm run typecheck` | Run TypeScript compiler |
+## Existing request paths
 
-## Using the Type-Safe API Client
-
-### Import the client
+Most CMS features use query hooks in `src/hooks/`, domain services in `src/services/`, and the shared `src/services/api-client.ts` transport. That transport coordinates token refresh and handles expired sessions. Extend the corresponding service and hook when adding behavior to those features.
 
 ```typescript
-import { api } from '@/lib/api';
+import { categoriesService } from '@/services';
+import type { Category } from '@/types';
+
+const categories: Category[] = await categoriesService.listAll();
 ```
 
-### GET requests
+`listAll` returns an array, not a pagination envelope. Query-cache updates must preserve the shape returned by the query function.
 
-```typescript
-// Simple GET
-const { data, error } = await api.GET('/api/v1/categories');
+The Weekend League page currently uses the generated-path `openapi-fetch` client exported by `src/lib/api.ts`. Its authentication middleware adds the stored token; it does not provide the shared transport's refresh coordination. Keep its existing caller working. A future transport consolidation must preserve authentication, error handling, and response shapes for both sets of callers.
 
-// With path parameters
-const { data, error } = await api.GET('/api/v1/categories/{id}', {
-  params: { path: { id: 'category-uuid' } }
-});
+## Editor payloads
 
-// With query parameters
-const { data, error } = await api.GET('/api/v1/questions', {
-  params: {
-    query: {
-      category_id: 'uuid',
-      status: 'published',
-      page: '1',
-      limit: '20',
-    }
-  }
-});
-```
+Question updates replace submitted JSON fields on the backend. Both question editors use `prepareQuestionUpdate` from `src/lib/question-utils.ts` to merge unchanged translations and image metadata before sending an update. An explicitly empty locale removes that translation. An omitted image preserves the stored image; an explicit `image: undefined` removes it from the replacement payload.
 
-### POST requests
+Import editor/domain types from `@/types`, and use `components` or `paths` from `@/types/api.generated` when deriving a transport type. Keep any deliberate domain transformation visible rather than bypassing the generated contract with a generic cast.
 
-```typescript
-const { data, error } = await api.POST('/api/v1/categories', {
-  body: {
-    slug: 'sports',
-    name: { en: 'Sports', ka: 'სპორტი' },
-    is_active: true,
-  }
-});
-```
-
-### PUT requests
-
-```typescript
-const { data, error } = await api.PUT('/api/v1/categories/{id}', {
-  params: { path: { id: 'uuid' } },
-  body: { name: { en: 'Updated Name' } }
-});
-```
-
-### DELETE requests
-
-```typescript
-const { data, error } = await api.DELETE('/api/v1/categories/{id}', {
-  params: { path: { id: 'uuid' } }
-});
-```
-
-### PATCH requests
-
-```typescript
-const { data, error } = await api.PATCH('/api/v1/questions/{id}/status', {
-  params: { path: { id: 'uuid' } },
-  body: { status: 'published' }
-});
-```
-
-## Using Types Directly
-
-### From the generated file
-
-```typescript
-import type { components } from '@/types/api.generated';
-
-type Category = components['schemas']['CategoryResponse'];
-type Question = components['schemas']['QuestionResponse'];
-type I18nField = components['schemas']['I18nField'];
-```
-
-### From the API client (re-exported)
-
-```typescript
-import type { Category, Question, I18nField } from '@/lib/api';
-```
-
-## With React Query
-
-```typescript
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { api } from '@/lib/api';
-
-// Query hook
-export function useCategories() {
-  return useQuery({
-    queryKey: ['categories'],
-    queryFn: async () => {
-      const { data, error } = await api.GET('/api/v1/categories');
-      if (error) throw error;
-      return data;
-    },
-  });
-}
-
-// Mutation hook
-export function useCreateCategory() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: async (body: {
-      slug: string;
-      name: { en: string };
-      is_active?: boolean;
-    }) => {
-      const { data, error } = await api.POST('/api/v1/categories', { body });
-      if (error) throw error;
-      return data;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['categories'] });
-    },
-  });
-}
-```
-
-## Cross-Checking Types
-
-### 1. Sync latest types
+## Validation
 
 ```bash
-npm run api:sync:local
-```
-
-### 2. Run TypeScript check
-
-```bash
+npm run lint
 npm run typecheck
+npm test
+npm run build
 ```
 
-### 3. If errors appear
-
-The errors show exactly what's mismatched:
-
-```
-error TS2339: Property 'newField' does not exist on type 'CategoryResponse'
-```
-
-This means:
-- Backend added `newField` but you haven't synced yet, OR
-- You're using a field that doesn't exist in the API
-
-### 4. Fix the mismatch
-
-```bash
-# If backend changed, sync again
-npm run api:sync:local
-
-# If your code is wrong, fix it based on the error
-```
-
-## CI/CD Integration
-
-Add to your CI pipeline:
-
-```yaml
-- name: Check API types are in sync
-  run: |
-    npm run api:sync:prod
-    npm run typecheck
-```
-
-Or use the built-in check:
-
-```yaml
-- name: Verify types
-  run: npm run api:check
-  env:
-    PROD_API_URL: ${{ secrets.PROD_API_URL }}
-```
-
-## Troubleshooting
-
-### "Cannot find module '@/types/api.generated'"
-
-Types haven't been generated yet:
-```bash
-npm run api:sync:local
-```
-
-### "Property 'X' does not exist on type 'Y'"
-
-Types are out of sync:
-```bash
-npm run api:sync:local
-npm run typecheck
-```
-
-### "fetch failed" when syncing
-
-Backend not running:
-```bash
-cd ../backend-node
-npm run dev
-# Then retry sync
-```
-
-### Types seem stale
-
-Force regenerate:
-```bash
-rm src/types/api.generated.ts
-npm run api:sync:local
-```
-
-## File Structure
-
-```
-src/
-├── lib/
-│   └── api.ts              # Type-safe API client + re-exported types
-├── types/
-│   ├── api.generated.ts    # Auto-generated (DO NOT EDIT)
-│   ├── api.ts              # Legacy manual types (migrate away from this)
-│   ├── category.ts         # Domain types extending generated ones
-│   └── question.ts         # Domain types extending generated ones
-```
-
-## Migration Note
-
-The old `apiClient` in `src/services/api-client.ts` still works but isn't type-safe. Prefer using the new `api` client from `@/lib/api.ts` for new code.
+CI runs those checks on pull requests. Tests exercise real editor saves and category query-cache behavior; they do not contact a deployed CMS or database.

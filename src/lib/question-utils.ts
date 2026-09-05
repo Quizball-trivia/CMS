@@ -11,6 +11,7 @@ import type {
   QuestionStatus,
   QuestionType,
   TrueFalsePayload,
+  UpdateQuestionRequest,
 } from '@/types';
 
 export type AdvancedQuestionPayload =
@@ -89,7 +90,7 @@ export function questionToFormData(question: Question, preferredLocale: 'en' | '
       ...baseData,
       options: payload?.options?.map(opt => ({
         id: opt.id,
-        text: opt.text?.[locale] || opt.text?.en || '',
+        text: opt.text?.[locale] ?? '',
         is_correct: opt.is_correct,
       })) || [],
       acceptedAnswers: [],
@@ -339,4 +340,37 @@ export function getAdvancedPayloadSaveError(payload: AdvancedQuestionPayload): s
   }
 
   return null;
+}
+
+/** Merge partial editor fields without losing locales or image metadata the editor did not touch.
+ * A present empty locale removes that translation; a present undefined image removes the image.
+ */
+export function prepareQuestionUpdate(question: Question, update: UpdateQuestionRequest): UpdateQuestionRequest {
+  const result = { ...update };
+  if (update.prompt) result.prompt = stripEmptyTranslations({ ...question.prompt, ...update.prompt });
+  if (update.explanation) {
+    const explanation = stripEmptyTranslations({ ...question.explanation, ...update.explanation });
+    result.explanation = Object.keys(explanation).length ? explanation : null;
+  }
+  const previous = question.payload;
+  const payload = update.payload;
+  if (previous?.type === 'mcq_single' && payload?.type === 'mcq_single') {
+    result.payload = {
+      ...previous,
+      ...payload,
+      options: payload.options.map((option) => ({
+        ...option,
+        text: stripEmptyTranslations({ ...previous.options.find((old) => old.id === option.id)?.text, ...option.text }),
+      })),
+    };
+  } else if (previous?.type === 'true_false' && payload?.type === 'true_false') {
+    result.payload = {
+      ...payload,
+      options: payload.options.map((option) => ({
+        ...option,
+        text: stripEmptyTranslations({ ...previous.options.find((old) => old.id === option.id)?.text, ...option.text }),
+      })) as typeof payload.options,
+    };
+  }
+  return stripEmptyTranslations(result);
 }

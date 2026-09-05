@@ -51,6 +51,7 @@ import {
   generateAnswerId,
   getAdvancedPayloadSaveError,
   prepareAdvancedPayloadForSave,
+  prepareQuestionUpdate,
   questionToFormData,
   type AdvancedQuestionPayload,
 } from '@/lib/question-utils';
@@ -467,26 +468,17 @@ export function QuestionDialog({
           category_id: formData.category_id,
           difficulty: formData.difficulty,
           status: formData.status,
-          prompt: { ...hydratedQuestion.prompt, [formData.locale]: formData.prompt },
-          explanation: formData.explanation
-            ? { ...hydratedQuestion.explanation, [formData.locale]: formData.explanation }
-            : hydratedQuestion.explanation,
+          prompt: { [formData.locale]: formData.prompt },
+          explanation: { [formData.locale]: formData.explanation },
           payload: formData.type === 'mcq_single'
             ? {
                 type: 'mcq_single',
-                ...(mcqImage ? { image: mcqImage } : {}),
-                options: formData.options.map((opt, idx) => {
-                  const optionId = opt.id || generateAnswerId();
-                  const existingOption = hydratedQuestion.payload?.type === 'mcq_single'
-                    ? hydratedQuestion.payload.options.find(o => o.id === optionId)
-                      ?? hydratedQuestion.payload.options[idx]
-                    : undefined;
-                  return {
-                    id: optionId,
-                    text: { ...existingOption?.text, [formData.locale]: opt.text },
-                    is_correct: opt.is_correct,
-                  };
-                }),
+                image: mcqImage,
+                options: formData.options.map((option) => ({
+                  id: option.id || generateAnswerId(),
+                  text: { [formData.locale]: option.text },
+                  is_correct: option.is_correct,
+                })),
               }
             : formData.type === 'true_false'
               ? {
@@ -495,16 +487,14 @@ export function QuestionDialog({
                     {
                       id: 'true',
                       text: {
-                        ...(hydratedQuestion.payload?.type === 'true_false' ? hydratedQuestion.payload.options[0]?.text : {}),
-                        [formData.locale]: 'True',
+                        [formData.locale]: formData.options.find(option => option.id === 'true')?.text ?? 'True',
                       },
                       is_correct: formData.options.find(option => option.id === 'true')?.is_correct ?? true,
                     },
                     {
                       id: 'false',
                       text: {
-                        ...(hydratedQuestion.payload?.type === 'true_false' ? hydratedQuestion.payload.options[1]?.text : {}),
-                        [formData.locale]: 'False',
+                        [formData.locale]: formData.options.find(option => option.id === 'false')?.text ?? 'False',
                       },
                       is_correct: formData.options.find(option => option.id === 'false')?.is_correct ?? false,
                     },
@@ -542,7 +532,7 @@ export function QuestionDialog({
           }
         }
 
-        await updateQuestion.mutateAsync({ id: hydratedQuestion.id, data });
+        await updateQuestion.mutateAsync({ id: hydratedQuestion.id, data: prepareQuestionUpdate(hydratedQuestion, data) });
         toast.success('Question updated successfully');
         setMode('view');
       }
@@ -978,7 +968,7 @@ export function QuestionDialog({
           <TrueFalseEditor
             options={formData.options.map((option) => ({
               id: option.id,
-              text: { [formData.locale]: option.text, en: option.id === 'true' ? 'True' : 'False' },
+              text: { en: option.id === 'true' ? 'True' : 'False', [formData.locale]: option.text },
               is_correct: option.is_correct,
             }))}
             locale={formData.locale}
@@ -987,7 +977,7 @@ export function QuestionDialog({
                 ...prev,
                 options: options.map((option) => ({
                   id: option.id,
-                  text: option.text[formData.locale] || option.text.en || '',
+                  text: option.text[formData.locale] ?? '',
                   is_correct: option.is_correct,
                 })),
               }));
