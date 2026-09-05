@@ -33,22 +33,8 @@ export function TrueFalseEditor({ options, locale = 'en', onChange }: TrueFalseE
 
   const handleSelect = (selectedId: 'true' | 'false') => {
     onChange([
-      {
-        id: 'true',
-        text: {
-          en: trueOption.text.en || DEFAULT_LABELS.en.true,
-          ...(locale === 'ka' ? { ka: trueOption.text.ka || DEFAULT_LABELS.ka.true } : {}),
-        },
-        is_correct: selectedId === 'true',
-      },
-      {
-        id: 'false',
-        text: {
-          en: falseOption.text.en || DEFAULT_LABELS.en.false,
-          ...(locale === 'ka' ? { ka: falseOption.text.ka || DEFAULT_LABELS.ka.false } : {}),
-        },
-        is_correct: selectedId === 'false',
-      },
+      { ...trueOption, id: 'true', is_correct: selectedId === 'true' },
+      { ...falseOption, id: 'false', is_correct: selectedId === 'false' },
     ]);
   };
 
