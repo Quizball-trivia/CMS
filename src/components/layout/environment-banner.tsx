@@ -21,6 +21,14 @@ const CONFIG: Record<
 function resolveEnv(): CmsEnv | null {
   const raw = process.env.NEXT_PUBLIC_CMS_ENV?.trim().toUpperCase();
   if (raw === 'PROD' || raw === 'STAGING') return raw;
+  // Zero-config fallback now that the CMS lives on first-party subdomains:
+  // cms.quizball.io is production, staging-cms.quizball.io is staging.
+  // The env var (when set) still wins, e.g. for preview deploys.
+  if (typeof window !== 'undefined') {
+    const host = window.location.hostname;
+    if (host === 'cms.quizball.io') return 'PROD';
+    if (host === 'staging-cms.quizball.io') return 'STAGING';
+  }
   return null;
 }
 
