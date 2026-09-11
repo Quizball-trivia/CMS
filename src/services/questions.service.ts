@@ -198,16 +198,17 @@ export const questionsService = {
 
   async getAllIds(params?: Omit<ListQuestionsParams, 'page' | 'limit'>): Promise<string[]> {
     logger.debug('api', 'Fetching all question IDs', { params });
-    const allIds: string[] = [];
-    let page = 1;
-    const limit = 100; // Fetch in batches of 100
-    let hasMore = true;
-
-    while (hasMore) {
-      const result = await questionsService.list({ ...params, page, limit });
-      allIds.push(...result.data.map(q => q.id));
-      hasMore = page < result.total_pages;
-      page++;
+    const limit = 100;
+    const first = await questionsService.list({ ...params, page: 1, limit });
+    const allIds = first.data.map(question => question.id);
+    // Four concurrent reads keep large selections moving without an unbounded burst.
+    for (let page = 2; page <= first.total_pages; page += 4) {
+      const pages = await Promise.all(
+        Array.from({ length: Math.min(4, first.total_pages - page + 1) }, (_, offset) =>
+          questionsService.list({ ...params, page: page + offset, limit })
+        )
+      );
+      allIds.push(...pages.flatMap(result => result.data.map(question => question.id)));
     }
 
     logger.debug('api', 'Fetched all question IDs', { total: allIds.length });
