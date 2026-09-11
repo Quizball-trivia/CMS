@@ -45,7 +45,7 @@ export default function AuthLayout({
         <div className="flex flex-col items-center justify-center space-y-4 text-center animate-in fade-in slide-in-from-bottom-4 duration-700 relative z-10">
           <div className="relative group">
             <div className="absolute -inset-1 bg-gradient-to-r from-primary to-blue-600 rounded-2xl blur opacity-25 group-hover:opacity-50 transition duration-1000 group-hover:duration-200"></div>
-            <div className="relative rounded-2xl bg-card p-4 shadow-2xl backdrop-blur-xl border border-white/20">
+            <div className="relative rounded-2xl bg-zinc-900 p-4 shadow-2xl border border-white/10">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src="/assets/brand/quizball-logo.webp"
