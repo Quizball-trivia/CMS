@@ -9,6 +9,7 @@ import {
   type ReactNode,
 } from 'react';
 import { useRouter } from 'next/navigation';
+import { useQueryClient } from '@tanstack/react-query';
 import { authService } from '@/services';
 import { AUTH_TOKEN_KEY, REFRESH_TOKEN_KEY, AUTH_EXPIRY_KEY } from '@/lib/constants';
 import { logger } from '@/lib/logger';
@@ -40,6 +41,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const router = useRouter();
+  const queryClient = useQueryClient();
 
   const storeSession = useCallback((response: { access_token?: string | null; refresh_token?: string | null; expires_in?: number | null }) => {
     if (response.access_token) localStorage.setItem(AUTH_TOKEN_KEY, response.access_token);
@@ -53,7 +55,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
     localStorage.removeItem(AUTH_TOKEN_KEY);
     localStorage.removeItem(REFRESH_TOKEN_KEY);
     localStorage.removeItem(AUTH_EXPIRY_KEY);
-  }, []);
+    queryClient.clear();
+  }, [queryClient]);
 
   // Silent renewal: Supabase access tokens die at 1h — without this, every
   // CMS action starts failing mid-session (the Saturday event-ops killer).
@@ -108,9 +111,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       setUser(userData);
     } catch {
       // Token invalid or expired
-      localStorage.removeItem(AUTH_TOKEN_KEY);
-      localStorage.removeItem(REFRESH_TOKEN_KEY);
-      localStorage.removeItem(AUTH_EXPIRY_KEY);
+      clearSession();
       setUser(null);
     } finally {
       setIsLoading(false);
@@ -148,9 +149,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
   useEffect(() => {
     const handleSessionExpired = () => {
       logger.info('auth', 'Session expired event received, logging out');
-      localStorage.removeItem(AUTH_TOKEN_KEY);
-      localStorage.removeItem(REFRESH_TOKEN_KEY);
-      localStorage.removeItem(AUTH_EXPIRY_KEY);
+      clearSession();
       setUser(null);
       router.push('/login');
     };
@@ -159,19 +158,20 @@ export function AuthProvider({ children }: AuthProviderProps) {
     return () => {
       window.removeEventListener('auth:session-expired', handleSessionExpired);
     };
-  }, [router]);
+  }, [router, clearSession]);
 
   const login = useCallback(async (data: LoginRequest): Promise<void> => {
     const response = await authService.login(data);
 
     // Backend returns tokens directly on the response object
+    queryClient.clear();
     storeSession(response);
     if (!response.expires_in) localStorage.removeItem(AUTH_EXPIRY_KEY);
 
     // Fetch full user profile after login
     const userData = await authService.getMe();
     setUser(userData);
-  }, [storeSession]);
+  }, [storeSession, queryClient]);
 
   const logout = useCallback(async () => {
     try {
@@ -179,13 +179,11 @@ export function AuthProvider({ children }: AuthProviderProps) {
     } catch {
       // Ignore logout errors
     } finally {
-      localStorage.removeItem(AUTH_TOKEN_KEY);
-      localStorage.removeItem(REFRESH_TOKEN_KEY);
-      localStorage.removeItem(AUTH_EXPIRY_KEY);
+      clearSession();
       setUser(null);
       router.push('/login');
     }
-  }, [router]);
+  }, [router, clearSession]);
 
   const value: AuthContextType = {
     user,

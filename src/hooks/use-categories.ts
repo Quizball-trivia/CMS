@@ -108,6 +108,7 @@ export function useDeleteCategory() {
 export function useCategoryDependencies(id: string, enabled = true) {
   return useQuery({
     queryKey: [...categoryKeys.detail(id), 'dependencies'] as const,
+    staleTime: 0,
     queryFn: () => categoriesService.getDependencies(id),
     enabled: enabled && !!id,
   });

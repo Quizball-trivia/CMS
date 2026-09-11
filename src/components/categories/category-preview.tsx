@@ -1,6 +1,7 @@
 'use client';
 
 import Image from 'next/image';
+import { canOptimizeCmsImage } from '@/lib/cms-image';
 import { Button } from '@/components/ui/button';
 import { Users, TrendingUp, Trophy } from 'lucide-react';
 
@@ -21,7 +22,6 @@ export function CategoryPreview({
   activeLang,
   onLanguageChange,
 }: CategoryPreviewProps) {
-  const isUnoptimizedImage = !!imageUrl && (imageUrl.startsWith('blob:') || imageUrl.startsWith('data:'));
 
   return (
     <div className="relative group overflow-hidden rounded-[1.5rem] border border-white/10 min-h-[160px] w-full shadow-xl">
@@ -34,7 +34,7 @@ export function CategoryPreview({
               alt=""
               fill
               sizes="(max-width: 640px) 100vw, 33vw"
-              unoptimized={isUnoptimizedImage}
+              unoptimized={!canOptimizeCmsImage(imageUrl)}
               className="object-cover transition-transform duration-700 group-hover:scale-105"
             />
             <div className="absolute inset-0 bg-gradient-to-t from-black via-black/40 to-transparent" />
