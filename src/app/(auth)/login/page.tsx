@@ -77,7 +77,7 @@ export default function LoginPage() {
       <div className="absolute -top-[50%] -left-[50%] w-[200%] h-[200%] bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-primary/5 via-transparent to-transparent pointer-events-none" />
       
       <CardHeader className="space-y-4 pb-8 text-center relative z-10">
-        <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-primary/10 shadow-xl backdrop-blur-md border border-white/10 transition-transform duration-500 group-hover:scale-110">
+        <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-zinc-900 shadow-xl border border-white/10 transition-transform duration-500 group-hover:scale-110">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/assets/brand/quizball-logo.webp" alt="QuizBall" className="h-9 w-9 object-contain" />
         </div>
