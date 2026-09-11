@@ -18,7 +18,7 @@ import { useAuth } from '@/providers';
 import { ApiClientError } from '@/services';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { toast } from 'sonner';
@@ -78,15 +78,13 @@ export default function LoginPage() {
       
       <CardHeader className="space-y-4 pb-8 text-center relative z-10">
         <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-primary/10 shadow-xl backdrop-blur-md border border-white/10 transition-transform duration-500 group-hover:scale-110">
-          <Lock className="h-8 w-8 text-primary" />
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/assets/brand/quizball-logo.webp" alt="QuizBall" className="h-9 w-9 object-contain" />
         </div>
         <div className="space-y-2">
           <CardTitle className="text-3xl font-black tracking-tighter bg-clip-text text-transparent bg-gradient-to-br from-foreground to-foreground/60">
             Welcome Back
           </CardTitle>
-          <CardDescription className="text-muted-foreground/60 font-medium text-sm tracking-tight">
-            CMS-ი, სიმონ!
-          </CardDescription>
         </div>
       </CardHeader>
       

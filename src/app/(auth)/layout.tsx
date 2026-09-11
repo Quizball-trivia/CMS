@@ -46,18 +46,12 @@ export default function AuthLayout({
           <div className="relative group">
             <div className="absolute -inset-1 bg-gradient-to-r from-primary to-blue-600 rounded-2xl blur opacity-25 group-hover:opacity-50 transition duration-1000 group-hover:duration-200"></div>
             <div className="relative rounded-2xl bg-card p-4 shadow-2xl backdrop-blur-xl border border-white/20">
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                className="h-10 w-10 text-primary"
-              >
-                <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
-              </svg>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src="/assets/brand/quizball-logo.webp"
+                alt="QuizBall"
+                className="h-10 w-10 object-contain"
+              />
             </div>
           </div>
           <div className="space-y-1">
