@@ -22,7 +22,7 @@ function missingTokenResponse(): NextResponse {
     {
       code: 'OPS_TOKEN_UNSET',
       message:
-        'OPS_REPORT_TOKEN is not set in the CMS environment. Add it to .env.local (it must match the backend value) and restart the dev server.',
+        'Bot tuning is not configured for this CMS environment: the server is missing OPS_REPORT_TOKEN (it must match the target backend). Set it in the CMS runtime config and redeploy (locally: add it to .env.local and restart the dev server).',
       details: null,
       request_id: null,
     },
