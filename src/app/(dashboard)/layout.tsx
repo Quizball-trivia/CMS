@@ -3,7 +3,7 @@
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/providers';
-import { Sidebar, Header } from '@/components/layout';
+import { Sidebar, Header, EnvironmentBanner } from '@/components/layout';
 import { Loader2 } from 'lucide-react';
 
 export default function DashboardLayout({
@@ -34,7 +34,7 @@ export default function DashboardLayout({
   }
 
   return (
-    <div className="min-h-screen flex bg-[#f8fafc] dark:bg-[#020617] selection:bg-primary/30 selection:text-primary">
+    <div className="min-h-screen flex flex-col bg-[#f8fafc] dark:bg-[#020617] selection:bg-primary/30 selection:text-primary">
       {/* Decorative background elements for glassmorphism */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none -z-10">
         <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-primary/10 rounded-full blur-[120px] animate-pulse" />
@@ -42,14 +42,18 @@ export default function DashboardLayout({
         <div className="absolute bottom-[-5%] left-[20%] w-[35%] h-[35%] bg-purple-400/10 rounded-full blur-[110px] animate-pulse delay-1000" />
       </div>
 
-      <Sidebar />
-      <div className="flex-1 flex flex-col min-w-0 transition-all duration-300 ease-in-out">
-        <Header />
-        <main className="flex-1 p-6 overflow-y-auto animate-in fade-in duration-500">
-          <div className="max-w-[1800px] mx-auto space-y-6">
-            {children}
-          </div>
-        </main>
+      <EnvironmentBanner />
+
+      <div className="flex flex-1 min-h-0">
+        <Sidebar />
+        <div className="flex-1 flex flex-col min-w-0 transition-all duration-300 ease-in-out">
+          <Header />
+          <main className="flex-1 p-6 overflow-y-auto animate-in fade-in duration-500">
+            <div className="max-w-[1800px] mx-auto space-y-6">
+              {children}
+            </div>
+          </main>
+        </div>
       </div>
     </div>
   );
