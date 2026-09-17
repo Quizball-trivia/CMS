@@ -11,10 +11,10 @@
  *   3. the { title: 'Stats', href: '/stats', ... } entry in src/components/layout/sidebar.tsx
  * No other files or backend state are touched.
  *
- * September snapshot targets (2026-09-11):
- *   - Total Users : 16,124
- *   - DAU         : 5,246
- *   - WAU         : 9,432
+ * September snapshot targets (2026-09-17):
+ *   - Total Users : 13,654
+ *   - DAU         : 3,611
+ *   - WAU         : 5,037
  *     (WAU must always be ≥ DAU — everyone active in the last 24h was active in 7d.)
  * User counts are cumulative, but they are intentionally flat between registrations.
  * Activity has weekday/weekend seasonality, multi-day waves, and a slower August curve
@@ -24,20 +24,20 @@
 export const STATS_DEMO = true;
 
 // --- baselines ---------------------------------------------------------------
-// Baseline plus cumulative registrations is calibrated to the Sept 11 snapshot.
+// Baseline plus cumulative registrations is calibrated to the Sept 17 snapshot.
 const TOTAL_USERS_BASE = 3853;
 const DAU_BASE = 3530;
 const WAU_BASE = 5425;
 
-// --- calibration anchor (product ask 2026-09-11) -----------------------------
+// --- calibration anchor (product ask 2026-09-17) -----------------------------
 // Pin the headline values displayed ON the anchor day to exact targets while
 // keeping every curve shape (ramp, waves, seasonality, spike) unchanged: all
 // raw outputs are multiplied by constant factors computed once against the
 // anchor timestamp, so the series stays deterministic and monotonic.
-const ANCHOR_MS = Date.UTC(2026, 8, 11, 12, 0, 0); // 2026-09-11 12:00 UTC
-const TARGET_TOTAL_AT_ANCHOR = 16_124;
-const TARGET_DAU_AT_ANCHOR = 5_246;
-const TARGET_WAU_AT_ANCHOR = 9_432;
+const ANCHOR_MS = Date.UTC(2026, 8, 17, 12, 0, 0); // 2026-09-17 12:00 UTC
+const TARGET_TOTAL_AT_ANCHOR = 13_654;
+const TARGET_DAU_AT_ANCHOR = 3_611;
+const TARGET_WAU_AT_ANCHOR = 5_037;
 
 // Launch date — the product went live ~June 9, 2026. Before this, there are
 // effectively no users; after it, a realistic launch ramp climbs toward the
@@ -114,13 +114,13 @@ function registrationsForDay(dayMs: number): number {
   return Math.max(0, rate);
 }
 
-// After the Sept 11 snapshot, total users tick +10 per completed day.
-const SNAPSHOT_MS = Date.UTC(2026, 8, 11, 0, 0, 0); // 2026-09-11
+// After the Sept 17 snapshot, total users tick +10 per completed day.
+const SNAPSHOT_MS = Date.UTC(2026, 8, 17, 0, 0, 0); // 2026-09-17
 const USERS_PER_DAY_AFTER_SNAPSHOT = 10;
 
 /**
  * Cumulative registrations since the ramp matured. History is frozen at the
- * Sept 11 snapshot; each later day adds 10 users.
+ * Sept 17 snapshot; each later day adds 10 users.
  */
 function cumulativeRegistrations(now: number): number {
   const days = daysSinceLaunch(now);
