@@ -80,6 +80,7 @@ import {
 } from './manual-question-format';
 
 type EditorStep = 'content' | 'questions' | 'seo' | 'publishing';
+const MAX_ARTWORK_BYTES = 8 * 1024 * 1024;
 
 const editorSteps: Array<{ id: EditorStep; label: string; description: string }> = [
   { id: 'content', label: 'Content', description: 'Page copy, artwork and internal links' },
@@ -285,6 +286,9 @@ function ImageUploader({ label, value, alt, kind, slug, quizContext, onUploaded,
   const upload = async (file?: File) => {
     if (!file) return;
     if (!slug) return toast.error('Add the slug before uploading artwork.');
+    if (file.size > MAX_ARTWORK_BYTES) {
+      return toast.error('Artwork must be 8 MB or smaller.');
+    }
     setUploading(true);
     try {
       const dataUrl = await new Promise<string>((resolve, reject) => {
@@ -486,10 +490,7 @@ export function QuizPageEditor({ existing }: { existing?: QuizPage }) {
         : await createPage.mutateAsync(input);
       setCurrentSlug(page.slug);
       setSavedPage(page);
-      setForm(inputFromPage(page));
-      setManualQuestionText(
-        page.question_source === 'manual' ? formatManualQuestions(page.manual_questions) : '',
-      );
+      setForm((current) => ({ ...current, slug: page.slug }));
       toast.success(page.status === 'published' ? 'Changes saved' : 'Draft saved');
       if (!previousSlug || previousSlug !== page.slug) {
         router.replace(`/quiz-pages/${page.slug}`);
