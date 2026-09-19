@@ -1,4 +1,4 @@
-import test from 'node:test';
+import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { isQuestionTypeEditable, questionToFormData, prepareQuestionUpdate } from '../../src/lib/question-utils.ts';
 import { parseManualQuestions, formatManualQuestions, MANUAL_QUESTION_EXAMPLE } from '../../src/components/quiz-pages/manual-question-format.ts';
