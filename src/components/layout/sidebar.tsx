@@ -99,7 +99,7 @@ export function Sidebar() {
       <Link
         href="/stats"
         aria-label="QuizBall CMS home"
-        className="flex h-20 items-center justify-center border-b border-slate-100 px-4 lg:justify-start lg:px-6"
+        className="flex h-24 items-center justify-center border-b border-slate-100 px-3 lg:justify-start lg:px-6"
       >
         <Image
           src="/assets/brand/quizball-logo.webp"
@@ -107,7 +107,7 @@ export function Sidebar() {
           width={181}
           height={148}
           priority
-          className="h-14 w-auto object-contain"
+          className="h-14 w-auto object-contain lg:h-16"
         />
       </Link>
 

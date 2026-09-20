@@ -50,6 +50,7 @@ import {
   createDefaultAdvancedPayload,
   generateAnswerId,
   getAdvancedPayloadSaveError,
+  isQuestionTypeEditable,
   prepareAdvancedPayloadForSave,
   prepareQuestionUpdate,
   questionToFormData,
@@ -66,19 +67,7 @@ import { FootballLogicEditor } from './football-logic-editor';
 
 type DialogMode = 'view' | 'edit' | 'create';
 
-type EditableQuestionType = Extract<
-  QuestionType,
-  | 'mcq_single'
-  | 'true_false'
-  | 'input_text'
-  | 'countdown_list'
-  | 'clue_chain'
-  | 'put_in_order'
-  | 'imposter_multi_select'
-  | 'career_path'
-  | 'high_low'
-  | 'football_logic'
->;
+type EditableQuestionType = QuestionType;
 
 interface QuestionDialogProps {
   mode?: DialogMode;
@@ -378,6 +367,10 @@ export function QuestionDialog({
   };
 
   const handleSave = async () => {
+    if (!isQuestionTypeEditable(formData.type) || (hydratedQuestion && !isQuestionTypeEditable(hydratedQuestion.type))) {
+      toast.error('This question format does not have an editor here yet.');
+      return;
+    }
     // Validation
     if (!formData.prompt.trim()) {
       toast.error('Question prompt is required');
@@ -769,6 +762,15 @@ export function QuestionDialog({
   };
 
   const renderEditMode = () => {
+    if (hydratedQuestion && !isQuestionTypeEditable(hydratedQuestion.type)) {
+      return (
+        <div className="space-y-3">
+          <p>{getLocalizedText(hydratedQuestion.prompt, '')}</p>
+          <p className="text-sm text-gray-500">This question format does not have an editor here yet. Its content is preserved.</p>
+          <Button variant="outline" onClick={handleCancel}>Back</Button>
+        </div>
+      );
+    }
     return (
       <div className="space-y-4 font-inter">
         {/* Row 1: Category + Difficulty */}

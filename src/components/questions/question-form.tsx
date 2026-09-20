@@ -21,6 +21,7 @@ import type {
 } from '@/types';
 import {
   createDefaultAdvancedPayload,
+  isQuestionTypeEditable,
   generateAnswerId,
   getAdvancedPayloadSaveError,
   prepareAdvancedPayloadForSave,
@@ -82,6 +83,9 @@ const questionTypes = [
   'career_path',
   'high_low',
   'football_logic',
+  'missing_xi',
+  'pass_chain',
+  'stat_sniper',
 ] as const;
 
 const questionSchema = z.object({
@@ -236,6 +240,7 @@ export function QuestionForm({ question, onSuccess }: QuestionFormProps) {
   }, [questionType, isEditing]);
 
   async function onSubmit(data: QuestionFormData) {
+    if (!isQuestionTypeEditable(data.type)) return;
     logger.info('questions', 'Form submitted', { formData: data, mcqOptions, acceptedAnswers, caseSensitive });
 
     // Validate payload
@@ -360,6 +365,17 @@ export function QuestionForm({ question, onSuccess }: QuestionFormProps) {
         },
       });
     }
+  }
+
+  if (question && !isQuestionTypeEditable(question.type)) {
+    return (
+      <Card><CardHeader><CardTitle>Question preview</CardTitle></CardHeader>
+        <CardContent className="space-y-3">
+          <p>{question.prompt.en}</p>
+          <p className="text-sm text-gray-500">This question format does not have an editor here yet. Its content is preserved.</p>
+        </CardContent>
+      </Card>
+    );
   }
 
   return (

@@ -239,7 +239,7 @@ export default function UsersPage() {
       {/* Pagination */}
       <div className="flex items-center justify-between text-sm text-gray-500">
         <span>
-          {displayTotal.toLocaleString()} user{displayTotal === 1 ? '' : 's'}
+          {displayTotal.toLocaleString('en-US')} user{displayTotal === 1 ? '' : 's'}
           {isFetching && !isLoading ? ' · updating…' : ''}
         </span>
         <div className="flex items-center gap-3">

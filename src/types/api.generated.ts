@@ -30,7 +30,7 @@ export interface paths {
                         /** Format: uri */
                         redirect_to?: string;
                         /** @enum {string} */
-                        locale?: "en" | "ka" | "es";
+                        locale?: "en" | "ka" | "es" | "tr";
                     };
                 };
             };
@@ -766,6 +766,10 @@ export interface paths {
                                 hair?: string;
                                 glasses?: string;
                                 facialHair?: string;
+                                headwear?: string;
+                                earwear?: string;
+                                /** @enum {string} */
+                                hairColor?: "natural" | "platinum" | "ginger" | "silver" | "blue_tips" | "pink_streaks";
                             } | null;
                             favorite_club: string | null;
                             preferred_language: string | null;
@@ -1146,7 +1150,7 @@ export interface paths {
                                 opponentGoals: number;
                                 opponentPenaltyGoals: number;
                                 /** @enum {string|null} */
-                                winnerDecisionMethod: "goals" | "penalty_goals" | "total_points" | "total_points_fallback" | "forfeit" | null;
+                                winnerDecisionMethod: "goals" | "penalty_goals" | "total_points" | "total_points_fallback" | "forfeit" | "draw" | null;
                                 /** @default false */
                                 cancelledNoContest: boolean;
                                 rpDelta: number | null;
@@ -1166,6 +1170,10 @@ export interface paths {
                                         hair?: string;
                                         glasses?: string;
                                         facialHair?: string;
+                                        headwear?: string;
+                                        earwear?: string;
+                                        /** @enum {string} */
+                                        hairColor?: "natural" | "platinum" | "ginger" | "silver" | "blue_tips" | "pink_streaks";
                                     } | null;
                                     isAi: boolean;
                                     placement: number | null;
@@ -1182,6 +1190,10 @@ export interface paths {
                                         hair?: string;
                                         glasses?: string;
                                         facialHair?: string;
+                                        headwear?: string;
+                                        earwear?: string;
+                                        /** @enum {string} */
+                                        hairColor?: "natural" | "platinum" | "ginger" | "silver" | "blue_tips" | "pink_streaks";
                                     } | null;
                                     isAi: boolean;
                                     /** @enum {string|null} */
@@ -1328,7 +1340,7 @@ export interface paths {
                                 inviteCode: string;
                                 displayName: string;
                                 /** @enum {string} */
-                                gameMode: "friendly_possession" | "friendly_party_quiz" | "auction" | "ranked_sim";
+                                gameMode: "friendly_possession" | "friendly_party_quiz" | "football_grid" | "auction" | "ranked_sim";
                                 isPublic: boolean;
                                 /** Format: date-time */
                                 createdAt: string;
@@ -1346,6 +1358,10 @@ export interface paths {
                                         hair?: string;
                                         glasses?: string;
                                         facialHair?: string;
+                                        headwear?: string;
+                                        earwear?: string;
+                                        /** @enum {string} */
+                                        hairColor?: "natural" | "platinum" | "ginger" | "silver" | "blue_tips" | "pink_streaks";
                                     } | null;
                                 };
                             }[];
@@ -1493,6 +1509,15 @@ export interface paths {
                         "application/json": components["schemas"]["ErrorResponse"];
                     };
                 };
+                /** @description Query validation failed */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
             };
         };
         put?: never;
@@ -1558,6 +1583,15 @@ export interface paths {
                 };
                 /** @description Authentication required */
                 401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Query validation failed */
+                422: {
                     headers: {
                         [name: string]: unknown;
                     };
@@ -2225,7 +2259,7 @@ export interface paths {
                 query?: {
                     userId?: string;
                     purchaseId?: string;
-                    eventType?: "checkout_session_created" | "checkout_session_failed" | "webhook_received" | "webhook_signature_invalid" | "fulfillment_succeeded" | "fulfillment_failed" | "manual_adjustment_succeeded" | "manual_adjustment_failed" | "objective_reward_succeeded" | "admin_progression_adjustment" | "leaderboard_reset" | "admin_ticket_window_reset" | "admin_account_ban" | "admin_account_unban" | "guess_the_goal_reward";
+                    eventType?: "checkout_session_created" | "checkout_session_failed" | "webhook_received" | "webhook_signature_invalid" | "fulfillment_succeeded" | "fulfillment_failed" | "manual_adjustment_succeeded" | "manual_adjustment_failed" | "objective_reward_succeeded" | "admin_progression_adjustment" | "leaderboard_reset" | "admin_ticket_window_reset" | "admin_account_ban" | "admin_account_unban" | "free_kicks_stake" | "free_kicks_payout" | "road_to_goal_stake" | "road_to_goal_payout" | "guess_the_goal_reward" | "trivia_mines_stake" | "trivia_mines_payout" | "trivia_mines_refund" | "squad_spin_stake" | "squad_spin_payout" | "squad_spin_refund";
                     outcome?: "success" | "failure";
                     from?: string;
                     to?: string;
@@ -2249,7 +2283,7 @@ export interface paths {
                                 /** Format: uuid */
                                 id: string;
                                 /** @enum {string} */
-                                eventType: "checkout_session_created" | "checkout_session_failed" | "webhook_received" | "webhook_signature_invalid" | "fulfillment_succeeded" | "fulfillment_failed" | "manual_adjustment_succeeded" | "manual_adjustment_failed" | "objective_reward_succeeded" | "admin_progression_adjustment" | "leaderboard_reset" | "admin_ticket_window_reset" | "admin_account_ban" | "admin_account_unban" | "guess_the_goal_reward";
+                                eventType: "checkout_session_created" | "checkout_session_failed" | "webhook_received" | "webhook_signature_invalid" | "fulfillment_succeeded" | "fulfillment_failed" | "manual_adjustment_succeeded" | "manual_adjustment_failed" | "objective_reward_succeeded" | "admin_progression_adjustment" | "leaderboard_reset" | "admin_ticket_window_reset" | "admin_account_ban" | "admin_account_unban" | "free_kicks_stake" | "free_kicks_payout" | "road_to_goal_stake" | "road_to_goal_payout" | "guess_the_goal_reward" | "trivia_mines_stake" | "trivia_mines_payout" | "trivia_mines_refund" | "squad_spin_stake" | "squad_spin_payout" | "squad_spin_refund";
                                 /** @enum {string} */
                                 outcome: "success" | "failure";
                                 /** Format: uuid */
@@ -2263,6 +2297,8 @@ export interface paths {
                                 stripeCheckoutId: string | null;
                                 stripePaymentIntent: string | null;
                                 coinsDelta: number;
+                                coinsDeltaMinor: number;
+                                coinsDeltaExact: number;
                                 ticketsDelta: number;
                                 inventoryDelta: {
                                     [key: string]: unknown;
@@ -2387,6 +2423,681 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/road-to-goal/rounds/commitments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Commit the run before disclosing the player seed
+         * @description The stable request nonce makes preparation idempotent. The returned commitment binds the server seed, fixed round id, stake, auto-cashout setting, calibration, rules manifest, and ordered question-set hash before the backend accepts a player seed.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        stake: 10 | 25 | 50;
+                        /** Format: uuid */
+                        request_nonce: string;
+                        auto_cashout_zone?: number | null;
+                    };
+                };
+            };
+            responses: {
+                /** @description Prepared server commitment */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["RoadToGoalCommitmentResponse"];
+                    };
+                };
+                /** @description Not authenticated */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Round state conflict */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Validation failed */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Game disabled */
+                503: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/road-to-goal/rounds": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Start or replay a Road to Goal round
+         * @description Finalizes a prepared commitment after the player seed is disclosed. The client nonce makes finalization idempotent.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        commitment_id: string;
+                        /** Format: uuid */
+                        client_nonce: string;
+                        client_seed: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description Round created or replayed */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["RoadToGoalStateResponse"];
+                    };
+                };
+                /** @description Insufficient coins */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Not authenticated */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Round state conflict */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Validation failed */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Game disabled or question pool unavailable */
+                503: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/road-to-goal/rounds/{roundId}/proof": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Verify a settled Road to Goal round
+         * @description After settlement, reveals the committed server seed, ordered question metadata, and every deterministic zone roll so the complete run can be independently verified.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    roundId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Verifiable round proof */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["RoadToGoalProofResponse"];
+                    };
+                };
+                /** @description Not authenticated */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Round not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Round is still active */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Validation failed */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/road-to-goal/rounds/current": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Resume the active Road to Goal round */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Current round state */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["RoadToGoalStateResponse"];
+                    };
+                };
+                /** @description Not authenticated */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description No active round */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/road-to-goal/rounds/{roundId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read an owned Road to Goal round */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    roundId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Round state */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["RoadToGoalStateResponse"];
+                    };
+                };
+                /** @description Not authenticated */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Round not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Validation failed */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/road-to-goal/rounds/answer": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Answer the current Road to Goal question */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        round_id: string;
+                        /** Format: uuid */
+                        question_id: string;
+                        option_id: string;
+                        expected_version: number;
+                        /** Format: uuid */
+                        request_nonce: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description Answer outcome and updated state */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["RoadToGoalAnswerResponse"];
+                    };
+                };
+                /** @description Option does not belong to the question */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Not authenticated */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Round not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Round state conflict */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Validation failed */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/road-to-goal/rounds/continue": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Continue to the next zone */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        round_id: string;
+                        expected_version: number;
+                        /** Format: uuid */
+                        request_nonce: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description Updated round state */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["RoadToGoalStateResponse"];
+                    };
+                };
+                /** @description Not authenticated */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Round not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Round state conflict */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Validation failed */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/road-to-goal/rounds/cashout": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Cash out the current return */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        round_id: string;
+                        expected_version: number;
+                        /** Format: uuid */
+                        request_nonce: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description Updated round state */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["RoadToGoalStateResponse"];
+                    };
+                };
+                /** @description Not authenticated */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Round not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Round state conflict */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Validation failed */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/road-to-goal/rounds/heartbeat": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Keep the active round session alive */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Heartbeat recorded */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not authenticated */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/users/me": {
         parameters: {
             query?: never;
@@ -2436,7 +3147,8 @@ export interface paths {
                 content: {
                     "application/json": {
                         nickname?: string;
-                        country?: string;
+                        /** @enum {string} */
+                        country?: "AD" | "AE" | "AF" | "AG" | "AI" | "AL" | "AM" | "AO" | "AQ" | "AR" | "AS" | "AT" | "AU" | "AW" | "AX" | "AZ" | "BA" | "BB" | "BD" | "BE" | "BF" | "BG" | "BH" | "BI" | "BJ" | "BL" | "BM" | "BN" | "BO" | "BQ" | "BR" | "BS" | "BT" | "BV" | "BW" | "BY" | "BZ" | "CA" | "CC" | "CD" | "CF" | "CG" | "CH" | "CI" | "CK" | "CL" | "CM" | "CN" | "CO" | "CR" | "CU" | "CV" | "CW" | "CX" | "CY" | "CZ" | "DE" | "DJ" | "DK" | "DM" | "DO" | "DZ" | "EC" | "EE" | "EG" | "EH" | "ER" | "ES" | "ET" | "FI" | "FJ" | "FK" | "FM" | "FO" | "FR" | "GA" | "GB" | "GD" | "GE" | "GF" | "GG" | "GH" | "GI" | "GL" | "GM" | "GN" | "GP" | "GQ" | "GR" | "GS" | "GT" | "GU" | "GW" | "GY" | "HK" | "HM" | "HN" | "HR" | "HT" | "HU" | "ID" | "IE" | "IL" | "IM" | "IN" | "IO" | "IQ" | "IR" | "IS" | "IT" | "JE" | "JM" | "JO" | "JP" | "KE" | "KG" | "KH" | "KI" | "KM" | "KN" | "KP" | "KR" | "KW" | "KY" | "KZ" | "LA" | "LB" | "LC" | "LI" | "LK" | "LR" | "LS" | "LT" | "LU" | "LV" | "LY" | "MA" | "MC" | "MD" | "ME" | "MF" | "MG" | "MH" | "MK" | "ML" | "MM" | "MN" | "MO" | "MP" | "MQ" | "MR" | "MS" | "MT" | "MU" | "MV" | "MW" | "MX" | "MY" | "MZ" | "NA" | "NC" | "NE" | "NF" | "NG" | "NI" | "NL" | "NO" | "NP" | "NR" | "NU" | "NZ" | "OM" | "PA" | "PE" | "PF" | "PG" | "PH" | "PK" | "PL" | "PM" | "PN" | "PR" | "PS" | "PT" | "PW" | "PY" | "QA" | "RE" | "RO" | "RS" | "RU" | "RW" | "SA" | "SB" | "SC" | "SD" | "SE" | "SG" | "SH" | "SI" | "SJ" | "SK" | "SL" | "SM" | "SN" | "SO" | "SR" | "SS" | "ST" | "SV" | "SX" | "SY" | "SZ" | "TC" | "TD" | "TF" | "TG" | "TH" | "TJ" | "TK" | "TL" | "TM" | "TN" | "TO" | "TR" | "TT" | "TV" | "TW" | "TZ" | "UA" | "UG" | "UM" | "US" | "UY" | "UZ" | "VA" | "VC" | "VE" | "VG" | "VI" | "VN" | "VU" | "WF" | "WS" | "YE" | "YT" | "ZA" | "ZM" | "ZW";
                         /** Format: uri */
                         avatar_url?: string | null;
                         avatar_customization?: {
@@ -2445,6 +3157,10 @@ export interface paths {
                             hair?: string;
                             glasses?: string;
                             facialHair?: string;
+                            headwear?: string;
+                            earwear?: string;
+                            /** @enum {string} */
+                            hairColor?: "natural" | "platinum" | "ginger" | "silver" | "blue_tips" | "pink_streaks";
                         } | null;
                         favorite_club?: string;
                         preferred_language?: string;
@@ -3116,6 +3832,10 @@ export interface paths {
                                     hair?: string;
                                     glasses?: string;
                                     facialHair?: string;
+                                    headwear?: string;
+                                    earwear?: string;
+                                    /** @enum {string} */
+                                    hairColor?: "natural" | "platinum" | "ginger" | "silver" | "blue_tips" | "pink_streaks";
                                 } | null;
                                 level: number;
                                 pendingDeletion: boolean;
@@ -3193,6 +3913,10 @@ export interface paths {
                                     hair?: string;
                                     glasses?: string;
                                     facialHair?: string;
+                                    headwear?: string;
+                                    earwear?: string;
+                                    /** @enum {string} */
+                                    hairColor?: "natural" | "platinum" | "ginger" | "silver" | "blue_tips" | "pink_streaks";
                                 } | null;
                                 level: number;
                                 pendingDeletion: boolean;
@@ -3275,6 +3999,10 @@ export interface paths {
                                         hair?: string;
                                         glasses?: string;
                                         facialHair?: string;
+                                        headwear?: string;
+                                        earwear?: string;
+                                        /** @enum {string} */
+                                        hairColor?: "natural" | "platinum" | "ginger" | "silver" | "blue_tips" | "pink_streaks";
                                     } | null;
                                     level: number;
                                     pendingDeletion: boolean;
@@ -3312,6 +4040,10 @@ export interface paths {
                                         hair?: string;
                                         glasses?: string;
                                         facialHair?: string;
+                                        headwear?: string;
+                                        earwear?: string;
+                                        /** @enum {string} */
+                                        hairColor?: "natural" | "platinum" | "ginger" | "silver" | "blue_tips" | "pink_streaks";
                                     } | null;
                                     level: number;
                                     pendingDeletion: boolean;
@@ -3849,6 +4581,7 @@ export interface paths {
                     parent_id?: string;
                     is_active?: string;
                     min_questions?: number;
+                    slugs?: string;
                     page?: number;
                     limit?: number;
                 };
@@ -4164,6 +4897,24 @@ export interface paths {
                     };
                     content: {
                         "application/json": components["schemas"]["CategoryDependenciesResponse"];
+                    };
+                };
+                /** @description Authentication required */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Admin role required */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
                     };
                 };
                 /** @description Category not found */
@@ -4536,7 +5287,7 @@ export interface paths {
                     category_id?: string;
                     status?: "draft" | "published" | "archived";
                     difficulty?: "easy" | "medium" | "hard";
-                    type?: "mcq_single" | "true_false" | "input_text" | "countdown_list" | "clue_chain" | "put_in_order" | "imposter_multi_select" | "career_path" | "high_low" | "football_logic";
+                    type?: "mcq_single" | "true_false" | "input_text" | "countdown_list" | "clue_chain" | "put_in_order" | "imposter_multi_select" | "career_path" | "high_low" | "football_logic" | "missing_xi" | "pass_chain" | "stat_sniper";
                     visibility?: "public" | "wl_private";
                     search?: string;
                     page?: number;
@@ -4586,7 +5337,7 @@ export interface paths {
                         /** Format: uuid */
                         category_id: string;
                         /** @enum {string} */
-                        type: "mcq_single" | "true_false" | "input_text" | "countdown_list" | "clue_chain" | "put_in_order" | "imposter_multi_select" | "career_path" | "high_low" | "football_logic";
+                        type: "mcq_single" | "true_false" | "input_text" | "countdown_list" | "clue_chain" | "put_in_order" | "imposter_multi_select" | "career_path" | "high_low" | "football_logic" | "missing_xi" | "pass_chain" | "stat_sniper";
                         /** @enum {string} */
                         difficulty: "easy" | "medium" | "hard";
                         /** @enum {string} */
@@ -4714,7 +5465,7 @@ export interface paths {
                         /** Format: uuid */
                         category_id?: string;
                         /** @enum {string} */
-                        type?: "mcq_single" | "true_false" | "input_text" | "countdown_list" | "clue_chain" | "put_in_order" | "imposter_multi_select" | "career_path" | "high_low" | "football_logic";
+                        type?: "mcq_single" | "true_false" | "input_text" | "countdown_list" | "clue_chain" | "put_in_order" | "imposter_multi_select" | "career_path" | "high_low" | "football_logic" | "missing_xi" | "pass_chain" | "stat_sniper";
                         /** @enum {string} */
                         difficulty?: "easy" | "medium" | "hard";
                         /** @enum {string} */
@@ -4869,7 +5620,7 @@ export interface paths {
                         category_id: string;
                         questions: {
                             /** @enum {string} */
-                            type: "mcq_single" | "true_false" | "input_text" | "countdown_list" | "clue_chain" | "put_in_order" | "imposter_multi_select" | "career_path" | "high_low" | "football_logic";
+                            type: "mcq_single" | "true_false" | "input_text" | "countdown_list" | "clue_chain" | "put_in_order" | "imposter_multi_select" | "career_path" | "high_low" | "football_logic" | "missing_xi" | "pass_chain" | "stat_sniper";
                             /** @enum {string} */
                             difficulty: "easy" | "medium" | "hard";
                             /** @enum {string} */
@@ -5175,7 +5926,7 @@ export interface paths {
                         "application/json": {
                             items: {
                                 /** @enum {string} */
-                                challengeType: "moneyDrop" | "trueFalse" | "clues" | "countdown" | "putInOrder" | "imposter" | "careerPath" | "highLow" | "footballLogic" | "fifaCards";
+                                challengeType: "moneyDrop" | "trueFalse" | "clues" | "countdown" | "putInOrder" | "imposter" | "careerPath" | "highLow" | "footballLogic" | "fifaCards" | "cardDetective" | "missingXi" | "passChain" | "statSniper";
                                 title: string;
                                 description: string;
                                 /** @enum {string} */
@@ -5225,7 +5976,7 @@ export interface paths {
                 };
                 header?: never;
                 path: {
-                    challengeType: "moneyDrop" | "trueFalse" | "clues" | "countdown" | "putInOrder" | "imposter" | "careerPath" | "highLow" | "footballLogic" | "fifaCards";
+                    challengeType: "moneyDrop" | "trueFalse" | "clues" | "countdown" | "putInOrder" | "imposter" | "careerPath" | "highLow" | "footballLogic" | "fifaCards" | "cardDetective" | "missingXi" | "passChain" | "statSniper";
                 };
                 cookie?: never;
             };
@@ -5370,6 +6121,7 @@ export interface paths {
                                 difficulty: "easy" | "medium" | "hard";
                                 prompt: string;
                                 clubs: string[];
+                                clubMatchNames: string[];
                                 displayAnswer: string;
                                 acceptedAnswers: string[];
                             }[];
@@ -5420,6 +6172,94 @@ export interface paths {
                             }[];
                         } | {
                             /** @enum {string} */
+                            challengeType: "missingXi";
+                            title: string;
+                            description: string;
+                            squadCount: number;
+                            secondsPerSquad: number;
+                            squads: {
+                                /** Format: uuid */
+                                id: string;
+                                /** @enum {string} */
+                                difficulty: "easy" | "medium" | "hard";
+                                team: string;
+                                opponent: string;
+                                matchLabel: string;
+                                score: string | null;
+                                formation: string;
+                                slots: {
+                                    id: string;
+                                    position: string;
+                                    number: number | null;
+                                    x: number;
+                                    y: number;
+                                    name: string;
+                                    acceptedAnswers: string[];
+                                    imageUrl: string | null;
+                                }[];
+                            }[];
+                        } | {
+                            /** @enum {string} */
+                            challengeType: "passChain";
+                            title: string;
+                            description: string;
+                            puzzleCount: number;
+                            secondsPerPuzzle: number;
+                            puzzles: {
+                                /** Format: uuid */
+                                id: string;
+                                /** @enum {string} */
+                                difficulty: "easy" | "medium" | "hard";
+                                par: number;
+                                start: {
+                                    /** Format: uuid */
+                                    id: string;
+                                    name: string;
+                                    clubs: string[];
+                                    imageUrl: string | null;
+                                };
+                                target: {
+                                    /** Format: uuid */
+                                    id: string;
+                                    name: string;
+                                    clubs: string[];
+                                    imageUrl: string | null;
+                                };
+                                solution: {
+                                    player: {
+                                        /** Format: uuid */
+                                        id: string;
+                                        name: string;
+                                        clubs: string[];
+                                        imageUrl: string | null;
+                                    };
+                                    via: string;
+                                    /** @enum {string} */
+                                    kind: "club" | "manager";
+                                }[];
+                            }[];
+                        } | {
+                            /** @enum {string} */
+                            challengeType: "statSniper";
+                            title: string;
+                            description: string;
+                            questionCount: number;
+                            secondsPerQuestion: number;
+                            questions: {
+                                /** Format: uuid */
+                                id: string;
+                                /** @enum {string} */
+                                difficulty: "easy" | "medium" | "hard";
+                                kind: string;
+                                prompt: string;
+                                unit: string;
+                                value: number;
+                                min: number;
+                                max: number;
+                                step: number;
+                            }[];
+                        } | {
+                            /** @enum {string} */
                             challengeType: "fifaCards";
                             title: string;
                             description: string;
@@ -5448,7 +6288,53 @@ export interface paths {
                                 };
                                 faceUrl: string | null;
                                 /** @enum {string} */
-                                difficulty: "easy" | "medium" | "hard";
+                                difficulty: "easy" | "medium" | "hard" | "veryHard";
+                            }[];
+                        } | {
+                            /** @enum {string} */
+                            challengeType: "cardDetective";
+                            title: string;
+                            description: string;
+                            cardCount: number;
+                            startCoins: number;
+                            clueCosts: {
+                                rating: number;
+                                position: number;
+                                nation: number;
+                                league: number;
+                                club: number;
+                                pac: number;
+                                sho: number;
+                                pas: number;
+                                dri: number;
+                                def: number;
+                                phy: number;
+                            };
+                            wrongGuessCost: number;
+                            cards: {
+                                /** Format: uuid */
+                                id: string;
+                                edition: string;
+                                editionLabel: string;
+                                name: string;
+                                acceptedAnswers: string[];
+                                overall: number;
+                                position: string;
+                                nation: string;
+                                nationCode: string;
+                                league: string;
+                                club: string;
+                                stats: {
+                                    pac: number;
+                                    sho: number;
+                                    pas: number;
+                                    dri: number;
+                                    def: number;
+                                    phy: number;
+                                };
+                                faceUrl: string | null;
+                                /** @enum {string} */
+                                difficulty: "easy" | "medium" | "hard" | "veryHard";
                             }[];
                         };
                     };
@@ -5605,6 +6491,149 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/daily-challenges/stat-sniper/leaderboard": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Today's most accurate Stat Sniper players and the caller's rank */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Leaderboard for the current challenge day */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            challengeDay: string;
+                            entries: {
+                                /** Format: uuid */
+                                userId: string;
+                                rank: number;
+                                username: string;
+                                avatarCustomization?: unknown;
+                                country: string | null;
+                                score: number;
+                            }[];
+                            me: {
+                                rank: number;
+                                score: number;
+                                total: number;
+                            } | null;
+                        };
+                    };
+                };
+                /** @description Not authenticated */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/daily-challenges/pass-chain/link": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Validate one typed link in a Pass Chain puzzle */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        puzzleId: string;
+                        /** Format: uuid */
+                        fromPlayerId: string;
+                        text: string;
+                        locale?: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description Link verdict */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {string} */
+                            status: "linked" | "unknown" | "noLink";
+                            player: {
+                                /** Format: uuid */
+                                id: string;
+                                name: string;
+                                clubs: string[];
+                                imageUrl: string | null;
+                            } | null;
+                            viaClub: string | null;
+                            /** @enum {string|null} */
+                            viaKind: "club" | "manager" | null;
+                            reachesTarget: boolean;
+                            targetClub: string | null;
+                            /** @enum {string|null} */
+                            targetKind: "club" | "manager" | null;
+                        };
+                    };
+                };
+                /** @description Not authenticated */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Puzzle not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/daily-challenges/{challengeType}/complete": {
         parameters: {
             query?: never;
@@ -5620,7 +6649,7 @@ export interface paths {
                 query?: never;
                 header?: never;
                 path: {
-                    challengeType: "moneyDrop" | "trueFalse" | "clues" | "countdown" | "putInOrder" | "imposter" | "careerPath" | "highLow" | "footballLogic" | "fifaCards";
+                    challengeType: "moneyDrop" | "trueFalse" | "clues" | "countdown" | "putInOrder" | "imposter" | "careerPath" | "highLow" | "footballLogic" | "fifaCards" | "cardDetective" | "missingXi" | "passChain" | "statSniper";
                 };
                 cookie?: never;
             };
@@ -5635,6 +6664,7 @@ export interface paths {
                             solved: boolean;
                             /** @default 0 */
                             cluesRevealed?: number;
+                            coinsLeft?: number;
                         }[];
                     };
                 };
@@ -5648,7 +6678,7 @@ export interface paths {
                     content: {
                         "application/json": {
                             /** @enum {string} */
-                            challengeType: "moneyDrop" | "trueFalse" | "clues" | "countdown" | "putInOrder" | "imposter" | "careerPath" | "highLow" | "footballLogic" | "fifaCards";
+                            challengeType: "moneyDrop" | "trueFalse" | "clues" | "countdown" | "putInOrder" | "imposter" | "careerPath" | "highLow" | "footballLogic" | "fifaCards" | "cardDetective" | "missingXi" | "passChain" | "statSniper";
                             /** @enum {boolean} */
                             completedToday: true;
                             coinsAwarded: number;
@@ -5723,7 +6753,7 @@ export interface paths {
                 query?: never;
                 header?: never;
                 path: {
-                    challengeType: "moneyDrop" | "trueFalse" | "clues" | "countdown" | "putInOrder" | "imposter" | "careerPath" | "highLow" | "footballLogic" | "fifaCards";
+                    challengeType: "moneyDrop" | "trueFalse" | "clues" | "countdown" | "putInOrder" | "imposter" | "careerPath" | "highLow" | "footballLogic" | "fifaCards" | "cardDetective" | "missingXi" | "passChain" | "statSniper";
                 };
                 cookie?: never;
             };
@@ -5737,7 +6767,7 @@ export interface paths {
                     content: {
                         "application/json": {
                             /** @enum {string} */
-                            challengeType: "moneyDrop" | "trueFalse" | "clues" | "countdown" | "putInOrder" | "imposter" | "careerPath" | "highLow" | "footballLogic" | "fifaCards";
+                            challengeType: "moneyDrop" | "trueFalse" | "clues" | "countdown" | "putInOrder" | "imposter" | "careerPath" | "highLow" | "footballLogic" | "fifaCards" | "cardDetective" | "missingXi" | "passChain" | "statSniper";
                             /** @enum {boolean} */
                             reset: true;
                         };
@@ -5794,7 +6824,7 @@ export interface paths {
                         "application/json": {
                             items: {
                                 /** @enum {string} */
-                                challengeType: "moneyDrop" | "trueFalse" | "clues" | "countdown" | "putInOrder" | "imposter" | "careerPath" | "highLow" | "footballLogic" | "fifaCards";
+                                challengeType: "moneyDrop" | "trueFalse" | "clues" | "countdown" | "putInOrder" | "imposter" | "careerPath" | "highLow" | "footballLogic" | "fifaCards" | "cardDetective" | "missingXi" | "passChain" | "statSniper";
                                 title: string;
                                 description: string;
                                 /** @enum {string} */
@@ -5874,6 +6904,33 @@ export interface paths {
                                     cardCount: number;
                                     /** @enum {string} */
                                     challengeType: "fifaCards";
+                                } | {
+                                    /** @default [] */
+                                    categoryIds: string[];
+                                    cardCount: number;
+                                    /** @enum {string} */
+                                    challengeType: "cardDetective";
+                                } | {
+                                    /** @default [] */
+                                    categoryIds: string[];
+                                    squadCount: number;
+                                    secondsPerSquad: number;
+                                    /** @enum {string} */
+                                    challengeType: "missingXi";
+                                } | {
+                                    /** @default [] */
+                                    categoryIds: string[];
+                                    puzzleCount: number;
+                                    secondsPerPuzzle: number;
+                                    /** @enum {string} */
+                                    challengeType: "passChain";
+                                } | {
+                                    /** @default [] */
+                                    categoryIds: string[];
+                                    questionCount: number;
+                                    secondsPerQuestion: number;
+                                    /** @enum {string} */
+                                    challengeType: "statSniper";
                                 };
                                 sortOrder: number;
                                 isActive: boolean;
@@ -5935,7 +6992,7 @@ export interface paths {
                 query?: never;
                 header?: never;
                 path: {
-                    challengeType: "moneyDrop" | "trueFalse" | "clues" | "countdown" | "putInOrder" | "imposter" | "careerPath" | "highLow" | "footballLogic" | "fifaCards";
+                    challengeType: "moneyDrop" | "trueFalse" | "clues" | "countdown" | "putInOrder" | "imposter" | "careerPath" | "highLow" | "footballLogic" | "fifaCards" | "cardDetective" | "missingXi" | "passChain" | "statSniper";
                 };
                 cookie?: never;
             };
@@ -7187,6 +8244,238 @@ export interface paths {
         };
         trace?: never;
     };
+    "/api/v1/feedback/season3/claim": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Season 3 survey claim (authenticated) */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        matchId: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description Survey operation completed */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @enum {string|null} */
+                            kind: "vote" | "idea" | null;
+                            saved: boolean;
+                        };
+                    };
+                };
+                /** @description Invalid or expired survey */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Authentication required */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Too many requests */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/feedback/season3/dismiss": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Season 3 survey dismiss (authenticated) */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        matchId: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description Survey operation completed */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            ok: boolean;
+                        };
+                    };
+                };
+                /** @description Invalid or expired survey */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Authentication required */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Too many requests */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/feedback/season3": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Season 3 survey submit (authenticated) */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        matchId: string;
+                        /** @enum {string} */
+                        locale: "en" | "ka" | "es" | "tr";
+                        /** @enum {string} */
+                        kind: "vote";
+                        removeOrder: boolean;
+                        removeWho: boolean;
+                    } | {
+                        /** Format: uuid */
+                        matchId: string;
+                        /** @enum {string} */
+                        locale: "en" | "ka" | "es" | "tr";
+                        /** @enum {string} */
+                        kind: "idea";
+                        idea: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description Survey operation completed */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            ok: boolean;
+                        };
+                    };
+                };
+                /** @description Invalid or expired survey */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Authentication required */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Too many requests */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/feedback": {
         parameters: {
             query?: never;
@@ -7627,6 +8916,15 @@ export interface paths {
                         "application/json": components["schemas"]["ErrorResponse"];
                     };
                 };
+                /** @description Query validation failed */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
             };
         };
         put?: never;
@@ -7694,6 +8992,15 @@ export interface paths {
                         "application/json": components["schemas"]["ErrorResponse"];
                     };
                 };
+                /** @description Query validation failed */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
             };
         };
         put?: never;
@@ -7726,7 +9033,7 @@ export interface paths {
                     "application/json": {
                         text: string;
                         /** @enum {string} */
-                        locale: "en" | "ka" | "es";
+                        locale: "en" | "ka" | "es" | "tr";
                         /** @default cms-import */
                         promptVersion?: string;
                         /**
@@ -7805,7 +9112,7 @@ export interface paths {
                 content: {
                     "application/json": {
                         /** @enum {string} */
-                        locale: "en" | "ka" | "es";
+                        locale: "en" | "ka" | "es" | "tr";
                         /** @default cms-import */
                         promptVersion?: string;
                         /**
@@ -8386,6 +9693,161 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/football-grid/leaderboard": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List the Football Tic Tac Toe leaderboard */
+        get: {
+            parameters: {
+                query?: {
+                    scope?: "global" | "country";
+                    limit?: number;
+                    offset?: number | null;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Football Tic Tac Toe leaderboard */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            entries: {
+                                /** Format: uuid */
+                                userId: string;
+                                username: string;
+                                avatarUrl: string | null;
+                                avatarCustomization?: unknown;
+                                ticTacToePoints: number;
+                                country: string | null;
+                                tier: string | null;
+                                rank: number;
+                            }[];
+                        };
+                    };
+                };
+                /** @description Invalid query parameters */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Authentication required */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Query validation failed */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/football-grid/leaderboard/me": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get the authenticated user's Football Tic Tac Toe rank */
+        get: {
+            parameters: {
+                query?: {
+                    scope?: "global" | "country";
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Rank information, or null when unranked */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** Format: uuid */
+                            userId: string;
+                            username: string;
+                            avatarUrl: string | null;
+                            avatarCustomization?: unknown;
+                            ticTacToePoints: number;
+                            country: string | null;
+                            tier: string | null;
+                            rank: number;
+                            total: number;
+                        } | null;
+                    };
+                };
+                /** @description Invalid query parameters */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Authentication required */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Query validation failed */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -8472,7 +9934,7 @@ export interface components {
                 opponentGoals: number;
                 opponentPenaltyGoals: number;
                 /** @enum {string|null} */
-                winnerDecisionMethod: "goals" | "penalty_goals" | "total_points" | "total_points_fallback" | "forfeit" | null;
+                winnerDecisionMethod: "goals" | "penalty_goals" | "total_points" | "total_points_fallback" | "forfeit" | "draw" | null;
                 /** @default false */
                 cancelledNoContest: boolean;
                 rpDelta: number | null;
@@ -8492,6 +9954,10 @@ export interface components {
                         hair?: string;
                         glasses?: string;
                         facialHair?: string;
+                        headwear?: string;
+                        earwear?: string;
+                        /** @enum {string} */
+                        hairColor?: "natural" | "platinum" | "ginger" | "silver" | "blue_tips" | "pink_streaks";
                     } | null;
                     isAi: boolean;
                     placement: number | null;
@@ -8508,6 +9974,10 @@ export interface components {
                         hair?: string;
                         glasses?: string;
                         facialHair?: string;
+                        headwear?: string;
+                        earwear?: string;
+                        /** @enum {string} */
+                        hairColor?: "natural" | "platinum" | "ginger" | "silver" | "blue_tips" | "pink_streaks";
                     } | null;
                     isAi: boolean;
                     /** @enum {string|null} */
@@ -8674,7 +10144,7 @@ export interface components {
             /** Format: uuid */
             id: string;
             /** @enum {string} */
-            eventType: "checkout_session_created" | "checkout_session_failed" | "webhook_received" | "webhook_signature_invalid" | "fulfillment_succeeded" | "fulfillment_failed" | "manual_adjustment_succeeded" | "manual_adjustment_failed" | "objective_reward_succeeded" | "admin_progression_adjustment" | "leaderboard_reset" | "admin_ticket_window_reset" | "admin_account_ban" | "admin_account_unban" | "guess_the_goal_reward";
+            eventType: "checkout_session_created" | "checkout_session_failed" | "webhook_received" | "webhook_signature_invalid" | "fulfillment_succeeded" | "fulfillment_failed" | "manual_adjustment_succeeded" | "manual_adjustment_failed" | "objective_reward_succeeded" | "admin_progression_adjustment" | "leaderboard_reset" | "admin_ticket_window_reset" | "admin_account_ban" | "admin_account_unban" | "free_kicks_stake" | "free_kicks_payout" | "road_to_goal_stake" | "road_to_goal_payout" | "guess_the_goal_reward" | "trivia_mines_stake" | "trivia_mines_payout" | "trivia_mines_refund" | "squad_spin_stake" | "squad_spin_payout" | "squad_spin_refund";
             /** @enum {string} */
             outcome: "success" | "failure";
             /** Format: uuid */
@@ -8688,6 +10158,8 @@ export interface components {
             stripeCheckoutId: string | null;
             stripePaymentIntent: string | null;
             coinsDelta: number;
+            coinsDeltaMinor: number;
+            coinsDeltaExact: number;
             ticketsDelta: number;
             inventoryDelta: {
                 [key: string]: unknown;
@@ -8708,7 +10180,7 @@ export interface components {
                 /** Format: uuid */
                 id: string;
                 /** @enum {string} */
-                eventType: "checkout_session_created" | "checkout_session_failed" | "webhook_received" | "webhook_signature_invalid" | "fulfillment_succeeded" | "fulfillment_failed" | "manual_adjustment_succeeded" | "manual_adjustment_failed" | "objective_reward_succeeded" | "admin_progression_adjustment" | "leaderboard_reset" | "admin_ticket_window_reset" | "admin_account_ban" | "admin_account_unban" | "guess_the_goal_reward";
+                eventType: "checkout_session_created" | "checkout_session_failed" | "webhook_received" | "webhook_signature_invalid" | "fulfillment_succeeded" | "fulfillment_failed" | "manual_adjustment_succeeded" | "manual_adjustment_failed" | "objective_reward_succeeded" | "admin_progression_adjustment" | "leaderboard_reset" | "admin_ticket_window_reset" | "admin_account_ban" | "admin_account_unban" | "free_kicks_stake" | "free_kicks_payout" | "road_to_goal_stake" | "road_to_goal_payout" | "guess_the_goal_reward" | "trivia_mines_stake" | "trivia_mines_payout" | "trivia_mines_refund" | "squad_spin_stake" | "squad_spin_payout" | "squad_spin_refund";
                 /** @enum {string} */
                 outcome: "success" | "failure";
                 /** Format: uuid */
@@ -8722,6 +10194,8 @@ export interface components {
                 stripeCheckoutId: string | null;
                 stripePaymentIntent: string | null;
                 coinsDelta: number;
+                coinsDeltaMinor: number;
+                coinsDeltaExact: number;
                 ticketsDelta: number;
                 inventoryDelta: {
                     [key: string]: unknown;
@@ -8756,6 +10230,266 @@ export interface components {
                 };
             };
         };
+        RoadToGoalStateResponse: {
+            /** Format: uuid */
+            round_id: string;
+            /** @enum {string} */
+            status: "active" | "cashed" | "lost" | "completed";
+            /** @enum {string} */
+            phase: "question" | "decision" | "settled";
+            state_version: number;
+            stake_coins: 10 | 25 | 50;
+            cleared_zones: number;
+            /** @enum {number} */
+            total_zones: 11;
+            current_multiplier_bp: number;
+            next_multiplier_bp: number | null;
+            current_return_coins: number;
+            next_return_coins: number | null;
+            zone_multipliers_bp: number[];
+            /** Format: uuid */
+            calibration_version_id: string | null;
+            /** @enum {number|null} */
+            commitment_version: 3 | null;
+            commit_hash: string | null;
+            rules_manifest_hash: string | null;
+            question_set_hash: string | null;
+            client_seed: string | null;
+            server_seed: string | null;
+            auto_cashout_zone: number | null;
+            /** Format: date-time */
+            decision_deadline_at: string | null;
+            settlement_reason: string | null;
+            question: {
+                /** Format: uuid */
+                question_id: string;
+                zone: number;
+                /** @enum {string} */
+                difficulty: "easy" | "medium" | "hard";
+                prompt: {
+                    [key: string]: string;
+                };
+                image: {
+                    /** Format: uri */
+                    url: string;
+                    width: number;
+                    height: number;
+                    aspect_ratio?: string;
+                } | null;
+                options: {
+                    id: string;
+                    text: {
+                        [key: string]: string;
+                    };
+                }[];
+                duration_ms: number;
+                /** Format: date-time */
+                deadline_at: string;
+                expected_accuracy_bp: number;
+                target_survival_bp: number;
+                correct_survival_bp: number;
+                wrong_survival_bp: number;
+            } | null;
+            payout_coins: number | null;
+            /** Format: date-time */
+            server_now: string;
+        };
+        RoadToGoalCommitmentResponse: {
+            /** Format: uuid */
+            commitment_id: string;
+            /** @enum {number} */
+            commitment_version: 3;
+            /** Format: uuid */
+            calibration_version_id: string;
+            stake_coins: 10 | 25 | 50;
+            auto_cashout_zone: number | null;
+            commit_hash: string;
+            rules_manifest: {
+                /** @enum {string} */
+                game: "road-to-goal";
+                /** @enum {number} */
+                version: 3;
+                fairnessVersion: number;
+                targetRtpBp: number;
+                desiredSkillGapBp: number;
+                minimumAccuracyBp: number;
+                maximumAccuracyBp: number;
+                minimumSurvivalBp: number;
+                maximumSurvivalBp: number;
+                multiplierLadderBp: number[];
+                difficulties: ("easy" | "medium" | "hard")[];
+                zoneAccuracyPriorsBp: number[];
+                /** @enum {string} */
+                timeoutTreatment: "gameplay_incorrect_editorial_separate";
+            };
+            rules_manifest_hash: string;
+            question_set_hash: string;
+            question_hashes: string[];
+            /** Format: date-time */
+            expires_at: string;
+            /** Format: date-time */
+            server_now: string;
+        };
+        RoadToGoalAnswerResponse: {
+            /** @enum {string} */
+            outcome: "correct" | "wrong" | "late";
+            correct_option_id: string;
+            survived: boolean;
+            expected_accuracy_bp: number;
+            target_survival_bp: number;
+            correct_survival_bp: number;
+            wrong_survival_bp: number;
+            applied_survival_bp: number;
+            roll_bp: number;
+            state: {
+                /** Format: uuid */
+                round_id: string;
+                /** @enum {string} */
+                status: "active" | "cashed" | "lost" | "completed";
+                /** @enum {string} */
+                phase: "question" | "decision" | "settled";
+                state_version: number;
+                stake_coins: 10 | 25 | 50;
+                cleared_zones: number;
+                /** @enum {number} */
+                total_zones: 11;
+                current_multiplier_bp: number;
+                next_multiplier_bp: number | null;
+                current_return_coins: number;
+                next_return_coins: number | null;
+                zone_multipliers_bp: number[];
+                /** Format: uuid */
+                calibration_version_id: string | null;
+                /** @enum {number|null} */
+                commitment_version: 3 | null;
+                commit_hash: string | null;
+                rules_manifest_hash: string | null;
+                question_set_hash: string | null;
+                client_seed: string | null;
+                server_seed: string | null;
+                auto_cashout_zone: number | null;
+                /** Format: date-time */
+                decision_deadline_at: string | null;
+                settlement_reason: string | null;
+                question: {
+                    /** Format: uuid */
+                    question_id: string;
+                    zone: number;
+                    /** @enum {string} */
+                    difficulty: "easy" | "medium" | "hard";
+                    prompt: {
+                        [key: string]: string;
+                    };
+                    image: {
+                        /** Format: uri */
+                        url: string;
+                        width: number;
+                        height: number;
+                        aspect_ratio?: string;
+                    } | null;
+                    options: {
+                        id: string;
+                        text: {
+                            [key: string]: string;
+                        };
+                    }[];
+                    duration_ms: number;
+                    /** Format: date-time */
+                    deadline_at: string;
+                    expected_accuracy_bp: number;
+                    target_survival_bp: number;
+                    correct_survival_bp: number;
+                    wrong_survival_bp: number;
+                } | null;
+                payout_coins: number | null;
+                /** Format: date-time */
+                server_now: string;
+            };
+        };
+        RoadToGoalProofResponse: {
+            /** @enum {number} */
+            version: 3;
+            /** Format: uuid */
+            round_id: string;
+            /** Format: uuid */
+            calibration_version_id: string | null;
+            /** @enum {number} */
+            commitment_version: 3;
+            commit_hash: string;
+            rules_manifest: {
+                /** @enum {string} */
+                game: "road-to-goal";
+                /** @enum {number} */
+                version: 3;
+                fairnessVersion: number;
+                targetRtpBp: number;
+                desiredSkillGapBp: number;
+                minimumAccuracyBp: number;
+                maximumAccuracyBp: number;
+                minimumSurvivalBp: number;
+                maximumSurvivalBp: number;
+                multiplierLadderBp: number[];
+                difficulties: ("easy" | "medium" | "hard")[];
+                zoneAccuracyPriorsBp: number[];
+                /** @enum {string} */
+                timeoutTreatment: "gameplay_incorrect_editorial_separate";
+            };
+            rules_manifest_hash: string;
+            question_set_hash: string;
+            question_hashes: string[];
+            stake_coins: 10 | 25 | 50;
+            auto_cashout_zone: number | null;
+            question_set: {
+                zone: number;
+                commitment_salt: string;
+                /** Format: uuid */
+                question_id: string;
+                /** @enum {string} */
+                difficulty: "easy" | "medium" | "hard";
+                prompt: {
+                    [key: string]: string;
+                };
+                image: {
+                    /** Format: uri */
+                    url: string;
+                    width: number;
+                    height: number;
+                    aspect_ratio?: string;
+                } | null;
+                options: {
+                    id: string;
+                    text: {
+                        [key: string]: string;
+                    };
+                }[];
+                correct_option_id: string;
+                expected_accuracy_bp: number;
+                /** @enum {string} */
+                calibration_source: "difficulty_prior" | "ranked" | "blended" | "road";
+            }[];
+            server_seed: string;
+            client_seed: string;
+            /** @enum {string} */
+            status: "cashed" | "lost" | "completed";
+            payout_coins: number;
+            cleared_zones: number;
+            zones: {
+                zone: number;
+                /** Format: uuid */
+                question_id: string;
+                answer_option_id: string | null;
+                correct_option_id: string;
+                /** @enum {string} */
+                outcome: "correct" | "wrong" | "late";
+                expected_accuracy_bp: number;
+                target_survival_bp: number;
+                correct_survival_bp: number;
+                wrong_survival_bp: number;
+                applied_survival_bp: number;
+                roll_bp: number;
+                survived: boolean;
+            }[];
+        };
         ProgressionResponse: {
             level: number;
             totalXp: number;
@@ -8783,6 +10517,10 @@ export interface components {
                 hair?: string;
                 glasses?: string;
                 facialHair?: string;
+                headwear?: string;
+                earwear?: string;
+                /** @enum {string} */
+                hairColor?: "natural" | "platinum" | "ginger" | "silver" | "blue_tips" | "pink_streaks";
             } | null;
             favorite_club: string | null;
             preferred_language: string | null;
@@ -8807,6 +10545,10 @@ export interface components {
                 hair?: string;
                 glasses?: string;
                 facialHair?: string;
+                headwear?: string;
+                earwear?: string;
+                /** @enum {string} */
+                hairColor?: "natural" | "platinum" | "ginger" | "silver" | "blue_tips" | "pink_streaks";
             } | null;
             country: string | null;
             favoriteClub: string | null;
@@ -8898,6 +10640,10 @@ export interface components {
                     hair?: string;
                     glasses?: string;
                     facialHair?: string;
+                    headwear?: string;
+                    earwear?: string;
+                    /** @enum {string} */
+                    hairColor?: "natural" | "platinum" | "ginger" | "silver" | "blue_tips" | "pink_streaks";
                 } | null;
                 level: number;
                 pendingDeletion: boolean;
@@ -8936,6 +10682,10 @@ export interface components {
                         hair?: string;
                         glasses?: string;
                         facialHair?: string;
+                        headwear?: string;
+                        earwear?: string;
+                        /** @enum {string} */
+                        hairColor?: "natural" | "platinum" | "ginger" | "silver" | "blue_tips" | "pink_streaks";
                     } | null;
                     level: number;
                     pendingDeletion: boolean;
@@ -8973,6 +10723,10 @@ export interface components {
                         hair?: string;
                         glasses?: string;
                         facialHair?: string;
+                        headwear?: string;
+                        earwear?: string;
+                        /** @enum {string} */
+                        hairColor?: "natural" | "platinum" | "ginger" | "silver" | "blue_tips" | "pink_streaks";
                     } | null;
                     level: number;
                     pendingDeletion: boolean;
@@ -9238,6 +10992,50 @@ export interface components {
             accepted_answers: string[];
             prompt?: components["schemas"]["I18nField"];
             explanation?: components["schemas"]["I18nField"] & unknown;
+        } | {
+            /** @enum {string} */
+            type: "missing_xi";
+            team: components["schemas"]["I18nField"];
+            opponent: components["schemas"]["I18nField"];
+            match_label: components["schemas"]["I18nField"];
+            formation: string;
+            score?: string | null;
+            season?: number | null;
+            slots: {
+                id: string;
+                position: string;
+                number: number | null;
+                x: number;
+                y: number;
+                name: components["schemas"]["I18nField"];
+                accepted_answers: string[];
+            }[];
+        } | {
+            /** @enum {string} */
+            type: "pass_chain";
+            start_tm_id: number;
+            target_tm_id: number;
+            par: number;
+            bridges?: number | null;
+            solution: {
+                tm_id: number;
+                /** @enum {string} */
+                kind?: "club" | "manager";
+                via: components["schemas"]["I18nField"];
+            }[];
+        } | {
+            /** @enum {string} */
+            type: "stat_sniper";
+            kind: string;
+            prompt: components["schemas"]["I18nField"];
+            unit: components["schemas"]["I18nField"];
+            value: number;
+            min: number;
+            max: number;
+            step: number;
+            source?: {
+                [key: string]: unknown;
+            } | null;
         };
         QuestionResponse: {
             /** Format: uuid */
@@ -9245,7 +11043,7 @@ export interface components {
             /** Format: uuid */
             category_id: string;
             /** @enum {string} */
-            type: "mcq_single" | "true_false" | "input_text" | "countdown_list" | "clue_chain" | "put_in_order" | "imposter_multi_select" | "career_path" | "high_low" | "football_logic";
+            type: "mcq_single" | "true_false" | "input_text" | "countdown_list" | "clue_chain" | "put_in_order" | "imposter_multi_select" | "career_path" | "high_low" | "football_logic" | "missing_xi" | "pass_chain" | "stat_sniper";
             /** @enum {string} */
             difficulty: "easy" | "medium" | "hard";
             /** @enum {string} */
@@ -9323,7 +11121,7 @@ export interface components {
         };
         DailyChallengeMetadata: {
             /** @enum {string} */
-            challengeType: "moneyDrop" | "trueFalse" | "clues" | "countdown" | "putInOrder" | "imposter" | "careerPath" | "highLow" | "footballLogic" | "fifaCards";
+            challengeType: "moneyDrop" | "trueFalse" | "clues" | "countdown" | "putInOrder" | "imposter" | "careerPath" | "highLow" | "footballLogic" | "fifaCards" | "cardDetective" | "missingXi" | "passChain" | "statSniper";
             title: string;
             description: string;
             /** @enum {string} */
@@ -9404,6 +11202,33 @@ export interface components {
             cardCount: number;
             /** @enum {string} */
             challengeType: "fifaCards";
+        } | {
+            /** @default [] */
+            categoryIds: string[];
+            cardCount: number;
+            /** @enum {string} */
+            challengeType: "cardDetective";
+        } | {
+            /** @default [] */
+            categoryIds: string[];
+            squadCount: number;
+            secondsPerSquad: number;
+            /** @enum {string} */
+            challengeType: "missingXi";
+        } | {
+            /** @default [] */
+            categoryIds: string[];
+            puzzleCount: number;
+            secondsPerPuzzle: number;
+            /** @enum {string} */
+            challengeType: "passChain";
+        } | {
+            /** @default [] */
+            categoryIds: string[];
+            questionCount: number;
+            secondsPerQuestion: number;
+            /** @enum {string} */
+            challengeType: "statSniper";
         };
         AdminDailyChallengeCategoryOption: {
             /** Format: uuid */
@@ -9550,6 +11375,7 @@ export interface components {
                 difficulty: "easy" | "medium" | "hard";
                 prompt: string;
                 clubs: string[];
+                clubMatchNames: string[];
                 displayAnswer: string;
                 acceptedAnswers: string[];
             }[];
@@ -9600,6 +11426,94 @@ export interface components {
             }[];
         } | {
             /** @enum {string} */
+            challengeType: "missingXi";
+            title: string;
+            description: string;
+            squadCount: number;
+            secondsPerSquad: number;
+            squads: {
+                /** Format: uuid */
+                id: string;
+                /** @enum {string} */
+                difficulty: "easy" | "medium" | "hard";
+                team: string;
+                opponent: string;
+                matchLabel: string;
+                score: string | null;
+                formation: string;
+                slots: {
+                    id: string;
+                    position: string;
+                    number: number | null;
+                    x: number;
+                    y: number;
+                    name: string;
+                    acceptedAnswers: string[];
+                    imageUrl: string | null;
+                }[];
+            }[];
+        } | {
+            /** @enum {string} */
+            challengeType: "passChain";
+            title: string;
+            description: string;
+            puzzleCount: number;
+            secondsPerPuzzle: number;
+            puzzles: {
+                /** Format: uuid */
+                id: string;
+                /** @enum {string} */
+                difficulty: "easy" | "medium" | "hard";
+                par: number;
+                start: {
+                    /** Format: uuid */
+                    id: string;
+                    name: string;
+                    clubs: string[];
+                    imageUrl: string | null;
+                };
+                target: {
+                    /** Format: uuid */
+                    id: string;
+                    name: string;
+                    clubs: string[];
+                    imageUrl: string | null;
+                };
+                solution: {
+                    player: {
+                        /** Format: uuid */
+                        id: string;
+                        name: string;
+                        clubs: string[];
+                        imageUrl: string | null;
+                    };
+                    via: string;
+                    /** @enum {string} */
+                    kind: "club" | "manager";
+                }[];
+            }[];
+        } | {
+            /** @enum {string} */
+            challengeType: "statSniper";
+            title: string;
+            description: string;
+            questionCount: number;
+            secondsPerQuestion: number;
+            questions: {
+                /** Format: uuid */
+                id: string;
+                /** @enum {string} */
+                difficulty: "easy" | "medium" | "hard";
+                kind: string;
+                prompt: string;
+                unit: string;
+                value: number;
+                min: number;
+                max: number;
+                step: number;
+            }[];
+        } | {
+            /** @enum {string} */
             challengeType: "fifaCards";
             title: string;
             description: string;
@@ -9628,12 +11542,58 @@ export interface components {
                 };
                 faceUrl: string | null;
                 /** @enum {string} */
-                difficulty: "easy" | "medium" | "hard";
+                difficulty: "easy" | "medium" | "hard" | "veryHard";
+            }[];
+        } | {
+            /** @enum {string} */
+            challengeType: "cardDetective";
+            title: string;
+            description: string;
+            cardCount: number;
+            startCoins: number;
+            clueCosts: {
+                rating: number;
+                position: number;
+                nation: number;
+                league: number;
+                club: number;
+                pac: number;
+                sho: number;
+                pas: number;
+                dri: number;
+                def: number;
+                phy: number;
+            };
+            wrongGuessCost: number;
+            cards: {
+                /** Format: uuid */
+                id: string;
+                edition: string;
+                editionLabel: string;
+                name: string;
+                acceptedAnswers: string[];
+                overall: number;
+                position: string;
+                nation: string;
+                nationCode: string;
+                league: string;
+                club: string;
+                stats: {
+                    pac: number;
+                    sho: number;
+                    pas: number;
+                    dri: number;
+                    def: number;
+                    phy: number;
+                };
+                faceUrl: string | null;
+                /** @enum {string} */
+                difficulty: "easy" | "medium" | "hard" | "veryHard";
             }[];
         };
         CompleteDailyChallengeResponse: {
             /** @enum {string} */
-            challengeType: "moneyDrop" | "trueFalse" | "clues" | "countdown" | "putInOrder" | "imposter" | "careerPath" | "highLow" | "footballLogic" | "fifaCards";
+            challengeType: "moneyDrop" | "trueFalse" | "clues" | "countdown" | "putInOrder" | "imposter" | "careerPath" | "highLow" | "footballLogic" | "fifaCards" | "cardDetective" | "missingXi" | "passChain" | "statSniper";
             /** @enum {boolean} */
             completedToday: true;
             coinsAwarded: number;
@@ -9662,13 +11622,13 @@ export interface components {
         };
         ResetDailyChallengeResponse: {
             /** @enum {string} */
-            challengeType: "moneyDrop" | "trueFalse" | "clues" | "countdown" | "putInOrder" | "imposter" | "careerPath" | "highLow" | "footballLogic" | "fifaCards";
+            challengeType: "moneyDrop" | "trueFalse" | "clues" | "countdown" | "putInOrder" | "imposter" | "careerPath" | "highLow" | "footballLogic" | "fifaCards" | "cardDetective" | "missingXi" | "passChain" | "statSniper";
             /** @enum {boolean} */
             reset: true;
         };
         AdminDailyChallengeConfigResponse: {
             /** @enum {string} */
-            challengeType: "moneyDrop" | "trueFalse" | "clues" | "countdown" | "putInOrder" | "imposter" | "careerPath" | "highLow" | "footballLogic" | "fifaCards";
+            challengeType: "moneyDrop" | "trueFalse" | "clues" | "countdown" | "putInOrder" | "imposter" | "careerPath" | "highLow" | "footballLogic" | "fifaCards" | "cardDetective" | "missingXi" | "passChain" | "statSniper";
             title: string;
             description: string;
             /** @enum {string} */
@@ -9748,6 +11708,33 @@ export interface components {
                 cardCount: number;
                 /** @enum {string} */
                 challengeType: "fifaCards";
+            } | {
+                /** @default [] */
+                categoryIds: string[];
+                cardCount: number;
+                /** @enum {string} */
+                challengeType: "cardDetective";
+            } | {
+                /** @default [] */
+                categoryIds: string[];
+                squadCount: number;
+                secondsPerSquad: number;
+                /** @enum {string} */
+                challengeType: "missingXi";
+            } | {
+                /** @default [] */
+                categoryIds: string[];
+                puzzleCount: number;
+                secondsPerPuzzle: number;
+                /** @enum {string} */
+                challengeType: "passChain";
+            } | {
+                /** @default [] */
+                categoryIds: string[];
+                questionCount: number;
+                secondsPerQuestion: number;
+                /** @enum {string} */
+                challengeType: "statSniper";
             };
             sortOrder: number;
             isActive: boolean;
