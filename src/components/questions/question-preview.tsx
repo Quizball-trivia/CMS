@@ -1,6 +1,6 @@
 'use client';
 
-import type { McqOption } from '@/types';
+import type { McqOption, QuestionType } from '@/types';
 import type { AnswerWithId } from './text-input-editor';
 import { cn } from '@/lib/utils';
 
@@ -8,18 +8,7 @@ interface QuestionPreviewProps {
   prompt: string | undefined;
   categoryName: string;
   difficulty: 'easy' | 'medium' | 'hard' | undefined;
-  type:
-    | 'mcq_single'
-    | 'true_false'
-    | 'input_text'
-    | 'countdown_list'
-    | 'clue_chain'
-    | 'put_in_order'
-    | 'imposter_multi_select'
-    | 'career_path'
-    | 'high_low'
-    | 'football_logic'
-    | undefined;
+  type: QuestionType | undefined;
   mcqOptions: McqOption[];
   acceptedAnswers: AnswerWithId[];
   previewLang: 'en' | 'ka';

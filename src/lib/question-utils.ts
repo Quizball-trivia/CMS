@@ -23,22 +23,17 @@ export type AdvancedQuestionPayload =
   | HighLowPayload
   | FootballLogicPayload;
 
+export function isQuestionTypeEditable(type: QuestionType): boolean {
+  return ['mcq_single', 'true_false', 'input_text', 'countdown_list', 'clue_chain',
+    'put_in_order', 'imposter_multi_select', 'career_path', 'high_low', 'football_logic'].includes(type);
+}
+
 export interface QuestionFormData {
   category_id: string;
   locale: 'en' | 'ka';
   difficulty: 'easy' | 'medium' | 'hard';
   status: QuestionStatus;
-  type:
-    | 'mcq_single'
-    | 'true_false'
-    | 'input_text'
-    | 'countdown_list'
-    | 'clue_chain'
-    | 'put_in_order'
-    | 'imposter_multi_select'
-    | 'career_path'
-    | 'high_low'
-    | 'football_logic';
+  type: QuestionType;
   prompt: string;
   explanation: string;
   options: Array<{ id?: string; text: string; is_correct: boolean }>;

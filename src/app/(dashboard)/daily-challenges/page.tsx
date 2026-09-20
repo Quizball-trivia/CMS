@@ -48,9 +48,9 @@ const ICONS: Record<DailyChallengeIconToken, typeof DollarSign> = {
 // A challenge can ship on the backend before the CMS knows its icon; never crash the page over it.
 const FALLBACK_ICON = Lightbulb;
 
-// FIFA Cards is served from the fifa_cards pool, so question categories do not apply to it.
+// Card modes use their own catalogue pools rather than question categories.
 function usesQuestionPool(type: DailyChallengeType): boolean {
-  return type !== 'fifaCards';
+  return type !== 'fifaCards' && type !== 'cardDetective';
 }
 
 function cloneConfig(config: AdminDailyChallengeConfig): UpdateDailyChallengeConfigRequest {
@@ -86,6 +86,14 @@ function getChallengeQuestionLabel(type: DailyChallengeType): string {
       return 'Football Logic';
     case 'fifaCards':
       return 'FIFA Cards';
+    case 'cardDetective':
+      return 'Card Detective';
+    case 'missingXi':
+      return 'Missing XI';
+    case 'passChain':
+      return 'Pass Chain';
+    case 'statSniper':
+      return 'Stat Sniper';
   }
 }
 
