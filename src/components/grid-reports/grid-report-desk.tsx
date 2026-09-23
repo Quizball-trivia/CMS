@@ -109,7 +109,7 @@ export function GridReportDesk({ previewReports }: { previewReports?: GridReport
     enabled: !demo && Boolean(selected && player),
   });
   const check = demo ? selected?.correction_proposal?.check ?? null : playerCheck.data ?? null;
-  const needsFactEvidence = Boolean(check && (!check.rowMember || !check.columnMember));
+  const needsFactEvidence = Boolean(check && (!check.rowMember || !check.columnMember || !check.boardAnswer));
   const canSave = Boolean(selected && player && check && locales.every((locale) =>
     names[locale].trim().length >= 2 && aliasText[locale].trim().length >= 2)
     && (!needsFactEvidence || (evidenceUrl.trim() && evidenceNote.trim())) && !busy && !demo);
@@ -307,6 +307,7 @@ export function GridReportDesk({ previewReports }: { previewReports?: GridReport
                     : check ? <div className="mt-3 space-y-2 text-sm">
                       <p className={check.rowMember ? 'text-emerald-700' : 'text-amber-700'}>{check.rowMember ? '✓' : '!'} Row fact {check.rowMember ? 'exists' : 'needs evidence'}</p>
                       <p className={check.columnMember ? 'text-emerald-700' : 'text-amber-700'}>{check.columnMember ? '✓' : '!'} Column fact {check.columnMember ? 'exists' : 'needs evidence'}</p>
+                      <p className={check.boardAnswer ? 'text-emerald-700' : 'text-amber-700'}>{check.boardAnswer ? '✓' : '!'} Board answer {check.boardAnswer ? 'included' : 'missing from this cell'}</p>
                       <p className={check.submittedNameRecognized ? 'text-emerald-700' : 'text-amber-700'}>{check.submittedNameRecognized ? '✓' : '!'} Submitted spelling {check.submittedNameRecognized ? 'recognized' : 'not recognized'}</p>
                       {check.otherAliasOwners > 0 && <p className="font-semibold text-rose-700">Name is also owned by {check.otherAliasOwners} other player(s).</p>}
                     </div> : <p className="mt-3 text-sm text-slate-500">Choose a player to see whether this is a fact gap or a name gap.</p>}
