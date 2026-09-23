@@ -7,6 +7,7 @@ export interface GridPlayerCheck {
   playerName: string;
   rowMember: boolean;
   columnMember: boolean;
+  boardAnswer: boolean;
   submittedNameRecognized: boolean;
   otherAliasOwners: number;
 }
