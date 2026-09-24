@@ -20,6 +20,7 @@ import {
   Settings2,
   SlidersHorizontal,
   Trophy,
+  Upload,
   Users,
 } from 'lucide-react';
 
@@ -67,6 +68,7 @@ const navGroups: NavGroup[] = [
     routes: ['/weekend-league', '/daily-challenges', '/auction'],
     children: [
       { title: 'Weekend League', href: '/weekend-league', icon: Trophy },
+      { title: 'WL Content', href: '/weekend-league/content', icon: Upload },
       { title: 'Daily Challenges', href: '/daily-challenges', icon: CalendarDays },
       { title: 'Auction Cards', href: '/auction', icon: Gavel },
     ],
