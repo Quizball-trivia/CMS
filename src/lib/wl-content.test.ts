@@ -58,3 +58,15 @@ describe('parseWlFile', () => {
     expect(q.acceptedAnswers).toEqual(['Dennis Bergkamp', 'Bergkamp']);
   });
 });
+
+describe('parseWlFile line numbers', () => {
+  it('reports lines of the editor file even after splitting "N. Clue 5:" starts', () => {
+    const clues = (n: number, difficulty = 'Hard') => `${n}. Clue 5: vague ${n}\nClue 4: b\nClue 3: c\nClue 2: d\nClue 1: e\nAnswer: Player ${n}\nDifficulty: ${difficulty}`;
+    const text = [clues(1), clues(2), clues(3, 'Impossible')].join('\n\n');
+    const { errors, questions } = parseWlFile(text, 'clue_chain');
+    const badLine = text.split('\n').findIndex((l) => l.includes('Impossible')) + 1;
+    const firstLineOf3 = text.split('\n').findIndex((l) => l.startsWith('3. Clue 5')) + 1;
+    expect(errors.some((e) => e.lineNumber >= firstLineOf3 && e.lineNumber <= badLine)).toBe(true);
+    expect(questions.map((q) => q.lineNumber)).toEqual([1, text.split('\n').findIndex((l) => l.startsWith('2. Clue 5')) + 1]);
+  });
+});

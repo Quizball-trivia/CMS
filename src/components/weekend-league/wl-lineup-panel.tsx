@@ -132,6 +132,7 @@ export function WlLineupPanel({ onSaved, onOpenNext, onOpenBatches }: { onSaved?
         } else if (res && res.response.status === 401) {
           setRequestError('Your session expired while saving. The save continues on the server — check Batches for the result.'); break;
         }
+        if (i === 359) setRequestError('Saving is taking unusually long. It continues on the server — check Batches for the result.');
         await new Promise((r) => setTimeout(r, 2000));
       }
     } catch (err) { setRequestError(err instanceof Error ? err.message : String(err)); } finally { setBusy(null); }
@@ -209,12 +210,14 @@ export function WlLineupPanel({ onSaved, onOpenNext, onOpenBatches }: { onSaved?
               <Input ref={fileRef} type="file" accept=".txt" aria-label="Lineup file" onChange={(e) => void handleFile(e)} disabled={!scope || busy !== null} />
               {!scope && <p className="text-xs text-muted-foreground">Choose the games first.</p>}
             </div>
-            <Input value={note} onChange={(e) => setNote(e.target.value)} placeholder="Note (optional), e.g. Derby week" maxLength={400} aria-label="Note" />
+            <Input value={note} onChange={(e) => { setNote(e.target.value); if (preview) reset(); }} placeholder="Note (optional), e.g. Derby week" maxLength={400} aria-label="Note" />
           </div>
           {fileName && !errors.length && items.length > 0 && (
             <p className="flex items-center gap-2 text-sm text-green-700"><CheckCircle2 className="h-4 w-4" /> {fileName}: {items.length} questions for {scopeGames.map((g) => WL_GAME_NAMES[g]).join(', ')}.</p>
           )}
-          {problems.length > 0 && <ProblemList title={`${errors.length} problem${errors.length === 1 ? '' : 's'} in ${fileName ?? 'the file'} — fix ${errors.length === 1 ? 'it' : 'them'} and choose the file again`} rows={problems.map((p) => ({ line: p.line, where: p.where, message: p.message }))} />}
+          {problems.length > 0 && (errors.length
+            ? <ProblemList title={`${errors.length} problem${errors.length === 1 ? '' : 's'} in ${fileName ?? 'the file'} — fix ${errors.length === 1 ? 'it' : 'them'} and choose the file again`} rows={problems.map((p) => ({ line: p.line, where: p.where, message: p.message }))} />
+            : <ProblemList warning title={`${problems.length} note${problems.length === 1 ? '' : 's'} in ${fileName ?? 'the file'} — you can still preview`} rows={problems.map((p) => ({ line: p.line, where: p.where, message: p.message }))} />)}
           <div className="flex items-center gap-3">
             <Button onClick={() => void runPreview(force)} disabled={!canPreview || busy !== null}>
               {busy === 'preview' ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Eye className="mr-1 h-4 w-4" />} Check &amp; preview
@@ -228,7 +231,7 @@ export function WlLineupPanel({ onSaved, onOpenNext, onOpenBatches }: { onSaved?
 
       {preview && (
         <LineupPreview preview={preview} event={preview.event} items={items} force={force}
-          onToggleForce={(i) => { revRef.current += 1; const next = new Set(force); if (next.has(i)) next.delete(i); else next.add(i); setForce(next); setPreview({ ...preview, preview_id: null }); }}
+          onToggleForce={(i) => { revRef.current += 1; setBusy((b) => (b === 'preview' ? null : b)); const next = new Set(force); if (next.has(i)) next.delete(i); else next.add(i); setForce(next); setPreview({ ...preview, preview_id: null }); }}
           onRefresh={() => void runPreview(force)} busy={busy} onSave={() => void save()} />
       )}
 
@@ -237,9 +240,9 @@ export function WlLineupPanel({ onSaved, onOpenNext, onOpenBatches }: { onSaved?
   );
 }
 
-function ProblemList({ title, rows }: { title: string; rows: Array<{ line: number | null; where: string; message: string }> }) {
+function ProblemList({ title, rows, warning = false }: { title: string; rows: Array<{ line: number | null; where: string; message: string }>; warning?: boolean }) {
   return (
-    <Alert variant="destructive">
+    <Alert variant={warning ? 'default' : 'destructive'} className={cn(warning && 'border-amber-500 bg-amber-50')}>
       <AlertCircle className="h-4 w-4" />
       <AlertDescription>
         <p className="mb-2 font-medium">{title}</p>

@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { ChevronDown, ChevronLeft, ChevronRight, Loader2, RefreshCw, Shuffle } from 'lucide-react';
 import { WL_ROUND_KIND_LABEL, wlContentApi } from '@/lib/wl-content';
@@ -46,12 +46,19 @@ export function WlNextEvent({ refreshKey = 0, eventId: initialEventId = null }: 
 
   // Fetch only sets state after the request resolves (no synchronous setState
   // inside the effect); the refresh button flips `loading` itself.
+  /** Only the latest request may update the screen (switching weekends quickly must not show an older one). */
+  const requestRef = useRef(0);
   const load = useCallback(async () => {
+    const req = ++requestRef.current;
     try {
       const { data: res, error: err } = await wlContentApi.GET('/api/v1/admin/wl/content/next-event', { params: { query: eventId ? { tournament_id: eventId } : {} } });
-      if (err || !res) { const m = (err as { message?: string } | undefined)?.message ?? 'request failed'; setError(m); toast.error(`Could not refresh the coming event: ${m}`); }
+      if (req !== requestRef.current) return;
+      if (err || !res) { const m = (err as { message?: string } | undefined)?.message ?? 'request failed'; setError(m); toast.error(`Could not load the weekend: ${m}`); }
       else { setData(res as unknown as NextEvent); setError(null); }
-    } catch (err) { const m = err instanceof Error ? err.message : String(err); setError(m); toast.error(`Could not refresh the coming event: ${m}`); }
+    } catch (err) {
+      if (req !== requestRef.current) return;
+      const m = err instanceof Error ? err.message : String(err); setError(m); toast.error(`Could not load the weekend: ${m}`);
+    }
     setLoading(false);
   }, [eventId]);
   useEffect(() => {
@@ -66,8 +73,10 @@ export function WlNextEvent({ refreshKey = 0, eventId: initialEventId = null }: 
     if (!data?.tournament) return;
     if (!window.confirm(`Re-draw ALL content for ${data.tournament.week_key} from the current pool? The current set is kept as a backup.`)) return;
     setReseeding(true);
-    const { data: res, error } = await wlContentApi.POST('/api/v1/admin/wl/content/tournaments/{id}/reseed', { params: { path: { id: data.tournament.id } } });
+    const out = await wlContentApi.POST('/api/v1/admin/wl/content/tournaments/{id}/reseed', { params: { path: { id: data.tournament.id } } }).catch((err: unknown) => (err instanceof Error ? err : new Error(String(err))));
     setReseeding(false);
+    if (out instanceof Error) { toast.error(`Re-draw failed: ${out.message} — refreshing to show the current lineup`); void load(); return; }
+    const { data: res, error } = out;
     if (error || !res) { toast.error((error as { message?: string } | undefined)?.message ?? 'Reseed failed'); return; }
     if (!res.ok) {
       const short = Object.entries(res.shortages ?? {}).map(([k, v]) => `${WL_ROUND_KIND_LABEL[k] ?? k}: ${v.have}/${v.need}`).join(', ');
@@ -108,7 +117,7 @@ export function WlNextEvent({ refreshKey = 0, eventId: initialEventId = null }: 
         </div>
         <div className="flex flex-wrap gap-2">
           {events.length > 1 && (
-            <select aria-label="Weekend" value={t.id} onChange={(e) => { setLoading(true); setEventId(e.target.value); setGame(0); setRound(0); }}
+            <select aria-label="Weekend" value={t.id} onChange={(e) => { setLoading(true); setData(null); setError(null); setEventId(e.target.value); setGame(0); setRound(0); }}
               className="rounded-md border bg-background px-2 py-1 text-sm">
               {events.map((ev) => <option key={ev.id} value={ev.id}>Weekend of {ev.week_key}</option>)}
             </select>

@@ -137,9 +137,22 @@ function splitNumberedClueStarts(content: string): string {
 
 export function parseWlFile(content: string, kind: WlContentKind): { questions: ParsedBulkQuestion[]; errors: ParseError[] } {
   let text = content.replace(/[“”]/g, '"').replace(/[‘’]/g, "'");
-  if (kind === 'clue_chain') text = splitNumberedClueStarts(text);
+  // The clue split adds a line per "N. Clue …" start; map parser lines back to the editor's file.
+  const original: number[] = [];
+  if (kind === 'clue_chain') {
+    text.replace(/\r\n?/g, '\n').split('\n').forEach((line, i) => {
+      original.push(i + 1);
+      if (/^(\s*\d+[.)])\s+(Clue\s+\d+\s*:)/i.test(line)) original.push(i + 1);
+    });
+    text = splitNumberedClueStarts(text);
+  }
+  const toOriginal = (n: number) => original[n - 1] ?? n;
   text = autoNumberBlocks(text);
   const result = parseQuestionFile(text, kind, { clueOrder: 'as-listed' });
+  if (original.length) {
+    result.errors.forEach((e) => { e.lineNumber = toOriginal(e.lineNumber); });
+    result.questions.forEach((q) => { q.lineNumber = toOriginal(q.lineNumber); });
+  }
   // The generic parser checks counts, not that the Answer block is a
   // permutation of Items — a repeated name would silently rank the missing
   // item first. Catch it here with a line number the editor can act on.

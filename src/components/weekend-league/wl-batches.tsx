@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { CalendarPlus, Loader2, RotateCcw } from 'lucide-react';
 import { WL_KIND_LABEL, WL_ROUND_KIND_LABEL, wlContentApi, type WlContentBatch, type WlContentBatchDetail } from '@/lib/wl-content';
@@ -40,9 +40,12 @@ export function WlBatches({ refreshKey = 0, onChanged }: { refreshKey?: number; 
    * The photo step can queue behind a running import. Refresh until an outcome
    * other than the one already shown lands (an older error is not this attempt's result).
    */
+  const mounted = useRef(true);
+  useEffect(() => () => { mounted.current = false; }, []);
   const watchPhotos = useCallback(async (id: string, seen: string | null) => {
     for (let i = 0; i < 180; i++) {
       await new Promise((r) => setTimeout(r, 5000));
+      if (!mounted.current) return;
       const b = (await load())?.find((x) => x.id === id);
       const photos = undoOf(b?.result)?.photos;
       if (!photos?.at || photos.at === seen) continue;
@@ -58,12 +61,19 @@ export function WlBatches({ refreshKey = 0, onChanged }: { refreshKey?: number; 
   const retryCleanup = async (b: WlContentBatch) => {
     const seen = undoOf(b.result)?.photos?.at ?? null;
     setBusy(b.id);
-    const { data, error } = await wlContentApi.DELETE('/api/v1/admin/wl/content/batches/{id}', { params: { path: { id: b.id } } });
+    const res = await wlContentApi.DELETE('/api/v1/admin/wl/content/batches/{id}', { params: { path: { id: b.id } } }).catch((err: unknown) => (err instanceof Error ? err : new Error(String(err))));
     setBusy(null);
+    if (res instanceof Error) { toast.error(`Retry failed: ${res.message}`); void load(); return; }
+    const { data, error } = res;
     if (error || !data) { toast.error((error as { message?: string } | undefined)?.message ?? 'Retry failed'); return; }
     void load();
     const stagingFailed = data.staging_deleted != null && data.staging_deleted < 0;
-    if (data.photos === null) { toast.info('Photo cleanup is queued behind an import that is still running — this list updates when it finishes'); void watchPhotos(b.id, seen); return; }
+    if (data.photos === null) {
+      const note = 'Photo cleanup is queued behind an import that is still running — this list updates when it finishes';
+      if (stagingFailed) toast.error(`Staging cleanup failed again. ${note}`); else toast.info(note);
+      void watchPhotos(b.id, seen);
+      return;
+    }
     if (stagingFailed || data.photos.error) toast.error(`Cleanup incomplete${stagingFailed ? ' · staging failed again' : ''}${data.photos.error ? ` · photos: ${data.photos.error}` : ''}`);
     else toast.success(`Cleanup done${data.staging_deleted != null ? ` · staging: ${data.staging_deleted} deleted` : ''}${photoNote(data.photos)}`);
   };
@@ -111,8 +121,10 @@ export function WlBatches({ refreshKey = 0, onChanged }: { refreshKey?: number; 
     if (!window.confirm(prompt)) return;
     const seen = undoOf(b.result)?.photos?.at ?? null;
     setBusy(b.id);
-    const { data, error } = await wlContentApi.DELETE('/api/v1/admin/wl/content/batches/{id}', { params: { path: { id: b.id } } });
+    const res = await wlContentApi.DELETE('/api/v1/admin/wl/content/batches/{id}', { params: { path: { id: b.id } } }).catch((err: unknown) => (err instanceof Error ? err : new Error(String(err))));
     setBusy(null);
+    if (res instanceof Error) { toast.error(`Undo failed: ${res.message} — the list below shows the batch as it is now`); void load(); return; }
+    const { data, error } = res;
     if (error || !data) { toast.error((error as { message?: string } | undefined)?.message ?? 'Undo failed'); return; }
     const text = `Deleted ${data.deleted}${data.kept ? `, kept ${data.kept} already dealt` : ''}${data.staging_deleted != null ? ` · staging: ${data.staging_deleted < 0 ? 'failed' : data.staging_deleted}` : ''}${photoNote(data.photos)}`;
     if (data.photos?.error || (data.staging_deleted ?? 0) < 0) toast.warning(`${text} — use Retry cleanup on the batch`); else toast.success(text);

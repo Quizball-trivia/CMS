@@ -69,21 +69,22 @@ export function WlUploadPanel({ onPublished, onOpenBatches }: { onPublished?: (b
   const [checkError, setCheckError] = useState<string | null>(null);
   const [publishError, setPublishError] = useState<{ message: string; batchId: string | null } | null>(null);
   const [stagingConfigured, setStagingConfigured] = useState<boolean | null>(null);
-  const lastFile = useRef<File | null>(null);
+  // State, not a ref: the Retry button's enabled state renders from it.
+  const [lastFile, setLastFile] = useState<File | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   // Every upload gets a ticket; a pool-check response whose ticket is stale
   // (round type changed, file cleared, new file chosen) is dropped — otherwise
   // the previous file could reappear under the new round type and be published.
   const uploadTicket = useRef(0);
 
-  const reset = () => { uploadTicket.current += 1; setRows([]); setParseErrors([]); setBatch(null); setChecking(false); setCheckError(null); setPublishError(null); lastFile.current = null; if (fileRef.current) fileRef.current.value = ''; };
+  const reset = () => { uploadTicket.current += 1; setRows([]); setParseErrors([]); setBatch(null); setChecking(false); setCheckError(null); setPublishError(null); setLastFile(null); if (fileRef.current) fileRef.current.value = ''; };
   const changeKind = (next: WlContentKind) => { setKind(next); reset(); };
 
   const handleFile = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = takeSelectedFile(event.target);
     if (!file) return;
     if (!/\.(txt|md)$/i.test(file.name)) { toast.error('Upload a .txt file'); return; }
-    lastFile.current = file;
+    setLastFile(file);
     await processFile(file);
   };
 
@@ -243,7 +244,7 @@ export function WlUploadPanel({ onPublished, onOpenBatches }: { onPublished?: (b
           <AlertCircle className="h-4 w-4" />
           <AlertDescription className="flex flex-wrap items-center justify-between gap-2">
             <span>The pool check failed: {checkError}. Nothing can be published until it succeeds{/auth|token|401/i.test(checkError) ? ' — sign in again, then retry' : ''}.</span>
-            <Button variant="outline" size="sm" disabled={checking || !lastFile.current} onClick={() => { if (lastFile.current) void processFile(lastFile.current); }}>Retry check</Button>
+            <Button variant="outline" size="sm" disabled={checking || !lastFile} onClick={() => { if (lastFile) void processFile(lastFile); }}>Retry check</Button>
           </AlertDescription>
         </Alert>
       )}
