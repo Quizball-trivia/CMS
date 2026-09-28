@@ -10,14 +10,14 @@ import type { TdTokenSet, TdTokenStore } from './token-store';
 export type RefreshOutcome = 'ok' | 'terminal' | 'transient' | 'superseded';
 
 /**
- * API contract (plan §13 notes): the API answers the immediately previous
- * refresh token with the same successor pair for as long as that successor has
- * not been used, however late the replay arrives. It revokes the family only
- * when a token is replayed after its successor was used, or when an older token
- * is replayed. Retrying an unanswered refresh with the same token is therefore
- * safe. The client still gives up 25 s after its first attempt (recorded before
- * the request is sent) and ends the session, so a dead API cannot hold a
- * session in limbo; that bound is a product choice, not a safety requirement.
+ * API contract (plan §13 notes): a refresh whose answer was lost may be retried
+ * with the same token within 30 s, while its successor is unused; the retry gets
+ * a fresh pair and supersedes the undelivered one. Presenting a superseded or an
+ * older token, or retrying later, revokes the family. Retrying an unanswered
+ * refresh with the same token is therefore safe inside the window, and the
+ * client gives up 25 s after its first attempt (recorded before the request is
+ * sent) and ends the session, so a dead API cannot hold a session in limbo and
+ * no retry ever lands after the window.
  */
 export const ROTATION_RECOVERY_MS = 25_000;
 const RECOVERY_DELAYS_MS = [1_000, 3_000, 6_000, 10_000];

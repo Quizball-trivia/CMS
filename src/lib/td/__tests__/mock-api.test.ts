@@ -55,16 +55,29 @@ describe('mock Table Derby API', () => {
     );
   });
 
-  it('answers a replay of the previous refresh token with the same successor pair, however late, while the successor is unused', async () => {
+  it('lets a lost refresh answer be retried within 30 s: a fresh pair, and the undelivered one is superseded', async () => {
+    const { call, login, refresh, advance } = mockApi();
+    const first = await login('ops@demo.tablederby.test');
+    const lost = await refresh(first.refreshToken);
+    expect(lost.status).toBe(200);
+
+    advance(20_000);
+    const retried = await refresh(first.refreshToken);
+    expect(retried.status).toBe(200);
+    expect(retried.body.refreshToken).not.toBe(lost.body.refreshToken);
+    expect((await refresh(retried.body.refreshToken)).status).toBe(200);
+    // The superseded pair was never delivered: presenting it is a replay.
+    expect(await refresh(lost.body.refreshToken)).toMatchObject({ status: 401, body: { code: 'refresh_token_reused' } });
+    expect((await call('GET', '/admin/me', { token: retried.body.accessToken })).status).toBe(401);
+  });
+
+  it('revokes the family when the retry comes after the window', async () => {
     const { login, refresh, advance } = mockApi();
     const first = await login('ops@demo.tablederby.test');
     const second = await refresh(first.refreshToken);
-    expect(second.status).toBe(200);
-
-    advance(61_000);
-    expect(await refresh(first.refreshToken)).toEqual(second);
-    advance(10 * 60_000);
-    expect(await refresh(first.refreshToken)).toEqual(second);
+    advance(31_000);
+    expect(await refresh(first.refreshToken)).toMatchObject({ status: 401, body: { code: 'refresh_token_reused' } });
+    expect((await refresh(second.body.refreshToken)).status).toBe(401);
   });
 
   it("revokes the family once a replayed token's successor has been used (i.e. an older token is replayed)", async () => {

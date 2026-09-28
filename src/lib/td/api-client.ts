@@ -92,9 +92,9 @@ async function parse<T>(response: Response): Promise<T> {
 
 /**
  * The network half of a refresh; only the refresh coordinator calls it.
- * Retrying an unanswered refresh is safe because the API replays the same
- * successor pair for as long as that successor is unused, however late (the
- * contract in refresh-coordinator.ts).
+ * Retrying an unanswered refresh with the same token is safe within the API's
+ * 30 s retry window (the contract in refresh-coordinator.ts), which the
+ * coordinator's 25 s recovery bound stays inside.
  */
 export async function requestTokenRefresh(transport: TdTransport, refreshToken: string): Promise<TdTokenSet> {
   const response = await transport.send('POST', '/admin/auth/refresh', {
