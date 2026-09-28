@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createMockTdApi, MOCK_PASSWORD, MOCK_ROTATION_GRACE_MS } from '../mock-api';
+import { createMockTdApi, MOCK_PASSWORD } from '../mock-api';
 import { MemoryStorage } from './helpers';
 
 const BASE = 'https://td-api.mock';
@@ -55,36 +55,26 @@ describe('mock Table Derby API', () => {
     );
   });
 
-  it('answers a replay of the previous refresh token with the same successor pair for 60 s', async () => {
+  it('answers a replay of the previous refresh token with the same successor pair, however late, while the successor is unused', async () => {
     const { login, refresh, advance } = mockApi();
     const first = await login('ops@demo.tablederby.test');
     const second = await refresh(first.refreshToken);
     expect(second.status).toBe(200);
 
-    expect(MOCK_ROTATION_GRACE_MS).toBe(60_000);
-    advance(MOCK_ROTATION_GRACE_MS - 1_000);
-    const replay = await refresh(first.refreshToken);
-    expect(replay).toEqual(second);
+    advance(61_000);
+    expect(await refresh(first.refreshToken)).toEqual(second);
+    advance(10 * 60_000);
+    expect(await refresh(first.refreshToken)).toEqual(second);
   });
 
-  it('revokes the family when the previous token is replayed after the window', async () => {
-    const { call, login, refresh, advance } = mockApi();
-    const first = await login('ops@demo.tablederby.test');
-    const second = await refresh(first.refreshToken);
-
-    advance(MOCK_ROTATION_GRACE_MS + 1);
-    expect(await refresh(first.refreshToken)).toMatchObject({ status: 401, body: { code: 'refresh_token_reused' } });
-    expect((await call('GET', '/admin/me', { token: second.body.accessToken })).status).toBe(401);
-    expect((await refresh(second.body.refreshToken)).status).toBe(401);
-  });
-
-  it('revokes the family when a token older than the previous one is replayed', async () => {
-    const { login, refresh } = mockApi();
+  it("revokes the family once a replayed token's successor has been used (i.e. an older token is replayed)", async () => {
+    const { call, login, refresh } = mockApi();
     const first = await login('ops@demo.tablederby.test');
     const second = await refresh(first.refreshToken);
     const third = await refresh(second.body.refreshToken);
 
     expect(await refresh(first.refreshToken)).toMatchObject({ status: 401, body: { code: 'refresh_token_reused' } });
+    expect((await call('GET', '/admin/me', { token: third.body.accessToken })).status).toBe(401);
     expect((await refresh(third.body.refreshToken)).status).toBe(401);
   });
 

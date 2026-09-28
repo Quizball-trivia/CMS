@@ -12,8 +12,6 @@ import { TD_STORAGE_KEYS } from './token-store';
 export const MOCK_PASSWORD = 'demo';
 const ACCESS_TTL_MS = 15 * 60_000;
 const REFRESH_TTL_MS = 12 * 60 * 60_000;
-/** Rotation recovery (server clock): the previous refresh token is answered with the same successor pair for this long. */
-export const MOCK_ROTATION_GRACE_MS = 60_000;
 
 export const MOCK_STAFF: readonly TdStaffMember[] = [
   { id: 'staff-editor', email: 'editor@demo.tablederby.test', name: 'Demo Editor', role: 'editor', status: 'active', lastSignInAt: '2026-09-27T08:40:00Z' },
@@ -29,8 +27,7 @@ interface RefreshRecord {
   staffId: string;
   family: string;
   expiresAt: number;
-  /** Set when the token is rotated: when, and the pair it was exchanged for. */
-  rotatedAt: number | null;
+  /** The pair this token was exchanged for, once it has been rotated. */
   successor: TdTokenResponse | null;
 }
 
@@ -98,7 +95,7 @@ export function createMockTdApi({ storage, now = Date.now, latencyMs = 120 }: Mo
     for (const [token, record] of Object.entries(state.refreshTokens)) {
       if (record.expiresAt <= now()) delete state.refreshTokens[token];
     }
-    state.refreshTokens[refreshToken] = { staffId, family, expiresAt: now() + REFRESH_TTL_MS, rotatedAt: null, successor: null };
+    state.refreshTokens[refreshToken] = { staffId, family, expiresAt: now() + REFRESH_TTL_MS, successor: null };
     const claims: AccessClaims = { sub: staffId, fam: family, exp };
     return {
       accessToken: `mock-access.${btoa(JSON.stringify(claims))}.${randomToken('sig')}`,
@@ -139,18 +136,16 @@ export function createMockTdApi({ storage, now = Date.now, latencyMs = 120 }: Mo
         return error(401, 'invalid_refresh_token', 'Refresh token is not valid');
       }
       if (record.successor) {
-        // The answer to the first exchange may have been lost: replay it, but only
-        // briefly and only while the successor itself has not been used.
+        // Rotation recovery: the answer to the first exchange may have been lost, so the
+        // immediately previous token gets the same successor pair back, however late,
+        // for as long as that successor has not been used. Anything else is reuse.
         const successor = state.refreshTokens[record.successor.refreshToken];
-        if (record.rotatedAt !== null && now() - record.rotatedAt <= MOCK_ROTATION_GRACE_MS && successor && !successor.successor) {
-          return json(200, record.successor);
-        }
+        if (successor && !successor.successor) return json(200, record.successor);
         state.revokedFamilies.push(record.family);
         save(state);
         return error(401, 'refresh_token_reused', 'Refresh token was already used; the session is revoked');
       }
       const tokens = issue(state, record.staffId, record.family);
-      record.rotatedAt = now();
       record.successor = tokens;
       save(state);
       return json(200, tokens);

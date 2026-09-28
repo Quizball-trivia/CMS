@@ -10,12 +10,14 @@ import type { TdTokenSet, TdTokenStore } from './token-store';
 export type RefreshOutcome = 'ok' | 'terminal' | 'transient' | 'superseded';
 
 /**
- * API contract (plan §13 notes): after rotating a refresh token, the API
- * answers the immediately previous token with the same successor pair for
- * 60 s (server clock). The client only starts attempts with that token within
- * 25 s of the first one, recorded before the first request is sent, which
- * leaves at least 35 s for latency. After that the session ends rather than
- * risk spending a token the API has already rotated.
+ * API contract (plan §13 notes): the API answers the immediately previous
+ * refresh token with the same successor pair for as long as that successor has
+ * not been used, however late the replay arrives. It revokes the family only
+ * when a token is replayed after its successor was used, or when an older token
+ * is replayed. Retrying an unanswered refresh with the same token is therefore
+ * safe. The client still gives up 25 s after its first attempt (recorded before
+ * the request is sent) and ends the session, so a dead API cannot hold a
+ * session in limbo; that bound is a product choice, not a safety requirement.
  */
 export const ROTATION_RECOVERY_MS = 25_000;
 const RECOVERY_DELAYS_MS = [1_000, 3_000, 6_000, 10_000];
@@ -37,7 +39,10 @@ export interface RefreshCoordinatorOptions {
   requestRefresh: (refreshToken: string) => Promise<TdTokenSet>;
   now?: () => number;
   isOnline?: () => boolean;
+  /** Subscribes to connectivity coming back; returns an unsubscribe function. */
+  onOnline?: (callback: () => void) => () => void;
   setTimer?: (callback: () => void, ms: number) => unknown;
+  clearTimer?: (timer: unknown) => void;
 }
 
 function isRefusal(error: unknown): boolean {
@@ -47,7 +52,13 @@ function isRefusal(error: unknown): boolean {
 
 const browserOnline = () => typeof navigator === 'undefined' || navigator.onLine !== false;
 
-type Plan = { outcome: RefreshOutcome } | { send: string; deadline: number };
+function browserOnOnline(callback: () => void): () => void {
+  if (typeof window === 'undefined') return () => {};
+  window.addEventListener('online', callback);
+  return () => window.removeEventListener('online', callback);
+}
+
+type Plan = { outcome: RefreshOutcome; recoverUntil?: number } | { send: string; deadline: number };
 
 /**
  * The one place refresh tokens are spent. Tokens rotate and reuse revokes the
@@ -63,19 +74,39 @@ export function createRefreshCoordinator({
   requestRefresh,
   now = Date.now,
   isOnline = browserOnline,
+  onOnline = browserOnOnline,
   setTimer = (callback, ms) => setTimeout(callback, ms),
+  clearTimer = (timer) => clearTimeout(timer as ReturnType<typeof setTimeout>),
 }: RefreshCoordinatorOptions): RefreshCoordinator {
   let inFlight: { key: string; promise: Promise<RefreshOutcome> } | null = null;
-  let recovery: { generation: string; attempt: number } | null = null;
+  let recovery: { generation: string; attempt: number; deadline: number; timer: unknown } | null = null;
 
+  function stopRecovery(generation?: string) {
+    if (!recovery || (generation && recovery.generation !== generation)) return;
+    if (recovery.timer !== null) clearTimer(recovery.timer);
+    recovery = null;
+  }
+
+  // Retries run on their own timer, independent of the provider's renewal
+  // tick, and always against the deadline of the first attempt.
   function scheduleRecovery(generation: string, deadline: number) {
     const attempt = recovery?.generation === generation ? recovery.attempt + 1 : 0;
+    stopRecovery();
     const delay = RECOVERY_DELAYS_MS[Math.min(attempt, RECOVERY_DELAYS_MS.length - 1)];
-    if (now() + delay > deadline) return;
-    recovery = { generation, attempt };
-    // Independent of the provider's renewal tick, so the window is actually used.
-    setTimer(() => void refresh({ generation }), delay);
+    const wait = Math.min(delay, deadline - now());
+    if (wait <= 0) return;
+    recovery = { generation, attempt, deadline, timer: null };
+    const entry = recovery;
+    entry.timer = setTimer(() => {
+      entry.timer = null;
+      void refresh({ generation });
+    }, wait);
   }
+
+  // Connectivity is back while a recovery is pending: retry now, not at the next timer.
+  onOnline(() => {
+    if (recovery && now() < recovery.deadline) void refresh({ generation: recovery.generation });
+  });
 
   async function spend(generation: string, seenRefreshToken: string): Promise<RefreshOutcome> {
     const plan = await tokens.transact<Plan>((tx) => {
@@ -84,25 +115,32 @@ export function createRefreshCoordinator({
       if (current.refreshToken !== seenRefreshToken) return { outcome: 'ok' };
       const since = current.refreshPendingSince;
       if (since !== null && now() - since > ROTATION_RECOVERY_MS) {
-        // The first attempt may have rotated the token; spending it now could trip reuse detection.
+        // Recovery has run out of time (a product bound, see ROTATION_RECOVERY_MS): end the session.
         tx.clear(generation);
         return { outcome: 'terminal' };
       }
-      // Offline, nothing would reach the API, so there is nothing to recover later.
-      if (!isOnline()) return { outcome: 'transient' };
+      if (!isOnline()) {
+        // Nothing would reach the API. A recovery already under way keeps its deadline and retries.
+        return since === null ? { outcome: 'transient' } : { outcome: 'transient', recoverUntil: since + ROTATION_RECOVERY_MS };
+      }
       // Recorded before sending, so a tab that dies mid-request still leaves the deadline behind.
       if (since === null) tx.update(generation, { refreshPendingSince: now() });
       return { send: current.refreshToken, deadline: (since ?? now()) + ROTATION_RECOVERY_MS };
     });
-    if (!('send' in plan)) return plan.outcome;
+    if (!('send' in plan)) {
+      if (plan.recoverUntil !== undefined) scheduleRecovery(generation, plan.recoverUntil);
+      else if (plan.outcome !== 'transient') stopRecovery(generation);
+      return plan.outcome;
+    }
 
     try {
       const next = await requestRefresh(plan.send);
       const committed = await tokens.transact((tx) => tx.update(generation, { ...next, refreshPendingSince: null }));
-      if (recovery?.generation === generation) recovery = null;
+      stopRecovery(generation);
       return committed ? 'ok' : 'superseded';
     } catch (error) {
       if (isRefusal(error)) {
+        stopRecovery(generation);
         await tokens.transact((tx) => tx.clear(generation));
         return 'terminal';
       }

@@ -74,6 +74,42 @@ describe('token store', () => {
     expect(store.read()).toMatchObject({ generation: 'gen-b' });
   });
 
+  it("keeps B signed out when A is cancelled afterwards, even while B's clean-up is still pending", async () => {
+    const origin = createOrigin();
+    const tab = origin.store();
+    const other = origin.store();
+    await put(tab, session('gen-b', 'access-b', 'refresh-b'));
+
+    tab.cancel('gen-b');
+    // A superseded sign-in (generation A) cleans up after itself before B's clear has run.
+    other.cancel('gen-a');
+
+    expect(tab.read()).toBeNull();
+    expect(other.read()).toBeNull();
+    expect(await tab.transact((tx) => tx.update('gen-b', { accessToken: 'access-b2' }))).toBe(false);
+    expect(await other.transact((tx) => tx.read())).toBeNull();
+    expect(origin.storage.getItem(`${TD_STORAGE_KEYS.cancelledPrefix}gen-b`)).not.toBeNull();
+  });
+
+  it("prunes a cancellation record only once its generation is no longer stored", async () => {
+    const origin = createOrigin();
+    const store = origin.store();
+    await put(store, session('gen-b', 'access-b', 'refresh-b'));
+    store.cancel('gen-b');
+    store.cancel('gen-a');
+
+    // gen-a is not stored, so its record goes; gen-b's must stay while its data is still there.
+    await store.transact((tx) => tx.read());
+    expect(origin.storage.getItem(`${TD_STORAGE_KEYS.cancelledPrefix}gen-a`)).toBeNull();
+    expect(origin.storage.getItem(`${TD_STORAGE_KEYS.cancelledPrefix}gen-b`)).not.toBeNull();
+    expect(store.read()).toBeNull();
+
+    await store.transact((tx) => tx.clear('gen-b'));
+    expect(origin.storage.getItem(`${TD_STORAGE_KEYS.cancelledPrefix}gen-b`)).toBeNull();
+    await put(store, session('gen-c', 'access-c', 'refresh-c'));
+    expect(store.read()).toMatchObject({ generation: 'gen-c' });
+  });
+
   it('refuses to change the session without Web Locks', async () => {
     const storage = new MemoryStorage();
     const store = createTokenStore(() => storage, () => null, null);

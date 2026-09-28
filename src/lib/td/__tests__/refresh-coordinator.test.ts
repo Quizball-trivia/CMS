@@ -7,23 +7,33 @@ interface TabOptions {
   requestRefresh: (refreshToken: string) => Promise<TdTokenSet>;
   now?: () => number;
   isOnline?: () => boolean;
+  onOnline?: (callback: () => void) => () => void;
   setTimer?: (callback: () => void, ms: number) => unknown;
+  clearTimer?: (timer: unknown) => void;
   refreshWaitMs?: number;
 }
 
 type Origin = ReturnType<typeof createOrigin>;
 
-function openTab(origin: Origin, { requestRefresh, now, isOnline, setTimer, refreshWaitMs = 2_000 }: TabOptions) {
+function openTab(origin: Origin, { refreshWaitMs = 2_000, onOnline = () => () => {}, ...options }: TabOptions) {
   const tokens = origin.store();
   const refreshLock = origin.lock('td-refresh', refreshWaitMs);
-  return { tokens, coordinator: createRefreshCoordinator({ tokens, refreshLock: () => refreshLock, requestRefresh, now, isOnline, setTimer }) };
+  return { tokens, coordinator: createRefreshCoordinator({ tokens, refreshLock: () => refreshLock, onOnline, ...options }) };
 }
 
 /** Timers driven by the test's own clock. */
 function manualTimers(clock: { now: number }) {
   const queue: Array<{ at: number; run: () => void }> = [];
   return {
-    setTimer: (run: () => void, ms: number) => queue.push({ at: clock.now + ms, run }),
+    setTimer: (run: () => void, ms: number) => {
+      const timer = { at: clock.now + ms, run };
+      queue.push(timer);
+      return timer;
+    },
+    clearTimer: (timer: unknown) => {
+      const index = queue.indexOf(timer as (typeof queue)[number]);
+      if (index >= 0) queue.splice(index, 1);
+    },
     pending: () => queue.length,
     async advance(ms: number) {
       clock.now += ms;
@@ -216,7 +226,7 @@ describe('refresh coordinator', () => {
         .mockRejectedValueOnce(new TypeError('Failed to fetch'))
         .mockRejectedValueOnce({ status: 503 })
         .mockResolvedValueOnce(tokenSet('access-2', 'refresh-2'));
-      const tab = openTab(origin, { requestRefresh: network, now: () => clock.now, setTimer: timers.setTimer });
+      const tab = openTab(origin, { requestRefresh: network, now: () => clock.now, setTimer: timers.setTimer, clearTimer: timers.clearTimer });
       await put(tab.tokens, session('gen-a', 'access-1', 'refresh-1'));
 
       await expect(tab.coordinator.refresh()).resolves.toBe('transient');
@@ -234,7 +244,7 @@ describe('refresh coordinator', () => {
       const clock = { now: 1_000_000 };
       const timers = manualTimers(clock);
       const network = vi.fn().mockRejectedValue({ status: 503 });
-      const tab = openTab(origin, { requestRefresh: network, now: () => clock.now, setTimer: timers.setTimer });
+      const tab = openTab(origin, { requestRefresh: network, now: () => clock.now, setTimer: timers.setTimer, clearTimer: timers.clearTimer });
       await put(tab.tokens, session('gen-a', 'access-1', 'refresh-1'));
 
       await tab.coordinator.refresh();
@@ -246,6 +256,65 @@ describe('refresh coordinator', () => {
       await expect(tab.coordinator.refresh()).resolves.toBe('terminal');
       expect(network).toHaveBeenCalledTimes(attempts);
       expect(tab.tokens.read()).toBeNull();
+    });
+
+    it('keeps recovering through an outage and retries as soon as the connection is back', async () => {
+      const origin = createOrigin();
+      const clock = { now: 1_000_000 };
+      const timers = manualTimers(clock);
+      let online = true;
+      let backOnline: () => void = () => {};
+      const network = vi
+        .fn<(refreshToken: string) => Promise<TdTokenSet>>()
+        .mockRejectedValueOnce(new TypeError('Failed to fetch'))
+        .mockResolvedValueOnce(tokenSet('access-2', 'refresh-2'));
+      const tab = openTab(origin, {
+        requestRefresh: network,
+        now: () => clock.now,
+        isOnline: () => online,
+        onOnline: (callback) => {
+          backOnline = callback;
+          return () => {};
+        },
+        setTimer: timers.setTimer,
+        clearTimer: timers.clearTimer,
+      });
+      await put(tab.tokens, session('gen-a', 'access-1', 'refresh-1'));
+
+      await expect(tab.coordinator.refresh()).resolves.toBe('transient');
+      online = false;
+      await timers.advance(1_000);
+      expect(network).toHaveBeenCalledTimes(1);
+      expect(timers.pending()).toBe(1);
+
+      clock.now += 1_000;
+      online = true;
+      backOnline();
+      await sleep(10);
+
+      expect(network).toHaveBeenCalledTimes(2);
+      expect(network).toHaveBeenLastCalledWith('refresh-1');
+      expect(tab.tokens.read()).toMatchObject({ accessToken: 'access-2', refreshPendingSince: null });
+      expect(timers.pending()).toBe(0);
+    });
+
+    it('makes its last attempt at the deadline itself', async () => {
+      const origin = createOrigin();
+      const clock = { now: 1_000_000 };
+      const timers = manualTimers(clock);
+      const network = vi.fn().mockRejectedValue({ status: 503 });
+      const tab = openTab(origin, { requestRefresh: network, now: () => clock.now, setTimer: timers.setTimer, clearTimer: timers.clearTimer });
+      await put(tab.tokens, session('gen-a', 'access-1', 'refresh-1'));
+
+      await tab.coordinator.refresh();
+      const sentAt: number[] = [];
+      network.mockImplementation(async () => {
+        sentAt.push(clock.now - 1_000_000);
+        throw { status: 503 };
+      });
+      for (let i = 0; i < 30; i += 1) await timers.advance(1_000);
+
+      expect(sentAt).toEqual([1_000, 4_000, 10_000, 20_000, ROTATION_RECOVERY_MS]);
     });
 
     it('does not start the window while offline', async () => {

@@ -4,8 +4,11 @@ import type { CrossTabLock } from './cross-tab-lock';
 /** All Table Derby browser state lives under `td_` keys, apart from Quizball's `quizball_*`. */
 export const TD_STORAGE_KEYS = {
   session: 'td_session',
-  /** Generation that has been signed out; a stored session of that generation reads as gone. */
-  cancelled: 'td_session_cancelled',
+  /**
+   * Prefix of one key per signed-out generation (`td_session_cancelled:<generation>`).
+   * A key each, so cancelling one generation can never overwrite another's record.
+   */
+  cancelledPrefix: 'td_session_cancelled:',
   mockServer: 'td_mock_server',
 } as const;
 
@@ -48,9 +51,9 @@ export interface TdTokenStore {
   /** Runs `fn` under the cross-tab session lock. Every session write goes through here. */
   transact<T>(fn: (tx: TdSessionTx) => T | Promise<T>): Promise<T>;
   /**
-   * Signs a generation out at once, without waiting for the lock: a single
-   * write of a separate key that only ever makes that generation unreadable
-   * and unwritable, so it cannot race another generation. Tidy up with
+   * Signs a generation out at once, without waiting for the lock: one write of
+   * that generation's own key, which only ever makes that generation unreadable
+   * and unwritable, so it cannot affect any other. Tidy up with
    * `transact(tx => tx.clear(generation))` afterwards.
    */
   cancel(generation: string): void;
@@ -92,7 +95,8 @@ function parseSession(raw: string | null): TdSession | null {
   }
 }
 
-const WATCHED_KEYS = new Set<string>([TD_STORAGE_KEYS.session, TD_STORAGE_KEYS.cancelled]);
+const cancelledKey = (generation: string) => `${TD_STORAGE_KEYS.cancelledPrefix}${generation}`;
+const isWatchedKey = (key: string) => key === TD_STORAGE_KEYS.session || key.startsWith(TD_STORAGE_KEYS.cancelledPrefix);
 
 export function createTokenStore(
   getStorage: () => Storage | null,
@@ -106,7 +110,23 @@ export function createTokenStore(
   const read = () => {
     const session = readStored();
     if (!session) return null;
-    return getStorage()?.getItem(TD_STORAGE_KEYS.cancelled) === session.generation ? null : session;
+    return getStorage()?.getItem(cancelledKey(session.generation)) !== null ? null : session;
+  };
+
+  /**
+   * Drops cancellation records that can no longer matter. Runs under the lock.
+   * A generation is only ever written again while it is the stored one
+   * (`update` needs it current; sign-ins always mint a new generation), so a
+   * record may go once its generation is no longer stored, never before.
+   */
+  const pruneCancellations = () => {
+    const storage = getStorage();
+    if (!storage) return;
+    const stored = readStored()?.generation;
+    for (let index = storage.length - 1; index >= 0; index -= 1) {
+      const key = storage.key(index);
+      if (key?.startsWith(TD_STORAGE_KEYS.cancelledPrefix) && key !== (stored && cancelledKey(stored))) storage.removeItem(key);
+    }
   };
   const write = (session: TdSession) => {
     getStorage()?.setItem(TD_STORAGE_KEYS.session, JSON.stringify(session));
@@ -136,17 +156,23 @@ export function createTokenStore(
     async transact(fn) {
       const lock = sessionLock();
       if (!lock) throw new Error('Changing the Table Derby session needs Web Locks');
-      return lock.run(async () => fn(tx));
+      return lock.run(async () => {
+        try {
+          return await fn(tx);
+        } finally {
+          pruneCancellations();
+        }
+      });
     },
     cancel(generation) {
-      getStorage()?.setItem(TD_STORAGE_KEYS.cancelled, generation);
+      getStorage()?.setItem(cancelledKey(generation), String(Date.now()));
       emit();
     },
     subscribe(listener) {
       listeners.add(listener);
       const onStorage = (event: StorageEvent) => {
         // key === null means another tab called localStorage.clear().
-        if (event.key === null || WATCHED_KEYS.has(event.key)) listener();
+        if (event.key === null || isWatchedKey(event.key)) listener();
       };
       target?.addEventListener('storage', onStorage as EventListener);
       return () => {
