@@ -1,4 +1,5 @@
-import type { TdSession, TdTokenSet } from '../token-store';
+import { createWebLocksLock } from '../cross-tab-lock';
+import { createTokenStore, type TdSession, type TdTokenSet, type TdTokenStore } from '../token-store';
 
 /** A Storage that several simulated tabs can share (Node's own localStorage is not usable here). */
 export class MemoryStorage implements Storage {
@@ -48,17 +49,39 @@ export function deferred<T>() {
 
 export const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
-/** Serialises callbacks per lock name, like navigator.locks across tabs of one origin. */
+/**
+ * Serialises callbacks per lock name, like navigator.locks across the tabs of
+ * one origin, including `signal`: aborting while waiting rejects the request
+ * with the signal's reason and never runs the callback.
+ */
 export function createFakeLockManager(): LockManager {
-  const tails = new Map<string, Promise<unknown>>();
+  const tails = new Map<string, Promise<void>>();
   const request = (name: string, ...args: unknown[]) => {
-    const callback = args[args.length - 1] as (lock: Lock) => Promise<unknown>;
-    const run = (tails.get(name) ?? Promise.resolve()).then(() => callback({ name, mode: 'exclusive' } as Lock));
-    tails.set(
-      name,
-      run.catch(() => undefined),
-    );
-    return run;
+    const callback = args[args.length - 1] as (lock: Lock) => unknown;
+    const signal = args.length > 1 ? (args[0] as LockOptions).signal : undefined;
+    const previous = tails.get(name) ?? Promise.resolve();
+    let release!: () => void;
+    tails.set(name, previous.then(() => new Promise<void>((resolve) => (release = resolve))));
+    return new Promise((resolve, reject) => {
+      let aborted = false;
+      const onAbort = () => {
+        aborted = true;
+        reject(signal?.reason ?? new DOMException('Aborted', 'AbortError'));
+      };
+      if (signal?.aborted) onAbort();
+      else signal?.addEventListener('abort', onAbort, { once: true });
+      void previous.then(async () => {
+        signal?.removeEventListener('abort', onAbort);
+        if (aborted) return release();
+        try {
+          resolve(await callback({ name, mode: 'exclusive' } as Lock));
+        } catch (error) {
+          reject(error);
+        } finally {
+          release();
+        }
+      });
+    });
   };
   return { request, query: async () => ({ held: [], pending: [] }) } as unknown as LockManager;
 }
@@ -68,4 +91,21 @@ export function jsonResponse(status: number, body?: unknown): Response {
     status,
     headers: body === undefined ? undefined : { 'Content-Type': 'application/json' },
   });
+}
+
+/** One browser origin: a localStorage and a Web Locks manager that its tabs share. */
+export function createOrigin() {
+  const storage = new MemoryStorage();
+  const locks = createFakeLockManager();
+  return {
+    storage,
+    locks,
+    lock: (name: string, waitMs = 2_000) => createWebLocksLock(name, locks, waitMs),
+    store: (): TdTokenStore => createTokenStore(() => storage, () => createWebLocksLock('td-session', locks, 2_000), null),
+  };
+}
+
+/** Writes a session the way a sign-in commits it. */
+export function put(store: TdTokenStore, value: TdSession): Promise<void> {
+  return store.transact((tx) => tx.replace(value));
 }

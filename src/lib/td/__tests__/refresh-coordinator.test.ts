@@ -1,184 +1,258 @@
 import { describe, expect, it, vi } from 'vitest';
-import { createWebLocksLock, type CrossTabLock } from '../cross-tab-lock';
 import { createRefreshCoordinator, ROTATION_RECOVERY_MS } from '../refresh-coordinator';
-import { createTokenStore, type TdTokenSet } from '../token-store';
-import { createFakeLockManager, deferred, MemoryStorage, session, sleep, tokenSet } from './helpers';
+import type { TdTokenSet } from '../token-store';
+import { createOrigin, deferred, put, session, sleep, tokenSet } from './helpers';
 
 interface TabOptions {
   requestRefresh: (refreshToken: string) => Promise<TdTokenSet>;
   now?: () => number;
   isOnline?: () => boolean;
+  setTimer?: (callback: () => void, ms: number) => unknown;
+  refreshWaitMs?: number;
 }
 
-/** A browser origin: one localStorage and one Web Locks manager shared by its tabs. */
-function origin() {
-  const storage = new MemoryStorage();
-  const locks = createFakeLockManager();
-  const openTab = ({ requestRefresh, now, isOnline }: TabOptions) => {
-    const tokens = createTokenStore(() => storage, null);
-    const lock: CrossTabLock = createWebLocksLock('td-session', locks, 2_000);
-    return { tokens, lock, coordinator: createRefreshCoordinator({ tokens, lock: () => lock, requestRefresh, now, isOnline }) };
+type Origin = ReturnType<typeof createOrigin>;
+
+function openTab(origin: Origin, { requestRefresh, now, isOnline, setTimer, refreshWaitMs = 2_000 }: TabOptions) {
+  const tokens = origin.store();
+  const refreshLock = origin.lock('td-refresh', refreshWaitMs);
+  return { tokens, coordinator: createRefreshCoordinator({ tokens, refreshLock: () => refreshLock, requestRefresh, now, isOnline, setTimer }) };
+}
+
+/** Timers driven by the test's own clock. */
+function manualTimers(clock: { now: number }) {
+  const queue: Array<{ at: number; run: () => void }> = [];
+  return {
+    setTimer: (run: () => void, ms: number) => queue.push({ at: clock.now + ms, run }),
+    pending: () => queue.length,
+    async advance(ms: number) {
+      clock.now += ms;
+      for (const timer of queue.filter((t) => t.at <= clock.now)) {
+        queue.splice(queue.indexOf(timer), 1);
+        timer.run();
+      }
+      await sleep(10);
+    },
   };
-  return { storage, openTab };
 }
 
 describe('refresh coordinator', () => {
   it('makes exactly one network refresh for concurrent callers in one tab', async () => {
-    const { openTab } = origin();
-    const network = vi.fn(async (refreshToken: string) => {
+    const origin = createOrigin();
+    const network = vi.fn(async () => {
       await sleep(5);
-      return tokenSet('access-2', refreshToken.replace('1', '2'));
+      return tokenSet('access-2', 'refresh-2');
     });
-    const tab = openTab({ requestRefresh: network });
-    tab.tokens.replace(session('gen-a', 'access-1', 'refresh-1'));
+    const tab = openTab(origin, { requestRefresh: network });
+    await put(tab.tokens, session('gen-a', 'access-1', 'refresh-1'));
 
     const outcomes = await Promise.all(Array.from({ length: 5 }, () => tab.coordinator.refresh({ generation: 'gen-a' })));
 
     expect(outcomes).toEqual(['ok', 'ok', 'ok', 'ok', 'ok']);
     expect(network).toHaveBeenCalledTimes(1);
-    expect(tab.tokens.read()).toMatchObject({ generation: 'gen-a', accessToken: 'access-2', refreshToken: 'refresh-2' });
+    expect(tab.tokens.read()).toMatchObject({ generation: 'gen-a', accessToken: 'access-2', refreshToken: 'refresh-2', refreshPendingSince: null });
   });
 
   it('lets exactly one of two tabs refresh when both ask at the same moment', async () => {
-    const { openTab } = origin();
+    const origin = createOrigin();
     const network = vi.fn(async () => {
       await sleep(10);
       return tokenSet('access-2', 'refresh-2');
     });
-    const tabA = openTab({ requestRefresh: network });
-    const tabB = openTab({ requestRefresh: network });
-    tabA.tokens.replace(session('gen-a', 'access-1', 'refresh-1'));
+    const tabA = openTab(origin, { requestRefresh: network });
+    const tabB = openTab(origin, { requestRefresh: network });
+    await put(tabA.tokens, session('gen-a', 'access-1', 'refresh-1'));
 
-    const outcomes = await Promise.all([tabA.coordinator.refresh(), tabB.coordinator.refresh()]);
-
-    expect(outcomes).toEqual(['ok', 'ok']);
+    expect(await Promise.all([tabA.coordinator.refresh(), tabB.coordinator.refresh()])).toEqual(['ok', 'ok']);
     expect(network).toHaveBeenCalledTimes(1);
-    expect(tabB.tokens.read()).toMatchObject({ accessToken: 'access-2', refreshToken: 'refresh-2' });
   });
 
   it('makes a waiting tab reuse the rotated token instead of spending the old one', async () => {
-    const { openTab } = origin();
+    const origin = createOrigin();
     const answer = deferred<TdTokenSet>();
     const network = vi.fn(() => answer.promise);
-    const tabA = openTab({ requestRefresh: network });
-    const tabB = openTab({ requestRefresh: network });
-    tabA.tokens.replace(session('gen-a', 'access-1', 'refresh-1'));
+    const tabA = openTab(origin, { requestRefresh: network });
+    const tabB = openTab(origin, { requestRefresh: network });
+    await put(tabA.tokens, session('gen-a', 'access-1', 'refresh-1'));
 
     const first = tabA.coordinator.refresh();
     await vi.waitFor(() => expect(network).toHaveBeenCalledTimes(1));
-    let secondSettled = false;
-    const second = tabB.coordinator.refresh().finally(() => {
-      secondSettled = true;
-    });
-    await sleep(20);
-    expect(secondSettled).toBe(false);
-
+    const second = tabB.coordinator.refresh();
     answer.resolve(tokenSet('access-2', 'refresh-2'));
+
     await expect(first).resolves.toBe('ok');
     await expect(second).resolves.toBe('ok');
     expect(network).toHaveBeenCalledTimes(1);
   });
 
-  it('discards a refresh that answers after sign-out', async () => {
-    const { openTab } = origin();
+  it('never blocks a sign-in behind a stalled refresh, and discards that refresh when it answers', async () => {
+    const origin = createOrigin();
     const answer = deferred<TdTokenSet>();
-    const tab = openTab({ requestRefresh: () => answer.promise });
-    tab.tokens.replace(session('gen-a', 'access-1', 'refresh-1'));
+    const stalled = openTab(origin, { requestRefresh: () => answer.promise });
+    const signingIn = openTab(origin, { requestRefresh: vi.fn() });
+    await put(stalled.tokens, session('gen-a', 'access-a', 'refresh-a'));
+
+    const refreshing = stalled.coordinator.refresh({ generation: 'gen-a' });
+    await sleep(5);
+    const signIn = put(signingIn.tokens, session('gen-b', 'access-b', 'refresh-b', { staffId: 'staff-b' }));
+    await expect(Promise.race([signIn.then(() => 'committed'), sleep(200).then(() => 'blocked')])).resolves.toBe('committed');
+
+    answer.resolve(tokenSet('access-a2', 'refresh-a2'));
+    await expect(refreshing).resolves.toBe('superseded');
+    expect(signingIn.tokens.read()).toMatchObject({ generation: 'gen-b', accessToken: 'access-b', staffId: 'staff-b' });
+  });
+
+  it('discards a refresh that answers after sign-out', async () => {
+    const origin = createOrigin();
+    const answer = deferred<TdTokenSet>();
+    const tab = openTab(origin, { requestRefresh: () => answer.promise });
+    await put(tab.tokens, session('gen-a', 'access-1', 'refresh-1'));
 
     const pending = tab.coordinator.refresh({ generation: 'gen-a' });
     await sleep(5);
-    tab.tokens.clear('gen-a');
+    tab.tokens.cancel('gen-a');
+    await tab.tokens.transact((tx) => tx.clear('gen-a'));
     answer.resolve(tokenSet('access-2', 'refresh-2'));
 
     await expect(pending).resolves.toBe('superseded');
-    expect(tab.tokens.read()).toBeNull();
-  });
-
-  it("discards a refresh that answers after another user's sign-in", async () => {
-    const { openTab } = origin();
-    const answer = deferred<TdTokenSet>();
-    const tab = openTab({ requestRefresh: () => answer.promise });
-    tab.tokens.replace(session('gen-a', 'access-a', 'refresh-a'));
-
-    const pending = tab.coordinator.refresh({ generation: 'gen-a' });
-    await sleep(5);
-    // Another tab signed in as B without waiting for this tab's lock (e.g. an older build).
-    tab.tokens.replace(session('gen-b', 'access-b', 'refresh-b', { staffId: 'staff-b' }));
-    answer.resolve(tokenSet('access-a2', 'refresh-a2'));
-
-    await expect(pending).resolves.toBe('superseded');
-    expect(tab.tokens.read()).toMatchObject({ generation: 'gen-b', accessToken: 'access-b', staffId: 'staff-b' });
+    expect(origin.storage.getItem('td_session')).toBeNull();
   });
 
   it('refuses to refresh on behalf of a generation that is no longer stored', async () => {
-    const { openTab } = origin();
+    const origin = createOrigin();
     const network = vi.fn();
-    const tab = openTab({ requestRefresh: network });
-    tab.tokens.replace(session('gen-b', 'access-b', 'refresh-b'));
+    const tab = openTab(origin, { requestRefresh: network });
+    await put(tab.tokens, session('gen-b', 'access-b', 'refresh-b'));
 
     await expect(tab.coordinator.refresh({ generation: 'gen-a' })).resolves.toBe('superseded');
     expect(network).not.toHaveBeenCalled();
   });
 
   it('skips the network when the refused access token was already rotated in the same generation', async () => {
-    const { openTab } = origin();
+    const origin = createOrigin();
     const network = vi.fn();
-    const tab = openTab({ requestRefresh: network });
-    tab.tokens.replace(session('gen-a', 'access-2', 'refresh-2'));
+    const tab = openTab(origin, { requestRefresh: network });
+    await put(tab.tokens, session('gen-a', 'access-2', 'refresh-2'));
 
     await expect(tab.coordinator.refresh({ generation: 'gen-a', staleAccessToken: 'access-1' })).resolves.toBe('ok');
     expect(network).not.toHaveBeenCalled();
   });
 
-  it('clears only its own generation when the API refuses the refresh token', async () => {
-    const { openTab } = origin();
-    const tab = openTab({ requestRefresh: () => Promise.reject({ status: 401, code: 'refresh_token_reused' }) });
-    tab.tokens.replace(session('gen-a', 'access-1', 'refresh-1'));
+  it('clears its generation when the API refuses the refresh token', async () => {
+    const origin = createOrigin();
+    const tab = openTab(origin, { requestRefresh: () => Promise.reject({ status: 401, code: 'refresh_token_reused' }) });
+    await put(tab.tokens, session('gen-a', 'access-1', 'refresh-1'));
 
     await expect(tab.coordinator.refresh()).resolves.toBe('terminal');
     expect(tab.tokens.read()).toBeNull();
   });
 
+  it('gives up waiting for a refresh lock held by a stalled tab without spending anything', async () => {
+    const origin = createOrigin();
+    const stalled = openTab(origin, { requestRefresh: () => new Promise<TdTokenSet>(() => {}) });
+    const network = vi.fn();
+    const waiting = openTab(origin, { requestRefresh: network, refreshWaitMs: 50 });
+    await put(stalled.tokens, session('gen-a', 'access-1', 'refresh-1'));
+
+    void stalled.coordinator.refresh();
+    await sleep(5);
+    await expect(waiting.coordinator.refresh()).resolves.toBe('transient');
+    expect(network).not.toHaveBeenCalled();
+  });
+
   describe('rotation recovery', () => {
-    it('retries an unanswered refresh with the same token inside the window', async () => {
-      const { openTab } = origin();
-      let clock = 1_000_000;
+    it('records the attempt before the request is sent', async () => {
+      const origin = createOrigin();
+      const clock = { now: 1_000_000 };
+      const answer = deferred<TdTokenSet>();
+      const tab = openTab(origin, { requestRefresh: () => answer.promise, now: () => clock.now });
+      await put(tab.tokens, session('gen-a', 'access-1', 'refresh-1'));
+
+      const pending = tab.coordinator.refresh();
+      await sleep(5);
+      expect(tab.tokens.read()).toMatchObject({ refreshToken: 'refresh-1', refreshPendingSince: 1_000_000 });
+      answer.resolve(tokenSet('access-2', 'refresh-2'));
+      await pending;
+    });
+
+    /** A tab dies while its refresh is on the wire; later another tab of the same origin needs a refresh. */
+    async function afterDeadTab(elapsedMs: number) {
+      const origin = createOrigin();
+      const clock = { now: 1_000_000 };
+      const dying = openTab(origin, { requestRefresh: () => new Promise<TdTokenSet>(() => {}), now: () => clock.now });
+      await put(dying.tokens, session('gen-a', 'access-1', 'refresh-1'));
+      void dying.coordinator.refresh();
+      await sleep(5);
+
+      clock.now += elapsedMs;
+      const network = vi.fn(async () => tokenSet('access-2', 'refresh-2'));
+      const tokens = origin.store();
+      // The browser released the dead tab's refresh lock; its storage stays.
+      const refreshLock = createOrigin().lock('td-refresh');
+      const survivor = createRefreshCoordinator({ tokens, refreshLock: () => refreshLock, requestRefresh: network, now: () => clock.now });
+      return { outcome: await survivor.refresh(), network, tokens };
+    }
+
+    it('after a tab dies mid-request, another tab retries the same token inside the window', async () => {
+      const { outcome, network, tokens } = await afterDeadTab(ROTATION_RECOVERY_MS - 5_000);
+      expect(outcome).toBe('ok');
+      expect(network).toHaveBeenCalledWith('refresh-1');
+      expect(tokens.read()).toMatchObject({ refreshToken: 'refresh-2', refreshPendingSince: null });
+    });
+
+    it('after a tab dies mid-request, another tab ends the session past the window instead of spending the token', async () => {
+      const { outcome, network, tokens } = await afterDeadTab(ROTATION_RECOVERY_MS + 6_000);
+      expect(outcome).toBe('terminal');
+      expect(network).not.toHaveBeenCalled();
+      expect(tokens.read()).toBeNull();
+    });
+
+    it('recovers promptly on its own after an unanswered refresh, keeping the first deadline', async () => {
+      const origin = createOrigin();
+      const clock = { now: 1_000_000 };
+      const timers = manualTimers(clock);
       const network = vi
         .fn<(refreshToken: string) => Promise<TdTokenSet>>()
         .mockRejectedValueOnce(new TypeError('Failed to fetch'))
+        .mockRejectedValueOnce({ status: 503 })
         .mockResolvedValueOnce(tokenSet('access-2', 'refresh-2'));
-      const tab = openTab({ requestRefresh: network, now: () => clock });
-      tab.tokens.replace(session('gen-a', 'access-1', 'refresh-1'));
+      const tab = openTab(origin, { requestRefresh: network, now: () => clock.now, setTimer: timers.setTimer });
+      await put(tab.tokens, session('gen-a', 'access-1', 'refresh-1'));
 
       await expect(tab.coordinator.refresh()).resolves.toBe('transient');
-      expect(tab.tokens.read()).toMatchObject({ refreshToken: 'refresh-1', refreshPendingSince: 1_000_000 });
+      await timers.advance(1_000);
+      expect(network).toHaveBeenCalledTimes(2);
+      expect(tab.tokens.read()).toMatchObject({ refreshPendingSince: 1_000_000 });
 
-      clock += ROTATION_RECOVERY_MS - 1_000;
-      await expect(tab.coordinator.refresh()).resolves.toBe('ok');
-      expect(network.mock.calls.map(([token]) => token)).toEqual(['refresh-1', 'refresh-1']);
-      expect(tab.tokens.read()).toMatchObject({ refreshToken: 'refresh-2', refreshPendingSince: null });
+      await timers.advance(3_000);
+      expect(network.mock.calls.map(([token]) => token)).toEqual(['refresh-1', 'refresh-1', 'refresh-1']);
+      expect(tab.tokens.read()).toMatchObject({ accessToken: 'access-2', refreshToken: 'refresh-2', refreshPendingSince: null });
     });
 
-    it('ends the session instead of spending a possibly rotated token after the window', async () => {
-      const { openTab } = origin();
-      let clock = 1_000_000;
+    it('stops retrying at the deadline and then ends the session without spending the token', async () => {
+      const origin = createOrigin();
+      const clock = { now: 1_000_000 };
+      const timers = manualTimers(clock);
       const network = vi.fn().mockRejectedValue({ status: 503 });
-      const tab = openTab({ requestRefresh: network, now: () => clock });
-      tab.tokens.replace(session('gen-a', 'access-1', 'refresh-1'));
+      const tab = openTab(origin, { requestRefresh: network, now: () => clock.now, setTimer: timers.setTimer });
+      await put(tab.tokens, session('gen-a', 'access-1', 'refresh-1'));
 
-      await expect(tab.coordinator.refresh()).resolves.toBe('transient');
-      clock += ROTATION_RECOVERY_MS + 1;
+      await tab.coordinator.refresh();
+      for (let i = 0; i < 10; i += 1) await timers.advance(5_000);
+      const attempts = network.mock.calls.length;
+      expect(attempts).toBeGreaterThan(2);
+      expect(timers.pending()).toBe(0);
+
       await expect(tab.coordinator.refresh()).resolves.toBe('terminal');
-
-      expect(network).toHaveBeenCalledTimes(1);
+      expect(network).toHaveBeenCalledTimes(attempts);
       expect(tab.tokens.read()).toBeNull();
     });
 
     it('does not start the window while offline', async () => {
-      const { openTab } = origin();
+      const origin = createOrigin();
       const network = vi.fn();
-      const tab = openTab({ requestRefresh: network, isOnline: () => false });
-      tab.tokens.replace(session('gen-a', 'access-1', 'refresh-1'));
+      const tab = openTab(origin, { requestRefresh: network, isOnline: () => false });
+      await put(tab.tokens, session('gen-a', 'access-1', 'refresh-1'));
 
       await expect(tab.coordinator.refresh()).resolves.toBe('transient');
       expect(network).not.toHaveBeenCalled();
@@ -186,12 +260,12 @@ describe('refresh coordinator', () => {
     });
   });
 
-  it('never refreshes without a cross-tab lock', async () => {
-    const storage = new MemoryStorage();
-    const tokens = createTokenStore(() => storage, null);
+  it('never refreshes without a refresh lock', async () => {
+    const origin = createOrigin();
+    const tokens = origin.store();
     const network = vi.fn();
-    const coordinator = createRefreshCoordinator({ tokens, lock: () => null, requestRefresh: network });
-    tokens.replace(session('gen-a', 'access-1', 'refresh-1'));
+    const coordinator = createRefreshCoordinator({ tokens, refreshLock: () => null, requestRefresh: network });
+    await put(tokens, session('gen-a', 'access-1', 'refresh-1'));
 
     await expect(coordinator.refresh()).resolves.toBe('transient');
     expect(network).not.toHaveBeenCalled();

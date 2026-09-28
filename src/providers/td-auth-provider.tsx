@@ -3,7 +3,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { SESSION_CHANGED, TdApiError } from '@/lib/td/api-client';
-import { tdApi, tdLock, tdRefresh, tdTokens } from '@/lib/td/client';
+import { tdApi, tdRefresh, tdTokens } from '@/lib/td/client';
 import { newGeneration, type TdSession } from '@/lib/td/token-store';
 import type { TdStaff } from '@/types/td';
 
@@ -33,10 +33,14 @@ function nearExpiry(session: TdSession): boolean {
   return session.expiresAt !== null && Date.now() > session.expiresAt - RENEW_BEFORE_EXPIRY_MS;
 }
 
-/** Sign-in, sign-out and refresh commits share one cross-tab lock. */
-async function withSessionLock<T>(task: () => T): Promise<T> {
-  const lock = tdLock();
-  return lock ? lock.run(async () => task()) : task();
+/**
+ * Ends one sign-in: the cancellation takes effect at once in every tab without
+ * waiting for the lock, then the stored copy is removed under it. If that
+ * clean-up never gets the lock, the cancelled session still reads as gone.
+ */
+async function endGeneration(generation: string): Promise<void> {
+  tdTokens.cancel(generation);
+  await tdTokens.transact((tx) => tx.clear(generation)).catch(() => undefined);
 }
 
 export function useTdAuth(): TdAuthContextValue {
@@ -50,8 +54,6 @@ export function TdAuthProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<TdAuthState>({ status: 'loading', user: null, notice: null });
   // The session generation the shown identity belongs to (or is being resolved for).
   const activeGeneration = useRef<string | null>(null);
-  // Signed out in this tab; its storage clear may still be queued behind a refresh.
-  const endedGeneration = useRef<string | null>(null);
 
   const becomeAnonymous = useCallback(
     (notice: string | null) => {
@@ -82,8 +84,8 @@ export function TdAuthProvider({ children }: { children: ReactNode }) {
       } else if (error.code === 'not_signed_in') {
         becomeAnonymous(null);
       } else if (error.status === 401 || error.status === 403) {
-        if (generation) tdTokens.clear(generation);
         becomeAnonymous(error.status === 403 ? NO_ACCESS : SESSION_ENDED);
+        if (generation) await endGeneration(generation);
       } else if (error.code !== SESSION_CHANGED) {
         setState((previous) => ({ ...previous, status: 'unavailable' }));
       }
@@ -100,7 +102,6 @@ export function TdAuthProvider({ children }: { children: ReactNode }) {
       tdTokens.subscribe(() => {
         const stored = tdTokens.read()?.generation ?? null;
         if (stored === activeGeneration.current) return;
-        if (stored !== null && stored === endedGeneration.current) return;
         if (stored === null) {
           becomeAnonymous(SESSION_ENDED);
           return;
@@ -130,27 +131,24 @@ export function TdAuthProvider({ children }: { children: ReactNode }) {
       const generation = newGeneration();
       // Set first, so our own commit below is not mistaken for another tab's sign-in.
       activeGeneration.current = generation;
-      endedGeneration.current = null;
       queryClient.clear();
       try {
-        const replaced = await withSessionLock(() => {
-          const previous = tdTokens.read();
-          tdTokens.replace({ ...tokens, generation, staffId: null, refreshPendingSince: null });
+        const replaced = await tdTokens.transact((tx) => {
+          const previous = tx.read();
+          tx.replace({ ...tokens, generation, staffId: null, refreshPendingSince: null });
           return previous;
         });
         if (replaced) void tdApi.logout(replaced.refreshToken);
         const me = await tdApi.me({ generation });
-        const committed = await withSessionLock(() => tdTokens.update(generation, { staffId: me.id }));
+        const committed = await tdTokens.transact((tx) => tx.update(generation, { staffId: me.id }));
         if (!committed || activeGeneration.current !== generation) {
           throw new TdApiError(0, SESSION_CHANGED, 'Another sign-in replaced this one');
         }
         setState({ status: 'authenticated', user: me, notice: null });
         return me;
       } catch (error) {
-        if (activeGeneration.current === generation) {
-          tdTokens.clear(generation);
-          becomeAnonymous(null);
-        }
+        if (activeGeneration.current === generation) becomeAnonymous(null);
+        await endGeneration(generation);
         throw error;
       }
     },
@@ -159,18 +157,10 @@ export function TdAuthProvider({ children }: { children: ReactNode }) {
 
   const logout = useCallback(async () => {
     const session = tdTokens.read();
-    endedGeneration.current = session?.generation ?? null;
-    // The UI and cached data go now; the storage commit may wait for an in-flight refresh.
     becomeAnonymous(null);
     if (!session) return;
     const revoke = tdApi.logout(session.refreshToken);
-    try {
-      await withSessionLock(() => tdTokens.clear(session.generation));
-    } catch {
-      // Lock wait timed out behind a stuck refresh: clearing this generation anyway is still safe.
-      tdTokens.clear(session.generation);
-    }
-    if (endedGeneration.current === session.generation) endedGeneration.current = null;
+    await endGeneration(session.generation);
     await revoke;
   }, [becomeAnonymous]);
 

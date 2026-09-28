@@ -1,21 +1,19 @@
 import { describe, expect, it, vi } from 'vitest';
 import { createTdApiClient, createTransport, requestTokenRefresh, SESSION_CHANGED, TdApiError } from '../api-client';
-import { createWebLocksLock } from '../cross-tab-lock';
 import { createRefreshCoordinator } from '../refresh-coordinator';
-import { createTokenStore } from '../token-store';
-import { createFakeLockManager, deferred, jsonResponse, MemoryStorage, session, sleep } from './helpers';
+import { createOrigin, deferred, jsonResponse, put, session, sleep } from './helpers';
 
 const BASE = 'https://td-api.example.test';
 
 function setup(handler: (path: string, init: RequestInit) => Promise<Response> | Response) {
-  const storage = new MemoryStorage();
+  const origin = createOrigin();
   const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => handler(new URL(String(input)).pathname, init ?? {}));
   const transport = createTransport(BASE, fetchMock as typeof fetch);
-  const tokens = createTokenStore(() => storage, null);
-  const lock = createWebLocksLock('td-session', createFakeLockManager(), 2_000);
+  const tokens = origin.store();
+  const refreshLock = origin.lock('td-refresh');
   const coordinator = createRefreshCoordinator({
     tokens,
-    lock: () => lock,
+    refreshLock: () => refreshLock,
     requestRefresh: (refreshToken) => requestTokenRefresh(transport, refreshToken),
   });
   const api = createTdApiClient({ transport, tokens, coordinator });
@@ -29,7 +27,7 @@ const tokenBody = (n: number) => ({ accessToken: `access-${n}`, refreshToken: `r
 describe('Table Derby API client', () => {
   it('sends a bearer token and never cookies', async () => {
     const { api, tokens, fetchMock } = setup(() => jsonResponse(200, { items: [] }));
-    tokens.replace(session('gen-a', 'access-1', 'refresh-1'));
+    await put(tokens, session('gen-a', 'access-1', 'refresh-1'));
 
     await api.get('/admin/staff');
 
@@ -46,7 +44,7 @@ describe('Table Derby API client', () => {
       }
       return bearer(init) === 'Bearer access-2' ? jsonResponse(200, { path }) : jsonResponse(401, { code: 'unauthorized' });
     });
-    tokens.replace(session('gen-a', 'access-1', 'refresh-1'));
+    await put(tokens, session('gen-a', 'access-1', 'refresh-1'));
 
     const results = await Promise.all([api.get('/admin/me'), api.get('/admin/staff'), api.get('/admin/me')]);
 
@@ -58,11 +56,11 @@ describe('Table Derby API client', () => {
   it("never retries a request under another user's sign-in", async () => {
     const answer = deferred<Response>();
     const { api, tokens, calls, fetchMock } = setup((path) => (path === '/admin/players/void' ? answer.promise : jsonResponse(500)));
-    tokens.replace(session('gen-a', 'access-a', 'refresh-a'));
+    await put(tokens, session('gen-a', 'access-a', 'refresh-a'));
 
     const request = api.post('/admin/players/void', { matchId: 'm1' });
     await sleep(5);
-    tokens.replace(session('gen-b', 'access-b', 'refresh-b'));
+    await put(tokens, session('gen-b', 'access-b', 'refresh-b'));
     answer.resolve(jsonResponse(401, { code: 'unauthorized' }));
 
     await expect(request).rejects.toMatchObject({ code: SESSION_CHANGED });
@@ -77,11 +75,11 @@ describe('Table Derby API client', () => {
       signal = init.signal ?? undefined;
       return new Promise<Response>((_resolve, reject) => init.signal?.addEventListener('abort', () => reject(new DOMException('aborted', 'AbortError'))));
     });
-    tokens.replace(session('gen-a', 'access-a', 'refresh-a'));
+    await put(tokens, session('gen-a', 'access-a', 'refresh-a'));
 
     const request = api.get('/admin/staff');
     await sleep(5);
-    tokens.clear('gen-a');
+    tokens.cancel('gen-a');
 
     await expect(request).rejects.toMatchObject({ code: SESSION_CHANGED });
     expect(signal?.aborted).toBe(true);
@@ -89,7 +87,7 @@ describe('Table Derby API client', () => {
 
   it('refuses to start a request for a generation that is no longer stored', async () => {
     const { api, tokens, fetchMock } = setup(() => jsonResponse(200, {}));
-    tokens.replace(session('gen-b', 'access-b', 'refresh-b'));
+    await put(tokens, session('gen-b', 'access-b', 'refresh-b'));
 
     await expect(api.me({ generation: 'gen-a' })).rejects.toMatchObject({ code: SESSION_CHANGED });
     expect(fetchMock).not.toHaveBeenCalled();
@@ -99,7 +97,7 @@ describe('Table Derby API client', () => {
     const { api, tokens, calls } = setup((path) =>
       path === '/admin/auth/refresh' ? jsonResponse(200, tokenBody(2)) : jsonResponse(401, { code: 'forbidden_staff' }),
     );
-    tokens.replace(session('gen-a', 'access-1', 'refresh-1'));
+    await put(tokens, session('gen-a', 'access-1', 'refresh-1'));
 
     await expect(api.get('/admin/me')).rejects.toMatchObject({ status: 401 });
     expect(calls('/admin/auth/refresh')).toHaveLength(1);
@@ -110,7 +108,7 @@ describe('Table Derby API client', () => {
     const { api, tokens } = setup((path) =>
       path === '/admin/auth/refresh' ? jsonResponse(401, { code: 'invalid_refresh_token' }) : jsonResponse(401, {}),
     );
-    tokens.replace(session('gen-a', 'access-1', 'refresh-1'));
+    await put(tokens, session('gen-a', 'access-1', 'refresh-1'));
 
     await expect(api.get('/admin/me')).rejects.toMatchObject({ status: 401, code: 'session_expired' });
     expect(tokens.read()).toBeNull();
@@ -118,7 +116,7 @@ describe('Table Derby API client', () => {
 
   it('keeps the session and marks the refresh pending when the refresh endpoint is down', async () => {
     const { api, tokens } = setup((path) => (path === '/admin/auth/refresh' ? jsonResponse(502) : jsonResponse(401, {})));
-    tokens.replace(session('gen-a', 'access-1', 'refresh-1'));
+    await put(tokens, session('gen-a', 'access-1', 'refresh-1'));
 
     await expect(api.get('/admin/me')).rejects.toMatchObject({ status: 503, code: 'refresh_unavailable' });
     expect(tokens.read()).toMatchObject({ refreshToken: 'refresh-1', refreshPendingSince: expect.any(Number) });
@@ -145,7 +143,7 @@ describe('Table Derby API client', () => {
 
   it('surfaces API error codes', async () => {
     const { api, tokens } = setup(() => jsonResponse(403, { code: 'forbidden', message: 'Your role cannot view the team' }));
-    tokens.replace(session('gen-a', 'access-1', 'refresh-1'));
+    await put(tokens, session('gen-a', 'access-1', 'refresh-1'));
     await expect(api.get('/admin/staff')).rejects.toMatchObject({ status: 403, code: 'forbidden', message: 'Your role cannot view the team' });
   });
 });

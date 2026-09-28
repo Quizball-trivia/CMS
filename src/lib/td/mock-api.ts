@@ -12,8 +12,8 @@ import { TD_STORAGE_KEYS } from './token-store';
 export const MOCK_PASSWORD = 'demo';
 const ACCESS_TTL_MS = 15 * 60_000;
 const REFRESH_TTL_MS = 12 * 60 * 60_000;
-/** Rotation recovery: the previous refresh token is answered with the same successor pair for this long. */
-export const MOCK_ROTATION_GRACE_MS = 30_000;
+/** Rotation recovery (server clock): the previous refresh token is answered with the same successor pair for this long. */
+export const MOCK_ROTATION_GRACE_MS = 60_000;
 
 export const MOCK_STAFF: readonly TdStaffMember[] = [
   { id: 'staff-editor', email: 'editor@demo.tablederby.test', name: 'Demo Editor', role: 'editor', status: 'active', lastSignInAt: '2026-09-27T08:40:00Z' },

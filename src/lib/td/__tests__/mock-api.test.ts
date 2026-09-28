@@ -55,12 +55,13 @@ describe('mock Table Derby API', () => {
     );
   });
 
-  it('answers a replay of the previous refresh token with the same successor pair inside the grace window', async () => {
+  it('answers a replay of the previous refresh token with the same successor pair for 60 s', async () => {
     const { login, refresh, advance } = mockApi();
     const first = await login('ops@demo.tablederby.test');
     const second = await refresh(first.refreshToken);
     expect(second.status).toBe(200);
 
+    expect(MOCK_ROTATION_GRACE_MS).toBe(60_000);
     advance(MOCK_ROTATION_GRACE_MS - 1_000);
     const replay = await refresh(first.refreshToken);
     expect(replay).toEqual(second);

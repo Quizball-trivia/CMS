@@ -27,18 +27,22 @@ const fetchImpl: typeof fetch =
 
 const transport = createTransport(TD_CONFIG.apiUrl, fetchImpl);
 
-let lock: CrossTabLock | null | undefined;
-/** The Web Lock that serialises every sign-in, sign-out and refresh commit across tabs; null if unsupported. */
-export function tdLock(): CrossTabLock | null {
-  if (lock === undefined) lock = createBrowserLock('td-session');
-  return lock;
+const locks = new Map<string, CrossTabLock | null>();
+function browserLock(name: string): CrossTabLock | null {
+  if (!locks.has(name)) locks.set(name, createBrowserLock(name));
+  return locks.get(name) ?? null;
 }
 
-export const tdTokens = createTokenStore(browserStorage);
+/** Short critical sections: every read-compare-write of the stored session. */
+export const tdSessionLock = () => browserLock('td-session');
+/** Held while a refresh token is spent over the network; never needed to sign in or out. */
+export const tdRefreshLock = () => browserLock('td-refresh');
+
+export const tdTokens = createTokenStore(browserStorage, tdSessionLock);
 
 export const tdRefresh = createRefreshCoordinator({
   tokens: tdTokens,
-  lock: tdLock,
+  refreshLock: tdRefreshLock,
   requestRefresh: (refreshToken) => requestTokenRefresh(transport, refreshToken),
 });
 

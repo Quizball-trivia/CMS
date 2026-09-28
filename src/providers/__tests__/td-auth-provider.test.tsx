@@ -2,12 +2,10 @@ import { act, cleanup, renderHook, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import type { ReactNode } from 'react';
-import type { CrossTabLock } from '@/lib/td/cross-tab-lock';
 import type { TdStaff } from '@/types/td';
 
 const h = vi.hoisted(() => ({
   storage: null as Storage | null,
-  lock: null as CrossTabLock | null,
   me: vi.fn(),
   logout: vi.fn(),
   login: vi.fn(),
@@ -19,10 +17,9 @@ vi.mock('@/lib/td/client', async () => {
   const { createWebLocksLock } = await import('@/lib/td/cross-tab-lock');
   const { MemoryStorage, createFakeLockManager } = await import('@/lib/td/__tests__/helpers');
   h.storage = new MemoryStorage();
-  h.lock = createWebLocksLock('td-session', createFakeLockManager(), 2_000);
+  const sessionLock = createWebLocksLock('td-session', createFakeLockManager(), 2_000);
   return {
-    tdTokens: createTokenStore(() => h.storage),
-    tdLock: () => h.lock,
+    tdTokens: createTokenStore(() => h.storage, () => sessionLock),
     tdRefresh: { refresh: h.refresh },
     tdApi: { me: h.me, logout: h.logout, login: h.login },
     TD_CONFIG: { deployEnv: 'local', apiUrl: '', apiOrigin: null, mock: false },
@@ -32,15 +29,15 @@ vi.mock('@/lib/td/client', async () => {
 const { TdAuthProvider, useTdAuth } = await import('../td-auth-provider');
 const { tdTokens } = await import('@/lib/td/client');
 const { TdApiError } = await import('@/lib/td/api-client');
-const { deferred, session, tokenSet } = await import('@/lib/td/__tests__/helpers');
+const { deferred, put, session, tokenSet } = await import('@/lib/td/__tests__/helpers');
 
 const EDITOR: TdStaff = { id: 'staff-editor', email: 'editor@example.test', name: 'Editor', role: 'editor' };
 const OPS: TdStaff = { id: 'staff-ops', email: 'ops@example.test', name: 'Ops', role: 'ops' };
 const PRIVATE = ['td', 'players'];
 
 /** Renders with the editor's session (generation gen-a) stored; `/admin/me` answers per generation. */
-function renderWithSession(client: QueryClient, meForA: () => Promise<TdStaff> = () => Promise.resolve(EDITOR)) {
-  tdTokens.replace(session('gen-a', 'access-a', 'refresh-a', { staffId: EDITOR.id }));
+async function renderWithSession(client: QueryClient, meForA: () => Promise<TdStaff> = () => Promise.resolve(EDITOR)) {
+  await put(tdTokens, session('gen-a', 'access-a', 'refresh-a', { staffId: EDITOR.id }));
   h.me.mockImplementation((options?: { generation?: string | null }) => (options?.generation === 'gen-a' ? meForA() : Promise.resolve(OPS)));
   return renderHook(useTdAuth, {
     wrapper: ({ children }: { children: ReactNode }) => (
@@ -72,7 +69,7 @@ afterEach(() => {
 
 it('clears cached data and the session on logout, revoking with the refresh token', async () => {
   const client = new QueryClient();
-  const { result } = renderWithSession(client);
+  const { result } = await renderWithSession(client);
   await waitFor(() => expect(result.current.status).toBe('authenticated'));
   client.setQueryData(PRIVATE, ['a player']);
 
@@ -86,7 +83,7 @@ it('clears cached data and the session on logout, revoking with the refresh toke
 
 it('ignores an /admin/me answer that arrives after logout', async () => {
   const meA = deferred<TdStaff>();
-  const { result } = renderWithSession(new QueryClient(), () => meA.promise);
+  const { result } = await renderWithSession(new QueryClient(), () => meA.promise);
   await waitFor(() => expect(h.me).toHaveBeenCalled());
 
   await act(() => result.current.logout());
@@ -98,7 +95,7 @@ it('ignores an /admin/me answer that arrives after logout', async () => {
 
 it("ignores A's /admin/me answer once B has signed in", async () => {
   const meA = deferred<TdStaff>();
-  const { result } = renderWithSession(new QueryClient(), () => meA.promise);
+  const { result } = await renderWithSession(new QueryClient(), () => meA.promise);
   await waitFor(() => expect(h.me).toHaveBeenCalled());
 
   await act(() => result.current.login('ops@example.test', 'pw'));
@@ -110,7 +107,7 @@ it("ignores A's /admin/me answer once B has signed in", async () => {
 
 it("does not let A's late 401 clear B's session", async () => {
   const meA = deferred<TdStaff>();
-  const { result } = renderWithSession(new QueryClient(), () => meA.promise);
+  const { result } = await renderWithSession(new QueryClient(), () => meA.promise);
   await waitFor(() => expect(h.me).toHaveBeenCalled());
 
   await act(() => result.current.login('ops@example.test', 'pw'));
@@ -122,7 +119,7 @@ it("does not let A's late 401 clear B's session", async () => {
 
 it('drops identity and cached data as soon as another tab signs in, then revalidates', async () => {
   const client = new QueryClient();
-  const { result } = renderWithSession(client);
+  const { result } = await renderWithSession(client);
   await waitFor(() => expect(result.current.user?.id).toBe(EDITOR.id));
   client.setQueryData(PRIVATE, ['visible to the editor']);
   const meB = deferred<TdStaff>();
@@ -139,7 +136,7 @@ it('drops identity and cached data as soon as another tab signs in, then revalid
 
 it('ignores token rotation by another tab', async () => {
   const client = new QueryClient();
-  const { result } = renderWithSession(client);
+  const { result } = await renderWithSession(client);
   await waitFor(() => expect(result.current.status).toBe('authenticated'));
   client.setQueryData(PRIVATE, ['still mine']);
 
@@ -152,7 +149,7 @@ it('ignores token rotation by another tab', async () => {
 
 it('signs out when another tab signs out', async () => {
   const client = new QueryClient();
-  const { result } = renderWithSession(client);
+  const { result } = await renderWithSession(client);
   await waitFor(() => expect(result.current.status).toBe('authenticated'));
   client.setQueryData(PRIVATE, ['a player']);
 
@@ -162,36 +159,34 @@ it('signs out when another tab signs out', async () => {
   expect(client.getQueryData(PRIVATE)).toBeUndefined();
 });
 
-it('stays signed out when a refresh commits while the sign-out waits for the lock', async () => {
-  const { result } = renderWithSession(new QueryClient());
+it('signs out at once even while another tab holds the session lock, and a queued refresh commit cannot bring it back', async () => {
+  const { result } = await renderWithSession(new QueryClient());
   await waitFor(() => expect(result.current.status).toBe('authenticated'));
-  const refreshHoldsLock = deferred<void>();
-  const held = h.lock!.run(() => refreshHoldsLock.promise);
+  const lockHeld = deferred<void>();
+  const holder = tdTokens.transact(() => lockHeld.promise);
+  // A refresh for gen-a is waiting to commit behind the same lock.
+  const refreshCommit = tdTokens.transact((tx) => tx.update('gen-a', { accessToken: 'access-a2', refreshToken: 'refresh-a2' }));
 
   let signedOut!: Promise<void>;
   act(() => {
     signedOut = result.current.logout();
   });
   expect(result.current.status).toBe('anonymous');
+  expect(tdTokens.read()).toBeNull();
 
-  // The in-flight refresh commits its rotation for gen-a before releasing the lock.
-  act(() => {
-    tdTokens.update('gen-a', { accessToken: 'access-a2', refreshToken: 'refresh-a2' });
-  });
-  expect(result.current.status).toBe('anonymous');
-  expect(h.me).toHaveBeenCalledTimes(1);
-
-  refreshHoldsLock.resolve();
+  lockHeld.resolve();
   await act(async () => {
-    await held;
+    await holder;
+    expect(await refreshCommit).toBe(false);
     await signedOut;
   });
-  expect(tdTokens.read()).toBeNull();
+  expect(h.storage!.getItem('td_session')).toBeNull();
   expect(result.current.status).toBe('anonymous');
+  expect(h.me).toHaveBeenCalledTimes(1);
 });
 
 it('clears a sign-in whose /admin/me is refused', async () => {
-  tdTokens.replace(session('gen-a', 'access-a', 'refresh-a'));
+  await put(tdTokens, session('gen-a', 'access-a', 'refresh-a'));
   h.me.mockImplementation((options?: { generation?: string | null }) =>
     options?.generation === 'gen-a' ? Promise.resolve(EDITOR) : Promise.reject(new TdApiError(403, 'forbidden', 'not staff')),
   );
@@ -208,4 +203,5 @@ it('clears a sign-in whose /admin/me is refused', async () => {
 
   expect(result.current.status).toBe('anonymous');
   expect(tdTokens.read()).toBeNull();
+  expect(h.storage!.getItem('td_session')).toBeNull();
 });

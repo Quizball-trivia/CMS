@@ -92,8 +92,8 @@ async function parse<T>(response: Response): Promise<T> {
 
 /**
  * The network half of a refresh; only the refresh coordinator calls it.
- * Rotation recovery (see ROTATION_RECOVERY_MS) is what makes retrying an
- * unanswered refresh with the same token safe.
+ * Rotation recovery (API replays the successor for 60 s; see
+ * ROTATION_RECOVERY_MS) is what makes retrying an unanswered refresh safe.
  */
 export async function requestTokenRefresh(transport: TdTransport, refreshToken: string): Promise<TdTokenSet> {
   const response = await transport.send('POST', '/admin/auth/refresh', {
