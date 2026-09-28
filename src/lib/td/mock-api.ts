@@ -155,11 +155,16 @@ export function createMockTdApi({ storage, now = Date.now, latencyMs = 120 }: Mo
           save(state);
           return error(401, 'refresh_token_reused', 'Refresh token was already used; the session is revoked');
         }
-        // The client's own request again (a retry, or the original arriving late): the same
-        // pair while the successor is unused and within 60 s; later, refused, session intact.
+        // The same request again (a retry, or the original arriving late). Once its successor
+        // has been used, someone went on from it (a stolen token and id): the family ends.
+        // Otherwise the same pair within 60 s; later, refused with the session intact.
         const successor = state.refreshTokens[record.successor.refreshToken];
-        const retry = successor !== undefined && !successor.successor && now() - (record.rotatedAt ?? 0) <= REFRESH_RETRY_MS;
-        if (retry) return json(200, record.successor);
+        if (!successor || successor.successor) {
+          state.revokedFamilies.push(record.family);
+          save(state);
+          return error(401, 'refresh_token_reused', 'Refresh token was already used; the session is revoked');
+        }
+        if (now() - (record.rotatedAt ?? 0) <= REFRESH_RETRY_MS) return json(200, record.successor);
         return error(401, 'invalid_refresh_token', 'This refresh has already been answered');
       }
       const tokens = issue(state, record.staffId, record.family);

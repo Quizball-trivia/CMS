@@ -13,9 +13,10 @@ export type RefreshOutcome = 'ok' | 'terminal' | 'transient' | 'superseded';
  * API contract (plan §13 notes): every refresh carries a request id, kept for
  * all its retries (and stored with the pending attempt, so another tab retries
  * with it). A retry of the same request within 60 s, while its successor is
- * unused, gets the same answer; later the same request is refused without
- * ending the session (a delayed duplicate never revokes it). A spent token
- * under any other request id revokes the family. The client starts no retry
+ * unused, gets the same answer; later, while the successor is still unused,
+ * the same request is refused without ending the session. A spent token under
+ * any other request id, or again after its successor was used, revokes the
+ * family. The client starts no retry
  * later than 25 s after its first attempt (recorded before the request is
  * sent, checked again just before sending) and gives each request 15 s; after
  * that it ends the session, so a dead API cannot hold a session in limbo.
