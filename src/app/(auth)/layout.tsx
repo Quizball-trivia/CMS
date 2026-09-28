@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { notFound, useRouter } from 'next/navigation';
 import { useAuth } from '@/providers';
 import { Loader2 } from 'lucide-react';
 
@@ -10,6 +10,9 @@ export default function AuthLayout({
 }: {
   children: React.ReactNode;
 }) {
+  // A Table Derby build still compiles this route group but must never render it. The literal
+  // comparison is folded at build time, so a Quizball build compiles to exactly what it was.
+  if (process.env.NEXT_PUBLIC_CMS_WORKSPACE === 'table-derby') notFound();
   const { isAuthenticated, isLoading } = useAuth();
   const router = useRouter();
 

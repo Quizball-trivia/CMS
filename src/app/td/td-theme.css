@@ -1,0 +1,54 @@
+/*
+ * Betsson platform palette for the Table Derby workspace (table-derby repo,
+ * docs/betsson-design-reference.md). It re-points the shadcn tokens, so the
+ * shared ui/ primitives render in Betsson colours without restyling any
+ * Quizball component. `body:has(.td-theme)` also covers Radix portals.
+ */
+.td-theme,
+body:has(.td-theme) {
+  color-scheme: dark;
+  --radius: 0.75rem;
+
+  --td-page: #0d0e0f;
+  --td-header: #131415;
+  --td-surface: #1c1c1d;
+  --td-surface-2: #1f2021;
+  --td-input: #232424;
+  --td-border: #2b2c2e;
+  --td-divider: rgb(255 255 255 / 0.08);
+  --td-text: #ffffff;
+  --td-text-2: #cfcfcf;
+  --td-text-3: #8f8f90;
+  --td-primary: #f15a22;
+  --td-primary-pressed: #db5727;
+  --td-new: #099d80;
+  --td-danger: #ff3c3c;
+
+  --background: var(--td-page);
+  --foreground: var(--td-text);
+  --card: var(--td-surface);
+  --card-foreground: var(--td-text);
+  --popover: var(--td-surface-2);
+  --popover-foreground: var(--td-text);
+  --primary: var(--td-primary);
+  --primary-foreground: #ffffff;
+  --secondary: var(--td-input);
+  --secondary-foreground: var(--td-text);
+  --muted: var(--td-input);
+  --muted-foreground: var(--td-text-3);
+  --accent: var(--td-input);
+  --accent-foreground: var(--td-text);
+  --destructive: var(--td-danger);
+  --border: var(--td-border);
+  --input: var(--td-border);
+  --ring: var(--td-primary);
+}
+
+body:has(.td-theme) {
+  background: var(--td-page);
+  color: var(--td-text);
+}
+
+.td-theme {
+  font-family: var(--font-td), var(--font-inter), system-ui, sans-serif;
+}
