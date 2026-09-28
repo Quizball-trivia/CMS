@@ -23,3 +23,8 @@ jobs:
       - run: npm run typecheck
       - run: npm test
       - run: npm run build
+      - name: build (Table Derby workspace)
+        run: npm run build
+        env:
+          NEXT_PUBLIC_CMS_WORKSPACE: table-derby
+          NEXT_PUBLIC_TD_API_MOCK: "1"

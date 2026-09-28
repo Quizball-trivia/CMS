@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { Inter, Geist_Mono } from "next/font/google";
 import { Providers } from "@/providers";
+import { TableDerbyRoot } from "@/providers/table-derby-root";
+import { WORKSPACE } from "@/lib/workspace";
 import "./globals.css";
 
 const inter = Inter({
@@ -13,10 +15,13 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
-export const metadata: Metadata = {
-  title: "QuizBall CMS",
-  description: "Content management system for QuizBall",
-};
+export const metadata: Metadata =
+  WORKSPACE === "table-derby"
+    ? { title: "Table Derby CMS", robots: { index: false, follow: false } }
+    : {
+        title: "QuizBall CMS",
+        description: "Content management system for QuizBall",
+      };
 
 export default function RootLayout({
   children,
@@ -28,7 +33,11 @@ export default function RootLayout({
       <body
         className={`${inter.variable} ${geistMono.variable} antialiased`}
       >
-        <Providers>{children}</Providers>
+        {WORKSPACE === "table-derby" ? (
+          <TableDerbyRoot>{children}</TableDerbyRoot>
+        ) : (
+          <Providers>{children}</Providers>
+        )}
       </body>
     </html>
   );
