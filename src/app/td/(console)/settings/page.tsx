@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import { TdPageHeader, TdSection } from '@/components/td/td-page';
+import { TdTabPage, TdSection } from '@/components/td/td-page';
 import { getTab } from '@/lib/td/navigation';
 
 export const metadata: Metadata = { title: getTab('settings').label };
@@ -13,8 +13,7 @@ const SETTINGS = [
 
 export default function TdSettingsPage() {
   return (
-    <>
-      <TdPageHeader tabKey="settings" />
+    <TdTabPage tab="settings">
       <TdSection title="Game settings" description="Read-only until the Table Derby API exposes them.">
         <ul className="divide-y divide-(--td-divider)">
           {SETTINGS.map((setting) => (
@@ -28,6 +27,6 @@ export default function TdSettingsPage() {
           ))}
         </ul>
       </TdSection>
-    </>
+    </TdTabPage>
   );
 }

@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import { KeyRound, Rocket, Search, Send } from 'lucide-react';
 import { Input } from '@/components/ui/input';
-import { TdPageHeader, TdPlaceholderTable, TdSection } from '@/components/td/td-page';
+import { TdTabPage, TdPlaceholderTable, TdSection } from '@/components/td/td-page';
 import { getTab } from '@/lib/td/navigation';
 
 export const metadata: Metadata = { title: getTab('integration').label };
@@ -22,8 +22,7 @@ const LOG_EMPTY = 'Entries appear once Betsson calls the Table Derby API.';
 
 export default function TdIntegrationPage() {
   return (
-    <>
-      <TdPageHeader tabKey="integration" />
+    <TdTabPage tab="integration">
       <div className="relative">
         <Search className="pointer-events-none absolute left-4 top-1/2 size-4 -translate-y-1/2 text-(--td-text-3)" />
         <Input disabled placeholder="Search by playerId, sessionId or eventId" className="h-11 rounded-full bg-(--td-input) pl-11" />
@@ -62,6 +61,6 @@ export default function TdIntegrationPage() {
           ))}
         </dl>
       </TdSection>
-    </>
+    </TdTabPage>
   );
 }

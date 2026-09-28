@@ -2,33 +2,49 @@ import type { TdTokenResponse } from '@/types/td';
 
 /** All Table Derby browser state lives under `td_` keys, apart from Quizball's `quizball_*`. */
 export const TD_STORAGE_KEYS = {
-  // One JSON value so another tab can never read a half-rotated token pair.
   session: 'td_session',
-  staffId: 'td_staff_id',
-  refreshLock: 'td_refresh_lock',
   mockServer: 'td_mock_server',
 } as const;
 
-export interface TdSession {
+export interface TdTokenSet {
   accessToken: string;
   refreshToken: string;
   /** Access token expiry, epoch ms; null when the API sent something unparsable. */
   expiresAt: number | null;
 }
 
-export type TdTokenChange = 'session' | 'staff';
+/**
+ * One sign-in. Stored as a single JSON value so every tab sees the tokens,
+ * the generation and the staff id change together.
+ */
+export interface TdSession extends TdTokenSet {
+  /** New random id per sign-in; token rotation keeps it. Anything started under another generation is discarded. */
+  generation: string;
+  /** Set once `/admin/me` has confirmed who signed in. */
+  staffId: string | null;
+  /** When an unanswered refresh of `refreshToken` began (rotation recovery window); null otherwise. */
+  refreshPendingSince: number | null;
+}
+
+export type TdSessionPatch = Partial<Omit<TdSession, 'generation'>>;
 
 export interface TdTokenStore {
   read(): TdSession | null;
-  write(session: TdSession): void;
-  clear(): void;
-  readStaffId(): string | null;
-  writeStaffId(id: string | null): void;
-  /** Fires for writes in this tab and, through `storage` events, in other tabs. */
-  subscribe(listener: (change: TdTokenChange) => void): () => void;
+  /** Starts a new generation (sign-in). */
+  replace(session: TdSession): void;
+  /** Applies only while `generation` is still the stored one. */
+  update(generation: string, patch: TdSessionPatch): boolean;
+  /** Clears only while `generation` is still the stored one. */
+  clear(generation: string): boolean;
+  /** Fires on every change, from this tab directly and from other tabs through `storage` events. */
+  subscribe(listener: () => void): () => void;
 }
 
-export function sessionFromResponse(response: TdTokenResponse): TdSession | null {
+export function newGeneration(): string {
+  return crypto.randomUUID();
+}
+
+export function tokensFromResponse(response: TdTokenResponse | null | undefined): TdTokenSet | null {
   if (!response?.accessToken || !response.refreshToken) return null;
   const expiresAt = Date.parse(response.expiresAt);
   return {
@@ -42,11 +58,16 @@ function parseSession(raw: string | null): TdSession | null {
   if (!raw) return null;
   try {
     const value = JSON.parse(raw) as Partial<TdSession>;
-    if (typeof value.accessToken !== 'string' || typeof value.refreshToken !== 'string') return null;
+    if (typeof value.generation !== 'string' || typeof value.accessToken !== 'string' || typeof value.refreshToken !== 'string') {
+      return null;
+    }
     return {
+      generation: value.generation,
+      staffId: typeof value.staffId === 'string' ? value.staffId : null,
       accessToken: value.accessToken,
       refreshToken: value.refreshToken,
       expiresAt: typeof value.expiresAt === 'number' ? value.expiresAt : null,
+      refreshPendingSince: typeof value.refreshPendingSince === 'number' ? value.refreshPendingSince : null,
     };
   } catch {
     return null;
@@ -57,34 +78,36 @@ export function createTokenStore(
   getStorage: () => Storage | null,
   target: Pick<Window, 'addEventListener' | 'removeEventListener'> | null = typeof window === 'undefined' ? null : window,
 ): TdTokenStore {
-  const listeners = new Set<(change: TdTokenChange) => void>();
-  const emit = (change: TdTokenChange) => listeners.forEach((listener) => listener(change));
+  const listeners = new Set<() => void>();
+  const emit = () => listeners.forEach((listener) => listener());
+  const read = () => parseSession(getStorage()?.getItem(TD_STORAGE_KEYS.session) ?? null);
+  const write = (session: TdSession) => {
+    getStorage()?.setItem(TD_STORAGE_KEYS.session, JSON.stringify(session));
+    emit();
+  };
 
+  // Read-compare-write is synchronous, so it is atomic within a tab; across
+  // tabs, sign-in, sign-out and refresh commits also hold the refresh lock.
   return {
-    read: () => parseSession(getStorage()?.getItem(TD_STORAGE_KEYS.session) ?? null),
-    write(session) {
-      getStorage()?.setItem(TD_STORAGE_KEYS.session, JSON.stringify(session));
-      emit('session');
+    read,
+    replace: write,
+    update(generation, patch) {
+      const current = read();
+      if (!current || current.generation !== generation) return false;
+      write({ ...current, ...patch, generation });
+      return true;
     },
-    clear() {
-      const storage = getStorage();
-      storage?.removeItem(TD_STORAGE_KEYS.session);
-      storage?.removeItem(TD_STORAGE_KEYS.staffId);
-      emit('session');
-    },
-    readStaffId: () => getStorage()?.getItem(TD_STORAGE_KEYS.staffId) ?? null,
-    writeStaffId(id) {
-      const storage = getStorage();
-      if (id) storage?.setItem(TD_STORAGE_KEYS.staffId, id);
-      else storage?.removeItem(TD_STORAGE_KEYS.staffId);
-      emit('staff');
+    clear(generation) {
+      if (read()?.generation !== generation) return false;
+      getStorage()?.removeItem(TD_STORAGE_KEYS.session);
+      emit();
+      return true;
     },
     subscribe(listener) {
       listeners.add(listener);
       const onStorage = (event: StorageEvent) => {
         // key === null means another tab called localStorage.clear().
-        if (event.key === null || event.key === TD_STORAGE_KEYS.session) listener('session');
-        if (event.key === null || event.key === TD_STORAGE_KEYS.staffId) listener('staff');
+        if (event.key === null || event.key === TD_STORAGE_KEYS.session) listener();
       };
       target?.addEventListener('storage', onStorage as EventListener);
       return () => {

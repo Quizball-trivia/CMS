@@ -1,4 +1,4 @@
-import type { TdSession } from '../token-store';
+import type { TdSession, TdTokenSet } from '../token-store';
 
 /** A Storage that several simulated tabs can share (Node's own localStorage is not usable here). */
 export class MemoryStorage implements Storage {
@@ -23,8 +23,17 @@ export class MemoryStorage implements Storage {
   }
 }
 
-export function session(accessToken: string, refreshToken: string, expiresAt: number | null = Date.now() + 60_000): TdSession {
+export function tokenSet(accessToken: string, refreshToken: string, expiresAt: number | null = Date.now() + 60_000): TdTokenSet {
   return { accessToken, refreshToken, expiresAt };
+}
+
+export function session(
+  generation: string,
+  accessToken: string,
+  refreshToken: string,
+  extra: Partial<Omit<TdSession, 'generation' | 'accessToken' | 'refreshToken'>> = {},
+): TdSession {
+  return { generation, accessToken, refreshToken, expiresAt: Date.now() + 60_000, staffId: null, refreshPendingSince: null, ...extra };
 }
 
 export function deferred<T>() {

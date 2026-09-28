@@ -7,25 +7,40 @@ export interface TdEnvInput {
   [name: string]: string | undefined;
   NEXT_PUBLIC_CMS_WORKSPACE?: string;
   NEXT_PUBLIC_CMS_ENV?: string;
-  NEXT_PUBLIC_VERCEL_ENV?: string;
-  VERCEL_ENV?: string;
   NEXT_PUBLIC_TD_API_URL?: string;
   NEXT_PUBLIC_TD_API_MOCK?: string;
+  /** Set to "1" by Vercel on every build it hosts. */
+  VERCEL?: string;
 }
 
 export interface TdConfig {
   deployEnv: TdDeployEnv;
   apiUrl: string;
+  /** Origin the browser may connect to besides 'self'; null when mocked. */
+  apiOrigin: string | null;
   mock: boolean;
 }
 
-const INERT: TdConfig = { deployEnv: 'local', apiUrl: '', mock: false };
+const INERT: TdConfig = { deployEnv: 'local', apiUrl: '', apiOrigin: null, mock: false };
+const MOCK_API_URL = 'https://td-api.mock';
 
+/** Only the exact strings "1" and "0" (or unset) are accepted, so build and client can never disagree. */
+function parseFlag(name: string, raw: string | undefined): boolean {
+  if (raw === undefined || raw === '' || raw === '0') return false;
+  if (raw === '1') return true;
+  throw new Error(`${name} must be "1", "0" or unset, got "${raw}"`);
+}
+
+/** The product environment; Vercel's own environment says nothing about it (staging has a production slot too). */
 function resolveDeployEnv(env: TdEnvInput): TdDeployEnv {
-  const cmsEnv = env.NEXT_PUBLIC_CMS_ENV?.trim().toUpperCase();
-  if (cmsEnv === 'PROD') return 'production';
-  if (cmsEnv === 'STAGING') return 'staging';
-  return 'local';
+  const raw = env.NEXT_PUBLIC_CMS_ENV;
+  if (raw === 'PROD') return 'production';
+  if (raw === 'STAGING') return 'staging';
+  if (raw === undefined || raw === '') {
+    if (env.VERCEL === '1') throw new Error('Hosted Table Derby CMS builds must set NEXT_PUBLIC_CMS_ENV to PROD or STAGING');
+    return 'local';
+  }
+  throw new Error(`NEXT_PUBLIC_CMS_ENV must be PROD or STAGING, got "${raw}"`);
 }
 
 /**
@@ -36,23 +51,32 @@ export function resolveTdConfig(env: TdEnvInput): TdConfig {
   if (resolveWorkspace(env.NEXT_PUBLIC_CMS_WORKSPACE) !== 'table-derby') return INERT;
 
   const deployEnv = resolveDeployEnv(env);
-  const mock = env.NEXT_PUBLIC_TD_API_MOCK?.trim() === '1';
-  const vercelEnv = (env.VERCEL_ENV ?? env.NEXT_PUBLIC_VERCEL_ENV)?.trim();
+  const mock = parseFlag('NEXT_PUBLIC_TD_API_MOCK', env.NEXT_PUBLIC_TD_API_MOCK);
 
   if (mock) {
-    // Any Vercel production deployment counts, in case NEXT_PUBLIC_CMS_ENV is missing there.
-    if (deployEnv === 'production' || vercelEnv === 'production') {
-      throw new Error('NEXT_PUBLIC_TD_API_MOCK=1 is not allowed in a production Table Derby CMS build');
+    if (deployEnv === 'production') {
+      throw new Error('NEXT_PUBLIC_TD_API_MOCK=1 is not allowed when NEXT_PUBLIC_CMS_ENV=PROD');
     }
-    return { deployEnv, apiUrl: 'https://td-api.mock', mock };
+    return { deployEnv, apiUrl: MOCK_API_URL, apiOrigin: null, mock };
   }
 
-  const apiUrl = env.NEXT_PUBLIC_TD_API_URL?.trim().replace(/\/+$/, '') ?? '';
-  if (!apiUrl) {
+  const raw = env.NEXT_PUBLIC_TD_API_URL?.trim() ?? '';
+  if (!raw) {
     throw new Error('Table Derby CMS needs NEXT_PUBLIC_TD_API_URL (or NEXT_PUBLIC_TD_API_MOCK=1 outside production)');
   }
-  if (deployEnv === 'production' && !apiUrl.startsWith('https://')) {
-    throw new Error('NEXT_PUBLIC_TD_API_URL must be https in production');
+  let url: URL;
+  try {
+    url = new URL(raw);
+  } catch {
+    throw new Error(`NEXT_PUBLIC_TD_API_URL is not a valid URL: "${raw}"`);
   }
-  return { deployEnv, apiUrl, mock };
+  if (url.protocol !== 'https:' && !(deployEnv === 'local' && url.protocol === 'http:')) {
+    throw new Error('NEXT_PUBLIC_TD_API_URL must be https outside local development');
+  }
+  return { deployEnv, apiUrl: raw.replace(/\/+$/, ''), apiOrigin: url.origin, mock };
+}
+
+/** Plan §13.4: the TD CMS may only talk to itself and the TD API. */
+export function tdContentSecurityPolicy(config: TdConfig): string {
+  return ['connect-src', "'self'", config.apiOrigin].filter(Boolean).join(' ');
 }

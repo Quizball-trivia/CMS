@@ -1,11 +1,11 @@
 export type Workspace = 'quizball' | 'table-derby';
 
+/** Exact values only: the route-group guards compare the raw string, so the two must never disagree. */
 export function resolveWorkspace(raw: string | undefined): Workspace {
-  const value = raw?.trim();
-  if (!value || value === 'quizball') return 'quizball';
-  if (value === 'table-derby') return 'table-derby';
+  if (raw === undefined || raw === '' || raw === 'quizball') return 'quizball';
+  if (raw === 'table-derby') return 'table-derby';
   // A typo must fail the build, not silently ship the Quizball CMS on a Table Derby domain.
-  throw new Error(`NEXT_PUBLIC_CMS_WORKSPACE must be "quizball" or "table-derby", got "${value}"`);
+  throw new Error(`NEXT_PUBLIC_CMS_WORKSPACE must be "quizball" or "table-derby", got "${raw}"`);
 }
 
 // NEXT_PUBLIC_* is inlined at build time, so a deployment is one workspace for its whole life.

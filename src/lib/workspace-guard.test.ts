@@ -8,11 +8,10 @@ describe('resolveWorkspace', () => {
     expect(resolveWorkspace('')).toBe('quizball');
     expect(resolveWorkspace('quizball')).toBe('quizball');
     expect(resolveWorkspace('table-derby')).toBe('table-derby');
-    expect(resolveWorkspace(' table-derby\n')).toBe('table-derby');
   });
 
-  it('refuses unknown values instead of silently building Quizball', () => {
-    expect(() => resolveWorkspace('tablederby')).toThrow(/NEXT_PUBLIC_CMS_WORKSPACE/);
+  it.each(['tablederby', ' table-derby', 'table-derby\n', 'Table-Derby'])('refuses %j instead of silently building Quizball', (value) => {
+    expect(() => resolveWorkspace(value)).toThrow(/NEXT_PUBLIC_CMS_WORKSPACE/);
   });
 });
 
@@ -34,7 +33,16 @@ describe('decideWorkspaceRoute in quizball mode', () => {
     expect(decideWorkspaceRoute(path, 'quizball')).toEqual({ type: 'allow' });
   });
 
-  it.each(['/td', '/td/', '/td/login', '/td/team', '/td/round-1/abc', '/td/icon.svg', '/%74d/team', '/%74%64'])(
+  it.each([
+    '/td',
+    '/td/',
+    '/td/login',
+    '/td/team',
+    '/td/round-1/abc',
+    '/td/icon.svg',
+    '/%74d/team',
+    '/%74%64',
+  ])(
     'returns 404 for Table Derby path %s',
     (path) => {
       expect(decideWorkspaceRoute(path, 'quizball')).toEqual({ type: 'not-found' });
@@ -54,7 +62,6 @@ describe('decideWorkspaceRoute in table-derby mode', () => {
     '/td/team',
     '/td/integration',
     '/td/icon.svg',
-    '/_next/data/build/td.json',
     '/_next/webpack-hmr',
     '/__nextjs_original-stack-frames',
   ])('serves %s', (path) => {
@@ -78,7 +85,21 @@ describe('decideWorkspaceRoute in table-derby mode', () => {
     '/td/%2E%2E/questions',
     '/td/../questions',
     '/%E0%A4%A',
+    '/_next/data/build-1/td/settings.json',
+    '/_next/data/build-1/td/team.json',
+    '/_next/data/build-1/index.json',
   ])('returns 404 for %s', (path) => {
     expect(decideWorkspaceRoute(path, 'table-derby')).toEqual({ type: 'not-found' });
+  });
+});
+
+describe('data requests', () => {
+  it.each(['quizball', 'table-derby'] as const)('answers every data URL 404 in %s mode, as the App Router does without a proxy', (workspace) => {
+    for (const path of ['/_next/data/build-1/categories.json', '/_next/data/build-1/index.json', '/_next/data/build-1/td/settings.json']) {
+      expect(decideWorkspaceRoute(path, workspace)).toEqual({ type: 'not-found' });
+    }
+    // The form the proxy actually sees: already rewritten to the page path, flagged as data.
+    expect(decideWorkspaceRoute('/categories', workspace, { dataRequest: true })).toEqual({ type: 'not-found' });
+    expect(decideWorkspaceRoute('/td/settings', workspace, { dataRequest: true })).toEqual({ type: 'not-found' });
   });
 });

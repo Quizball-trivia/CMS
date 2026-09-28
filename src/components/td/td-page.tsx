@@ -3,6 +3,7 @@ import type { LucideIcon } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { getTab, type TdTabKey } from '@/lib/td/navigation';
 import { cn } from '@/lib/utils';
+import { TdTabGate } from './td-tab-gate';
 import { TD_TAB_ICONS } from './td-tab-icons';
 
 export function TdPageHeader({ tabKey, actions }: { tabKey: TdTabKey; actions?: ReactNode }) {
@@ -106,26 +107,33 @@ export function TdPlaceholderTable({
 
 export const TD_NOT_BUILT_YET = 'The editor for this tab arrives with the Table Derby API.';
 
+/** Every console page renders through this: it names the page's own tab, which the role gate uses. */
+export function TdTabPage({ tab, actions, children }: { tab: TdTabKey; actions?: ReactNode; children?: ReactNode }) {
+  return (
+    <TdTabGate tab={tab}>
+      <TdPageHeader tabKey={tab} actions={actions} />
+      {children}
+    </TdTabGate>
+  );
+}
+
 /** Standard page for tabs whose editor is not in this slice. */
 export function TdTabPlaceholder({
   tabKey,
   sectionTitle,
   columns,
   emptyTitle,
-  actions,
 }: {
   tabKey: TdTabKey;
   sectionTitle: string;
   columns: string[];
   emptyTitle: string;
-  actions?: ReactNode;
 }) {
   return (
-    <>
-      <TdPageHeader tabKey={tabKey} actions={actions} />
+    <TdTabPage tab={tabKey}>
       <TdSection title={sectionTitle}>
         <TdPlaceholderTable columns={columns} icon={TD_TAB_ICONS[tabKey]} emptyTitle={emptyTitle} emptyBody={TD_NOT_BUILT_YET} />
       </TdSection>
-    </>
+    </TdTabPage>
   );
 }

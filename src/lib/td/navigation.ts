@@ -198,13 +198,14 @@ export function tabsForRole(role: TdRole): TdTab[] {
   return TD_TABS.filter((tab) => canAccessTab(tab, role));
 }
 
-/** The tab that owns a path: exact match for the dashboard, prefix match for the rest. */
-export function tabForPath(pathname: string): TdTab | null {
-  return (
-    TD_TABS.find((tab) =>
-      tab.href === TD_ROOT ? pathname === TD_ROOT || pathname === `${TD_ROOT}/` : pathname === tab.href || pathname.startsWith(`${tab.href}/`),
-    ) ?? null
-  );
+/**
+ * The tab for the console layout's active child segment (useSelectedLayoutSegment:
+ * resolved from the route tree, not the URL, so framework aliases cannot change it).
+ * Unknown segments get null and the console fails closed.
+ */
+export function tabForSegment(segment: string | null): TdTab | null {
+  const href = segment === null ? TD_ROOT : `${TD_ROOT}/${segment}`;
+  return TD_TABS.find((tab) => tab.href === href) ?? null;
 }
 
 const PARSE_BASE = 'https://td.invalid';

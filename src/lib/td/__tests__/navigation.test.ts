@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { safeNextPath, tabForPath, tabsForRole, TD_TABS } from '../navigation';
+import { safeNextPath, tabForSegment, tabsForRole, TD_TABS } from '../navigation';
 
 const CONTENT = ['dashboard', 'round-1', 'round-2', 'round-3', 'penalties', 'dailies', 'practice', 'clubs', 'media', 'import', 'releases'];
 const keys = (role: Parameters<typeof tabsForRole>[0]) => tabsForRole(role).map((tab) => tab.key);
@@ -23,14 +23,16 @@ describe('Table Derby navigation', () => {
   });
 
   it.each([
-    ['/td', 'dashboard'],
-    ['/td/', 'dashboard'],
-    ['/td/team', 'team'],
-    ['/td/round-1/category-7', 'round-1'],
-    ['/td/round-10', null],
-    ['/td/login', null],
-  ])('maps %s to %s', (path, key) => {
-    expect(tabForPath(path)?.key ?? null).toBe(key);
+    [null, 'dashboard'],
+    ['team', 'team'],
+    ['round-1', 'round-1'],
+    ['settings', 'settings'],
+    ['round-10', null],
+    ['login', null],
+    ['_next', null],
+    ['', null],
+  ])('maps the console segment %j to %j and fails closed on anything unknown', (segment, key) => {
+    expect(tabForSegment(segment)?.key ?? null).toBe(key);
   });
 
   it.each([

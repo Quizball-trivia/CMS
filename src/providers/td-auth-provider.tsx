@@ -2,9 +2,9 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { TdApiError } from '@/lib/td/api-client';
-import { tdApi, tdRefresh, tdTokens } from '@/lib/td/client';
-import type { TdSession } from '@/lib/td/token-store';
+import { SESSION_CHANGED, TdApiError } from '@/lib/td/api-client';
+import { tdApi, tdLock, tdRefresh, tdTokens } from '@/lib/td/client';
+import { newGeneration, type TdSession } from '@/lib/td/token-store';
 import type { TdStaff } from '@/types/td';
 
 export type TdAuthStatus = 'loading' | 'authenticated' | 'anonymous' | 'unavailable';
@@ -27,9 +27,16 @@ const TdAuthContext = createContext<TdAuthContextValue | null>(null);
 const RENEW_BEFORE_EXPIRY_MS = 2 * 60_000;
 const RENEW_CHECK_INTERVAL_MS = 30_000;
 const SESSION_ENDED = 'Your session has ended. Please sign in again.';
+const NO_ACCESS = 'This account has no access to the Table Derby CMS.';
 
 function nearExpiry(session: TdSession): boolean {
   return session.expiresAt !== null && Date.now() > session.expiresAt - RENEW_BEFORE_EXPIRY_MS;
+}
+
+/** Sign-in, sign-out and refresh commits share one cross-tab lock. */
+async function withSessionLock<T>(task: () => T): Promise<T> {
+  const lock = tdLock();
+  return lock ? lock.run(async () => task()) : task();
 }
 
 export function useTdAuth(): TdAuthContextValue {
@@ -41,13 +48,16 @@ export function useTdAuth(): TdAuthContextValue {
 export function TdAuthProvider({ children }: { children: ReactNode }) {
   const queryClient = useQueryClient();
   const [state, setState] = useState<TdAuthState>({ status: 'loading', user: null, notice: null });
-  const userIdRef = useRef<string | null>(null);
+  // The session generation the shown identity belongs to (or is being resolved for).
+  const activeGeneration = useRef<string | null>(null);
+  // Signed out in this tab; its storage clear may still be queued behind a refresh.
+  const endedGeneration = useRef<string | null>(null);
 
-  const endSession = useCallback(
+  const becomeAnonymous = useCallback(
     (notice: string | null) => {
       // Cached data belongs to the previous account; never show it to the next one.
+      activeGeneration.current = null;
       queryClient.clear();
-      userIdRef.current = null;
       setState({ status: 'anonymous', user: null, notice });
     },
     [queryClient],
@@ -55,51 +65,53 @@ export function TdAuthProvider({ children }: { children: ReactNode }) {
 
   const resolveIdentity = useCallback(async () => {
     const session = tdTokens.read();
-    if (session && nearExpiry(session) && (await tdRefresh.refresh()) === 'terminal') {
-      endSession(SESSION_ENDED);
-      return;
-    }
+    const generation = session?.generation ?? null;
+    activeGeneration.current = generation;
+    // Anything that finishes after a sign-out or another sign-in must not touch state.
+    const isCurrent = () => activeGeneration.current === generation && (tdTokens.read()?.generation ?? null) === generation;
+
     try {
+      if (session && nearExpiry(session)) await tdRefresh.refresh({ generation });
       // Without a session this rejects with `not_signed_in` before any request.
-      const me = await tdApi.me();
-      if (userIdRef.current !== me.id) queryClient.clear();
-      userIdRef.current = me.id;
-      setState({ status: 'authenticated', user: me, notice: null });
+      const me = await tdApi.me({ generation });
+      if (isCurrent()) setState({ status: 'authenticated', user: me, notice: null });
     } catch (error) {
-      if (error instanceof TdApiError && error.code === 'not_signed_in') {
-        endSession(null);
-        return;
+      if (!isCurrent()) return;
+      if (!(error instanceof TdApiError)) {
+        setState((previous) => ({ ...previous, status: 'unavailable' }));
+      } else if (error.code === 'not_signed_in') {
+        becomeAnonymous(null);
+      } else if (error.status === 401 || error.status === 403) {
+        if (generation) tdTokens.clear(generation);
+        becomeAnonymous(error.status === 403 ? NO_ACCESS : SESSION_ENDED);
+      } else if (error.code !== SESSION_CHANGED) {
+        setState((previous) => ({ ...previous, status: 'unavailable' }));
       }
-      if (error instanceof TdApiError && (error.status === 401 || error.status === 403)) {
-        tdTokens.clear();
-        endSession(error.status === 403 ? 'This account has no access to the Table Derby CMS.' : SESSION_ENDED);
-        return;
-      }
-      setState((previous) => ({ ...previous, status: 'unavailable' }));
     }
-  }, [endSession, queryClient]);
+  }, [becomeAnonymous]);
 
-  // State is set only after an await; the rule cannot see through the async boundary.
-  // eslint-disable-next-line react-hooks/set-state-in-effect
-  useEffect(() => { void resolveIdentity(); }, [resolveIdentity]);
+  useEffect(() => {
+    void resolveIdentity();
+  }, [resolveIdentity]);
 
-  // Logout, a refused refresh, or a sign-in as someone else, in this tab or another.
+  // A sign-out, a refused refresh, or a sign-in in another tab.
   useEffect(
     () =>
-      tdTokens.subscribe((change) => {
-        if (!tdTokens.read()) {
-          if (userIdRef.current) endSession(SESSION_ENDED);
+      tdTokens.subscribe(() => {
+        const stored = tdTokens.read()?.generation ?? null;
+        if (stored === activeGeneration.current) return;
+        if (stored !== null && stored === endedGeneration.current) return;
+        if (stored === null) {
+          becomeAnonymous(SESSION_ENDED);
           return;
         }
-        const storedId = tdTokens.readStaffId();
-        // null means a sign-in is in progress; its staff id write arrives next.
-        if (change !== 'staff' || !storedId || storedId === userIdRef.current) return;
+        // Someone else's session: drop the old identity and its data before revalidating.
+        activeGeneration.current = null;
         queryClient.clear();
-        userIdRef.current = null;
         setState({ status: 'loading', user: null, notice: null });
         void resolveIdentity();
       }),
-    [endSession, queryClient, resolveIdentity],
+    [becomeAnonymous, queryClient, resolveIdentity],
   );
 
   useEffect(() => {
@@ -107,41 +119,60 @@ export function TdAuthProvider({ children }: { children: ReactNode }) {
     const id = setInterval(() => {
       const session = tdTokens.read();
       // A terminal outcome clears the store, which the subscription above turns into a sign-out.
-      if (session && nearExpiry(session)) void tdRefresh.refresh();
+      if (session && nearExpiry(session)) void tdRefresh.refresh({ generation: activeGeneration.current });
     }, RENEW_CHECK_INTERVAL_MS);
     return () => clearInterval(id);
   }, [state.status]);
 
   const login = useCallback(
     async (email: string, password: string) => {
-      const session = await tdApi.login(email, password);
+      const tokens = await tdApi.login(email, password);
+      const generation = newGeneration();
+      // Set first, so our own commit below is not mistaken for another tab's sign-in.
+      activeGeneration.current = generation;
+      endedGeneration.current = null;
       queryClient.clear();
-      userIdRef.current = null;
-      tdTokens.writeStaffId(null);
-      tdTokens.write(session);
-      let me: TdStaff;
       try {
-        me = await tdApi.me();
+        const replaced = await withSessionLock(() => {
+          const previous = tdTokens.read();
+          tdTokens.replace({ ...tokens, generation, staffId: null, refreshPendingSince: null });
+          return previous;
+        });
+        if (replaced) void tdApi.logout(replaced.refreshToken);
+        const me = await tdApi.me({ generation });
+        const committed = await withSessionLock(() => tdTokens.update(generation, { staffId: me.id }));
+        if (!committed || activeGeneration.current !== generation) {
+          throw new TdApiError(0, SESSION_CHANGED, 'Another sign-in replaced this one');
+        }
+        setState({ status: 'authenticated', user: me, notice: null });
+        return me;
       } catch (error) {
-        tdTokens.clear();
+        if (activeGeneration.current === generation) {
+          tdTokens.clear(generation);
+          becomeAnonymous(null);
+        }
         throw error;
       }
-      userIdRef.current = me.id;
-      tdTokens.writeStaffId(me.id);
-      setState({ status: 'authenticated', user: me, notice: null });
-      return me;
     },
-    [queryClient],
+    [becomeAnonymous, queryClient],
   );
 
   const logout = useCallback(async () => {
-    // The revoke request has already read the token, so the local session ends
-    // now instead of waiting on the network; revoking stays best effort.
-    const revoke = tdApi.logout().catch(() => undefined);
-    tdTokens.clear();
-    endSession(null);
+    const session = tdTokens.read();
+    endedGeneration.current = session?.generation ?? null;
+    // The UI and cached data go now; the storage commit may wait for an in-flight refresh.
+    becomeAnonymous(null);
+    if (!session) return;
+    const revoke = tdApi.logout(session.refreshToken);
+    try {
+      await withSessionLock(() => tdTokens.clear(session.generation));
+    } catch {
+      // Lock wait timed out behind a stuck refresh: clearing this generation anyway is still safe.
+      tdTokens.clear(session.generation);
+    }
+    if (endedGeneration.current === session.generation) endedGeneration.current = null;
     await revoke;
-  }, [endSession]);
+  }, [becomeAnonymous]);
 
   const retry = useCallback(() => {
     setState((previous) => ({ ...previous, status: 'loading' }));

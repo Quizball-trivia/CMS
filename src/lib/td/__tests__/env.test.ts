@@ -1,41 +1,77 @@
 import { describe, expect, it } from 'vitest';
-import { resolveTdConfig } from '../env';
+import { resolveTdConfig, tdContentSecurityPolicy } from '../env';
 
 const TD = { NEXT_PUBLIC_CMS_WORKSPACE: 'table-derby' };
+const HOSTED = { ...TD, VERCEL: '1' };
 
 describe('resolveTdConfig', () => {
   it('is inert in the Quizball workspace, whatever else is set', () => {
-    expect(resolveTdConfig({ NEXT_PUBLIC_TD_API_MOCK: '1', NEXT_PUBLIC_CMS_ENV: 'PROD' })).toEqual({ deployEnv: 'local', apiUrl: '', mock: false });
-  });
-
-  it('allows the mock API outside production', () => {
-    expect(resolveTdConfig({ ...TD, NEXT_PUBLIC_TD_API_MOCK: '1' })).toMatchObject({ mock: true, deployEnv: 'local' });
-    expect(resolveTdConfig({ ...TD, NEXT_PUBLIC_TD_API_MOCK: '1', NEXT_PUBLIC_CMS_ENV: 'STAGING' })).toMatchObject({ mock: true, deployEnv: 'staging' });
-    expect(resolveTdConfig({ ...TD, NEXT_PUBLIC_TD_API_MOCK: '1', VERCEL_ENV: 'preview' })).toMatchObject({ mock: true });
-  });
-
-  it.each([
-    { NEXT_PUBLIC_CMS_ENV: 'PROD' },
-    { NEXT_PUBLIC_CMS_ENV: 'prod' },
-    { VERCEL_ENV: 'production' },
-    { NEXT_PUBLIC_VERCEL_ENV: 'production' },
-  ])('refuses the mock API in production (%o)', (env) => {
-    expect(() => resolveTdConfig({ ...TD, NEXT_PUBLIC_TD_API_MOCK: '1', ...env })).toThrow(/not allowed in a production/);
-  });
-
-  it('needs an API URL unless mocked', () => {
-    expect(() => resolveTdConfig(TD)).toThrow(/NEXT_PUBLIC_TD_API_URL/);
-    expect(resolveTdConfig({ ...TD, NEXT_PUBLIC_TD_API_URL: 'https://api.example.test/' })).toEqual({
+    expect(resolveTdConfig({ NEXT_PUBLIC_TD_API_MOCK: ' 1 ', NEXT_PUBLIC_CMS_ENV: 'PRODUCTION', VERCEL: '1' })).toEqual({
       deployEnv: 'local',
-      apiUrl: 'https://api.example.test',
+      apiUrl: '',
+      apiOrigin: null,
       mock: false,
     });
   });
 
-  it('needs https in production', () => {
-    expect(() => resolveTdConfig({ ...TD, NEXT_PUBLIC_CMS_ENV: 'PROD', NEXT_PUBLIC_TD_API_URL: 'http://api.example.test' })).toThrow(/https/);
-    expect(resolveTdConfig({ ...TD, NEXT_PUBLIC_CMS_ENV: 'PROD', NEXT_PUBLIC_TD_API_URL: 'https://api.example.test' })).toMatchObject({
-      deployEnv: 'production',
+  it('allows the mock API on the staging project, including its Vercel production slot', () => {
+    expect(resolveTdConfig({ ...HOSTED, NEXT_PUBLIC_CMS_ENV: 'STAGING', VERCEL_ENV: 'production', NEXT_PUBLIC_TD_API_MOCK: '1' })).toMatchObject({
+      deployEnv: 'staging',
+      mock: true,
+      apiOrigin: null,
     });
+    expect(resolveTdConfig({ ...TD, NEXT_PUBLIC_TD_API_MOCK: '1' })).toMatchObject({ deployEnv: 'local', mock: true });
+  });
+
+  it('always refuses the mock API for PROD', () => {
+    expect(() => resolveTdConfig({ ...HOSTED, NEXT_PUBLIC_CMS_ENV: 'PROD', NEXT_PUBLIC_TD_API_MOCK: '1' })).toThrow(/not allowed/);
+    expect(() => resolveTdConfig({ ...TD, NEXT_PUBLIC_CMS_ENV: 'PROD', NEXT_PUBLIC_TD_API_MOCK: '1' })).toThrow(/not allowed/);
+  });
+
+  it.each(['PRODUCTION', 'prod', 'Staging', ' PROD', 'local'])('refuses the unknown product environment %j', (value) => {
+    expect(() => resolveTdConfig({ ...TD, NEXT_PUBLIC_CMS_ENV: value, NEXT_PUBLIC_TD_API_MOCK: '1' })).toThrow(/NEXT_PUBLIC_CMS_ENV/);
+  });
+
+  it('requires an explicit product environment on hosted builds', () => {
+    expect(() => resolveTdConfig({ ...HOSTED, NEXT_PUBLIC_TD_API_MOCK: '1' })).toThrow(/must set NEXT_PUBLIC_CMS_ENV/);
+  });
+
+  it.each([' 1 ', 'true', 'yes', '01', '1\n'])('refuses the non-canonical mock flag %j', (value) => {
+    expect(() => resolveTdConfig({ ...TD, NEXT_PUBLIC_TD_API_MOCK: value })).toThrow(/"1", "0" or unset/);
+  });
+
+  it('treats "0" and an empty flag as off', () => {
+    const real = { NEXT_PUBLIC_TD_API_URL: 'https://api.example.test' };
+    expect(resolveTdConfig({ ...TD, ...real, NEXT_PUBLIC_TD_API_MOCK: '0' })).toMatchObject({ mock: false });
+    expect(resolveTdConfig({ ...TD, ...real, NEXT_PUBLIC_TD_API_MOCK: '' })).toMatchObject({ mock: false });
+  });
+
+  it('needs a valid API URL unless mocked, https outside local development', () => {
+    expect(() => resolveTdConfig(TD)).toThrow(/NEXT_PUBLIC_TD_API_URL/);
+    expect(() => resolveTdConfig({ ...TD, NEXT_PUBLIC_TD_API_URL: 'not a url' })).toThrow(/not a valid URL/);
+    expect(() => resolveTdConfig({ ...HOSTED, NEXT_PUBLIC_CMS_ENV: 'PROD', NEXT_PUBLIC_TD_API_URL: 'http://api.example.test' })).toThrow(/https/);
+    expect(() => resolveTdConfig({ ...HOSTED, NEXT_PUBLIC_CMS_ENV: 'STAGING', NEXT_PUBLIC_TD_API_URL: 'http://api.example.test' })).toThrow(/https/);
+    expect(resolveTdConfig({ ...TD, NEXT_PUBLIC_TD_API_URL: 'http://localhost:8080/' })).toMatchObject({
+      apiUrl: 'http://localhost:8080',
+      apiOrigin: 'http://localhost:8080',
+    });
+    expect(resolveTdConfig({ ...HOSTED, NEXT_PUBLIC_CMS_ENV: 'PROD', NEXT_PUBLIC_TD_API_URL: 'https://api.example.test/v1/' })).toEqual({
+      deployEnv: 'production',
+      apiUrl: 'https://api.example.test/v1',
+      apiOrigin: 'https://api.example.test',
+      mock: false,
+    });
+  });
+});
+
+describe('tdContentSecurityPolicy', () => {
+  it('lets the browser connect only to the CMS itself and the TD API', () => {
+    const config = resolveTdConfig({ ...HOSTED, NEXT_PUBLIC_CMS_ENV: 'PROD', NEXT_PUBLIC_TD_API_URL: 'https://api.example.test/v1' });
+    expect(tdContentSecurityPolicy(config)).toBe("connect-src 'self' https://api.example.test");
+  });
+
+  it('allows only the CMS itself when mocked', () => {
+    const config = resolveTdConfig({ ...HOSTED, NEXT_PUBLIC_CMS_ENV: 'STAGING', NEXT_PUBLIC_TD_API_MOCK: '1' });
+    expect(tdContentSecurityPolicy(config)).toBe("connect-src 'self'");
   });
 });

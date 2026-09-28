@@ -1,147 +1,199 @@
 import { describe, expect, it, vi } from 'vitest';
-import { createStorageLock, createWebLocksLock, type CrossTabLock } from '../cross-tab-lock';
-import { createRefreshCoordinator } from '../refresh-coordinator';
-import { createTokenStore, TD_STORAGE_KEYS, type TdSession } from '../token-store';
-import { createFakeLockManager, deferred, MemoryStorage, session, sleep } from './helpers';
+import { createWebLocksLock, type CrossTabLock } from '../cross-tab-lock';
+import { createRefreshCoordinator, ROTATION_RECOVERY_MS } from '../refresh-coordinator';
+import { createTokenStore, type TdTokenSet } from '../token-store';
+import { createFakeLockManager, deferred, MemoryStorage, session, sleep, tokenSet } from './helpers';
 
-function storageLock(storage: Storage, owner: string): CrossTabLock {
-  return createStorageLock({
-    storage: () => storage,
-    key: TD_STORAGE_KEYS.refreshLock,
-    owner,
-    ttlMs: 5_000,
-    pollMs: 2,
-    settleMs: 1,
-    waitMs: 2_000,
-  });
+interface TabOptions {
+  requestRefresh: (refreshToken: string) => Promise<TdTokenSet>;
+  now?: () => number;
+  isOnline?: () => boolean;
 }
 
-/** One browser tab: its own coordinator and token store over the shared localStorage. */
-function openTab(storage: Storage, lock: CrossTabLock, requestRefresh: (refreshToken: string) => Promise<TdSession>) {
-  const tokens = createTokenStore(() => storage, null);
-  return { tokens, coordinator: createRefreshCoordinator({ tokens, lock, requestRefresh }) };
+/** A browser origin: one localStorage and one Web Locks manager shared by its tabs. */
+function origin() {
+  const storage = new MemoryStorage();
+  const locks = createFakeLockManager();
+  const openTab = ({ requestRefresh, now, isOnline }: TabOptions) => {
+    const tokens = createTokenStore(() => storage, null);
+    const lock: CrossTabLock = createWebLocksLock('td-session', locks, 2_000);
+    return { tokens, lock, coordinator: createRefreshCoordinator({ tokens, lock: () => lock, requestRefresh, now, isOnline }) };
+  };
+  return { storage, openTab };
 }
 
 describe('refresh coordinator', () => {
   it('makes exactly one network refresh for concurrent callers in one tab', async () => {
-    const storage = new MemoryStorage();
-    const network = vi.fn(async () => {
+    const { openTab } = origin();
+    const network = vi.fn(async (refreshToken: string) => {
       await sleep(5);
-      return session('access-2', 'refresh-2');
+      return tokenSet('access-2', refreshToken.replace('1', '2'));
     });
-    const tab = openTab(storage, storageLock(storage, 'tab-a'), network);
-    tab.tokens.write(session('access-1', 'refresh-1'));
+    const tab = openTab({ requestRefresh: network });
+    tab.tokens.replace(session('gen-a', 'access-1', 'refresh-1'));
 
-    const outcomes = await Promise.all(Array.from({ length: 5 }, () => tab.coordinator.refresh()));
+    const outcomes = await Promise.all(Array.from({ length: 5 }, () => tab.coordinator.refresh({ generation: 'gen-a' })));
 
     expect(outcomes).toEqual(['ok', 'ok', 'ok', 'ok', 'ok']);
     expect(network).toHaveBeenCalledTimes(1);
-    expect(network).toHaveBeenCalledWith('refresh-1');
-    expect(tab.tokens.read()).toMatchObject({ accessToken: 'access-2', refreshToken: 'refresh-2' });
+    expect(tab.tokens.read()).toMatchObject({ generation: 'gen-a', accessToken: 'access-2', refreshToken: 'refresh-2' });
   });
 
-  it('refreshes again once the previous refresh has settled', async () => {
-    const storage = new MemoryStorage();
-    let n = 1;
-    const network = vi.fn(async (refreshToken: string) => {
-      n += 1;
-      return session(`access-${n}`, refreshToken.replace(/\d+$/, String(n)));
+  it('lets exactly one of two tabs refresh when both ask at the same moment', async () => {
+    const { openTab } = origin();
+    const network = vi.fn(async () => {
+      await sleep(10);
+      return tokenSet('access-2', 'refresh-2');
     });
-    const tab = openTab(storage, storageLock(storage, 'tab-a'), network);
-    tab.tokens.write(session('access-1', 'refresh-1'));
+    const tabA = openTab({ requestRefresh: network });
+    const tabB = openTab({ requestRefresh: network });
+    tabA.tokens.replace(session('gen-a', 'access-1', 'refresh-1'));
 
-    await tab.coordinator.refresh();
-    await tab.coordinator.refresh();
+    const outcomes = await Promise.all([tabA.coordinator.refresh(), tabB.coordinator.refresh()]);
 
-    expect(network.mock.calls.map(([token]) => token)).toEqual(['refresh-1', 'refresh-2']);
+    expect(outcomes).toEqual(['ok', 'ok']);
+    expect(network).toHaveBeenCalledTimes(1);
+    expect(tabB.tokens.read()).toMatchObject({ accessToken: 'access-2', refreshToken: 'refresh-2' });
   });
 
-  const webLocks = createFakeLockManager();
-  const lockFactories: Array<[string, (storage: Storage, owner: string) => CrossTabLock]> = [
-    ['localStorage lease', (storage, owner) => storageLock(storage, owner)],
-    ['Web Locks', () => createWebLocksLock('td-refresh', webLocks, 2_000)],
-  ];
-
-  it.each(lockFactories)('makes a second tab wait for the first and reuse its rotated token (%s)', async (_name, makeLock) => {
-    const storage = new MemoryStorage();
-    const response = deferred<TdSession>();
-    const network = vi.fn(() => response.promise);
-    const tabA = openTab(storage, makeLock(storage, 'tab-a'), network);
-    const tabB = openTab(storage, makeLock(storage, 'tab-b'), network);
-    tabA.tokens.write(session('access-1', 'refresh-1'));
+  it('makes a waiting tab reuse the rotated token instead of spending the old one', async () => {
+    const { openTab } = origin();
+    const answer = deferred<TdTokenSet>();
+    const network = vi.fn(() => answer.promise);
+    const tabA = openTab({ requestRefresh: network });
+    const tabB = openTab({ requestRefresh: network });
+    tabA.tokens.replace(session('gen-a', 'access-1', 'refresh-1'));
 
     const first = tabA.coordinator.refresh();
     await vi.waitFor(() => expect(network).toHaveBeenCalledTimes(1));
-
     let secondSettled = false;
     const second = tabB.coordinator.refresh().finally(() => {
       secondSettled = true;
     });
-    await sleep(30);
+    await sleep(20);
     expect(secondSettled).toBe(false);
 
-    response.resolve(session('access-2', 'refresh-2'));
-
+    answer.resolve(tokenSet('access-2', 'refresh-2'));
     await expect(first).resolves.toBe('ok');
     await expect(second).resolves.toBe('ok');
     expect(network).toHaveBeenCalledTimes(1);
-    expect(tabB.tokens.read()).toMatchObject({ accessToken: 'access-2', refreshToken: 'refresh-2' });
-    expect(storage.getItem(TD_STORAGE_KEYS.refreshLock)).toBeNull();
   });
 
-  it('takes over a lease left behind by a closed tab', async () => {
-    const storage = new MemoryStorage();
-    storage.setItem(TD_STORAGE_KEYS.refreshLock, JSON.stringify({ owner: 'closed-tab', expiresAt: Date.now() - 1 }));
-    const network = vi.fn(async () => session('access-2', 'refresh-2'));
-    const tab = openTab(storage, storageLock(storage, 'tab-a'), network);
-    tab.tokens.write(session('access-1', 'refresh-1'));
+  it('discards a refresh that answers after sign-out', async () => {
+    const { openTab } = origin();
+    const answer = deferred<TdTokenSet>();
+    const tab = openTab({ requestRefresh: () => answer.promise });
+    tab.tokens.replace(session('gen-a', 'access-1', 'refresh-1'));
 
-    await expect(tab.coordinator.refresh()).resolves.toBe('ok');
-    expect(network).toHaveBeenCalledTimes(1);
+    const pending = tab.coordinator.refresh({ generation: 'gen-a' });
+    await sleep(5);
+    tab.tokens.clear('gen-a');
+    answer.resolve(tokenSet('access-2', 'refresh-2'));
+
+    await expect(pending).resolves.toBe('superseded');
+    expect(tab.tokens.read()).toBeNull();
   });
 
-  it('skips the network when the refused access token has already been replaced', async () => {
-    const storage = new MemoryStorage();
-    const network = vi.fn(async () => session('access-3', 'refresh-3'));
-    const tab = openTab(storage, storageLock(storage, 'tab-a'), network);
-    tab.tokens.write(session('access-2', 'refresh-2'));
+  it("discards a refresh that answers after another user's sign-in", async () => {
+    const { openTab } = origin();
+    const answer = deferred<TdTokenSet>();
+    const tab = openTab({ requestRefresh: () => answer.promise });
+    tab.tokens.replace(session('gen-a', 'access-a', 'refresh-a'));
 
-    await expect(tab.coordinator.refresh({ staleAccessToken: 'access-1' })).resolves.toBe('ok');
+    const pending = tab.coordinator.refresh({ generation: 'gen-a' });
+    await sleep(5);
+    // Another tab signed in as B without waiting for this tab's lock (e.g. an older build).
+    tab.tokens.replace(session('gen-b', 'access-b', 'refresh-b', { staffId: 'staff-b' }));
+    answer.resolve(tokenSet('access-a2', 'refresh-a2'));
+
+    await expect(pending).resolves.toBe('superseded');
+    expect(tab.tokens.read()).toMatchObject({ generation: 'gen-b', accessToken: 'access-b', staffId: 'staff-b' });
+  });
+
+  it('refuses to refresh on behalf of a generation that is no longer stored', async () => {
+    const { openTab } = origin();
+    const network = vi.fn();
+    const tab = openTab({ requestRefresh: network });
+    tab.tokens.replace(session('gen-b', 'access-b', 'refresh-b'));
+
+    await expect(tab.coordinator.refresh({ generation: 'gen-a' })).resolves.toBe('superseded');
     expect(network).not.toHaveBeenCalled();
   });
 
-  it('clears the session when the API refuses the refresh token', async () => {
-    const storage = new MemoryStorage();
-    const network = vi.fn(async () => Promise.reject({ status: 401, code: 'refresh_token_reused' }));
-    const tab = openTab(storage, storageLock(storage, 'tab-a'), network);
-    tab.tokens.write(session('access-1', 'refresh-1'));
-    tab.tokens.writeStaffId('staff-1');
+  it('skips the network when the refused access token was already rotated in the same generation', async () => {
+    const { openTab } = origin();
+    const network = vi.fn();
+    const tab = openTab({ requestRefresh: network });
+    tab.tokens.replace(session('gen-a', 'access-2', 'refresh-2'));
+
+    await expect(tab.coordinator.refresh({ generation: 'gen-a', staleAccessToken: 'access-1' })).resolves.toBe('ok');
+    expect(network).not.toHaveBeenCalled();
+  });
+
+  it('clears only its own generation when the API refuses the refresh token', async () => {
+    const { openTab } = origin();
+    const tab = openTab({ requestRefresh: () => Promise.reject({ status: 401, code: 'refresh_token_reused' }) });
+    tab.tokens.replace(session('gen-a', 'access-1', 'refresh-1'));
 
     await expect(tab.coordinator.refresh()).resolves.toBe('terminal');
     expect(tab.tokens.read()).toBeNull();
-    expect(tab.tokens.readStaffId()).toBeNull();
   });
 
-  it.each([
-    ['a network failure', new TypeError('Failed to fetch')],
-    ['a server error', { status: 503 }],
-    ['rate limiting', { status: 429 }],
-  ])('keeps the session after %s', async (_name, failure) => {
-    const storage = new MemoryStorage();
-    const network = vi.fn(async () => Promise.reject(failure));
-    const tab = openTab(storage, storageLock(storage, 'tab-a'), network);
-    tab.tokens.write(session('access-1', 'refresh-1'));
+  describe('rotation recovery', () => {
+    it('retries an unanswered refresh with the same token inside the window', async () => {
+      const { openTab } = origin();
+      let clock = 1_000_000;
+      const network = vi
+        .fn<(refreshToken: string) => Promise<TdTokenSet>>()
+        .mockRejectedValueOnce(new TypeError('Failed to fetch'))
+        .mockResolvedValueOnce(tokenSet('access-2', 'refresh-2'));
+      const tab = openTab({ requestRefresh: network, now: () => clock });
+      tab.tokens.replace(session('gen-a', 'access-1', 'refresh-1'));
 
-    await expect(tab.coordinator.refresh()).resolves.toBe('transient');
-    expect(tab.tokens.read()).toMatchObject({ refreshToken: 'refresh-1' });
+      await expect(tab.coordinator.refresh()).resolves.toBe('transient');
+      expect(tab.tokens.read()).toMatchObject({ refreshToken: 'refresh-1', refreshPendingSince: 1_000_000 });
+
+      clock += ROTATION_RECOVERY_MS - 1_000;
+      await expect(tab.coordinator.refresh()).resolves.toBe('ok');
+      expect(network.mock.calls.map(([token]) => token)).toEqual(['refresh-1', 'refresh-1']);
+      expect(tab.tokens.read()).toMatchObject({ refreshToken: 'refresh-2', refreshPendingSince: null });
+    });
+
+    it('ends the session instead of spending a possibly rotated token after the window', async () => {
+      const { openTab } = origin();
+      let clock = 1_000_000;
+      const network = vi.fn().mockRejectedValue({ status: 503 });
+      const tab = openTab({ requestRefresh: network, now: () => clock });
+      tab.tokens.replace(session('gen-a', 'access-1', 'refresh-1'));
+
+      await expect(tab.coordinator.refresh()).resolves.toBe('transient');
+      clock += ROTATION_RECOVERY_MS + 1;
+      await expect(tab.coordinator.refresh()).resolves.toBe('terminal');
+
+      expect(network).toHaveBeenCalledTimes(1);
+      expect(tab.tokens.read()).toBeNull();
+    });
+
+    it('does not start the window while offline', async () => {
+      const { openTab } = origin();
+      const network = vi.fn();
+      const tab = openTab({ requestRefresh: network, isOnline: () => false });
+      tab.tokens.replace(session('gen-a', 'access-1', 'refresh-1'));
+
+      await expect(tab.coordinator.refresh()).resolves.toBe('transient');
+      expect(network).not.toHaveBeenCalled();
+      expect(tab.tokens.read()).toMatchObject({ refreshPendingSince: null });
+    });
   });
 
-  it('reports terminal without a network call when there is no session', async () => {
+  it('never refreshes without a cross-tab lock', async () => {
     const storage = new MemoryStorage();
+    const tokens = createTokenStore(() => storage, null);
     const network = vi.fn();
-    const tab = openTab(storage, storageLock(storage, 'tab-a'), network);
+    const coordinator = createRefreshCoordinator({ tokens, lock: () => null, requestRefresh: network });
+    tokens.replace(session('gen-a', 'access-1', 'refresh-1'));
 
-    await expect(tab.coordinator.refresh()).resolves.toBe('terminal');
+    await expect(coordinator.refresh()).resolves.toBe('transient');
     expect(network).not.toHaveBeenCalled();
   });
 });

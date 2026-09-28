@@ -1,11 +1,10 @@
 'use client';
 
 import { useState, type ReactNode } from 'react';
-import { usePathname } from 'next/navigation';
 import { LogOut, Menu } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet';
-import { tabForPath } from '@/lib/td/navigation';
+import type { TdTab } from '@/lib/td/navigation';
 import { useTdAuth } from '@/providers/td-auth-provider';
 import { TD_ROLE_LABELS, type TdStaff } from '@/types/td';
 import { TdEnvironmentBadge } from './td-environment-badge';
@@ -21,12 +20,10 @@ function initials(user: TdStaff): string {
     .join('');
 }
 
-export function TdShell({ user, children }: { user: TdStaff; children: ReactNode }) {
+export function TdShell({ user, activeTab, children }: { user: TdStaff; activeTab: TdTab | null; children: ReactNode }) {
   const { logout } = useTdAuth();
-  const pathname = usePathname();
   const [menuOpen, setMenuOpen] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
-  const tab = tabForPath(pathname);
 
   const signOut = async () => {
     setSigningOut(true);
@@ -40,7 +37,7 @@ export function TdShell({ user, children }: { user: TdStaff; children: ReactNode
           <TdWordmark />
         </div>
         <div className="flex-1 overflow-y-auto px-3 pb-6">
-          <TdNav role={user.role} />
+          <TdNav role={user.role} activeKey={activeTab?.key ?? null} />
         </div>
       </aside>
 
@@ -52,7 +49,7 @@ export function TdShell({ user, children }: { user: TdStaff; children: ReactNode
             <TdWordmark />
           </SheetHeader>
           <div className="overflow-y-auto px-3 pb-6">
-            <TdNav role={user.role} onNavigate={() => setMenuOpen(false)} />
+            <TdNav role={user.role} activeKey={activeTab?.key ?? null} onNavigate={() => setMenuOpen(false)} />
           </div>
         </SheetContent>
       </Sheet>
@@ -68,7 +65,7 @@ export function TdShell({ user, children }: { user: TdStaff; children: ReactNode
           >
             <Menu />
           </Button>
-          <p className="min-w-0 flex-1 truncate text-sm font-semibold text-(--td-text-2)">{tab?.label ?? 'Table Derby'}</p>
+          <p className="min-w-0 flex-1 truncate text-sm font-semibold text-(--td-text-2)">{activeTab?.label ?? 'Table Derby'}</p>
           <TdEnvironmentBadge className="hidden sm:flex" />
           <div className="flex items-center gap-3 border-l border-border pl-3">
             <span

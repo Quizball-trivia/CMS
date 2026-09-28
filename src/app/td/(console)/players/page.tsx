@@ -1,15 +1,14 @@
 import type { Metadata } from 'next';
 import { Search, Users } from 'lucide-react';
 import { Input } from '@/components/ui/input';
-import { TD_NOT_BUILT_YET, TdPageHeader, TdPlaceholderTable, TdSection } from '@/components/td/td-page';
+import { TD_NOT_BUILT_YET, TdTabPage, TdPlaceholderTable, TdSection } from '@/components/td/td-page';
 import { getTab } from '@/lib/td/navigation';
 
 export const metadata: Metadata = { title: getTab('players').label };
 
 export default function TdPlayersPage() {
   return (
-    <>
-      <TdPageHeader tabKey="players" />
+    <TdTabPage tab="players">
       <TdSection
         title="Players"
         actions={
@@ -26,6 +25,6 @@ export default function TdPlayersPage() {
           emptyBody={TD_NOT_BUILT_YET}
         />
       </TdSection>
-    </>
+    </TdTabPage>
   );
 }

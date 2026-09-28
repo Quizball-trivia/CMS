@@ -7,7 +7,10 @@ import { decideWorkspaceRoute } from '@/lib/workspace-guard';
 const NOT_FOUND_PATH = '/_workspace-not-found';
 
 export function proxy(request: NextRequest) {
-  const decision = decideWorkspaceRoute(request.nextUrl.pathname, WORKSPACE);
+  // Next rewrites /_next/data/<build>/<page>.json to the page URL before the proxy and marks it with this header.
+  const decision = decideWorkspaceRoute(request.nextUrl.pathname, WORKSPACE, {
+    dataRequest: request.headers.has('x-nextjs-data'),
+  });
   if (decision.type === 'redirect') {
     return NextResponse.redirect(new URL(decision.location, request.url));
   }

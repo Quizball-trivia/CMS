@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import { Inter, Geist_Mono } from "next/font/google";
 import { Providers } from "@/providers";
-import { TableDerbyRoot } from "@/providers/table-derby-root";
 import { WORKSPACE } from "@/lib/workspace";
 import "./globals.css";
 
@@ -33,11 +32,8 @@ export default function RootLayout({
       <body
         className={`${inter.variable} ${geistMono.variable} antialiased`}
       >
-        {WORKSPACE === "table-derby" ? (
-          <TableDerbyRoot>{children}</TableDerbyRoot>
-        ) : (
-          <Providers>{children}</Providers>
-        )}
+        {/* Chosen per build, not per path: a Table Derby build never mounts Quizball auth, not even on 404s. */}
+        {WORKSPACE === "table-derby" ? children : <Providers>{children}</Providers>}
       </body>
     </html>
   );

@@ -12,6 +12,8 @@ import { TD_STORAGE_KEYS } from './token-store';
 export const MOCK_PASSWORD = 'demo';
 const ACCESS_TTL_MS = 15 * 60_000;
 const REFRESH_TTL_MS = 12 * 60 * 60_000;
+/** Rotation recovery: the previous refresh token is answered with the same successor pair for this long. */
+export const MOCK_ROTATION_GRACE_MS = 30_000;
 
 export const MOCK_STAFF: readonly TdStaffMember[] = [
   { id: 'staff-editor', email: 'editor@demo.tablederby.test', name: 'Demo Editor', role: 'editor', status: 'active', lastSignInAt: '2026-09-27T08:40:00Z' },
@@ -26,8 +28,10 @@ const STAFF_VIEWERS: readonly TdRole[] = ['betsson_admin', 'ops'];
 interface RefreshRecord {
   staffId: string;
   family: string;
-  used: boolean;
   expiresAt: number;
+  /** Set when the token is rotated: when, and the pair it was exchanged for. */
+  rotatedAt: number | null;
+  successor: TdTokenResponse | null;
 }
 
 interface MockServerState {
@@ -94,7 +98,7 @@ export function createMockTdApi({ storage, now = Date.now, latencyMs = 120 }: Mo
     for (const [token, record] of Object.entries(state.refreshTokens)) {
       if (record.expiresAt <= now()) delete state.refreshTokens[token];
     }
-    state.refreshTokens[refreshToken] = { staffId, family, used: false, expiresAt: now() + REFRESH_TTL_MS };
+    state.refreshTokens[refreshToken] = { staffId, family, expiresAt: now() + REFRESH_TTL_MS, rotatedAt: null, successor: null };
     const claims: AccessClaims = { sub: staffId, fam: family, exp };
     return {
       accessToken: `mock-access.${btoa(JSON.stringify(claims))}.${randomToken('sig')}`,
@@ -134,26 +138,37 @@ export function createMockTdApi({ storage, now = Date.now, latencyMs = 120 }: Mo
       if (!record || record.expiresAt <= now() || state.revokedFamilies.includes(record.family)) {
         return error(401, 'invalid_refresh_token', 'Refresh token is not valid');
       }
-      if (record.used) {
+      if (record.successor) {
+        // The answer to the first exchange may have been lost: replay it, but only
+        // briefly and only while the successor itself has not been used.
+        const successor = state.refreshTokens[record.successor.refreshToken];
+        if (record.rotatedAt !== null && now() - record.rotatedAt <= MOCK_ROTATION_GRACE_MS && successor && !successor.successor) {
+          return json(200, record.successor);
+        }
         state.revokedFamilies.push(record.family);
         save(state);
         return error(401, 'refresh_token_reused', 'Refresh token was already used; the session is revoked');
       }
-      record.used = true;
       const tokens = issue(state, record.staffId, record.family);
+      record.rotatedAt = now();
+      record.successor = tokens;
       save(state);
       return json(200, tokens);
+    }
+
+    if (route === 'POST /admin/auth/logout') {
+      // Identified by any refresh token of the family, so it works after the access token has expired.
+      const record = state.refreshTokens[String(body?.refreshToken ?? '')];
+      if (!record) return error(401, 'invalid_refresh_token', 'Refresh token is not valid');
+      if (!state.revokedFamilies.includes(record.family)) state.revokedFamilies.push(record.family);
+      save(state);
+      return json(204, undefined);
     }
 
     const claims = readClaims(headers, state);
     const staff = claims && MOCK_STAFF.find((s) => s.id === claims.sub && s.status === 'active');
     if (!claims || !staff) return error(401, 'unauthorized', 'Missing or expired access token');
 
-    if (route === 'POST /admin/auth/logout') {
-      state.revokedFamilies.push(claims.fam);
-      save(state);
-      return json(204, undefined);
-    }
     if (route === 'GET /admin/me') {
       return json(200, { id: staff.id, email: staff.email, name: staff.name, role: staff.role });
     }

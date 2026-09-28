@@ -1,6 +1,7 @@
+import { logger } from '@/lib/logger';
 import type { TdApiErrorBody, TdStaff, TdTokenResponse } from '@/types/td';
 import type { RefreshCoordinator } from './refresh-coordinator';
-import { sessionFromResponse, type TdSession, type TdTokenStore } from './token-store';
+import { tokensFromResponse, type TdTokenSet, type TdTokenStore } from './token-store';
 
 const REQUEST_TIMEOUT_MS = 30_000;
 const AUTH_TIMEOUT_MS = 15_000;
@@ -19,6 +20,10 @@ export class TdApiError extends Error {
   }
 }
 
+/** The request belonged to a session that has since been signed out or replaced; it was cancelled. */
+export const SESSION_CHANGED = 'session_changed';
+const sessionChanged = () => new TdApiError(0, SESSION_CHANGED, 'The session changed; the request was cancelled');
+
 type Method = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
 
 interface SendOptions {
@@ -32,14 +37,25 @@ export interface TdTransport {
   send(method: Method, path: string, options?: SendOptions): Promise<Response>;
 }
 
+function combineSignals(signals: Array<AbortSignal | undefined>): AbortSignal | undefined {
+  const present = signals.filter((signal): signal is AbortSignal => Boolean(signal));
+  if (present.length <= 1) return present[0];
+  if (typeof AbortSignal.any === 'function') return AbortSignal.any(present);
+  // Safari before 17.4 has Web Locks but not AbortSignal.any.
+  const controller = new AbortController();
+  for (const signal of present) {
+    if (signal.aborted) controller.abort(signal.reason);
+    else signal.addEventListener('abort', () => controller.abort(signal.reason), { once: true });
+  }
+  return controller.signal;
+}
+
 export function createTransport(baseUrl: string, fetchImpl: typeof fetch): TdTransport {
   return {
     send(method, path, { body, accessToken, signal, timeoutMs = REQUEST_TIMEOUT_MS } = {}) {
       const headers: Record<string, string> = { Accept: 'application/json' };
       if (body !== undefined) headers['Content-Type'] = 'application/json';
       if (accessToken) headers.Authorization = `Bearer ${accessToken}`;
-      const timeout = AbortSignal.timeout(timeoutMs);
-      const combined = signal && typeof AbortSignal.any === 'function' ? AbortSignal.any([signal, timeout]) : signal ?? timeout;
       return fetchImpl(`${baseUrl}${path}`, {
         method,
         headers,
@@ -47,7 +63,7 @@ export function createTransport(baseUrl: string, fetchImpl: typeof fetch): TdTra
         // Staff auth is bearer-only; never send or accept cookies from the TD API.
         credentials: 'omit',
         cache: 'no-store',
-        signal: combined,
+        signal: combineSignals([signal, AbortSignal.timeout(timeoutMs)]),
       });
     },
   };
@@ -74,23 +90,34 @@ async function parse<T>(response: Response): Promise<T> {
   return (await response.json()) as T;
 }
 
-/** The network half of a refresh; only the refresh coordinator calls it. */
-export async function requestTokenRefresh(transport: TdTransport, refreshToken: string): Promise<TdSession> {
+/**
+ * The network half of a refresh; only the refresh coordinator calls it.
+ * Rotation recovery (see ROTATION_RECOVERY_MS) is what makes retrying an
+ * unanswered refresh with the same token safe.
+ */
+export async function requestTokenRefresh(transport: TdTransport, refreshToken: string): Promise<TdTokenSet> {
   const response = await transport.send('POST', '/admin/auth/refresh', {
     body: { refreshToken },
     timeoutMs: AUTH_TIMEOUT_MS,
   });
-  const session = sessionFromResponse(await parse<TdTokenResponse>(response));
-  if (!session) throw new TdApiError(502, 'invalid_token_response', 'The API returned an incomplete session');
-  return session;
+  const tokens = tokensFromResponse(await parse<TdTokenResponse>(response));
+  if (!tokens) throw new TdApiError(502, 'invalid_token_response', 'The API returned an incomplete session');
+  return tokens;
+}
+
+export interface TdRequestOptions {
+  signal?: AbortSignal;
+  /** Refuse to start unless this is still the stored session generation. */
+  generation?: string | null;
 }
 
 export interface TdApiClient {
-  get<T>(path: string, signal?: AbortSignal): Promise<T>;
-  post<T>(path: string, body?: unknown, signal?: AbortSignal): Promise<T>;
-  login(email: string, password: string): Promise<TdSession>;
-  logout(): Promise<void>;
-  me(signal?: AbortSignal): Promise<TdStaff>;
+  get<T>(path: string, options?: TdRequestOptions): Promise<T>;
+  post<T>(path: string, body?: unknown, options?: TdRequestOptions): Promise<T>;
+  login(email: string, password: string): Promise<TdTokenSet>;
+  /** Revokes the whole refresh family; true only when the API confirmed it. */
+  logout(refreshToken: string): Promise<boolean>;
+  me(options?: TdRequestOptions): Promise<TdStaff>;
 }
 
 export function createTdApiClient({
@@ -102,46 +129,85 @@ export function createTdApiClient({
   tokens: TdTokenStore;
   coordinator: RefreshCoordinator;
 }): TdApiClient {
-  async function authed<T>(method: Method, path: string, body?: unknown, signal?: AbortSignal): Promise<T> {
-    const usedToken = tokens.read()?.accessToken ?? null;
-    if (!usedToken) throw new TdApiError(401, 'not_signed_in', 'Not signed in');
+  // One abort controller per generation: signing out or in cancels everything
+  // the previous session still had in flight.
+  const cancellers = new Map<string, AbortController>();
+  tokens.subscribe(() => {
+    const live = tokens.read()?.generation;
+    for (const [generation, controller] of cancellers) {
+      if (generation !== live) {
+        controller.abort();
+        cancellers.delete(generation);
+      }
+    }
+  });
+  const cancellerFor = (generation: string) => {
+    let controller = cancellers.get(generation);
+    if (!controller) {
+      controller = new AbortController();
+      cancellers.set(generation, controller);
+    }
+    return controller.signal;
+  };
 
-    const response = await transport.send(method, path, { body, accessToken: usedToken, signal });
+  async function authed<T>(method: Method, path: string, body: unknown, options: TdRequestOptions = {}): Promise<T> {
+    const session = tokens.read();
+    if (options.generation && session?.generation !== options.generation) throw sessionChanged();
+    if (!session) throw new TdApiError(401, 'not_signed_in', 'Not signed in');
+
+    const { generation } = session;
+    const stillCurrent = () => tokens.read()?.generation === generation;
+    const signal = combineSignals([options.signal, cancellerFor(generation)]);
+    const send = async (accessToken: string) => {
+      try {
+        const response = await transport.send(method, path, { body, accessToken, signal });
+        if (!stillCurrent()) throw sessionChanged();
+        return response;
+      } catch (error) {
+        throw stillCurrent() ? error : sessionChanged();
+      }
+    };
+
+    const response = await send(session.accessToken);
     if (response.status !== 401) return parse<T>(response);
 
-    const outcome = await coordinator.refresh({ staleAccessToken: usedToken });
-    const retryToken = tokens.read()?.accessToken;
-    if (outcome !== 'ok' || !retryToken) {
-      throw outcome === 'transient'
-        ? new TdApiError(503, 'refresh_unavailable', 'Could not renew the session; try again')
-        : new TdApiError(401, 'session_expired', 'Your session has ended; sign in again');
-    }
+    const outcome = await coordinator.refresh({ generation, staleAccessToken: session.accessToken });
+    if (outcome === 'terminal') throw new TdApiError(401, 'session_expired', 'Your session has ended; sign in again');
+    const current = tokens.read();
+    // Never retry under someone else's sign-in.
+    if (outcome === 'superseded' || !current || current.generation !== generation) throw sessionChanged();
+    if (outcome === 'transient') throw new TdApiError(503, 'refresh_unavailable', 'Could not renew the session; try again');
     // Retried once: a second 401 is the API's answer, not a stale token.
-    return parse<T>(await transport.send(method, path, { body, accessToken: retryToken, signal }));
+    return parse<T>(await send(current.accessToken));
   }
 
   return {
-    get: (path, signal) => authed('GET', path, undefined, signal),
-    post: (path, body, signal) => authed('POST', path, body, signal),
+    get: (path, options) => authed('GET', path, undefined, options),
+    post: (path, body, options) => authed('POST', path, body, options),
 
     async login(email, password) {
       const response = await transport.send('POST', '/admin/auth/login', {
         body: { email, password },
         timeoutMs: AUTH_TIMEOUT_MS,
       });
-      const session = sessionFromResponse(await parse<TdTokenResponse>(response));
-      if (!session) throw new TdApiError(502, 'invalid_token_response', 'The API returned an incomplete session');
-      return session;
+      const tokens = tokensFromResponse(await parse<TdTokenResponse>(response));
+      if (!tokens) throw new TdApiError(502, 'invalid_token_response', 'The API returned an incomplete session');
+      return tokens;
     },
 
-    async logout() {
-      const accessToken = tokens.read()?.accessToken;
-      if (!accessToken) return;
-      // No refresh-and-retry: spending a refresh token just to revoke it is pointless.
-      const response = await transport.send('POST', '/admin/auth/logout', { accessToken, timeoutMs: AUTH_TIMEOUT_MS });
-      if (!response.ok && response.status !== 401) throw await toApiError(response);
+    async logout(refreshToken) {
+      // The refresh token, not the access token, identifies the family, so this
+      // still revokes the session after the access token has expired.
+      try {
+        const response = await transport.send('POST', '/admin/auth/logout', { body: { refreshToken }, timeoutMs: AUTH_TIMEOUT_MS });
+        if (response.ok) return true;
+        logger.warn('auth', 'Table Derby logout was not confirmed; the refresh family may still be valid', { status: response.status });
+      } catch (error) {
+        logger.warn('auth', 'Table Derby logout request failed', { error: error instanceof Error ? error.message : String(error) });
+      }
+      return false;
     },
 
-    me: (signal) => authed<TdStaff>('GET', '/admin/me', undefined, signal),
+    me: (options) => authed<TdStaff>('GET', '/admin/me', undefined, options),
   };
 }

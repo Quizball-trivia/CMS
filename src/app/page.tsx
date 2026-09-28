@@ -1,10 +1,13 @@
 'use client';
 
 import { useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { redirect, useRouter } from 'next/navigation';
 import { useAuth } from '@/providers';
 
 export default function HomePage() {
+  // Unreachable in a Table Derby build (the proxy redirects first); this covers prerendering.
+  // Folded at build time like the route-group guards.
+  if (process.env.NEXT_PUBLIC_CMS_WORKSPACE === 'table-derby') redirect('/td');
   const { isAuthenticated, isLoading } = useAuth();
   const router = useRouter();
 

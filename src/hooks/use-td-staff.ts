@@ -9,6 +9,6 @@ export const tdStaffKeys = {
 export function useTdStaff() {
   return useQuery({
     queryKey: tdStaffKeys.all,
-    queryFn: ({ signal }) => tdApi.get<TdStaffListResponse>('/admin/staff', signal),
+    queryFn: ({ signal }) => tdApi.get<TdStaffListResponse>('/admin/staff', { signal }),
   });
 }

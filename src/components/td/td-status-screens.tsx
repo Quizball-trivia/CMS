@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { Loader2, ShieldOff, WifiOff } from 'lucide-react';
+import { Globe, Loader2, ShieldOff, WifiOff } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { TD_ROOT } from '@/lib/workspace-guard';
 import { TdWordmark } from './td-wordmark';
@@ -43,6 +43,21 @@ export function TdAccessDenied() {
       <Button asChild variant="secondary" className="mt-2 rounded-lg">
         <Link href={TD_ROOT}>Back to the dashboard</Link>
       </Button>
+    </div>
+  );
+}
+
+export function TdUnsupportedBrowser() {
+  return (
+    <div className="flex min-h-screen flex-col items-center justify-center gap-5 px-6 text-center">
+      <TdWordmark size="lg" />
+      <div className="flex max-w-md flex-col items-center gap-2">
+        <Globe className="size-6 text-(--td-text-3)" />
+        <p className="font-semibold">This browser is not supported</p>
+        <p className="text-sm text-(--td-text-3)">
+          The Table Derby CMS needs a current version of Chrome, Edge, Safari or Firefox. Update your browser, then open this page again.
+        </p>
+      </div>
     </div>
   );
 }

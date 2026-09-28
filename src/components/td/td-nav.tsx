@@ -1,8 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
-import { TD_TAB_GROUP_LABELS, tabForPath, tabsForRole, type TdTab, type TdTabGroup } from '@/lib/td/navigation';
+import { TD_TAB_GROUP_LABELS, tabsForRole, type TdTab, type TdTabGroup, type TdTabKey } from '@/lib/td/navigation';
 import { cn } from '@/lib/utils';
 import type { TdRole } from '@/types/td';
 import { TD_TAB_ICONS } from './td-tab-icons';
@@ -13,9 +12,7 @@ function groupTabs(tabs: TdTab[]): Array<[TdTabGroup, TdTab[]]> {
   return [...groups.entries()];
 }
 
-export function TdNav({ role, onNavigate }: { role: TdRole; onNavigate?: () => void }) {
-  const pathname = usePathname();
-  const activeKey = tabForPath(pathname)?.key;
+export function TdNav({ role, activeKey, onNavigate }: { role: TdRole; activeKey: TdTabKey | null; onNavigate?: () => void }) {
 
   return (
     <nav aria-label="Table Derby" className="flex flex-col gap-5">
