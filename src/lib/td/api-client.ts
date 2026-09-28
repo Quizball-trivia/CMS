@@ -110,6 +110,13 @@ export async function requestTokenRefresh(
   return tokens;
 }
 
+/** Revokes a session's whole family by any of its refresh tokens (best
+ *  effort): the coordinator's answer to a refresh it gives up on. */
+export async function requestTokenRevoke(transport: TdTransport, refreshToken: string): Promise<boolean> {
+  const response = await transport.send('POST', '/admin/auth/logout', { body: { refreshToken }, timeoutMs: AUTH_TIMEOUT_MS });
+  return response.ok;
+}
+
 export interface TdRequestOptions {
   signal?: AbortSignal;
   /** Refuse to start unless this is still the stored session generation. */

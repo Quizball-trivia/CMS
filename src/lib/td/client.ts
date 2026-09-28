@@ -1,4 +1,4 @@
-import { createTdApiClient, createTransport, requestTokenRefresh } from './api-client';
+import { createTdApiClient, createTransport, requestTokenRefresh, requestTokenRevoke } from './api-client';
 import { createBrowserLock, type CrossTabLock } from './cross-tab-lock';
 import { resolveTdConfig } from './env';
 import { createRefreshCoordinator } from './refresh-coordinator';
@@ -44,6 +44,7 @@ export const tdRefresh = createRefreshCoordinator({
   tokens: tdTokens,
   refreshLock: tdRefreshLock,
   requestRefresh: (refreshToken, requestId) => requestTokenRefresh(transport, refreshToken, requestId),
+  revoke: (refreshToken) => requestTokenRevoke(transport, refreshToken),
 });
 
 export const tdApi = createTdApiClient({ transport, tokens: tdTokens, coordinator: tdRefresh });

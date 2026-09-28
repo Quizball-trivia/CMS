@@ -5,6 +5,7 @@ import { createOrigin, deferred, put, session, sleep, tokenSet } from './helpers
 
 interface TabOptions {
   requestRefresh: (refreshToken: string, requestId: string) => Promise<TdTokenSet>;
+  revoke?: (refreshToken: string) => Promise<unknown>;
   now?: () => number;
   isOnline?: () => boolean;
   onOnline?: (callback: () => void) => () => void;
@@ -170,6 +171,15 @@ describe('refresh coordinator', () => {
     expect(network).not.toHaveBeenCalled();
   });
 
+  it('revokes the session on the API when a refresh is refused', async () => {
+    const origin = createOrigin();
+    const revoke = vi.fn(async () => true);
+    const tab = openTab(origin, { requestRefresh: vi.fn().mockRejectedValue({ status: 401 }), revoke });
+    await put(tab.tokens, session('gen-a', 'access-1', 'refresh-1'));
+    await expect(tab.coordinator.refresh()).resolves.toBe('terminal');
+    expect(revoke).toHaveBeenCalledWith('refresh-1');
+  });
+
   describe('rotation recovery', () => {
     it('records the attempt before the request is sent', async () => {
       const origin = createOrigin();
@@ -206,8 +216,9 @@ describe('refresh coordinator', () => {
       const tokens = origin.store();
       // The browser released the dead tab's refresh lock; its storage stays.
       const refreshLock = createOrigin().lock('td-refresh');
-      const survivor = createRefreshCoordinator({ tokens, refreshLock: () => refreshLock, requestRefresh: network, now: () => clock.now });
-      return { outcome: await survivor.refresh(), network, tokens, sent };
+      const revoke = vi.fn(async () => true);
+      const survivor = createRefreshCoordinator({ tokens, refreshLock: () => refreshLock, requestRefresh: network, revoke, now: () => clock.now });
+      return { outcome: await survivor.refresh(), network, tokens, sent, revoke };
     }
 
     it('after a tab dies mid-request, another tab retries the same token inside the window', async () => {
@@ -220,10 +231,12 @@ describe('refresh coordinator', () => {
     });
 
     it('after a tab dies mid-request, another tab ends the session past the window instead of spending the token', async () => {
-      const { outcome, network, tokens } = await afterDeadTab(ROTATION_RECOVERY_MS + 6_000);
+      const { outcome, network, tokens, revoke } = await afterDeadTab(ROTATION_RECOVERY_MS + 6_000);
       expect(outcome).toBe('terminal');
       expect(network).not.toHaveBeenCalled();
       expect(tokens.read()).toBeNull();
+      // The dead tab's attempt may have gone through: whoever holds the successor can't go on.
+      expect(revoke).toHaveBeenCalledWith('refresh-1');
     });
 
     it('recovers promptly on its own after an unanswered refresh, keeping the first deadline', async () => {

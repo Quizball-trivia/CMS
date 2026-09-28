@@ -16,10 +16,11 @@ export type RefreshOutcome = 'ok' | 'terminal' | 'transient' | 'superseded';
  * unused, gets the same answer; later, while the successor is still unused,
  * the same request is refused without ending the session. A spent token under
  * any other request id, or again after its successor was used, revokes the
- * family. The client starts no retry
- * later than 25 s after its first attempt (recorded before the request is
- * sent, checked again just before sending) and gives each request 15 s; after
- * that it ends the session, so a dead API cannot hold a session in limbo.
+ * family. The client starts no retry later than 25 s after its first attempt
+ * (recorded before the request is sent, checked again just before sending)
+ * and gives each request 15 s; after that, or on a refusal, it ends the
+ * session and revokes it on the API (logout with the token): its successor
+ * may be in someone else's hands, so nobody can go on with it.
  */
 export const ROTATION_RECOVERY_MS = 25_000;
 const RECOVERY_DELAYS_MS = [1_000, 3_000, 6_000, 10_000];
@@ -39,6 +40,8 @@ export interface RefreshCoordinatorOptions {
   refreshLock: () => CrossTabLock | null;
   /** The only network refresh in the app. Rejects with `{ status }` when the API answers. */
   requestRefresh: (refreshToken: string, requestId: string) => Promise<TdTokenSet>;
+  /** Revokes the session's family (best effort); used when a refresh is given up. */
+  revoke?: (refreshToken: string) => Promise<unknown>;
   newRequestId?: () => string;
   now?: () => number;
   isOnline?: () => boolean;
@@ -75,6 +78,7 @@ export function createRefreshCoordinator({
   tokens,
   refreshLock,
   requestRefresh,
+  revoke = async () => {},
   newRequestId = () => crypto.randomUUID(),
   now = Date.now,
   isOnline = browserOnline,
@@ -112,6 +116,12 @@ export function createRefreshCoordinator({
     if (recovery && now() < recovery.deadline) void refresh({ generation: recovery.generation });
   });
 
+  /** A refresh given up with its token maybe spent on the API: the session is
+   *  revoked there too, so whoever might hold its successor can't go on with it. */
+  function abandon(refreshToken: string) {
+    void revoke(refreshToken).catch(() => {});
+  }
+
   async function spend(generation: string, seenRefreshToken: string): Promise<RefreshOutcome> {
     const plan = await tokens.transact<Plan>((tx) => {
       const current = tx.read();
@@ -121,6 +131,7 @@ export function createRefreshCoordinator({
       if (since !== null && now() - since > ROTATION_RECOVERY_MS) {
         // Recovery has run out of time (a product bound, see ROTATION_RECOVERY_MS): end the session.
         tx.clear(generation);
+        abandon(current.refreshToken);
         return { outcome: 'terminal' };
       }
       if (!isOnline()) {
@@ -143,6 +154,7 @@ export function createRefreshCoordinator({
     if (now() > plan.deadline) {
       stopRecovery(generation);
       await tokens.transact((tx) => tx.clear(generation));
+      abandon(plan.send);
       return 'terminal';
     }
 
@@ -157,6 +169,7 @@ export function createRefreshCoordinator({
       if (isRefusal(error)) {
         stopRecovery(generation);
         await tokens.transact((tx) => tx.clear(generation));
+        abandon(plan.send);
         return 'terminal';
       }
       // Unknown outcome: the API may have rotated the token and lost the answer.
