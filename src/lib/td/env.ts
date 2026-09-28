@@ -76,7 +76,26 @@ export function resolveTdConfig(env: TdEnvInput): TdConfig {
   return { deployEnv, apiUrl: raw.replace(/\/+$/, ''), apiOrigin: url.origin, mock };
 }
 
-/** Plan §13.4: the TD CMS may only talk to itself and the TD API. */
+/**
+ * Plan §13.4: the TD CMS may only talk to itself and the TD API. Staff tokens
+ * live in localStorage (shared across tabs), so the policy also keeps other
+ * sources out: no foreign scripts, images, frames or plugins, no framing of
+ * the CMS, and no `<base>` or form redirection. Next's inline bootstrap
+ * scripts still need 'unsafe-inline' until per-request nonces are added.
+ */
 export function tdContentSecurityPolicy(config: TdConfig): string {
-  return ['connect-src', "'self'", config.apiOrigin].filter(Boolean).join(' ');
+  const dev = config.deployEnv === 'local';
+  const directives: string[][] = [
+    ["default-src", "'self'"],
+    ["script-src", "'self'", "'unsafe-inline'", ...(dev ? ["'unsafe-eval'"] : [])],
+    ["style-src", "'self'", "'unsafe-inline'"],
+    ["img-src", "'self'", 'data:', 'blob:'],
+    ["font-src", "'self'", 'data:'],
+    ["connect-src", "'self'", ...(config.apiOrigin ? [config.apiOrigin] : []), ...(dev ? ['ws:'] : [])],
+    ["object-src", "'none'"],
+    ["base-uri", "'self'"],
+    ["form-action", "'self'"],
+    ["frame-ancestors", "'none'"],
+  ];
+  return directives.map((d) => d.join(' ')).join('; ');
 }

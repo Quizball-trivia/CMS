@@ -65,13 +65,27 @@ describe('resolveTdConfig', () => {
 });
 
 describe('tdContentSecurityPolicy', () => {
+  const directive = (policy: string, name: string) =>
+    policy.split('; ').find((d) => d.startsWith(`${name} `));
+
   it('lets the browser connect only to the CMS itself and the TD API', () => {
     const config = resolveTdConfig({ ...HOSTED, NEXT_PUBLIC_CMS_ENV: 'PROD', NEXT_PUBLIC_TD_API_URL: 'https://api.example.test/v1' });
-    expect(tdContentSecurityPolicy(config)).toBe("connect-src 'self' https://api.example.test");
+    expect(directive(tdContentSecurityPolicy(config), 'connect-src')).toBe("connect-src 'self' https://api.example.test");
   });
 
   it('allows only the CMS itself when mocked', () => {
     const config = resolveTdConfig({ ...HOSTED, NEXT_PUBLIC_CMS_ENV: 'STAGING', NEXT_PUBLIC_TD_API_MOCK: '1' });
-    expect(tdContentSecurityPolicy(config)).toBe("connect-src 'self'");
+    expect(directive(tdContentSecurityPolicy(config), 'connect-src')).toBe("connect-src 'self'");
+  });
+
+  it('keeps foreign scripts, images and framing out, and no eval outside local development', () => {
+    const config = resolveTdConfig({ ...HOSTED, NEXT_PUBLIC_CMS_ENV: 'PROD', NEXT_PUBLIC_TD_API_URL: 'https://api.example.test/v1' });
+    const policy = tdContentSecurityPolicy(config);
+    expect(directive(policy, 'default-src')).toBe("default-src 'self'");
+    expect(directive(policy, 'img-src')).toBe("img-src 'self' data: blob:");
+    expect(directive(policy, 'frame-ancestors')).toBe("frame-ancestors 'none'");
+    expect(directive(policy, 'object-src')).toBe("object-src 'none'");
+    expect(directive(policy, 'base-uri')).toBe("base-uri 'self'");
+    expect(directive(policy, 'script-src')).not.toContain('unsafe-eval');
   });
 });

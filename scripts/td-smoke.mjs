@@ -32,7 +32,16 @@ for (const path of ['/questions', '/login', '/api/bot-tuning', `/_next/data/${bu
   check(`${path.replace(buildId, '<build>')} is 404`, (await status(path)).code === 404);
 }
 const login = await status('/td/login');
-check('/td/login is 200 with the TD connect-src policy', login.code === 200 && login.csp === "connect-src 'self'", login.csp ?? 'no CSP');
+const policy = new Map((login.csp ?? '').split(';').map((d) => d.trim().split(/\s+/)).map(([name, ...values]) => [name, values.join(' ')]));
+check(
+  '/td/login is 200 with the TD policy (own connect-src, no framing, no foreign scripts)',
+  login.code === 200 &&
+    policy.get('connect-src') === "'self'" &&
+    policy.get('frame-ancestors') === "'none'" &&
+    policy.get('default-src') === "'self'" &&
+    !(policy.get('script-src') ?? '').includes('unsafe-eval'),
+  login.csp ?? 'no CSP',
+);
 
 const browser = await chromium.launch(process.env.CHROMIUM_PATH ? { executablePath: process.env.CHROMIUM_PATH } : {});
 const errors = [];

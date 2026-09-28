@@ -84,6 +84,8 @@ describe('decideWorkspaceRoute in table-derby mode', () => {
     '/td-archive',
     '/td/%2E%2E/questions',
     '/td/../questions',
+    '/_next/%2E%2E/questions',
+    '/__nextjs%2F..%2Fapi%2Fbot-tuning',
     '/%E0%A4%A',
     '/_next/data/build-1/td/settings.json',
     '/_next/data/build-1/td/team.json',

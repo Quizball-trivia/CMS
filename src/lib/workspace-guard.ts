@@ -50,9 +50,10 @@ export function decideWorkspaceRoute(
   }
 
   if (decoded === null) return NOT_FOUND;
+  // Encoded dot segments (`/td/%2E%2E/questions`, `/_next/%2E%2E/questions`)
+  // would otherwise pass the prefix checks, framework paths included.
+  if (decoded.split('/').some((segment) => segment === '.' || segment === '..')) return NOT_FOUND;
   if (isFrameworkPath(decoded)) return ALLOW;
   if (decoded === '/') return { type: 'redirect', location: TD_ROOT };
-  // Encoded dot segments (`/td/%2E%2E/questions`) would otherwise pass the prefix check.
-  if (decoded.split('/').some((segment) => segment === '.' || segment === '..')) return NOT_FOUND;
   return isTableDerbyPath(decoded) ? ALLOW : NOT_FOUND;
 }
