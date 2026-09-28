@@ -33,32 +33,40 @@ export function createRevoker({
   let delay = 1_000;
   let running = false;
 
+  // One storage record per pending token, so tabs never overwrite each other's.
+  const keyOf = (token: string) => `${TD_STORAGE_KEYS.pendingRevocations}:${token.slice(-24)}`;
   const read = (): string[] => {
-    try {
-      const value = JSON.parse(storage()?.getItem(TD_STORAGE_KEYS.pendingRevocations) ?? '[]') as unknown;
-      return Array.isArray(value) ? value.filter((v): v is string => typeof v === 'string') : [];
-    } catch {
-      return [];
-    }
-  };
-  const write = (tokens: string[]) => {
     const s = storage();
-    if (!s) return;
-    if (tokens.length) s.setItem(TD_STORAGE_KEYS.pendingRevocations, JSON.stringify(tokens));
-    else s.removeItem(TD_STORAGE_KEYS.pendingRevocations);
+    if (!s) return [];
+    const found: string[] = [];
+    try {
+      for (let i = 0; i < s.length; i++) {
+        const key = s.key(i);
+        const token = key?.startsWith(`${TD_STORAGE_KEYS.pendingRevocations}:`) ? s.getItem(key) : null;
+        if (token) found.push(token);
+      }
+    } catch {
+      // unreadable: nothing to retry
+    }
+    return found;
   };
+  const keep = (token: string) => storage()?.setItem(keyOf(token), token);
+  const forget = (token: string) => storage()?.removeItem(keyOf(token));
 
   async function drain(): Promise<void> {
     if (running) return;
     running = true;
     try {
-      for (const token of read()) {
-        const done = await send(token).catch(() => false);
-        if (!done) {
-          schedule();
-          return;
+      // Until nothing is left, including tokens queued while this ran.
+      for (let pending = read(); pending.length; pending = read()) {
+        for (const token of pending) {
+          const done = await send(token).catch(() => false);
+          if (!done) {
+            schedule();
+            return;
+          }
+          forget(token);
         }
-        write(read().filter((t) => t !== token));
       }
       delay = 1_000;
     } finally {
@@ -85,8 +93,7 @@ export function createRevoker({
 
   return {
     revoke(refreshToken) {
-      const pending = read();
-      if (!pending.includes(refreshToken)) write([...pending, refreshToken]);
+      keep(refreshToken);
       void drain();
     },
   };

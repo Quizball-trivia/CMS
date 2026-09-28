@@ -1,6 +1,7 @@
 import { logger } from '@/lib/logger';
 import type { TdApiErrorBody, TdStaff, TdTokenResponse } from '@/types/td';
 import type { RefreshCoordinator } from './refresh-coordinator';
+import type { Revoker } from './revoker';
 import { tokensFromResponse, type TdTokenSet, type TdTokenStore } from './token-store';
 
 const REQUEST_TIMEOUT_MS = 30_000;
@@ -137,10 +138,13 @@ export function createTdApiClient({
   transport,
   tokens,
   coordinator,
+  revoker,
 }: {
   transport: TdTransport;
   tokens: TdTokenStore;
   coordinator: RefreshCoordinator;
+  /** Takes over a logout the API did not confirm, retrying it until it does. */
+  revoker?: Revoker;
 }): TdApiClient {
   // One abort controller per generation: signing out or in cancels everything
   // the previous session still had in flight.
@@ -214,10 +218,15 @@ export function createTdApiClient({
       try {
         const response = await transport.send('POST', '/admin/auth/logout', { body: { refreshToken }, timeoutMs: AUTH_TIMEOUT_MS });
         if (response.ok) return true;
-        logger.warn('auth', 'Table Derby logout was not confirmed; the refresh family may still be valid', { status: response.status });
+        // Refused (the token is unknown or already ended): not a revocation, and asking again won't change that.
+        if (response.status === 401) return false;
+        logger.warn('auth', 'Table Derby logout was not confirmed; retrying until it is', { status: response.status });
       } catch (error) {
-        logger.warn('auth', 'Table Derby logout request failed', { error: error instanceof Error ? error.message : String(error) });
+        logger.warn('auth', 'Table Derby logout request failed; retrying until it goes through', {
+          error: error instanceof Error ? error.message : String(error),
+        });
       }
+      revoker?.revoke(refreshToken);
       return false;
     },
 

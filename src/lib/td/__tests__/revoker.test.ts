@@ -17,6 +17,10 @@ function memoryStorage(): Storage {
 }
 
 const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
+const pending = (storage: Storage) =>
+  Array.from({ length: storage.length }, (_, i) => storage.key(i)!)
+    .filter((k) => k.startsWith(`${TD_STORAGE_KEYS.pendingRevocations}:`))
+    .map((k) => storage.getItem(k));
 
 describe('revoker', () => {
   it('keeps a revocation the API did not confirm, and retries it until it does', async () => {
@@ -26,18 +30,18 @@ describe('revoker', () => {
     const revoker = createRevoker({ storage: () => storage, send, setTimer: (cb) => timers.push(cb) });
     revoker.revoke('refresh-1');
     await flush();
-    expect(storage.getItem(TD_STORAGE_KEYS.pendingRevocations)).toBe('["refresh-1"]');
+    expect(pending(storage)).toEqual(['refresh-1']);
     timers.shift()!();
     await flush();
     timers.shift()!();
     await flush();
     expect(send).toHaveBeenCalledTimes(3);
-    expect(storage.getItem(TD_STORAGE_KEYS.pendingRevocations)).toBeNull();
+    expect(pending(storage)).toEqual([]);
   });
 
   it('picks up revocations left before a reload, and retries at once when back online', async () => {
     const storage = memoryStorage();
-    storage.setItem(TD_STORAGE_KEYS.pendingRevocations, '["refresh-left"]');
+    storage.setItem(`${TD_STORAGE_KEYS.pendingRevocations}:refresh-left`, 'refresh-left');
     let online: () => void = () => {};
     const send = vi.fn().mockResolvedValueOnce(false).mockResolvedValue(true);
     createRevoker({
@@ -55,6 +59,20 @@ describe('revoker', () => {
     online();
     await flush();
     expect(send).toHaveBeenCalledTimes(2);
-    expect(storage.getItem(TD_STORAGE_KEYS.pendingRevocations)).toBeNull();
+    expect(pending(storage)).toEqual([]);
+  });
+
+  it('sends a token queued while another is on its way in the same drain', async () => {
+    const storage = memoryStorage();
+    let release: (v: boolean) => void = () => {};
+    const send = vi.fn((token: string) => (token === 'first' ? new Promise<boolean>((r) => (release = r)) : Promise.resolve(true)));
+    const revoker = createRevoker({ storage: () => storage, send, setTimer: () => 'timer' });
+    revoker.revoke('first');
+    revoker.revoke('second');
+    release(true);
+    await flush();
+    await flush();
+    expect(send.mock.calls.map(([t]) => t)).toEqual(['first', 'second']);
+    expect(pending(storage)).toEqual([]);
   });
 });

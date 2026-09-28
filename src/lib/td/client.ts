@@ -61,4 +61,4 @@ export const tdRefresh = createRefreshCoordinator({
   },
 });
 
-export const tdApi = createTdApiClient({ transport, tokens: tdTokens, coordinator: tdRefresh });
+export const tdApi = createTdApiClient({ transport, tokens: tdTokens, coordinator: tdRefresh, revoker: tdRevoker });
