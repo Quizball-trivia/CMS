@@ -81,10 +81,11 @@ export function resolveTdConfig(env: TdEnvInput): TdConfig {
  * live in localStorage (shared across tabs), so the policy also keeps other
  * sources out: no foreign scripts, images, frames or plugins, no framing of
  * the CMS, and no `<base>` or form redirection. Next's inline bootstrap
- * scripts still need 'unsafe-inline' until per-request nonces are added.
+ * scripts still need 'unsafe-inline' until per-request nonces are added;
+ * `next dev` also needs eval and its HMR socket.
  */
-export function tdContentSecurityPolicy(config: TdConfig): string {
-  const dev = config.deployEnv === 'local';
+export function tdContentSecurityPolicy(config: TdConfig, dev = process.env.NODE_ENV === 'development'): string {
+  // Development mode (next dev) needs eval and its HMR socket, whatever API the build talks to.
   const directives: string[][] = [
     ["default-src", "'self'"],
     ["script-src", "'self'", "'unsafe-inline'", ...(dev ? ["'unsafe-eval'"] : [])],

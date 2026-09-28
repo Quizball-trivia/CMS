@@ -74,13 +74,14 @@ describe('mock Table Derby API', () => {
     expect((await call('GET', '/admin/me', { token: second.body.accessToken })).status).toBe(401);
   });
 
-  it('revokes the family when the retry comes after the window', async () => {
-    const { login, refresh, advance } = mockApi();
+  it('refuses the same request after the window, and the session stands', async () => {
+    const { call, login, refresh, advance } = mockApi();
     const first = await login('ops@demo.tablederby.test');
     const second = await refresh(first.refreshToken, 'req-1');
     advance(61_000);
-    expect(await refresh(first.refreshToken, 'req-1')).toMatchObject({ status: 401, body: { code: 'refresh_token_reused' } });
-    expect((await refresh(second.body.refreshToken)).status).toBe(401);
+    expect(await refresh(first.refreshToken, 'req-1')).toMatchObject({ status: 401, body: { code: 'invalid_refresh_token' } });
+    expect((await call('GET', '/admin/me', { token: second.body.accessToken })).status).not.toBe(401);
+    expect((await refresh(second.body.refreshToken, 'req-2')).status).toBe(200);
   });
 
   it("revokes the family once a replayed token's successor has been used (i.e. an older token is replayed)", async () => {

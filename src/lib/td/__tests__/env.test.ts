@@ -88,4 +88,11 @@ describe('tdContentSecurityPolicy', () => {
     expect(directive(policy, 'base-uri')).toBe("base-uri 'self'");
     expect(directive(policy, 'script-src')).not.toContain('unsafe-eval');
   });
+
+  it('allows eval and the dev socket under next dev, whatever API the build uses', () => {
+    const config = resolveTdConfig({ ...HOSTED, NEXT_PUBLIC_CMS_ENV: 'STAGING', NEXT_PUBLIC_TD_API_MOCK: '1' });
+    const policy = tdContentSecurityPolicy(config, true);
+    expect(directive(policy, 'script-src')).toContain("'unsafe-eval'");
+    expect(directive(policy, 'connect-src')).toContain('ws:');
+  });
 });

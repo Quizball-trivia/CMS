@@ -13,11 +13,12 @@ export type RefreshOutcome = 'ok' | 'terminal' | 'transient' | 'superseded';
  * API contract (plan §13 notes): every refresh carries a request id, kept for
  * all its retries (and stored with the pending attempt, so another tab retries
  * with it). A retry of the same request within 60 s, while its successor is
- * unused, gets the same answer; any other reuse of a spent token revokes the
- * family. The client starts no retry later than 25 s after its first attempt
- * (recorded before the request is sent) and gives each request 15 s, so every
- * retry lands inside the window; after that it ends the session, so a dead API
- * cannot hold a session in limbo.
+ * unused, gets the same answer; later the same request is refused without
+ * ending the session (a delayed duplicate never revokes it). A spent token
+ * under any other request id revokes the family. The client starts no retry
+ * later than 25 s after its first attempt (recorded before the request is
+ * sent, checked again just before sending) and gives each request 15 s; after
+ * that it ends the session, so a dead API cannot hold a session in limbo.
  */
 export const ROTATION_RECOVERY_MS = 25_000;
 const RECOVERY_DELAYS_MS = [1_000, 3_000, 6_000, 10_000];
@@ -136,6 +137,12 @@ export function createRefreshCoordinator({
       if (plan.recoverUntil !== undefined) scheduleRecovery(generation, plan.recoverUntil);
       else if (plan.outcome !== 'transient') stopRecovery(generation);
       return plan.outcome;
+    }
+    // A tab paused between planning and sending must not send past the bound.
+    if (now() > plan.deadline) {
+      stopRecovery(generation);
+      await tokens.transact((tx) => tx.clear(generation));
+      return 'terminal';
     }
 
     try {

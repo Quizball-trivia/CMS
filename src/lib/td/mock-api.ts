@@ -149,20 +149,18 @@ export function createMockTdApi({ storage, now = Date.now, latencyMs = 120 }: Mo
       }
       const requestId = typeof body?.requestId === 'string' ? body.requestId : null;
       if (record.successor) {
-        // Rotation recovery: the answer may have been lost, so a retry of the same request
-        // (same request id) within 60 s, while the successor is unused, gets the same pair.
-        // Anything else is reuse: the whole family ends.
+        // Under another request id (or none): reuse, and the whole family ends.
+        if (requestId === null || record.rotatedBy !== requestId) {
+          state.revokedFamilies.push(record.family);
+          save(state);
+          return error(401, 'refresh_token_reused', 'Refresh token was already used; the session is revoked');
+        }
+        // The client's own request again (a retry, or the original arriving late): the same
+        // pair while the successor is unused and within 60 s; later, refused, session intact.
         const successor = state.refreshTokens[record.successor.refreshToken];
-        const retry =
-          requestId !== null &&
-          record.rotatedBy === requestId &&
-          successor !== undefined &&
-          !successor.successor &&
-          now() - (record.rotatedAt ?? 0) <= REFRESH_RETRY_MS;
+        const retry = successor !== undefined && !successor.successor && now() - (record.rotatedAt ?? 0) <= REFRESH_RETRY_MS;
         if (retry) return json(200, record.successor);
-        state.revokedFamilies.push(record.family);
-        save(state);
-        return error(401, 'refresh_token_reused', 'Refresh token was already used; the session is revoked');
+        return error(401, 'invalid_refresh_token', 'This refresh has already been answered');
       }
       const tokens = issue(state, record.staffId, record.family);
       record.successor = tokens;
