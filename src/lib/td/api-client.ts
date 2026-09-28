@@ -215,11 +215,19 @@ export function createTdApiClient({
     async logout(refreshToken) {
       // The refresh token, not the access token, identifies the family, so this
       // still revokes the session after the access token has expired.
+      // Kept before the request goes out: a page closed mid-request still retries it.
+      revoker?.remember(refreshToken);
       try {
         const response = await transport.send('POST', '/admin/auth/logout', { body: { refreshToken }, timeoutMs: AUTH_TIMEOUT_MS });
-        if (response.ok) return true;
+        if (response.ok) {
+          revoker?.forget(refreshToken);
+          return true;
+        }
         // Refused (the token is unknown or already ended): not a revocation, and asking again won't change that.
-        if (response.status === 401) return false;
+        if (response.status === 401) {
+          revoker?.forget(refreshToken);
+          return false;
+        }
         logger.warn('auth', 'Table Derby logout was not confirmed; retrying until it is', { status: response.status });
       } catch (error) {
         logger.warn('auth', 'Table Derby logout request failed; retrying until it goes through', {

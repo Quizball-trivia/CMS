@@ -62,6 +62,18 @@ describe('revoker', () => {
     expect(pending(storage)).toEqual([]);
   });
 
+  it('keeps a token remembered before a first attempt, so a new page retries it', async () => {
+    const storage = memoryStorage();
+    const first = createRevoker({ storage: () => storage, send: vi.fn(), setTimer: () => 'timer' });
+    first.remember('mid-request');
+    // The page closed before the attempt settled; the next page takes it over.
+    const send = vi.fn().mockResolvedValue(true);
+    createRevoker({ storage: () => storage, send, setTimer: () => 'timer' });
+    await flush();
+    expect(send).toHaveBeenCalledWith('mid-request');
+    expect(pending(storage)).toEqual([]);
+  });
+
   it('sends a token queued while another is on its way in the same drain', async () => {
     const storage = memoryStorage();
     let release: (v: boolean) => void = () => {};

@@ -8,7 +8,13 @@ import { TD_STORAGE_KEYS } from './token-store';
  * when the browser is back online, until the API answers; they survive a reload.
  */
 export interface Revoker {
+  /** Keeps the token and revokes it, retrying until the API answers. */
   revoke(refreshToken: string): void;
+  /** Keeps the token before a first attempt made elsewhere, so a page closed
+   *  mid-request still leaves it to retry. */
+  remember(refreshToken: string): void;
+  /** That attempt settled it. */
+  forget(refreshToken: string): void;
 }
 
 export interface RevokerOptions {
@@ -95,6 +101,12 @@ export function createRevoker({
     revoke(refreshToken) {
       keep(refreshToken);
       void drain();
+    },
+    remember(refreshToken) {
+      keep(refreshToken);
+    },
+    forget(refreshToken) {
+      forget(refreshToken);
     },
   };
 }
