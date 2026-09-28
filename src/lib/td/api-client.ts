@@ -93,8 +93,8 @@ async function parse<T>(response: Response): Promise<T> {
 /**
  * The network half of a refresh; only the refresh coordinator calls it.
  * Retrying an unanswered refresh as the same request (same token, same
- * `requestId`) is safe within the API's 30 s window (the contract in
- * refresh-coordinator.ts), which the coordinator's 25 s recovery bound stays inside.
+ * `requestId`) is safe within the API's 60 s window: the coordinator starts no
+ * retry after 25 s and each request times out after 15 s (refresh-coordinator.ts).
  */
 export async function requestTokenRefresh(
   transport: TdTransport,

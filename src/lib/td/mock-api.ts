@@ -12,8 +12,8 @@ import { TD_STORAGE_KEYS } from './token-store';
 export const MOCK_PASSWORD = 'demo';
 const ACCESS_TTL_MS = 15 * 60_000;
 const REFRESH_TTL_MS = 12 * 60 * 60_000;
-/** A lost refresh answer may be retried this long with the same token. */
-const REFRESH_RETRY_MS = 30_000;
+/** A lost refresh answer may be retried this long, as the same request. */
+const REFRESH_RETRY_MS = 60_000;
 
 export const MOCK_STAFF: readonly TdStaffMember[] = [
   { id: 'staff-editor', email: 'editor@demo.tablederby.test', name: 'Demo Editor', role: 'editor', status: 'active', lastSignInAt: '2026-09-27T08:40:00Z' },
@@ -150,7 +150,7 @@ export function createMockTdApi({ storage, now = Date.now, latencyMs = 120 }: Mo
       const requestId = typeof body?.requestId === 'string' ? body.requestId : null;
       if (record.successor) {
         // Rotation recovery: the answer may have been lost, so a retry of the same request
-        // (same request id) within 30 s, while the successor is unused, gets the same pair.
+        // (same request id) within 60 s, while the successor is unused, gets the same pair.
         // Anything else is reuse: the whole family ends.
         const successor = state.refreshTokens[record.successor.refreshToken];
         const retry =

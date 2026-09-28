@@ -56,7 +56,7 @@ describe('mock Table Derby API', () => {
     );
   });
 
-  it('answers a retry of the same refresh request within 30 s with the same pair', async () => {
+  it('answers a retry of the same refresh request within 60 s with the same pair', async () => {
     const { login, refresh, advance } = mockApi();
     const first = await login('ops@demo.tablederby.test');
     const lost = await refresh(first.refreshToken, 'req-1');
@@ -78,7 +78,7 @@ describe('mock Table Derby API', () => {
     const { login, refresh, advance } = mockApi();
     const first = await login('ops@demo.tablederby.test');
     const second = await refresh(first.refreshToken, 'req-1');
-    advance(31_000);
+    advance(61_000);
     expect(await refresh(first.refreshToken, 'req-1')).toMatchObject({ status: 401, body: { code: 'refresh_token_reused' } });
     expect((await refresh(second.body.refreshToken)).status).toBe(401);
   });

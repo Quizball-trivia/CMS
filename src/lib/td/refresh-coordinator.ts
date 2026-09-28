@@ -12,11 +12,12 @@ export type RefreshOutcome = 'ok' | 'terminal' | 'transient' | 'superseded';
 /**
  * API contract (plan §13 notes): every refresh carries a request id, kept for
  * all its retries (and stored with the pending attempt, so another tab retries
- * with it). A retry of the same request within 30 s, while its successor is
+ * with it). A retry of the same request within 60 s, while its successor is
  * unused, gets the same answer; any other reuse of a spent token revokes the
- * family. Retrying an unanswered refresh is therefore safe inside the window,
- * and the client gives up 25 s after its first attempt (recorded before the
- * request is sent) and ends the session, so no retry lands after it.
+ * family. The client starts no retry later than 25 s after its first attempt
+ * (recorded before the request is sent) and gives each request 15 s, so every
+ * retry lands inside the window; after that it ends the session, so a dead API
+ * cannot hold a session in limbo.
  */
 export const ROTATION_RECOVERY_MS = 25_000;
 const RECOVERY_DELAYS_MS = [1_000, 3_000, 6_000, 10_000];
