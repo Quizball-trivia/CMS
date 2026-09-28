@@ -114,7 +114,8 @@ export async function requestTokenRefresh(
  *  effort): the coordinator's answer to a refresh it gives up on. */
 export async function requestTokenRevoke(transport: TdTransport, refreshToken: string): Promise<boolean> {
   const response = await transport.send('POST', '/admin/auth/logout', { body: { refreshToken }, timeoutMs: AUTH_TIMEOUT_MS });
-  return response.ok;
+  // 401: the API no longer knows the token (already revoked or expired): nothing left to do.
+  return response.ok || response.status === 401;
 }
 
 export interface TdRequestOptions {

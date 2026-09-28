@@ -2,6 +2,7 @@ import { createTdApiClient, createTransport, requestTokenRefresh, requestTokenRe
 import { createBrowserLock, type CrossTabLock } from './cross-tab-lock';
 import { resolveTdConfig } from './env';
 import { createRefreshCoordinator } from './refresh-coordinator';
+import { createRevoker } from './revoker';
 import { browserStorage, createTokenStore } from './token-store';
 
 // Literal process.env reads: Next.js only inlines NEXT_PUBLIC_* written out in full.
@@ -40,11 +41,24 @@ export const tdRefreshLock = () => browserLock('td-refresh');
 
 export const tdTokens = createTokenStore(browserStorage, tdSessionLock);
 
+const tdRevoker = createRevoker({
+  storage: browserStorage,
+  send: (refreshToken) => requestTokenRevoke(transport, refreshToken),
+  onOnline: (callback) => {
+    if (typeof window === 'undefined') return () => {};
+    window.addEventListener('online', callback);
+    return () => window.removeEventListener('online', callback);
+  },
+});
+
 export const tdRefresh = createRefreshCoordinator({
   tokens: tdTokens,
   refreshLock: tdRefreshLock,
   requestRefresh: (refreshToken, requestId) => requestTokenRefresh(transport, refreshToken, requestId),
-  revoke: (refreshToken) => requestTokenRevoke(transport, refreshToken),
+  revoke: (refreshToken) => {
+    tdRevoker.revoke(refreshToken);
+    return Promise.resolve();
+  },
 });
 
 export const tdApi = createTdApiClient({ transport, tokens: tdTokens, coordinator: tdRefresh });

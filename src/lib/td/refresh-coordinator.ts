@@ -13,14 +13,14 @@ export type RefreshOutcome = 'ok' | 'terminal' | 'transient' | 'superseded';
  * API contract (plan §13 notes): every refresh carries a request id, kept for
  * all its retries (and stored with the pending attempt, so another tab retries
  * with it). A retry of the same request within 60 s, while its successor is
- * unused, gets the same answer; later, while the successor is still unused,
- * the same request is refused without ending the session. A spent token under
- * any other request id, or again after its successor was used, revokes the
+ * unused, gets the same answer; otherwise the same request is refused without
+ * ending the session. A spent token under any other request id revokes the
  * family. The client starts no retry later than 25 s after its first attempt
  * (recorded before the request is sent, checked again just before sending)
  * and gives each request 15 s; after that, or on a refusal, it ends the
- * session and revokes it on the API (logout with the token): its successor
- * may be in someone else's hands, so nobody can go on with it.
+ * session and revokes it on the API (logout with the token, retried until the
+ * API answers, across reloads): its successor may be in someone else's hands,
+ * so nobody can go on with it.
  */
 export const ROTATION_RECOVERY_MS = 25_000;
 const RECOVERY_DELAYS_MS = [1_000, 3_000, 6_000, 10_000];
@@ -102,7 +102,12 @@ export function createRefreshCoordinator({
     stopRecovery();
     const delay = RECOVERY_DELAYS_MS[Math.min(attempt, RECOVERY_DELAYS_MS.length - 1)];
     const wait = Math.min(delay, deadline - now());
-    if (wait <= 0) return;
+    // Out of time: one more pass (after this attempt has settled), which ends
+    // and revokes the session.
+    if (wait <= 0) {
+      setTimer(() => void refresh({ generation }), 0);
+      return;
+    }
     recovery = { generation, attempt, deadline, timer: null };
     const entry = recovery;
     entry.timer = setTimer(() => {

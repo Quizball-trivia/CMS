@@ -321,6 +321,27 @@ describe('refresh coordinator', () => {
       expect(timers.pending()).toBe(0);
     });
 
+    it('ends and revokes the session when recovery runs out while its last attempt was still out', async () => {
+      const origin = createOrigin();
+      const clock = { now: 1_000_000 };
+      const timers = manualTimers(clock);
+      const revoke = vi.fn(async () => true);
+      let fail: (reason: unknown) => void = () => {};
+      const network = vi.fn(() => new Promise<TdTokenSet>((_, reject) => (fail = reject)));
+      const tab = openTab(origin, { requestRefresh: network, revoke, now: () => clock.now, setTimer: timers.setTimer, clearTimer: timers.clearTimer });
+      await put(tab.tokens, session('gen-a', 'access-1', 'refresh-1'));
+      const pending = tab.coordinator.refresh();
+      await vi.waitFor(() => expect(network).toHaveBeenCalled());
+      // The only attempt times out long after the recovery bound.
+      clock.now += ROTATION_RECOVERY_MS + 10_000;
+      fail(new TypeError('timeout'));
+      await pending;
+      await timers.advance(0);
+      await sleep(20);
+      expect(tab.tokens.read()).toBeNull();
+      expect(revoke).toHaveBeenCalledWith('refresh-1');
+    });
+
     it('makes its last attempt at the deadline itself', async () => {
       const origin = createOrigin();
       const clock = { now: 1_000_000 };

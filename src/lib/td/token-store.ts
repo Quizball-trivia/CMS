@@ -10,6 +10,8 @@ export const TD_STORAGE_KEYS = {
    */
   cancelledPrefix: 'td_session_cancelled:',
   mockServer: 'td_mock_server',
+  /** Refresh tokens of sessions given up, whose revocation the API has not confirmed yet. */
+  pendingRevocations: 'td_pending_revocations',
 } as const;
 
 export interface TdTokenSet {
