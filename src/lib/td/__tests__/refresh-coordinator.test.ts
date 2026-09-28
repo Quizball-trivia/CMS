@@ -4,7 +4,7 @@ import type { TdTokenSet } from '../token-store';
 import { createOrigin, deferred, put, session, sleep, tokenSet } from './helpers';
 
 interface TabOptions {
-  requestRefresh: (refreshToken: string) => Promise<TdTokenSet>;
+  requestRefresh: (refreshToken: string, requestId: string) => Promise<TdTokenSet>;
   now?: () => number;
   isOnline?: () => boolean;
   onOnline?: (callback: () => void) => () => void;
@@ -189,7 +189,14 @@ describe('refresh coordinator', () => {
     async function afterDeadTab(elapsedMs: number) {
       const origin = createOrigin();
       const clock = { now: 1_000_000 };
-      const dying = openTab(origin, { requestRefresh: () => new Promise<TdTokenSet>(() => {}), now: () => clock.now });
+      let sent = '';
+      const dying = openTab(origin, {
+        requestRefresh: (_token, requestId) => {
+          sent = requestId;
+          return new Promise<TdTokenSet>(() => {});
+        },
+        now: () => clock.now,
+      });
       await put(dying.tokens, session('gen-a', 'access-1', 'refresh-1'));
       void dying.coordinator.refresh();
       await sleep(5);
@@ -200,13 +207,15 @@ describe('refresh coordinator', () => {
       // The browser released the dead tab's refresh lock; its storage stays.
       const refreshLock = createOrigin().lock('td-refresh');
       const survivor = createRefreshCoordinator({ tokens, refreshLock: () => refreshLock, requestRefresh: network, now: () => clock.now });
-      return { outcome: await survivor.refresh(), network, tokens };
+      return { outcome: await survivor.refresh(), network, tokens, sent };
     }
 
     it('after a tab dies mid-request, another tab retries the same token inside the window', async () => {
-      const { outcome, network, tokens } = await afterDeadTab(ROTATION_RECOVERY_MS - 5_000);
+      const { outcome, network, tokens, sent } = await afterDeadTab(ROTATION_RECOVERY_MS - 5_000);
       expect(outcome).toBe('ok');
-      expect(network).toHaveBeenCalledWith('refresh-1');
+      // As the same request: the API answers it again if the dead tab's attempt went through.
+      expect(sent).not.toBe('');
+      expect(network).toHaveBeenCalledWith('refresh-1', sent);
       expect(tokens.read()).toMatchObject({ refreshToken: 'refresh-2', refreshPendingSince: null });
     });
 
@@ -222,7 +231,7 @@ describe('refresh coordinator', () => {
       const clock = { now: 1_000_000 };
       const timers = manualTimers(clock);
       const network = vi
-        .fn<(refreshToken: string) => Promise<TdTokenSet>>()
+        .fn<(refreshToken: string, requestId: string) => Promise<TdTokenSet>>()
         .mockRejectedValueOnce(new TypeError('Failed to fetch'))
         .mockRejectedValueOnce({ status: 503 })
         .mockResolvedValueOnce(tokenSet('access-2', 'refresh-2'));
@@ -236,6 +245,7 @@ describe('refresh coordinator', () => {
 
       await timers.advance(3_000);
       expect(network.mock.calls.map(([token]) => token)).toEqual(['refresh-1', 'refresh-1', 'refresh-1']);
+      expect(new Set(network.mock.calls.map(([, requestId]) => requestId)).size).toBe(1);
       expect(tab.tokens.read()).toMatchObject({ accessToken: 'access-2', refreshToken: 'refresh-2', refreshPendingSince: null });
     });
 
@@ -265,7 +275,7 @@ describe('refresh coordinator', () => {
       let online = true;
       let backOnline: () => void = () => {};
       const network = vi
-        .fn<(refreshToken: string) => Promise<TdTokenSet>>()
+        .fn<(refreshToken: string, requestId: string) => Promise<TdTokenSet>>()
         .mockRejectedValueOnce(new TypeError('Failed to fetch'))
         .mockResolvedValueOnce(tokenSet('access-2', 'refresh-2'));
       const tab = openTab(origin, {
@@ -293,7 +303,7 @@ describe('refresh coordinator', () => {
       await sleep(10);
 
       expect(network).toHaveBeenCalledTimes(2);
-      expect(network).toHaveBeenLastCalledWith('refresh-1');
+      expect(network).toHaveBeenLastCalledWith('refresh-1', network.mock.calls[0]![1]);
       expect(tab.tokens.read()).toMatchObject({ accessToken: 'access-2', refreshPendingSince: null });
       expect(timers.pending()).toBe(0);
     });

@@ -43,7 +43,7 @@ export const tdTokens = createTokenStore(browserStorage, tdSessionLock);
 export const tdRefresh = createRefreshCoordinator({
   tokens: tdTokens,
   refreshLock: tdRefreshLock,
-  requestRefresh: (refreshToken) => requestTokenRefresh(transport, refreshToken),
+  requestRefresh: (refreshToken, requestId) => requestTokenRefresh(transport, refreshToken, requestId),
 });
 
 export const tdApi = createTdApiClient({ transport, tokens: tdTokens, coordinator: tdRefresh });

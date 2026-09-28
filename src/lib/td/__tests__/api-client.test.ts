@@ -14,7 +14,7 @@ function setup(handler: (path: string, init: RequestInit) => Promise<Response> |
   const coordinator = createRefreshCoordinator({
     tokens,
     refreshLock: () => refreshLock,
-    requestRefresh: (refreshToken) => requestTokenRefresh(transport, refreshToken),
+    requestRefresh: (refreshToken, requestId) => requestTokenRefresh(transport, refreshToken, requestId),
   });
   const api = createTdApiClient({ transport, tokens, coordinator });
   const calls = (path: string) => fetchMock.mock.calls.filter(([input]) => new URL(String(input)).pathname === path);

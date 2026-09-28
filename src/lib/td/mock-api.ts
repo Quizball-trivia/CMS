@@ -31,10 +31,9 @@ interface RefreshRecord {
   expiresAt: number;
   /** The pair this token was last exchanged for, once it has been presented. */
   successor: TdTokenResponse | null;
-  /** When it was first presented. */
+  /** When it was first presented, and by which request. */
   rotatedAt: number | null;
-  /** Retired unused: a retry of its parent replaced it (its answer was lost). */
-  superseded: boolean;
+  rotatedBy: string | null;
 }
 
 interface MockServerState {
@@ -107,7 +106,7 @@ export function createMockTdApi({ storage, now = Date.now, latencyMs = 120 }: Mo
       expiresAt: now() + REFRESH_TTL_MS,
       successor: null,
       rotatedAt: null,
-      superseded: false,
+      rotatedBy: null,
     };
     const claims: AccessClaims = { sub: staffId, fam: family, exp };
     return {
@@ -148,27 +147,27 @@ export function createMockTdApi({ storage, now = Date.now, latencyMs = 120 }: Mo
       if (!record || record.expiresAt <= now() || state.revokedFamilies.includes(record.family)) {
         return error(401, 'invalid_refresh_token', 'Refresh token is not valid');
       }
-      if (record.successor || record.superseded) {
-        // Rotation recovery: the answer may have been lost, so the token presented last
-        // may be retried within 30 s while its successor is unused. The retry gets a
-        // fresh pair and supersedes the undelivered one. Anything else (an older token,
-        // a superseded one, or a late retry) is reuse: the whole family ends.
-        const successor = record.successor ? state.refreshTokens[record.successor.refreshToken] : undefined;
+      const requestId = typeof body?.requestId === 'string' ? body.requestId : null;
+      if (record.successor) {
+        // Rotation recovery: the answer may have been lost, so a retry of the same request
+        // (same request id) within 30 s, while the successor is unused, gets the same pair.
+        // Anything else is reuse: the whole family ends.
+        const successor = state.refreshTokens[record.successor.refreshToken];
         const retry =
-          !record.superseded &&
+          requestId !== null &&
+          record.rotatedBy === requestId &&
           successor !== undefined &&
           !successor.successor &&
           now() - (record.rotatedAt ?? 0) <= REFRESH_RETRY_MS;
-        if (!retry) {
-          state.revokedFamilies.push(record.family);
-          save(state);
-          return error(401, 'refresh_token_reused', 'Refresh token was already used; the session is revoked');
-        }
-        successor.superseded = true;
+        if (retry) return json(200, record.successor);
+        state.revokedFamilies.push(record.family);
+        save(state);
+        return error(401, 'refresh_token_reused', 'Refresh token was already used; the session is revoked');
       }
       const tokens = issue(state, record.staffId, record.family);
       record.successor = tokens;
-      record.rotatedAt ??= now();
+      record.rotatedAt = now();
+      record.rotatedBy = requestId;
       save(state);
       return json(200, tokens);
     }

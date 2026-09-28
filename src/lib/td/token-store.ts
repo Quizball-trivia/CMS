@@ -30,6 +30,8 @@ export interface TdSession extends TdTokenSet {
   staffId: string | null;
   /** When the first attempt to spend `refreshToken` began (rotation recovery deadline); null otherwise. */
   refreshPendingSince: number | null;
+  /** The id of that refresh, sent with every retry of it (the API answers a retry of the same request again). */
+  refreshRequestId?: string | null;
 }
 
 export type TdSessionPatch = Partial<Omit<TdSession, 'generation'>>;
@@ -89,6 +91,7 @@ function parseSession(raw: string | null): TdSession | null {
       refreshToken: value.refreshToken,
       expiresAt: typeof value.expiresAt === 'number' ? value.expiresAt : null,
       refreshPendingSince: typeof value.refreshPendingSince === 'number' ? value.refreshPendingSince : null,
+      refreshRequestId: typeof value.refreshRequestId === 'string' ? value.refreshRequestId : null,
     };
   } catch {
     return null;

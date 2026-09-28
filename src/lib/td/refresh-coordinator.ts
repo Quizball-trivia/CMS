@@ -10,14 +10,13 @@ import type { TdTokenSet, TdTokenStore } from './token-store';
 export type RefreshOutcome = 'ok' | 'terminal' | 'transient' | 'superseded';
 
 /**
- * API contract (plan §13 notes): a refresh whose answer was lost may be retried
- * with the same token within 30 s, while its successor is unused; the retry gets
- * a fresh pair and supersedes the undelivered one. Presenting a superseded or an
- * older token, or retrying later, revokes the family. Retrying an unanswered
- * refresh with the same token is therefore safe inside the window, and the
- * client gives up 25 s after its first attempt (recorded before the request is
- * sent) and ends the session, so a dead API cannot hold a session in limbo and
- * no retry ever lands after the window.
+ * API contract (plan §13 notes): every refresh carries a request id, kept for
+ * all its retries (and stored with the pending attempt, so another tab retries
+ * with it). A retry of the same request within 30 s, while its successor is
+ * unused, gets the same answer; any other reuse of a spent token revokes the
+ * family. Retrying an unanswered refresh is therefore safe inside the window,
+ * and the client gives up 25 s after its first attempt (recorded before the
+ * request is sent) and ends the session, so no retry lands after it.
  */
 export const ROTATION_RECOVERY_MS = 25_000;
 const RECOVERY_DELAYS_MS = [1_000, 3_000, 6_000, 10_000];
@@ -36,7 +35,8 @@ export interface RefreshCoordinatorOptions {
   /** Serialises spending refresh tokens across tabs; held over the network call, unlike the session lock. */
   refreshLock: () => CrossTabLock | null;
   /** The only network refresh in the app. Rejects with `{ status }` when the API answers. */
-  requestRefresh: (refreshToken: string) => Promise<TdTokenSet>;
+  requestRefresh: (refreshToken: string, requestId: string) => Promise<TdTokenSet>;
+  newRequestId?: () => string;
   now?: () => number;
   isOnline?: () => boolean;
   /** Subscribes to connectivity coming back; returns an unsubscribe function. */
@@ -58,7 +58,7 @@ function browserOnOnline(callback: () => void): () => void {
   return () => window.removeEventListener('online', callback);
 }
 
-type Plan = { outcome: RefreshOutcome; recoverUntil?: number } | { send: string; deadline: number };
+type Plan = { outcome: RefreshOutcome; recoverUntil?: number } | { send: string; requestId: string; deadline: number };
 
 /**
  * The one place refresh tokens are spent. Tokens rotate and reuse revokes the
@@ -72,6 +72,7 @@ export function createRefreshCoordinator({
   tokens,
   refreshLock,
   requestRefresh,
+  newRequestId = () => crypto.randomUUID(),
   now = Date.now,
   isOnline = browserOnline,
   onOnline = browserOnOnline,
@@ -123,9 +124,12 @@ export function createRefreshCoordinator({
         // Nothing would reach the API. A recovery already under way keeps its deadline and retries.
         return since === null ? { outcome: 'transient' } : { outcome: 'transient', recoverUntil: since + ROTATION_RECOVERY_MS };
       }
-      // Recorded before sending, so a tab that dies mid-request still leaves the deadline behind.
-      if (since === null) tx.update(generation, { refreshPendingSince: now() });
-      return { send: current.refreshToken, deadline: (since ?? now()) + ROTATION_RECOVERY_MS };
+      // Recorded before sending, so a tab that dies mid-request still leaves the deadline, and
+      // the request id another tab retries with, behind.
+      const requestId = (since !== null ? current.refreshRequestId : null) ?? newRequestId();
+      if (since === null || current.refreshRequestId !== requestId)
+        tx.update(generation, { refreshPendingSince: since ?? now(), refreshRequestId: requestId });
+      return { send: current.refreshToken, requestId, deadline: (since ?? now()) + ROTATION_RECOVERY_MS };
     });
     if (!('send' in plan)) {
       if (plan.recoverUntil !== undefined) scheduleRecovery(generation, plan.recoverUntil);
@@ -134,8 +138,10 @@ export function createRefreshCoordinator({
     }
 
     try {
-      const next = await requestRefresh(plan.send);
-      const committed = await tokens.transact((tx) => tx.update(generation, { ...next, refreshPendingSince: null }));
+      const next = await requestRefresh(plan.send, plan.requestId);
+      const committed = await tokens.transact((tx) =>
+        tx.update(generation, { ...next, refreshPendingSince: null, refreshRequestId: null }),
+      );
       stopRecovery(generation);
       return committed ? 'ok' : 'superseded';
     } catch (error) {
