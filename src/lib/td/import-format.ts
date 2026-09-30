@@ -105,14 +105,26 @@ export const TD_IMPORTABLE_TYPES = (Object.keys(TD_IMPORT_COLUMNS) as TdContentT
 /* ── CSV / TSV ──────────────────────────────────────────────────────── */
 
 /** RFC 4180 fields and records (quotes, doubled quotes, line breaks inside quotes); the delimiter is taken from the header line. */
-export function parseDelimited(text: string): { rows: string[][]; delimiter: string } {
-  const source = text.replace(/^﻿/, '');
+/**
+ * RFC 4180 records, blank ones dropped. `lines` gives each kept record's first physical line (1-based), counting
+ * the line breaks inside quoted cells and the blank records, so a problem points at the line a spreadsheet shows.
+ */
+export function parseDelimited(text: string): { rows: string[][]; lines: number[]; delimiter: string } {
+  const source = text.replace(/^\uFEFF/, '');
   const header = source.split(/\r?\n/, 1)[0] ?? '';
   const delimiter = ['\t', ';', ','].reduce((best, d) => (header.split(d).length > header.split(best).length ? d : best), ',');
-  const rows: string[][] = [];
+  const records: { cells: string[]; line: number }[] = [];
   let row: string[] = [];
   let field = '';
   let quoted = false;
+  let physical = 1;
+  let start = 1;
+  const end = () => {
+    row.push(field);
+    records.push({ cells: row, line: start });
+    row = [];
+    field = '';
+  };
   for (let i = 0; i < source.length; i++) {
     const c = source[i];
     if (quoted) {
@@ -120,24 +132,24 @@ export function parseDelimited(text: string): { rows: string[][]; delimiter: str
         field += '"';
         i++;
       } else if (c === '"') quoted = false;
-      else field += c;
+      else {
+        field += c;
+        if (c === '\n' || (c === '\r' && source[i + 1] !== '\n')) physical++;
+      }
     } else if (c === '"' && field === '') quoted = true;
     else if (c === delimiter) {
       row.push(field);
       field = '';
     } else if (c === '\n' || c === '\r') {
       if (c === '\r' && source[i + 1] === '\n') i++;
-      row.push(field);
-      rows.push(row);
-      row = [];
-      field = '';
+      end();
+      physical++;
+      start = physical;
     } else field += c;
   }
-  if (field !== '' || row.length) {
-    row.push(field);
-    rows.push(row);
-  }
-  return { rows: rows.filter((r) => r.some((cell) => cell.trim() !== '')), delimiter };
+  if (field !== '' || row.length) end();
+  const kept = records.filter((r) => r.cells.some((cell) => cell.trim() !== ''));
+  return { rows: kept.map((r) => r.cells), lines: kept.map((r) => r.line), delimiter };
 }
 
 /* ── cells ─────────────────────────────────────────────────────────── */
@@ -245,18 +257,18 @@ export interface TdParsedImport {
 
 export function parseSheet(type: TdContentType, text: string): TdParsedImport {
   const columns = [...TD_IMPORT_COLUMNS[type], POSITION, NOTE];
-  const { rows } = parseDelimited(text);
+  const { rows, lines: at } = parseDelimited(text);
   const problems: TdParseProblem[] = [];
   if (rows.length < 2) return { items: [], lines: [], problems: [{ line: 0, column: null, message: 'The sheet needs a header row and at least one item.' }] };
   const header = rows[0].map((cell) => cell.trim());
   const index = new Map(header.map((name, i) => [name.toLowerCase(), i]));
-  for (const name of header) if (name && !columns.some((c) => c.name.toLowerCase() === name.toLowerCase())) problems.push({ line: 1, column: name, message: `“${name}” is not a column of this type` });
-  for (const column of columns) if (column.required && !index.has(column.name.toLowerCase())) problems.push({ line: 1, column: column.name, message: `The column “${column.name}” is missing` });
+  for (const name of header) if (name && !columns.some((c) => c.name.toLowerCase() === name.toLowerCase())) problems.push({ line: at[0], column: name, message: `“${name}” is not a column of this type` });
+  for (const column of columns) if (column.required && !index.has(column.name.toLowerCase())) problems.push({ line: at[0], column: column.name, message: `The column “${column.name}” is missing` });
   if (problems.length) return { items: [], lines: [], problems };
   const items: unknown[] = [];
   const lines: number[] = [];
   rows.slice(1).forEach((cells, i) => {
-    const line = i + 2;
+    const line = at[i + 1];
     const values: Record<string, unknown> = {};
     let ok = true;
     for (const column of columns) {

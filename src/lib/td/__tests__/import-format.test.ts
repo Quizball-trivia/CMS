@@ -13,6 +13,20 @@ describe('spreadsheet import', () => {
     expect(parseDelimited('a;b\n1;2').rows[1]).toEqual(['1', '2']);
   });
 
+  it('gives each record the physical line it starts on: line breaks in quoted cells and blank lines count', () => {
+    const parsed = parseDelimited('a,b\r\n"two\r\nlines",x\n\n\n"three\nmore\nlines",y\rlast,z');
+    expect(parsed.rows.map((r) => r[1])).toEqual(['b', 'x', 'y', 'z']);
+    expect(parsed.lines).toEqual([1, 2, 6, 9]);
+  });
+
+  it('reports a sheet problem at the line a spreadsheet shows, not the record count', () => {
+    // The first item spans two lines; a blank line follows; the bad value is on line 5.
+    const sheet = 'key,q,display,aliases,position\nok-1,"A question\nover two lines",One,one,1\n\nbad-1,Second?,Two,two,not-a-number';
+    const parsed = parseSheet('penalty-questions', sheet);
+    expect(parsed.problems).toEqual([expect.objectContaining({ line: 5, column: 'position' })]);
+    expect(parsed.lines).toEqual([2]);
+  });
+
   it('turns every template into an item the contract accepts', () => {
     for (const type of TD_IMPORTABLE_TYPES) {
       const parsed = parseSheet(type, sheetTemplate(type));
