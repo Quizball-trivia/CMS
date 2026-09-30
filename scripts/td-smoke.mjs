@@ -101,7 +101,7 @@ try {
   await page.getByRole('button', { name: 'Invite member' }).click();
   await page.getByLabel('Email').fill('smoke.member@example.test');
   await page.getByRole('button', { name: 'Make the invitation link' }).click();
-  const invitation = await page.getByLabel('Invitation link').inputValue();
+  const invitation = await page.getByLabel('Invitation link', { exact: true }).inputValue();
   check('Betsson admin makes a one-time invitation link', invitation.startsWith(`${BASE}/td/accept-invite#token=tdi_`), invitation.replace(/#token=.*/, '#token=…'));
   await page.getByRole('button', { name: 'Sign out' }).click();
   await page.waitForURL(/\/td\/login/);
