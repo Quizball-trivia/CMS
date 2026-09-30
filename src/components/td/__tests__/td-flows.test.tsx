@@ -38,6 +38,8 @@ const { TdContentEditorSheet } = await import('../content/td-content-editor');
 const { TdImportTab } = await import('../tabs/import-tab');
 const { TdReleasesTab } = await import('../tabs/releases-tab');
 const { useTdWrite } = await import('@/hooks/use-td-content');
+const { CorrectionForm } = await import('../tabs/players-tab');
+const { MaintenanceSetting, TicketsSetting } = await import('../tabs/ops-tabs');
 const { deferred } = await import('@/lib/td/__tests__/helpers');
 
 const BASE = 'https://td-api.mock';
@@ -186,6 +188,71 @@ describe('media', () => {
     expect(await screen.findByText('crest-torpedo')).toBeTruthy();
     const [image] = (await admin.content('media').list({ q: 'crest-torpedo' })).items;
     expect(image).toMatchObject({ status: 'draft', data: { key: 'crest-torpedo', width: 16, height: 9, license: 'CC0', author: null } });
+  });
+});
+
+describe('drafts stay bound to the revision reviewed', () => {
+  it('a correction draft whose match was corrected meanwhile is flagged, never sent at the newer version', async () => {
+    const ops = await signIn('ops');
+    const player = (await ops.admin.players.search('Nika')).items[0];
+    const played = (await ops.admin.players.matches(player.id)).items.find((m) => m.status === 'settled')!;
+    const record = await ops.admin.matches.get(played.matchId);
+    const { rerender } = renderTd(<CorrectionForm record={record} />);
+    fireEvent.change(screen.getByLabelText(/Reason/), { target: { value: 'Question 7 had two right answers' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Correct the result' }));
+    expect(await screen.findByRole('button', { name: 'Confirm: void this match (result v1)' })).toBeTruthy();
+    // Another operator sets the winner meanwhile; the record refreshes.
+    const other = await clientFor('ops');
+    const loser = record.players.find((p) => p.outcome === 'loss')!;
+    const newer = await other.admin.matches.correct(record.id, { version: 1, outcome: { kind: 'win', winner: loser.playerId }, reason: 'Wrong answer accepted' });
+    rerender(
+      <QueryClientProvider client={new QueryClient()}>
+        <CorrectionForm record={newer} />
+      </QueryClientProvider>,
+    );
+    expect(screen.getByRole('alert').textContent).toMatch(/changed while you were reviewing it: now result v2 \(winner set by Demo Ops\)/);
+    expect((screen.getByRole('button', { name: /void this match|Correct the result/ }) as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.click(screen.getByRole('button', { name: 'Review the new result' }));
+    expect((screen.getByRole('button', { name: 'Correct the result' }) as HTMLButtonElement).disabled).toBe(false);
+    expect((await ops.admin.matches.get(record.id)).resultVersion).toBe(2);
+  });
+
+  it('tickets per day: an edited value whose setting changed meanwhile cannot be saved; an untouched one follows', async () => {
+    const ops = await signIn('ops');
+    const settings = await ops.admin.settings.get();
+    const { rerender } = renderTd(<TicketsSetting settings={settings} onChanged={() => {}} onConflict={() => {}} />);
+    fireEvent.change(screen.getByLabelText('Tickets per day'), { target: { value: '7' } });
+    const other = await clientFor('ops');
+    const newer = await other.admin.settings.ticketsPerDay(settings.ticketsPerDay.version, 6);
+    const wrap = (ui: ReactNode) => <QueryClientProvider client={new QueryClient()}>{ui}</QueryClientProvider>;
+    rerender(wrap(<TicketsSetting settings={newer} onChanged={() => {}} onConflict={() => {}} />));
+    expect(screen.getByRole('alert').textContent).toMatch(/Changed meanwhile to 6 by Demo Ops\. Your 7 was not saved/);
+    expect((screen.getByRole('button', { name: 'Save' }) as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.click(screen.getByRole('button', { name: 'Load the new value' }));
+    expect((screen.getByLabelText('Tickets per day') as HTMLInputElement).value).toBe('6');
+    cleanup();
+
+    const untouched = renderTd(<TicketsSetting settings={settings} onChanged={() => {}} onConflict={() => {}} />);
+    untouched.rerender(wrap(<TicketsSetting settings={newer} onChanged={() => {}} onConflict={() => {}} />));
+    expect((screen.getByLabelText('Tickets per day') as HTMLInputElement).value).toBe('6');
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
+
+  it('a maintenance confirmation closes when the setting changes under it, instead of flipping its meaning', async () => {
+    const ops = await signIn('ops');
+    const settings = await ops.admin.settings.get();
+    const { rerender } = renderTd(<MaintenanceSetting settings={settings} onChanged={() => {}} onConflict={() => {}} />);
+    fireEvent.click(screen.getByRole('switch'));
+    expect(screen.getByText('Close the game to new play for every player?')).toBeTruthy();
+    const other = await clientFor('ops');
+    const newer = await other.admin.settings.maintenance(settings.maintenance.version, true);
+    rerender(
+      <QueryClientProvider client={new QueryClient()}>
+        <MaintenanceSetting settings={newer} onChanged={() => {}} onConflict={() => {}} />
+      </QueryClientProvider>,
+    );
+    expect(screen.getByRole('alert').textContent).toMatch(/changed meanwhile: maintenance is on now/);
+    expect(screen.queryByRole('button', { name: /Turn (on|off)/ })).toBeNull();
   });
 });
 

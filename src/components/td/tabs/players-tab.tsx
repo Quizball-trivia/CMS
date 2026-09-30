@@ -450,9 +450,16 @@ function MatchRecord({ id }: { id: string }) {
   );
 }
 
-function CorrectionForm({ record }: { record: AdminMatchRecord }) {
+/**
+ * A correction is written at the result version the operator reviewed. If the
+ * record refreshes to another version (someone corrected it meanwhile) the
+ * draft is flagged and cannot be sent until the operator reviews the new
+ * result: the version is never swapped under a draft or a confirmation.
+ */
+export function CorrectionForm({ record }: { record: AdminMatchRecord }) {
   const queryClient = useQueryClient();
   const write = useTdWrite();
+  const [reviewed, setReviewed] = useState(record.resultVersion);
   const [kind, setKind] = useState<'void' | 'win'>('void');
   const [winner, setWinner] = useState(record.players[0]?.playerId ?? '');
   const [reason, setReason] = useState('');
@@ -461,8 +468,16 @@ function CorrectionForm({ record }: { record: AdminMatchRecord }) {
   const [busy, setBusy] = useState(false);
   const [confirming, setConfirming] = useState(false);
   if (record.status !== 'settled' && record.status !== 'void') return <p className="text-xs text-(--td-text-3)">A correction is possible once the match is decided.</p>;
-  const body = { version: record.resultVersion, outcome: kind === 'void' ? { kind: 'void' as const } : { kind: 'win' as const, winner }, reason: reason.trim() };
+  const moved = record.resultVersion !== reviewed;
+  const latest = record.corrections.at(-1);
+  const body = { version: reviewed, outcome: kind === 'void' ? { kind: 'void' as const } : { kind: 'win' as const, winner }, reason: reason.trim() };
+  // Any change to the draft asks for confirmation again.
+  const edit = (apply: () => void) => {
+    apply();
+    setConfirming(false);
+  };
   const submit = async () => {
+    if (moved) return;
     const found = checkContract('MatchCorrectionRequest', body);
     setIssues(found);
     if (found.length) return;
@@ -474,6 +489,7 @@ function CorrectionForm({ record }: { record: AdminMatchRecord }) {
     setError(null);
     try {
       const next = await write((operation) => tdAdmin.matches.correct(record.id, body, operation), [tdKeys.ops]);
+      setReviewed(next.resultVersion);
       queryClient.setQueryData([...tdKeys.ops, 'match', record.id], next);
       toast.success(kind === 'void' ? 'Voided: both tickets refunded' : 'Winner set');
       setReason('');
@@ -489,16 +505,36 @@ function CorrectionForm({ record }: { record: AdminMatchRecord }) {
     <section className="flex flex-col gap-3 rounded-xl border border-(--td-danger)/30 p-4">
       <h3 className="text-sm font-semibold">Correct the result (ops)</h3>
       <p className="text-xs text-(--td-text-3)">Both players’ ratings are recomputed from this match on; a void refunds both tickets. The players see the corrected result, and Betsson gets it.</p>
+      {moved && (
+        <div role="alert" className="flex flex-wrap items-center gap-2 rounded-lg border border-amber-400/40 bg-amber-400/5 px-3 py-2 text-sm text-amber-200">
+          <span className="min-w-0 flex-1">
+            The result changed while you were reviewing it: now result v{record.resultVersion}
+            {latest ? ` (${latest.kind === 'void' ? 'voided' : 'winner set'} by ${latest.staff.name})` : ''}. Check the record above before correcting it again.
+          </span>
+          <Button
+            size="sm"
+            variant="secondary"
+            className="rounded-lg"
+            onClick={() => {
+              setReviewed(record.resultVersion);
+              setConfirming(false);
+              setError(null);
+            }}
+          >
+            Review the new result
+          </Button>
+        </div>
+      )}
       <div className="flex flex-wrap gap-3 text-sm">
         {(['void', 'win'] as const).map((k) => (
           <label key={k} className="flex items-center gap-2">
-            <input type="radio" name="correction-kind" checked={kind === k} onChange={() => setKind(k)} className="accent-(--td-primary)" />
+            <input type="radio" name="correction-kind" checked={kind === k} onChange={() => edit(() => setKind(k))} className="accent-(--td-primary)" />
             {k === 'void' ? 'Void (no contest, refund both)' : 'Set the winner'}
           </label>
         ))}
       </div>
       {kind === 'win' && (
-        <select aria-label="Winner" value={winner} onChange={(event) => setWinner(event.target.value)} className="h-10 w-fit rounded-lg border border-border bg-(--td-input) px-3 text-sm">
+        <select aria-label="Winner" value={winner} onChange={(event) => edit(() => setWinner(event.target.value))} className="h-10 w-fit rounded-lg border border-border bg-(--td-input) px-3 text-sm">
           {record.players.map((p) => (
             <option key={p.playerId} value={p.playerId}>
               {p.displayName}
@@ -508,14 +544,14 @@ function CorrectionForm({ record }: { record: AdminMatchRecord }) {
       )}
       <label className="flex flex-col gap-1.5 text-xs font-medium text-(--td-text-3)">
         Reason (kept with the correction; up to 500 characters)
-        <Textarea value={reason} onChange={(event) => setReason(event.target.value)} className="min-h-16 rounded-lg border-border bg-(--td-input) text-sm text-foreground" />
+        <Textarea value={reason} onChange={(event) => edit(() => setReason(event.target.value))} className="min-h-16 rounded-lg border-border bg-(--td-input) text-sm text-foreground" />
       </label>
       <TdIssueText issues={issues} />
       <TdErrorPanel error={error} />
       <div className="flex gap-2">
-        <Button variant={confirming ? 'destructive' : 'secondary'} className="w-fit rounded-lg" disabled={busy} onClick={() => void submit()}>
+        <Button variant={confirming ? 'destructive' : 'secondary'} className="w-fit rounded-lg" disabled={busy || moved} onClick={() => void submit()}>
           {busy && <Loader2 className="animate-spin" />}
-          {confirming ? `Confirm: ${kind === 'void' ? 'void this match' : 'set the winner'}` : 'Correct the result'}
+          {confirming ? `Confirm: ${kind === 'void' ? 'void this match' : 'set the winner'} (result v${reviewed})` : 'Correct the result'}
         </Button>
         {confirming && (
           <Button variant="ghost" className="rounded-lg" onClick={() => setConfirming(false)}>
