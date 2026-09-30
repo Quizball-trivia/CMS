@@ -109,6 +109,15 @@ try {
     !page.url().includes('#') && (await page.evaluate(() => window.__tdLinkToken === undefined)) && (await page.getByLabel('New password').count()) === 1,
     page.url().replace(/#token=.*/, '#token=…'),
   );
+  // The App Router's own navigation to a link (pushState, no hashchange): a fresh form, the token taken and cleared.
+  await page.getByLabel('Your name').fill('Typed Before');
+  await page.evaluate((to) => window.next?.router?.push(to), invitation.slice(new URL(invitation).origin.length));
+  await page.waitForTimeout(1000);
+  check(
+    'a link reached by App Router navigation starts a fresh form and leaves the address bar',
+    !page.url().includes('#') && (await page.getByLabel('Your name').inputValue()) === '',
+    page.url().replace(/#token=.*/, '#token=…'),
+  );
   await page.getByLabel('Your name').fill('Smoke Member');
   await page.getByLabel('New password').fill('smoke member passphrase');
   await page.getByLabel('Repeat the password').fill('smoke member passphrase');

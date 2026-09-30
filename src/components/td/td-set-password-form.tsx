@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { AlertCircle, Eye, EyeOff, Loader2 } from 'lucide-react';
@@ -91,9 +91,14 @@ function takeLinkToken(kind: TdLinkKind): string | null {
 
 const firstLink = (kind: TdLinkKind) => ({ token: takeLinkToken(kind), version: 1 });
 
-/** Forgets a spent token (tests, and a redeemed link). */
+/** Forgets captured tokens (tests). */
 export function forgetLinkTokens() {
   for (const kind of Object.keys(captured) as TdLinkKind[]) delete captured[kind];
+}
+
+/** Forgets a redeemed token, and only that one: a newer link opened meanwhile keeps its own. */
+function forgetSpent(kind: TdLinkKind, token: string) {
+  if (captured[kind] === token) delete captured[kind];
 }
 
 const inputClass = 'h-12 rounded-lg border-border bg-(--td-input) px-4 text-base text-foreground placeholder:text-(--td-text-3)';
@@ -118,7 +123,15 @@ export function TdSetPasswordForm({ kind }: { kind: TdLinkKind }) {
       setLink((current) => ({ token, version: (current?.version ?? 0) + 1 }));
     };
     window.addEventListener('hashchange', onFragment);
-    return () => window.removeEventListener('hashchange', onFragment);
+    window.addEventListener('popstate', onFragment);
+    // The App Router's own navigations (router.push, <Link>) change the URL with pushState, which fires no event:
+    // a light check keeps a new link from ever sitting beside the old one's form.
+    const watch = window.setInterval(onFragment, 250);
+    return () => {
+      window.removeEventListener('hashchange', onFragment);
+      window.removeEventListener('popstate', onFragment);
+      window.clearInterval(watch);
+    };
   }, [kind]);
 
   if (!link) return <TdFullScreenLoader />;
@@ -126,7 +139,7 @@ export function TdSetPasswordForm({ kind }: { kind: TdLinkKind }) {
 }
 
 function LinkForm({ kind, token }: { kind: TdLinkKind; token: string | null }) {
-  const { status, user, acceptInvite, resetPassword, logout } = useTdAuth();
+  const { status, user, acceptInvite, resetPassword, logout, retry } = useTdAuth();
   const router = useRouter();
   const [name, setName] = useState('');
   const [password, setPassword] = useState('');
@@ -138,6 +151,14 @@ function LinkForm({ kind, token }: { kind: TdLinkKind; token: string | null }) {
   const [unanswered, setUnanswered] = useState(false);
   // The link is spent and the password set, but no session came of it here.
   const [setWithoutSession, setSetWithoutSession] = useState(false);
+  // False once another link replaced this form: its late answer must not steer the page away from the new one.
+  const current = useRef(true);
+  useEffect(() => {
+    current.current = true;
+    return () => {
+      current.current = false;
+    };
+  }, []);
 
   const copy = COPY[kind];
   const done = `${TD_ROOT}/login?done=${copy.done}`;
@@ -162,10 +183,12 @@ function LinkForm({ kind, token }: { kind: TdLinkKind; token: string | null }) {
     setSubmitting(true);
     try {
       const member = kind === 'invite' ? await acceptInvite(token, password, trimmedName) : await resetPassword(token, password);
-      forgetLinkTokens();
+      forgetSpent(kind, token);
+      if (!current.current) return;
       if (member) router.replace(TD_ROOT);
       else setSetWithoutSession(true);
     } catch (caught) {
+      if (!current.current) return;
       setError(linkRefusal(caught, kind, unanswered));
       if (!(caught instanceof TdApiError)) setUnanswered(true);
       setSubmitting(false);
@@ -186,6 +209,24 @@ function LinkForm({ kind, token }: { kind: TdLinkKind; token: string | null }) {
 
   if (setWithoutSession) {
     // Someone is still signed in (the earlier account, or one who signed in meanwhile): theirs is never ended silently.
+    if (status === 'unavailable') {
+      return frame(
+        <div className="rounded-xl border border-border bg-card p-6 sm:p-8">
+          <h1 className="text-center text-2xl font-bold">{kind === 'invite' ? 'You have joined' : 'Password set'}</h1>
+          <p role="status" className="mt-4 text-sm text-(--td-text-2)">
+            {kind === 'invite' ? 'Your account is ready' : 'Your new password is set'}, but the Table Derby API could not be reached to check who is signed in on this browser.
+          </p>
+          <div className="mt-6 flex flex-col gap-2">
+            <Button className="h-11 rounded-lg" onClick={retry}>
+              Try again
+            </Button>
+            <Button variant="secondary" className="h-11 rounded-lg" onClick={() => router.replace(done)}>
+              Go to sign in
+            </Button>
+          </div>
+        </div>,
+      );
+    }
     if (status !== 'authenticated' || !user) return <TdFullScreenLoader />;
     return frame(
       <div className="rounded-xl border border-border bg-card p-6 sm:p-8">

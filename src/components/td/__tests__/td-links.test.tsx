@@ -406,6 +406,94 @@ describe('invitation and reset links', () => {
     expect(h.tokens.read()).toBeNull();
   });
 
+  it('a new link reached by the App Router’s own navigation (pushState, no hashchange) also starts a fresh form', async () => {
+    const first = await managerLink('invite', 'push-first@example.test');
+    const second = await managerLink('invite', 'push-second@example.test');
+    const bodies: { token?: string }[] = [];
+    const inner = server;
+    Object.assign(h, client(((input: RequestInfo | URL, init?: RequestInit) => {
+      if (new URL(String(input)).pathname === '/admin/auth/accept-invite') bodies.push(JSON.parse(String(init?.body)) as { token?: string });
+      return inner(input, init);
+    }) as typeof fetch));
+    window.history.replaceState(null, '', `/td/accept-invite#token=${first}`);
+    renderPage(<TdSetPasswordForm kind="invite" />);
+    fill('Your name', 'Typed For The First');
+    // As router.push('/td/accept-invite#token=…') does: history changes, no event fires.
+    window.history.pushState(null, '', `/td/accept-invite#token=${second}`);
+    await waitFor(() => expect(window.location.hash).toBe(''));
+    await waitFor(() => expect((screen.getByLabelText('Your name') as HTMLInputElement).value).toBe(''));
+    fill('Your name', 'Pushed Member');
+    fill('New password', 'a long enough passphrase');
+    fill('Repeat the password', 'a long enough passphrase');
+    await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Join' })));
+    await waitFor(() => expect(h.replace).toHaveBeenCalledWith('/td'));
+    expect(bodies.map((b) => b.token)).toEqual([second]);
+  });
+
+  it('a late answer for a link replaced meanwhile does not steer the page away from the new one', async () => {
+    const first = await managerLink('invite', 'late-first@example.test');
+    const second = await managerLink('invite', 'late-second@example.test');
+    const answer = deferred<void>();
+    const bodies: { token?: string }[] = [];
+    const inner = server;
+    Object.assign(h, client(((input: RequestInfo | URL, init?: RequestInit) => {
+      if (new URL(String(input)).pathname === '/admin/auth/accept-invite') {
+        const body = JSON.parse(String(init?.body)) as { token?: string };
+        bodies.push(body);
+        if (body.token === first) return answer.promise.then(() => inner(input, init));
+      }
+      return inner(input, init);
+    }) as typeof fetch));
+    window.history.replaceState(null, '', `/td/accept-invite#token=${first}`);
+    renderPage(<TdSetPasswordForm kind="invite" />);
+    fill('Your name', 'First Member');
+    fill('New password', 'a long enough passphrase');
+    fill('Repeat the password', 'a long enough passphrase');
+    fireEvent.click(await screen.findByRole('button', { name: 'Join' }));
+    await act(async () => {
+      window.history.replaceState(null, '', `/td/accept-invite#token=${second}`);
+      window.dispatchEvent(new HashChangeEvent('hashchange'));
+    });
+    await act(async () => {
+      answer.resolve();
+      await sleep(30);
+    });
+    expect(h.replace).not.toHaveBeenCalled();
+    fill('Your name', 'Second Member');
+    fill('New password', 'another long passphrase');
+    fill('Repeat the password', 'another long passphrase');
+    await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Join' })));
+    await waitFor(() => expect(h.replace).toHaveBeenCalledWith('/td'));
+    expect(bodies.map((b) => b.token)).toEqual([first, second]);
+    expect(screen.getByTestId('who').textContent).toBe('Second Member');
+  });
+
+  it('when the API cannot say who is signed in after a link was taken, the page offers to try again or go to sign in', async () => {
+    const token = await managerLink('invite');
+    const answer = deferred<void>();
+    const inner = server;
+    let meFails = false;
+    Object.assign(h, client(((input: RequestInfo | URL, init?: RequestInit) => {
+      const path = new URL(String(input)).pathname;
+      if (path === '/admin/me' && meFails) return Promise.reject(new TypeError('Failed to fetch'));
+      return path === '/admin/auth/accept-invite' ? answer.promise.then(() => inner(input, init)) : inner(input, init);
+    }) as typeof fetch));
+    window.history.replaceState(null, '', `/td/accept-invite#token=${token}`);
+    renderPage(<TdSetPasswordForm kind="invite" />);
+    fill('Your name', 'Unseen');
+    fill('New password', 'a long enough passphrase');
+    fill('Repeat the password', 'a long enough passphrase');
+    fireEvent.click(await screen.findByRole('button', { name: 'Join' }));
+    const ops = await signedInAs('ops');
+    await waitFor(() => expect(screen.getByTestId('who').textContent).toBe(ops.name));
+    meFails = true;
+    await act(async () => answer.resolve());
+    expect(await screen.findByText(/could not be reached to check who is signed in/)).toBeTruthy();
+    expect(h.tokens.read()?.generation).toBe('before-ops');
+    fireEvent.click(screen.getByRole('button', { name: 'Go to sign in' }));
+    expect(h.replace).toHaveBeenCalledWith('/td/login?done=joined');
+  });
+
   it('the login page shows a finished link’s note, only for the notes it knows', async () => {
     h.search = 'done=joined';
     renderPage(<TdLoginForm />);
