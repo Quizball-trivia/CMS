@@ -12,6 +12,10 @@ export interface Exchange {
 
 export interface Harness {
   call(role: Role, method: string, path: string, options?: { body?: unknown; raw?: Blob; contentType?: string }): Promise<Exchange>;
+  /** Without a session (sign-in, invitation and reset links). */
+  anon(method: string, path: string, body?: unknown): Promise<Exchange>;
+  /** With a given access token (a session a scenario made itself). */
+  as(accessToken: string, method: string, path: string, body?: unknown): Promise<Exchange>;
   /** Lets time pass: the mock's clock moves; against a real API it waits. */
   wait(ms: number): Promise<void>;
   staffId(role: Role): Promise<string>;
@@ -58,6 +62,16 @@ export function createHarness(
     return body.accessToken;
   }
 
+  async function send(accessToken: string | null, method: string, path: string, { body, raw, contentType }: { body?: unknown; raw?: Blob; contentType?: string }) {
+    const headers: Record<string, string> = { Accept: 'application/json', ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}) };
+    if (raw) headers['Content-Type'] = contentType ?? raw.type;
+    else if (body !== undefined) headers['Content-Type'] = 'application/json';
+    const response = await fetchImpl(`${baseUrl}${path}`, { method, headers, body: raw ?? (body === undefined ? undefined : JSON.stringify(body)) });
+    const exchange = { method, path: path.split('?')[0], status: response.status, contentType: response.headers.get('Content-Type'), body: await read(response) };
+    exchanges.push(exchange);
+    return exchange;
+  }
+
   const harness: Harness = {
     exchanges,
     real,
@@ -66,15 +80,11 @@ export function createHarness(
       if (!ids.has(role)) ids.set(role, ((await harness.call(role, 'GET', '/admin/me')).body as { id: string }).id);
       return ids.get(role)!;
     },
-    async call(role, method, path, { body, raw, contentType } = {}) {
-      const headers: Record<string, string> = { Accept: 'application/json', Authorization: `Bearer ${await token(role)}` };
-      if (raw) headers['Content-Type'] = contentType ?? raw.type;
-      else if (body !== undefined) headers['Content-Type'] = 'application/json';
-      const response = await fetchImpl(`${baseUrl}${path}`, { method, headers, body: raw ?? (body === undefined ? undefined : JSON.stringify(body)) });
-      const exchange = { method, path: path.split('?')[0], status: response.status, contentType: response.headers.get('Content-Type'), body: await read(response) };
-      exchanges.push(exchange);
-      return exchange;
+    async call(role, method, path, options = {}) {
+      return send(await token(role), method, path, options);
     },
+    anon: (method, path, body) => send(null, method, path, { body }),
+    as: (accessToken, method, path, body) => send(accessToken, method, path, { body }),
   };
   return harness;
 }
