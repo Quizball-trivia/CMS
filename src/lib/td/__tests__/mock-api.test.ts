@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { createMockTdApi, MOCK_PASSWORD } from '../mock-api';
-import { MemoryStorage } from './helpers';
+import { createMockTdApi, MOCK_PASSWORD, type MockTdApiOptions } from '../mock-api';
+import { createFakeLockManager, deferred, MemoryStorage, sleep } from './helpers';
+
+type MockAuthLock = NonNullable<MockTdApiOptions['authLock']>;
 
 const BASE = 'https://td-api.mock';
 
@@ -144,21 +146,51 @@ describe('mock Table Derby API', () => {
     expect((await retry(tab, (await tab.login('ops@demo.tablederby.test')).accessToken)).status).toBe(404);
   });
 
-  it('redeems a link under the sign-in lock the browser’s tabs share; passwords compare as NFKC', async () => {
-    let locked = 0;
+  it('two tabs redeeming one link wait on the lock the browser shares, and only one gets in', async () => {
     const storage = new MemoryStorage();
-    const fetchMock = createMockTdApi({ storage: () => storage, latencyMs: 0, authLock: async (work) => (locked++, work()) });
-    const call = async (path: string, body: unknown, token?: string) => {
-      const response = await fetchMock(`${BASE}${path}`, { method: 'POST', headers: token ? { Authorization: `Bearer ${token}` } : {}, body: JSON.stringify(body) });
+    const locks = createFakeLockManager();
+    const authLock: MockAuthLock = (work) => locks.request('td-mock-auth', work) as ReturnType<typeof work>;
+    const tab = () => createMockTdApi({ storage: () => storage, latencyMs: 0, authLock });
+    const [first, second] = [tab(), tab()];
+    const post = async (api: typeof fetch, path: string, body: unknown, token?: string) => {
+      const response = await api(`${BASE}${path}`, { method: 'POST', headers: token ? { Authorization: `Bearer ${token}` } : {}, body: JSON.stringify(body) });
       return { status: response.status, body: await response.json() };
     };
-    const admin = (await call('/admin/auth/login', { email: 'admin@demo.tablederby.test', password: MOCK_PASSWORD })).body.accessToken as string;
-    const invite = (await call('/admin/staff/invite', { email: 'nfkc@example.test', role: 'editor' }, admin)).body.token as string;
-    const before = locked;
-    // "é" as one code point here, as "e" and a combining accent below.
-    expect((await call('/admin/auth/accept-invite', { token: invite, password: 'Café password phrase', name: 'NFKC' })).status).toBe(200);
-    expect(locked).toBeGreaterThan(before);
-    expect((await call('/admin/auth/login', { email: 'nfkc@example.test', password: 'Cafe\u0301 password phrase' })).status).toBe(200);
+    const admin = (await post(first, '/admin/auth/login', { email: 'admin@demo.tablederby.test', password: MOCK_PASSWORD })).body.accessToken as string;
+    const invite = (await post(first, '/admin/staff/invite', { email: 'race@example.test', role: 'editor' }, admin)).body.token as string;
+    // Another tab holds the lock: neither redemption may read the link until it is released.
+    const release = deferred<void>();
+    const holding = deferred<void>();
+    void locks.request('td-mock-auth', () => {
+      holding.resolve();
+      return release.promise;
+    });
+    await holding.promise;
+    let settled = 0;
+    const redeem = (api: typeof fetch) => post(api, '/admin/auth/accept-invite', { token: invite, password: 'a long enough passphrase', name: 'Race' }).finally(() => settled++);
+    const both = Promise.all([redeem(first), redeem(second)]);
+    await sleep(20);
+    expect(settled).toBe(0);
+    release.resolve();
+    const answers = (await both).map((a) => a.status).sort();
+    expect(answers).toEqual([200, 400]);
+  });
+
+  it('passwords compare as NFKC: compatibility characters too, which NFC leaves alone', async () => {
+    const storage = new MemoryStorage();
+    const api = createMockTdApi({ storage: () => storage, latencyMs: 0 });
+    const post = async (path: string, body: unknown, token?: string) => {
+      const response = await api(`${BASE}${path}`, { method: 'POST', headers: token ? { Authorization: `Bearer ${token}` } : {}, body: JSON.stringify(body) });
+      return { status: response.status, body: await response.json() };
+    };
+    // "ﬁ" (U+FB01) and a fullwidth "Ａ": NFKC makes them "fi" and "A"; NFC does not.
+    const set = 'ﬁnal Ａnswer passphrase';
+    expect(set.normalize('NFC')).toBe(set);
+    const admin = (await post('/admin/auth/login', { email: 'admin@demo.tablederby.test', password: MOCK_PASSWORD })).body.accessToken as string;
+    const invite = (await post('/admin/staff/invite', { email: 'nfkc@example.test', role: 'editor' }, admin)).body.token as string;
+    expect((await post('/admin/auth/accept-invite', { token: invite, password: set, name: 'NFKC' })).status).toBe(200);
+    expect((await post('/admin/auth/login', { email: 'nfkc@example.test', password: 'final Answer passphrase' })).status).toBe(200);
+    expect((await post('/admin/auth/login', { email: 'nfkc@example.test', password: 'final answer passphrase' })).status).toBe(401);
   });
 
   it('lists staff only for Betsson admins and ops', async () => {

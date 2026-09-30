@@ -432,9 +432,9 @@ export function apiScenarios(h: () => Harness) {
   it('team: an invitation link is taken once and ends in a session; a reset link sets a new password', async () => {
     const email = `invitee-${run}@example.test`;
     const first = `first password ${run}`;
-    // Passwords compare after NFKC: "é" as one code point when set, as "e" and a combining accent when signing in.
-    const second = `second pässword café ${run}`;
-    const secondDecomposed = second.normalize('NFD');
+    // Passwords compare after NFKC: set with "ﬁ", a fullwidth "Ａ" and a composed "ä"; signed in with "fi", "A" and "a" + accent.
+    const second = `second ﬁnal Ａnswer pässword ${run}`;
+    const secondDecomposed = second.normalize('NFKD');
     expect(await h().call('editor', 'POST', '/admin/staff/invite', { body: { email, role: 'editor' } })).toMatchObject({ status: 403 });
     expect(await h().call('betsson_admin', 'POST', '/admin/staff/invite', { body: { email, role: 'ops' } })).toMatchObject({ status: 403 });
     const invited = await h().call('betsson_admin', 'POST', '/admin/staff/invite', { body: { email, role: 'editor', name: 'Invitee' } });
