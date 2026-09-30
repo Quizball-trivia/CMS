@@ -1,7 +1,7 @@
 import { act, cleanup, fireEvent, render, renderHook, screen, waitFor, within } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import type { TdAdminApi, TdContentRow } from '@/lib/td/admin-api';
 import type { TdApiClient } from '@/lib/td/api-client';
 import type { TdTokenStore } from '@/lib/td/token-store';
@@ -281,6 +281,26 @@ describe('drafts stay bound to the revision reviewed', () => {
     untouched.rerender(wrap(<TicketsSetting settings={newer} onChanged={() => {}} onConflict={() => {}} />));
     expect((screen.getByLabelText('Tickets per day') as HTMLInputElement).value).toBe('6');
     expect(screen.queryByRole('alert')).toBeNull();
+  });
+
+  it('tickets per day: nothing can be typed while a save is on its way, so the answer never drops an edit', async () => {
+    const ops = await signIn('ops');
+    const settings = await ops.admin.settings.get();
+    const answer = deferred<void>();
+    const save = ops.admin.settings.ticketsPerDay;
+    h.admin = { ...ops.admin, settings: { ...ops.admin.settings, ticketsPerDay: async (...args: Parameters<typeof save>) => (await answer.promise, save(...args)) } };
+    function Page() {
+      const [current, setCurrent] = useState(settings);
+      return <TicketsSetting settings={current} onChanged={setCurrent} onConflict={() => {}} />;
+    }
+    renderTd(<Page />);
+    const input = screen.getByLabelText('Tickets per day') as HTMLInputElement;
+    fireEvent.change(input, { target: { value: '7' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(input.disabled).toBe(true));
+    answer.resolve();
+    await waitFor(() => expect(input.disabled).toBe(false));
+    expect(input.value).toBe('7');
   });
 
   it('a maintenance confirmation closes when the setting changes under it, instead of flipping its meaning', async () => {

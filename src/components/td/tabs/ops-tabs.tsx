@@ -296,7 +296,8 @@ export function TicketsSetting({ settings, onChanged, onConflict }: { settings: 
           </div>
         )}
         <div className="flex flex-wrap items-center gap-2">
-          <Input inputMode="numeric" value={value} onChange={(event) => setValue(event.target.value)} aria-label="Tickets per day" className="h-10 w-28 rounded-lg bg-(--td-input) tabular-nums" />
+          {/* Locked while saving: the answer replaces the value, which would drop anything typed meanwhile. */}
+          <Input inputMode="numeric" value={value} disabled={busy} onChange={(event) => setValue(event.target.value)} aria-label="Tickets per day" className="h-10 w-28 rounded-lg bg-(--td-input) tabular-nums" />
           <Button className="rounded-lg" disabled={busy || moved || !dirty} onClick={() => void save()}>
             {busy && <Loader2 className="animate-spin" />}
             Save
