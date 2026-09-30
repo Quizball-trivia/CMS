@@ -398,6 +398,32 @@ describe('import', () => {
     expect((await admin.content('penalty-questions').list({ q: 'lost-' })).items).toHaveLength(2);
     expect((await admin.imports.list()).items).toHaveLength(1);
   });
+
+  it('never replays a saved import key under someone else’s sign-in', async () => {
+    const inner = server;
+    const applied: string[] = [];
+    server = ((input: RequestInfo | URL, init?: RequestInit) => {
+      if (init?.method === 'POST' && String(input).endsWith('/admin/content/imports')) applied.push((JSON.parse(String(init.body)) as { batchKey: string }).batchKey);
+      return inner(input, init);
+    }) as typeof fetch;
+    const editor = await signIn('editor');
+    const next = await clientFor('ops');
+    renderTd(<TdImportTab />);
+    const cells = 'key\tq\tdisplay\taliases\nswitch-1\tFirst?\tOne\tone';
+    fireEvent.change(screen.getByLabelText(/Or paste the cells here/), { target: { value: cells } });
+    fireEvent.click(screen.getByRole('button', { name: 'Read the pasted cells' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Check' }));
+    fireEvent.click(await screen.findByRole('button', { name: /Import 1 as drafts/ }));
+    expect(await screen.findByText(/Imported 1 drafts as batch/)).toBeTruthy();
+    expect(applied).toHaveLength(1);
+
+    // Someone else signs in in this browser; this view has not caught up yet.
+    await put(editor.tokens, { ...next.tokens.read()!, generation: 'gen-next', staffId: next.user.id });
+    fireEvent.click(screen.getByRole('button', { name: 'Read the pasted cells' }));
+    expect(await screen.findByText(/1 item read/)).toBeTruthy();
+    await sleep(50);
+    expect(applied).toHaveLength(1);
+  });
 });
 
 describe('releases', () => {

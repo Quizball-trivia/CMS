@@ -13,10 +13,11 @@ import { TdErrorPanel } from '@/components/td/td-error-panel';
 import { tdKeys, useTdWrite } from '@/hooks/use-td-content';
 import type { TdContentType } from '@/lib/td/admin-api';
 import { TdApiError } from '@/lib/td/api-client';
-import { tdAdmin } from '@/lib/td/client';
+import { tdAdmin, tdTokens } from '@/lib/td/client';
 import type { ContentImportBatch, ContentImportBatchList, ContentImportReport } from '@/lib/td/contract';
 import { downloadText } from '@/lib/td/download';
 import { formatGeorgiaTime } from '@/lib/td/georgia';
+import { beginOperation, type TdOperation } from '@/lib/td/operation';
 import { canonicalJson, sha256Hex } from '@/lib/td/hash';
 import { parseItemsJson, parseSheet, sheetTemplate, TD_IMPORT_COLUMNS, TD_IMPORTABLE_TYPES, type TdParsedImport } from '@/lib/td/import-format';
 import { isTdPublisher } from '@/lib/td/workflow';
@@ -102,6 +103,8 @@ export function TdImportTab() {
 
   const prepare = async (text: string, source: string, json: boolean) => {
     if (!user) return;
+    // Begun before reading, so a replay cannot go out under a sign-in made meanwhile.
+    const operation = tdTokens.read()?.staffId === user.id ? beginOperation(tdTokens) : null;
     reset();
     const parsed = json ? parseItemsJson(text) : parseSheet(type, text);
     const hash = await sha256Hex(canonicalJson(parsed.items));
@@ -111,7 +114,7 @@ export function TdImportTab() {
     setPrepared(next);
     // These very items went out once without an answer. A check would count that import's own rows as duplicates,
     // so its key is asked first: the API answers with that batch, or imports the items the member already confirmed.
-    if (saved.sent && parsed.items.length > 0 && parsed.problems.length === 0) await apply(next, true);
+    if (saved.sent && operation && parsed.items.length > 0 && parsed.problems.length === 0) await apply(next, operation);
   };
 
   const check = async () => {
@@ -129,13 +132,14 @@ export function TdImportTab() {
     }
   };
 
-  const apply = async (target: Prepared, replay = false) => {
+  /** With `replay`, the operation the re-read began under: asked with the saved key before any check. */
+  const apply = async (target: Prepared, replay?: TdOperation) => {
     if (!user) return;
     setBusy('apply');
     setError(null);
     markSent(user.id, target.hash, true);
     try {
-      const out = await write((operation) => tdAdmin.imports.apply(target.batchKey, target.items, operation), [tdKeys.content, tdKeys.releases, tdKeys.imports]);
+      const out = await write((operation) => tdAdmin.imports.apply(target.batchKey, target.items, operation), [tdKeys.content, tdKeys.releases, tdKeys.imports], replay);
       if (!out.created && out.batch.status !== 'applied') {
         // Imported before and undone since: this key is spent.
         retireBatchKey(user.id, target.batchKey);
