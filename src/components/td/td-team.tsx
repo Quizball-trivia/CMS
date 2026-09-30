@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, type FormEvent } from 'react';
-import { AlertCircle, Check, Copy, Loader2, UserPlus, Users } from 'lucide-react';
+import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
+import { AlertCircle, Check, Copy, KeyRound, Loader2, UserPlus, Users } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -9,23 +9,77 @@ import { useTdWrite } from '@/hooks/use-td-content';
 import { tdStaffKeys, useTdStaff } from '@/hooks/use-td-staff';
 import { TdApiError } from '@/lib/td/api-client';
 import { tdAdmin } from '@/lib/td/client';
+import { describeTdError } from '@/lib/td/errors';
 import { checkContract, TD_CONTRACT, type StaffInviteRequest } from '@/lib/td/contract';
 import { formatGeorgiaTime } from '@/lib/td/georgia';
-import { TD_ROOT } from '@/lib/workspace-guard';
+import { TD_LINK_PATHS } from '@/lib/td/link-fragment';
 import { cn } from '@/lib/utils';
 import { useTdAuth } from '@/providers/td-auth-provider';
 import { TD_ROLE_LABELS, type TdRole, type TdStaffMember } from '@/types/td';
 import { TdErrorPanel } from './td-error-panel';
 import { TdEmptyState, TdSection } from './td-page';
 
-/** Who may invite, as the contract's route says; ops is never invited over the API (the server makes ops members). */
-const INVITE_ROLES: readonly TdRole[] = (TD_CONTRACT.routes.find((r) => r.method === 'POST' && r.path === '/admin/staff/invite')?.roles ?? []) as TdRole[];
+const rolesFor = (method: string, path: string) => (TD_CONTRACT.routes.find((r) => r.method === method && r.path === path)?.roles ?? []) as TdRole[];
+/** Who may invite and make reset links, as the contract's routes say. */
+const INVITE_ROLES: readonly TdRole[] = rolesFor('POST', '/admin/staff/invite');
+const RESET_LINK_ROLES: readonly TdRole[] = rolesFor('POST', '/admin/staff/:id/reset-link');
+// Ops is never invited over the API (the server makes ops members).
 const INVITABLE: readonly Exclude<TdRole, 'ops'>[] = ['editor', 'publisher', 'betsson_admin'];
 
 export const canInvite = (role: TdRole | undefined) => role !== undefined && INVITE_ROLES.includes(role);
 
-/** The link to hand over: the token rides in the fragment, which never reaches a server. */
-export const inviteLink = (origin: string, token: string) => `${origin}${TD_ROOT}/accept-invite#token=${encodeURIComponent(token)}`;
+/**
+ * Whether `actor` gets a Reset link for `member`, as the API decides it: a role the contract allows, never for
+ * oneself (change your own password instead) or an ops member (managed on the server), and only for an active member.
+ */
+export function canMakeResetLink(actor: { id: string; role: TdRole } | null | undefined, member: TdStaffMember): boolean {
+  return Boolean(actor && RESET_LINK_ROLES.includes(actor.role) && actor.id !== member.id && member.role !== 'ops' && member.status === 'active');
+}
+
+/** The links to hand over: the token rides in the fragment, which never reaches a server. */
+export const inviteLink = (origin: string, token: string) => `${origin}${TD_LINK_PATHS.invite}#token=${encodeURIComponent(token)}`;
+export const resetLink = (origin: string, token: string) => `${origin}${TD_LINK_PATHS.reset}#token=${encodeURIComponent(token)}`;
+
+/** A reset link refused, in plain words. */
+export function resetLinkRefusal(error: unknown, email: string): string {
+  if (!(error instanceof TdApiError)) return 'No answer from the Table Derby API, so a link may have been made. Make another: an earlier one then stops working.';
+  if (error.code === 'not_found') return `${email} is no longer on the team.`;
+  // The API says which rule refused it (your role, yourself, an ops member; not signed up, disabled) in plain words.
+  if (error.status === 403 || error.code === 'conflict') return `No reset link for ${email}: ${error.message.replace(/\.?$/, '.')}`;
+  return describeTdError(error).title;
+}
+
+/** A one-time link shown once, to copy and send by hand. */
+function OneTimeLink({ label, heading, intro, link, expiresAt, again, onDone }: { label: string; heading: string; intro: ReactNode; link: string; expiresAt: string; again: string; onDone: () => void }) {
+  const [copied, setCopied] = useState(false);
+  const input = useRef<HTMLInputElement>(null);
+  // Straight to the link (and into view): it may appear far from the button that made it.
+  useEffect(() => input.current?.focus(), [link]);
+  return (
+    <section aria-label={heading} className="flex flex-col gap-3 border-b border-(--td-divider) px-5 py-4">
+      <p className="text-sm">{intro} Send them this link yourself: the API does not email it.</p>
+      <div className="flex flex-wrap items-center gap-2">
+        <Input ref={input} readOnly value={link} aria-label={label} onFocus={(event) => event.target.select()} className="h-10 min-w-0 flex-1 rounded-lg bg-(--td-input) font-mono text-xs" />
+        <Button
+          variant="secondary"
+          className="rounded-lg"
+          onClick={() => {
+            void navigator.clipboard?.writeText(link).then(() => setCopied(true), () => setCopied(false));
+          }}
+        >
+          {copied ? <Check /> : <Copy />}
+          {copied ? 'Copied' : 'Copy link'}
+        </Button>
+      </div>
+      <p role="alert" className="rounded-lg bg-amber-400/10 px-3 py-2 text-xs text-amber-200">
+        Shown once: it cannot be seen again after you close this. It works once, until {formatGeorgiaTime(expiresAt)} (Georgia). {again}
+      </p>
+      <Button variant="ghost" className="w-fit rounded-lg" onClick={onDone}>
+        Done
+      </Button>
+    </section>
+  );
+}
 
 function inviteRefusal(error: unknown): unknown {
   if (!(error instanceof TdApiError)) return error;
@@ -42,7 +96,6 @@ function InviteMember({ onClose }: { onClose: () => void }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>(null);
   const [invited, setInvited] = useState<{ link: string; email: string; expiresAt: string } | null>(null);
-  const [copied, setCopied] = useState(false);
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -65,30 +118,19 @@ function InviteMember({ onClose }: { onClose: () => void }) {
 
   if (invited) {
     return (
-      <div className="flex flex-col gap-3 border-b border-(--td-divider) px-5 py-4">
-        <p className="text-sm">
-          Invitation for <span className="font-mono text-xs">{invited.email}</span>. Send them this link yourself: the API does not email it.
-        </p>
-        <div className="flex flex-wrap items-center gap-2">
-          <Input readOnly value={invited.link} aria-label="Invitation link" onFocus={(event) => event.target.select()} className="h-10 min-w-0 flex-1 rounded-lg bg-(--td-input) font-mono text-xs" />
-          <Button
-            variant="secondary"
-            className="rounded-lg"
-            onClick={() => {
-              void navigator.clipboard?.writeText(invited.link).then(() => setCopied(true), () => setCopied(false));
-            }}
-          >
-            {copied ? <Check /> : <Copy />}
-            {copied ? 'Copied' : 'Copy link'}
-          </Button>
-        </div>
-        <p role="alert" className="rounded-lg bg-amber-400/10 px-3 py-2 text-xs text-amber-200">
-          Shown once: it cannot be seen again after you close this. It works once, until {formatGeorgiaTime(invited.expiresAt)} (Georgia). Inviting the same email again makes a new link.
-        </p>
-        <Button variant="ghost" className="w-fit rounded-lg" onClick={onClose}>
-          Done
-        </Button>
-      </div>
+      <OneTimeLink
+        label="Invitation link"
+        heading={`Invitation link for ${invited.email}`}
+        intro={
+          <>
+            Invitation for <span className="font-mono text-xs">{invited.email}</span>.
+          </>
+        }
+        link={invited.link}
+        expiresAt={invited.expiresAt}
+        again="Inviting the same email again makes a new link."
+        onDone={onClose}
+      />
     );
   }
 
@@ -140,8 +182,39 @@ const STATUS_STYLES: Record<TdStaffMember['status'], string> = {
 
 export function TdTeam() {
   const { user } = useTdAuth();
+  const write = useTdWrite();
   const { data, isLoading, error, refetch } = useTdStaff();
   const [inviting, setInviting] = useState(false);
+  const [making, setMaking] = useState<string | null>(null);
+  const [reset, setReset] = useState<{ email: string; link: string; expiresAt: string } | null>(null);
+  const [resetError, setResetError] = useState<string | null>(null);
+  const resetColumn = Boolean(data?.items.some((member) => canMakeResetLink(user, member)));
+  const columns = resetColumn ? [...COLUMNS, ''] : COLUMNS;
+
+  // Where focus goes back when a link panel is closed.
+  const returnFocus = useRef<HTMLElement | null>(null);
+  const inviteButton = useRef<HTMLButtonElement>(null);
+  const [inviteClosed, setInviteClosed] = useState(false);
+  useEffect(() => {
+    if (inviteClosed && !inviting) inviteButton.current?.focus();
+  }, [inviteClosed, inviting]);
+
+  const makeResetLink = async (member: TdStaffMember, trigger: HTMLElement) => {
+    returnFocus.current = trigger;
+    setMaking(member.id);
+    setResetError(null);
+    setReset(null);
+    try {
+      const out = await write((operation) => tdAdmin.staff.resetLink(member.id, operation), []);
+      setReset({ email: member.email, link: resetLink(window.location.origin, out.token), expiresAt: out.expiresAt });
+    } catch (caught) {
+      setResetError(resetLinkRefusal(caught, member.email));
+      // The list may be behind (disabled, or gone meanwhile): look again.
+      void refetch();
+    } finally {
+      setMaking(null);
+    }
+  };
 
   return (
     <TdSection
@@ -149,14 +222,45 @@ export function TdTeam() {
       description="Roles are enforced by the API on every request. Nobody can grant or remove the ops role here."
       actions={
         canInvite(user?.role) && !inviting ? (
-          <Button className="rounded-lg" onClick={() => setInviting(true)}>
+          <Button ref={inviteButton} className="rounded-lg" onClick={() => setInviting(true)}>
             <UserPlus />
             Invite member
           </Button>
         ) : undefined
       }
     >
-      {inviting && canInvite(user?.role) && <InviteMember onClose={() => setInviting(false)} />}
+      {inviting && canInvite(user?.role) && (
+        <InviteMember
+          onClose={() => {
+            setInviting(false);
+            setInviteClosed(true);
+          }}
+        />
+      )}
+      {reset && (
+        <OneTimeLink
+          label="Reset link"
+          heading={`Reset link for ${reset.email}`}
+          intro={
+            <>
+              Reset link for <span className="font-mono text-xs">{reset.email}</span>. Opening it sets a new password and signs them out everywhere else.
+            </>
+          }
+          link={reset.link}
+          expiresAt={reset.expiresAt}
+          again="Making another reset link for them stops this one."
+          onDone={() => {
+            setReset(null);
+            returnFocus.current?.focus();
+          }}
+        />
+      )}
+      {resetError && (
+        <p role="alert" className="mx-5 mt-4 flex items-start gap-2 rounded-lg bg-(--td-danger)/10 px-3 py-2.5 text-sm text-(--td-danger)">
+          <AlertCircle className="mt-0.5 size-4 shrink-0" />
+          {resetError}
+        </p>
+      )}
       {error ? (
         <div className="flex flex-col items-center gap-3 px-6 py-12 text-center">
           <AlertCircle className="size-6 text-(--td-danger)" />
@@ -169,8 +273,8 @@ export function TdTeam() {
         <Table>
           <TableHeader>
             <TableRow className="border-(--td-divider) hover:bg-transparent">
-              {COLUMNS.map((column) => (
-                <TableHead key={column} className="h-10 px-5 text-xs font-semibold uppercase tracking-wide text-(--td-text-3)">
+              {columns.map((column) => (
+                <TableHead key={column || 'actions'} className="h-10 px-5 text-xs font-semibold uppercase tracking-wide text-(--td-text-3)">
                   {column}
                 </TableHead>
               ))}
@@ -180,8 +284,8 @@ export function TdTeam() {
             {isLoading &&
               Array.from({ length: 4 }, (_, row) => (
                 <TableRow key={row} className="border-(--td-divider) hover:bg-transparent">
-                  {COLUMNS.map((column) => (
-                    <TableCell key={column} className="px-5 py-4">
+                  {columns.map((column) => (
+                    <TableCell key={column || 'actions'} className="px-5 py-4">
                       <span className="block h-3 w-24 animate-pulse rounded bg-secondary" />
                     </TableCell>
                   ))}
@@ -200,11 +304,28 @@ export function TdTeam() {
                 <TableCell className="px-5 py-3 text-(--td-text-2) tabular-nums">
                   {member.lastSignInAt ? signInFormat.format(new Date(member.lastSignInAt)) : '—'}
                 </TableCell>
+                {resetColumn && (
+                  <TableCell className="px-5 py-2 text-right">
+                    {canMakeResetLink(user, member) && (
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        className="rounded-lg"
+                        disabled={making !== null}
+                        aria-label={`Reset link for ${member.name || member.email}`}
+                        onClick={(event) => void makeResetLink(member, event.currentTarget)}
+                      >
+                        {making === member.id ? <Loader2 className="animate-spin" /> : <KeyRound />}
+                        Reset link
+                      </Button>
+                    )}
+                  </TableCell>
+                )}
               </TableRow>
             ))}
             {data && data.items.length === 0 && (
               <TableRow className="hover:bg-transparent">
-                <TableCell colSpan={COLUMNS.length} className="p-0">
+                <TableCell colSpan={columns.length} className="p-0">
                   <TdEmptyState icon={Users} title="No staff yet" />
                 </TableCell>
               </TableRow>

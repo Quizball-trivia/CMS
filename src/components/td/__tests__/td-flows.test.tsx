@@ -381,6 +381,69 @@ describe('penalties to review', () => {
 });
 
 describe('team', () => {
+  it('a team manager makes a one-time reset link for an active member; none for themselves, ops or someone not signed up', async () => {
+    const admin = await signIn('betsson_admin');
+    const who = async (accessToken: string) => ((await (await server(`${BASE}/admin/me`, { headers: { Authorization: `Bearer ${accessToken}` } })).json()) as { email: string }).email;
+    renderTd(<TdTeam />);
+    expect(await screen.findByRole('button', { name: 'Reset link for Demo Editor' })).toBeTruthy();
+    for (const name of ['Demo Betsson Admin', 'Demo Ops', 'Invited Editor']) expect(screen.queryByRole('button', { name: `Reset link for ${name}` })).toBeNull();
+
+    // Each member's link is theirs: redeeming it signs in as that member.
+    for (const [name, email] of [
+      ['Demo Publisher', 'publisher@demo.tablederby.test'],
+      ['Demo Editor', 'editor@demo.tablederby.test'],
+    ] as const) {
+      const button = screen.getByRole('button', { name: `Reset link for ${name}` });
+      fireEvent.click(button);
+      const link = (await screen.findByLabelText('Reset link')) as HTMLInputElement;
+      expect(link.value).toMatch(new RegExp(`^${window.location.origin}/td/reset#token=tdr_[A-Za-z0-9_-]{20,}$`));
+      expect(screen.getByRole('region', { name: `Reset link for ${email}` })).toBeTruthy();
+      expect(screen.getByText(/Shown once: it cannot be seen again.*\(Georgia\)\. Making another reset link for them stops this one\./)).toBeTruthy();
+      // Focus goes to the link, and back to the member's button when it is closed.
+      await waitFor(() => expect(document.activeElement).toBe(link));
+      const token = decodeURIComponent(link.value.split('#token=')[1]);
+      const session = await admin.api.resetPassword(token, `a brand new passphrase for ${name}`);
+      expect(await who(session!.accessToken)).toBe(email);
+      await expect(admin.api.resetPassword(token, 'a brand new passphrase')).rejects.toMatchObject({ code: 'invalid_token' });
+      fireEvent.click(screen.getByRole('button', { name: 'Done' }));
+      expect(screen.queryByLabelText('Reset link')).toBeNull();
+      expect(document.activeElement).toBe(screen.getByRole('button', { name: `Reset link for ${name}` }));
+    }
+    cleanup();
+
+    // Ops may make one for a Betsson admin, never for an ops member (themselves included).
+    await signIn('ops');
+    renderTd(<TdTeam />);
+    expect(await screen.findByRole('button', { name: 'Reset link for Demo Betsson Admin' })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Reset link for Demo Ops' })).toBeNull();
+  });
+
+  it('says in plain words why a reset link was not made', async () => {
+    const admin = await signIn('betsson_admin');
+    const refusals = [
+      new TdApiError(409, 'conflict', 'Re-enable them first'),
+      new TdApiError(403, 'forbidden', 'Your role cannot manage the team'),
+      new TdApiError(404, 'not_found', 'No such member'),
+      new TypeError('Failed to fetch'),
+    ];
+    h.admin = { ...admin.admin, staff: { ...admin.admin.staff, resetLink: async () => Promise.reject(refusals.shift()) } };
+    const reads = vi.spyOn(admin.api, 'get');
+    const staffReads = () => reads.mock.calls.filter(([path]) => path === '/admin/staff').length;
+    renderTd(<TdTeam />);
+    const make = async () => fireEvent.click(await screen.findByRole('button', { name: 'Reset link for Demo Editor' }));
+    await make();
+    expect(await screen.findByText('No reset link for editor@demo.tablederby.test: Re-enable them first.')).toBeTruthy();
+    // The list may be behind: it is read again after a refusal.
+    await waitFor(() => expect(staffReads()).toBe(2));
+    await make();
+    expect(await screen.findByText('No reset link for editor@demo.tablederby.test: Your role cannot manage the team.')).toBeTruthy();
+    await make();
+    expect(await screen.findByText('editor@demo.tablederby.test is no longer on the team.')).toBeTruthy();
+    await make();
+    expect(await screen.findByText(/No answer from the Table Derby API, so a link may have been made\. Make another/)).toBeTruthy();
+    expect(screen.queryByLabelText('Reset link')).toBeNull();
+  });
+
   it('a team manager makes a one-time invitation link to copy; an editor sees no invite', async () => {
     await signIn('betsson_admin');
     renderTd(<TdTeam />);
@@ -402,8 +465,10 @@ describe('team', () => {
     expect(screen.getByText(/Shown once: it cannot be seen again/)).toBeTruthy();
     // The team list shows them as invited.
     expect(await screen.findByRole('cell', { name: 'new.publisher@example.test' })).toBeTruthy();
+    await waitFor(() => expect(document.activeElement).toBe(link));
     fireEvent.click(screen.getByRole('button', { name: 'Done' }));
     expect(screen.queryByLabelText('Invitation link')).toBeNull();
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Invite member' })));
     cleanup();
 
     await signIn('editor');

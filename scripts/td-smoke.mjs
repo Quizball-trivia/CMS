@@ -7,8 +7,10 @@ import { chromium } from 'playwright';
 
 const BASE = process.argv[2] ?? 'http://localhost:3310';
 const failures = [];
+// One-time link tokens never reach the output, whatever a failure message quotes.
+const scrub = (text) => String(text).replace(/#token=[^\s'"&)]+/g, '#token=…').replace(/\btd[ir]_[A-Za-z0-9_-]{16,}/g, 'td?_…');
 const check = (name, ok, detail = '') => {
-  console.log(`${ok ? 'PASS' : 'FAIL'} ${name}${detail ? ` (${detail})` : ''}`);
+  console.log(`${ok ? 'PASS' : 'FAIL'} ${name}${detail ? ` (${scrub(detail)})` : ''}`);
   if (!ok) failures.push(name);
 };
 
@@ -91,10 +93,15 @@ try {
 
   // A new member: the admin makes an invitation link on the Team tab; opened signed out, it joins and signs in.
   await page.goto(`${BASE}/td/team`);
+  // Made, not used: the editor still signs in with the demo password below.
+  await page.getByRole('button', { name: 'Reset link for Demo Editor' }).click();
+  const resetUrl = await page.getByLabel('Reset link', { exact: true }).inputValue();
+  check('Betsson admin makes a one-time reset link for a member', resetUrl.startsWith(`${BASE}/td/reset#token=tdr_`), resetUrl.replace(/#token=.*/, '#token=…'));
+  await page.getByRole('button', { name: 'Done' }).click();
   await page.getByRole('button', { name: 'Invite member' }).click();
   await page.getByLabel('Email').fill('smoke.member@example.test');
   await page.getByRole('button', { name: 'Make the invitation link' }).click();
-  const invitation = await page.getByLabel('Invitation link').inputValue();
+  const invitation = await page.getByLabel('Invitation link', { exact: true }).inputValue();
   check('Betsson admin makes a one-time invitation link', invitation.startsWith(`${BASE}/td/accept-invite#token=tdi_`), invitation.replace(/#token=.*/, '#token=…'));
   await page.getByRole('button', { name: 'Sign out' }).click();
   await page.waitForURL(/\/td\/login/);

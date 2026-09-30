@@ -183,6 +183,8 @@ export function createTdAdminApi(api: TdApiClient) {
     staff: {
       /** A one-time invitation link token (48 hours), to hand over: the API never emails it. */
       invite: (body: C.StaffInviteRequest, options?: TdRequestOptions) => api.post<C.StaffInviteResponse>('/admin/staff/invite', body, options),
+      /** A one-time reset link token (48 hours) for an active member, to hand over; an earlier open one stops working. */
+      resetLink: (staffId: string, options?: TdRequestOptions) => api.post<C.LinkTokenResponse>(`/admin/staff/${segment(staffId)}/reset-link`, undefined, options),
     },
     settings: {
       get: (options?: TdRequestOptions) => api.get<C.Settings>('/admin/settings', options),
