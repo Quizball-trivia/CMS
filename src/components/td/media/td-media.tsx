@@ -247,6 +247,7 @@ function TdMediaPickerDialog({
 /** Saves an upload as an image (a media draft) so it can be picked; a publisher approves it with its rights later. */
 function NewImageForm({ upload, suggestedKey, onCancel, onSaved }: { upload: MediaUpload; suggestedKey?: string; onCancel: () => void; onSaved: (key: string) => void }) {
   const write = useTdWrite();
+  const reportBusy = useTdUploadingReport();
   const [key, setKey] = useState(suggestedKey ?? `img-${upload.id.slice(0, 8)}`);
   const [rights, setRights] = useState({ author: '', license: '', source: '' });
   const [issues, setIssues] = useState<SchemaIssue[]>([]);
@@ -259,6 +260,8 @@ function NewImageForm({ upload, suggestedKey, onCancel, onSaved }: { upload: Med
     setIssues(found);
     if (found.length) return;
     setBusy(true);
+    // The editor holding the picker waits for this too, so its draft never changes under a save.
+    reportBusy?.(true);
     setError(null);
     try {
       await write((operation) => tdAdmin.content('media').create({ data }, operation));
@@ -267,6 +270,7 @@ function NewImageForm({ upload, suggestedKey, onCancel, onSaved }: { upload: Med
       setError(caught);
     } finally {
       setBusy(false);
+      reportBusy?.(false);
     }
   };
   return (

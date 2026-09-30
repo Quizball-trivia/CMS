@@ -108,6 +108,8 @@ export async function structureProblem(bytes: Uint8Array, format: Format): Promi
     if (!ended || data.length === 0) return 'decode';
     const width = view.getUint32(16);
     const height = view.getUint32(20);
+    // Oversized or empty headers are refused on their dimensions (upload), before anything is inflated.
+    if (width < 1 || height < 1 || width > MAX_SIDE || height > MAX_SIDE) return null;
     const bits = bytes[24] * (PNG_CHANNELS[bytes[25]] ?? 0);
     const interlaced = bytes[28] === 1;
     const joined = new Uint8Array(data.reduce((n, d) => n + d.length, 0));

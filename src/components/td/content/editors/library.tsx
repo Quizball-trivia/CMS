@@ -55,7 +55,7 @@ export function PracticeEditor({ value, onChange, issues, creating }: TdEditorPr
       />
       <TdIssueText issues={issuesAt(issues, 'data.answer')} />
       <TdOptionalTextField label="Explanation (optional)" multiline value={value.explanation} onChange={(explanation) => onChange({ ...value, explanation })} issues={issuesAt(issues, 'data.explanation')} />
-      <TdMediaPicker label="Image (optional)" value={value.imageKey} onChange={(imageKey) => onChange({ ...value, imageKey })} />
+      <TdMediaPicker label="Image (optional)" value={value.imageKey} onChange={(imageKey) => onChange((current) => ({ ...current, imageKey }))} />
     </>
   );
 }
@@ -75,7 +75,7 @@ export function MediaEditor({ value, onChange, issues, creating }: TdEditorProps
           <TdUploadButton
             variant="secondary"
             label={value.uploadId || value.url ? 'Replace with an upload' : 'Upload image'}
-            onUploaded={(upload) => onChange({ ...value, url: null, uploadId: upload.id, width: upload.width, height: upload.height })}
+            onUploaded={(upload) => onChange((current) => ({ ...current, url: null, uploadId: upload.id, width: upload.width, height: upload.height }))}
           />
         </div>
       </TdField>
@@ -101,7 +101,7 @@ export function ClubEditor({ value, onChange, issues, creating }: TdEditorProps<
         <TdOptionalTextField label="Flag" value={value.flag} onChange={(flag) => onChange({ ...value, flag })} issues={issuesAt(issues, 'data.flag')} placeholder="🇬🇪" />
         <TdTextField label="Crest file" value={value.crest} onChange={(crest) => onChange({ ...value, crest })} issues={issuesAt(issues, 'data.crest')} hint="A file under /assets/clubs, such as dinamo-tbilisi.webp." />
       </div>
-      <TdMediaPicker label="Uploaded crest" value={value.crestImageKey} onChange={(crestImageKey) => onChange({ ...value, crestImageKey })} suggestedKey={`crest-${value.key}`} hint="Shown instead of the crest file when chosen. Upload one from Choose." />
+      <TdMediaPicker label="Uploaded crest" value={value.crestImageKey} onChange={(crestImageKey) => onChange((current) => ({ ...current, crestImageKey }))} suggestedKey={`crest-${value.key}`} hint="Shown instead of the crest file when chosen. Upload one from Choose." />
       <TdSwitchField label="Hidden from the club picker" checked={value.hidden} onChange={(hidden) => onChange({ ...value, hidden })} hint="Still resolvable, e.g. for Career Path crests." />
     </>
   );

@@ -8,7 +8,8 @@ import { issuesAt, TdListField, TdNumberField, TdSelectField, TdSpellingsField, 
 
 export interface TdEditorProps<T extends TdContentType> {
   value: TdContentData<T>;
-  onChange: (next: TdContentData<T>) => void;
+  /** A value, or an update of the latest one: what finishes later (an upload, a picked image) must not undo edits made meanwhile. */
+  onChange: (next: TdContentData<T> | ((current: TdContentData<T>) => TdContentData<T>)) => void;
   issues: SchemaIssue[];
   /** Fixed fields may change only before the first save. */
   creating: boolean;
@@ -86,7 +87,7 @@ export function CardEditor({ value, onChange, issues, creating }: TdEditorProps<
           <TdTextField label="SoFIFA version" value={value.photo.ver} onChange={(ver) => onChange({ ...value, photo: { ...value.photo!, ver } })} issues={issuesAt(issues, 'data.photo.ver')} placeholder="e.g. 25_1" />
         </div>
       )}
-      <TdMediaPicker label="Uploaded photo" value={value.imageKey} onChange={(imageKey) => onChange({ ...value, imageKey })} />
+      <TdMediaPicker label="Uploaded photo" value={value.imageKey} onChange={(imageKey) => onChange((current) => ({ ...current, imageKey }))} />
     </>
   );
 }

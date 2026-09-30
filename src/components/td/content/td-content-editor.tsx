@@ -251,7 +251,17 @@ function EditorBody({ target, onSaved }: { target: TdEditorTarget; onSaved?: (ro
             {/* Locked while a write and its refresh run: the answer replaces the form, so nothing typed meanwhile may be lost. */}
             <TdUploadingContext.Provider value={reportUploading}>
               <fieldset disabled={busy !== null} className="contents">
-                <Editor value={draft.data as never} onChange={(data) => setDraft({ ...draft, data: data as Record<string, unknown> })} issues={issues} creating={creating} />
+                <Editor
+                  value={draft.data as never}
+                  onChange={(update: unknown) =>
+                    setDraft((current) => ({
+                      ...current,
+                      data: (typeof update === 'function' ? (update as (d: Record<string, unknown>) => Record<string, unknown>)(current.data) : update) as Record<string, unknown>,
+                    }))
+                  }
+                  issues={issues}
+                  creating={creating}
+                />
                 {!creating && (
                   <TdNumberField
                     label="Position"

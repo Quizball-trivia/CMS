@@ -71,6 +71,8 @@ describe('mock uploads refuse what the API’s decoder refuses', () => {
     // Inflating far past a 1×1 image: the API accepts it (the decoder stops at the image), and the mock reads no further either.
     expect(await upload(await png(1, 1, new Uint8Array(1_000_000)))).toMatchObject({ status: 201, body: { width: 1, height: 1 } });
     expect(await upload(await png(2, 2, new Uint8Array([0, 1, 2])))).toMatchObject({ status: 422, body: { details: { reason: 'decode' } } });
+    // A tiny file declaring 65,536² pixels is refused on its dimensions, with nothing allocated for it.
+    expect(await upload(await png(65_536, 65_536, new Uint8Array([0, 1, 2])))).toMatchObject({ status: 422, body: { details: { reason: 'dimensions' } } });
   });
 
   it('a JPEG walked through its scan: data after the image is refused even when it ends in an end marker', async () => {
