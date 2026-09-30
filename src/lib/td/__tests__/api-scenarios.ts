@@ -6,6 +6,7 @@
  * database that holds other content.
  */
 import { expect, it } from 'vitest';
+import examples from '../contract/pinned/fixtures/examples.json';
 import { TD_CONTENT_TYPES, type TdContentType } from '../admin-api';
 import { addDays } from '../georgia';
 import { pngBlob, type Harness } from './api-harness';
@@ -285,7 +286,11 @@ export function apiScenarios(h: () => Harness) {
     const csv = await h().call('betsson_admin', 'GET', '/admin/leaderboard/export');
     expect(csv.status).toBe(200);
     expect(csv.contentType).toMatch(/^text\/csv/);
-    expect(String(csv.body).replace(/^﻿/, '').split(/\r?\n/)[0]).toMatch(/rank/);
+    // The header the contract's own export examples carry.
+    const headerOf = (body: unknown) => String(body).replace(/^\uFEFF/, '').split(/\r?\n/)[0];
+    const exampleHeader = headerOf((examples.examples as { path: string; response: { body?: unknown } }[]).find((e) => e.path === '/admin/leaderboard/export')!.response.body);
+    expect(exampleHeader).toBe('rank,player_id,partner_player_id,nickname,rating,games,wins,losses');
+    expect(headerOf(csv.body)).toBe(exampleHeader);
     const label = `Scenario ${run}`;
     const snap = await h().call('betsson_admin', 'POST', '/admin/leaderboard/snapshots', { body: { label } });
     expect(snap.status).toBe(201);
@@ -293,7 +298,9 @@ export function apiScenarios(h: () => Harness) {
     const snapId = (snap.body as { id: string }).id;
     expect((await h().call('betsson_admin', 'GET', '/admin/leaderboard/snapshots?limit=5')).status).toBe(200);
     expect((await h().call('betsson_admin', 'GET', `/admin/leaderboard/snapshots/${snapId}`)).body).toMatchObject({ snapshot: { id: snapId, label } });
-    expect((await h().call('betsson_admin', 'GET', `/admin/leaderboard/snapshots/${snapId}/export`)).contentType).toMatch(/^text\/csv/);
+    const snapCsv = await h().call('betsson_admin', 'GET', `/admin/leaderboard/snapshots/${snapId}/export`);
+    expect(snapCsv.contentType).toMatch(/^text\/csv/);
+    expect(headerOf(snapCsv.body)).toBe(exampleHeader);
     expect((await h().call('ops', 'GET', '/admin/reviews?status=all')).status).toBe(200);
   });
 

@@ -225,7 +225,7 @@ const cell = (value: unknown) => {
 };
 
 export function csv(rows: ReturnType<typeof standings>): string {
-  const header = ['rank', 'player_id', 'partner_player_id', 'display_name', 'rating', 'games', 'wins', 'losses'];
+  const header = ['rank', 'player_id', 'partner_player_id', 'nickname', 'rating', 'games', 'wins', 'losses'];
   const lines = rows.map((r) => [r.rank, r.playerId, r.partnerPlayerId, r.displayName, r.rating, r.games, r.wins, r.losses].map(cell).join(','));
   return `﻿${[header.join(','), ...lines].join('\r\n')}\r\n`;
 }
