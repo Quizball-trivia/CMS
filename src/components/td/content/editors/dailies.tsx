@@ -8,7 +8,7 @@ import { useTdAllRows } from '@/hooks/use-td-content';
 import type { TdDailyGame } from '@/lib/td/admin-api';
 import { georgiaToday } from '@/lib/td/georgia';
 import { cn } from '@/lib/utils';
-import { issuesAt, tdInputClass, TdField, TdIssueText, TdNumberField, TdOptionalTextField, TdSelectField, TdSpellingsField, TdSwitchField, TdTextField } from '../td-form';
+import { issuesAt, tdInputClass, TdField, TdIssueText, TdNumberField, TdNumberInput, TdOptionalTextField, TdSelectField, TdSpellingsField, TdSwitchField, TdTextField } from '../td-form';
 import { KeyField, type TdEditorProps } from './rounds';
 
 export const TD_DAILY_GAMES: ReadonlyArray<{ game: TdDailyGame; type: 'football-logic' | 'put-in-order' | 'career-path'; label: string }> = [
@@ -109,7 +109,7 @@ export function PutInOrderEditor({ value, onChange, issues, creating }: TdEditor
               <div className="grid grid-cols-[1fr_auto] gap-2 sm:grid-cols-[8rem_1fr_7rem_auto]">
                 <Input aria-label={`Item ${index + 1} key`} value={item.key} onChange={(event) => set(index, { key: event.target.value })} className={cn(tdInputClass, 'font-mono')} placeholder="key" />
                 <Input aria-label={`Item ${index + 1} label`} value={item.label} onChange={(event) => set(index, { label: event.target.value })} className={cn(tdInputClass, 'col-span-2 sm:col-span-1')} placeholder="Label" />
-                <Input aria-label={`Item ${index + 1} sort value`} inputMode="decimal" value={String(item.sortValue)} onChange={(event) => set(index, { sortValue: Number(event.target.value) || 0 })} className={tdInputClass} />
+                <TdNumberInput label={`Item ${index + 1} sort value`} value={item.sortValue} onChange={(sortValue) => set(index, { sortValue })} />
                 <div className="flex items-center">
                   <Button type="button" variant="ghost" size="icon-sm" aria-label="Move up" disabled={index === 0} onClick={() => move(index, -1)}>
                     <ArrowUp />

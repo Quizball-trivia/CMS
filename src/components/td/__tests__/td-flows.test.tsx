@@ -157,6 +157,41 @@ describe('content editor', () => {
     expect(saved.note).toBe('checked with the rules');
   });
 
+  it('holds Save while a number field shows text that is not a number, rather than saving the old number', async () => {
+    const { admin } = await signIn('editor');
+    const row = await admin.content('penalty-questions').create({ data: penalty('numbers') });
+    renderTd(<TdContentEditorSheet target={{ type: 'penalty-questions', row }} onClose={() => {}} />);
+    fireEvent.change(screen.getByLabelText('Question'), { target: { value: 'Changed?' } });
+    const save = screen.getByRole('button', { name: 'Save' });
+    expect(save.hasAttribute('disabled')).toBe(false);
+
+    fireEvent.change(screen.getByLabelText('Position'), { target: { value: '12abc' } });
+    expect(screen.getByText('Not a number')).toBeTruthy();
+    expect(save.hasAttribute('disabled')).toBe(true);
+    fireEvent.change(screen.getByLabelText('Position'), { target: { value: '' } });
+    expect(screen.getByText('Enter a number')).toBeTruthy();
+    expect(save.hasAttribute('disabled')).toBe(true);
+    fireEvent.click(save);
+    expect((await admin.content('penalty-questions').get(row.id)).version).toBe(row.version);
+
+    fireEvent.change(screen.getByLabelText('Position'), { target: { value: '7' } });
+    expect(screen.queryByText('Enter a number')).toBeNull();
+    fireEvent.click(save);
+    await waitFor(async () => expect((await admin.content('penalty-questions').get(row.id)).position).toBe(7));
+  });
+
+  it('holds Save while an item’s sort value is not a number, instead of saving it as 0', async () => {
+    await signIn('editor');
+    renderTd(<TdContentEditorSheet target={{ type: 'put-in-order', row: null }} onClose={() => {}} />);
+    const sort = await screen.findByLabelText('Item 1 sort value');
+    fireEvent.change(sort, { target: { value: 'x' } });
+    expect(screen.getByText('Not a number')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Create draft' }).hasAttribute('disabled')).toBe(true);
+    fireEvent.change(sort, { target: { value: '1990' } });
+    expect(screen.queryByText('Not a number')).toBeNull();
+    expect(screen.getByRole('button', { name: 'Create draft' }).hasAttribute('disabled')).toBe(false);
+  });
+
   it('approves a category with its ready cards in one step', async () => {
     const editor = await clientFor('editor');
     const category = await editor.admin.content('card-categories').create({ data: { key: 'coaches', prompt: 'Famous coaches' } });

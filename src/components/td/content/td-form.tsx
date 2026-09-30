@@ -1,6 +1,6 @@
 'use client';
 
-import { useId, useState, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, useId, useState, type ReactNode } from 'react';
 import { ArrowDown, ArrowUp, Lock, Plus, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -118,6 +118,44 @@ export function TdOptionalTextField({ value, onChange, ...rest }: Omit<Parameter
   return <TdTextField {...rest} value={value ?? ''} onChange={(next) => onChange(next === '' ? null : next)} />;
 }
 
+/**
+ * Lets a field inside an editor say its text is not a valid value, so the
+ * editor holds Save: the draft still has the last valid value, which must
+ * not be saved in place of what the field shows.
+ */
+export const TdInvalidInputContext = createContext<((field: string, invalid: boolean) => void) | null>(null);
+
+export function numberTextProblem(text: string, nullable: boolean): string | null {
+  const trimmed = text.trim();
+  if (trimmed === '') return nullable ? null : 'Enter a number';
+  return Number.isFinite(Number(trimmed)) ? null : 'Not a number';
+}
+
+/** The text of a number input as typed ("-" or "1." on the way to a number); only a valid number reaches `onChange`. */
+function useNumberText(value: number | null, onChange: (value: number | null) => void, nullable: boolean) {
+  const field = useId();
+  const report = useContext(TdInvalidInputContext);
+  const [text, setText] = useState<{ raw: string; for: number | null }>({ raw: value === null ? '' : String(value), for: value });
+  // A value replaced from outside (a reload, a merge) replaces the text too.
+  const raw = text.for === value ? text.raw : value === null ? '' : String(value);
+  const problem = numberTextProblem(raw, nullable);
+  const invalid = problem !== null;
+  useEffect(() => {
+    report?.(field, invalid);
+    return () => report?.(field, false);
+  }, [report, field, invalid]);
+  const change = (typed: string) => {
+    if (numberTextProblem(typed, nullable) !== null) {
+      setText({ raw: typed, for: value });
+      return;
+    }
+    const next = typed.trim() === '' ? null : Number(typed.trim());
+    setText({ raw: typed, for: next });
+    onChange(next);
+  };
+  return { raw, problem, change };
+}
+
 export function TdNumberField({
   label,
   value,
@@ -125,7 +163,7 @@ export function TdNumberField({
   issues = [],
   hint,
   locked,
-  nullable,
+  nullable = false,
   className,
 }: {
   label: string;
@@ -138,31 +176,23 @@ export function TdNumberField({
   className?: string;
 }) {
   const id = useId();
-  // The text as typed, so "-" or "1." can be typed on the way to a number.
-  const [text, setText] = useState<{ raw: string; for: number | null }>({ raw: value === null ? '' : String(value), for: value });
-  const raw = text.for === value ? text.raw : value === null ? '' : String(value);
+  const { raw, problem, change } = useNumberText(value, onChange, nullable);
+  const shown = problem ? [{ path: '', message: problem }, ...issues] : issues;
   return (
-    <TdField label={label} hint={hint} issues={issues} locked={locked} htmlFor={id} className={className}>
-      <Input
-        id={id}
-        inputMode="decimal"
-        value={raw}
-        disabled={locked}
-        aria-invalid={issues.length > 0}
-        onChange={(event) => {
-          const next = event.target.value.trim();
-          const parsed = next === '' ? null : Number(next);
-          if (parsed !== null && Number.isNaN(parsed)) {
-            setText({ raw: event.target.value, for: value });
-            return;
-          }
-          const committed = parsed === null && !nullable ? value : parsed;
-          setText({ raw: event.target.value, for: committed });
-          onChange(committed);
-        }}
-        className={tdInputClass}
-      />
+    <TdField label={label} hint={hint} issues={shown} locked={locked} htmlFor={id} className={className}>
+      <Input id={id} inputMode="decimal" value={raw} disabled={locked} aria-invalid={shown.length > 0} onChange={(event) => change(event.target.value)} className={tdInputClass} />
     </TdField>
+  );
+}
+
+/** A bare number input (in a row of inputs); its own problem shows under it. */
+export function TdNumberInput({ value, onChange, label, className }: { value: number; onChange: (value: number) => void; label: string; className?: string }) {
+  const { raw, problem, change } = useNumberText(value, (next) => onChange(next ?? value), false);
+  return (
+    <div className="flex flex-col gap-1">
+      <Input aria-label={label} inputMode="decimal" value={raw} aria-invalid={problem !== null} onChange={(event) => change(event.target.value)} className={cn(tdInputClass, className)} />
+      {problem && <TdIssueText issues={[{ path: '', message: problem }]} />}
+    </div>
   );
 }
 
