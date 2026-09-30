@@ -155,6 +155,10 @@ export interface TdApiClient {
   /** Any signed-in request: raw bodies (uploads) and text or binary answers (exports, files). */
   request<T>(method: Method, path: string, options?: TdCallOptions): Promise<T>;
   login(email: string, password: string): Promise<TdTokenSet>;
+  /** Redeems a one-time invitation link; the answer is a new session. */
+  acceptInvite(token: string, password: string, name: string): Promise<TdTokenSet>;
+  /** Redeems a one-time reset link; the answer is a new session. */
+  resetPassword(token: string, password: string): Promise<TdTokenSet>;
   /** Revokes the whole refresh family; true only when the API confirmed it. */
   logout(refreshToken: string): Promise<boolean>;
   me(options?: TdRequestOptions): Promise<TdStaff>;
@@ -225,6 +229,14 @@ export function createTdApiClient({
     return parse<T>(await send(current.accessToken), responseType);
   }
 
+  /** An unauthenticated call answered with a new session (sign-in, invitation, reset). */
+  async function sessionFrom(path: string, body: object): Promise<TdTokenSet> {
+    const response = await transport.send('POST', path, { body, timeoutMs: AUTH_TIMEOUT_MS });
+    const tokens = tokensFromResponse(await parse<TdTokenResponse>(response));
+    if (!tokens) throw new TdApiError(502, 'invalid_token_response', 'The API returned an incomplete session');
+    return tokens;
+  }
+
   return {
     get: (path, options) => authed('GET', path, options),
     post: (path, body, options) => authed('POST', path, { ...options, body }),
@@ -232,15 +244,9 @@ export function createTdApiClient({
     delete: (path, options) => authed('DELETE', path, options),
     request: (method, path, options) => authed(method, path, options),
 
-    async login(email, password) {
-      const response = await transport.send('POST', '/admin/auth/login', {
-        body: { email, password },
-        timeoutMs: AUTH_TIMEOUT_MS,
-      });
-      const tokens = tokensFromResponse(await parse<TdTokenResponse>(response));
-      if (!tokens) throw new TdApiError(502, 'invalid_token_response', 'The API returned an incomplete session');
-      return tokens;
-    },
+    login: (email, password) => sessionFrom('/admin/auth/login', { email, password }),
+    acceptInvite: (token, password, name) => sessionFrom('/admin/auth/accept-invite', { token, password, name }),
+    resetPassword: (token, password) => sessionFrom('/admin/auth/reset', { token, password }),
 
     async logout(refreshToken) {
       // The refresh token, not the access token, identifies the family, so this

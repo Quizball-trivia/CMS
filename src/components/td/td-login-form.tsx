@@ -32,12 +32,21 @@ function messageFor(error: unknown): string {
   return 'Could not reach the Table Derby API. Try again.';
 }
 
+/** Notes a finished link leaves for the login page: fixed keys, so nothing from the URL is ever shown as text. */
+const DONE_NOTES: Record<string, string> = {
+  joined: 'You have joined the team. Sign in with your new password.',
+  'password-set': 'Your password is set. Sign in with it.',
+};
+
 const inputClass = 'h-12 rounded-lg border-border bg-(--td-input) px-4 text-base text-foreground placeholder:text-(--td-text-3)';
 
 export function TdLoginForm() {
   const { status, notice, login } = useTdAuth();
   const router = useRouter();
-  const next = safeNextPath(useSearchParams().get('next'));
+  const params = useSearchParams();
+  const next = safeNextPath(params.get('next'));
+  const doneKey = params.get('done');
+  const done = doneKey && Object.hasOwn(DONE_NOTES, doneKey) ? DONE_NOTES[doneKey] : null;
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -75,6 +84,12 @@ export function TdLoginForm() {
         <form onSubmit={onSubmit} className="rounded-xl border border-border bg-card p-6 sm:p-8" noValidate>
           <h1 className="text-center text-2xl font-bold">Sign in</h1>
           <p className="mt-1 text-center text-sm text-(--td-text-3)">Staff access is by invitation only.</p>
+
+          {done && !shownError && (
+            <p role="status" className="mt-6 rounded-lg bg-(--td-new)/10 px-3 py-2.5 text-sm text-(--td-new)">
+              {done}
+            </p>
+          )}
 
           {shownError && (
             <p role="alert" className="mt-6 flex items-start gap-2 rounded-lg bg-(--td-danger)/10 px-3 py-2.5 text-sm text-(--td-danger)">

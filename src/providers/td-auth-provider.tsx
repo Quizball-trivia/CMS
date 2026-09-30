@@ -4,7 +4,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { useQueryClient } from '@tanstack/react-query';
 import { SESSION_CHANGED, TdApiError } from '@/lib/td/api-client';
 import { tdApi, tdRefresh, tdTokens } from '@/lib/td/client';
-import { newGeneration, type TdSession } from '@/lib/td/token-store';
+import { newGeneration, type TdSession, type TdTokenSet } from '@/lib/td/token-store';
 import type { TdStaff } from '@/types/td';
 
 export type TdAuthStatus = 'loading' | 'authenticated' | 'anonymous' | 'unavailable';
@@ -18,6 +18,9 @@ interface TdAuthState {
 
 interface TdAuthContextValue extends TdAuthState {
   login(email: string, password: string): Promise<TdStaff>;
+  /** Null when the link was taken but the session could not be: the password is set, sign in with it. */
+  acceptInvite(token: string, password: string, name: string): Promise<TdStaff | null>;
+  resetPassword(token: string, password: string): Promise<TdStaff | null>;
   logout(): Promise<void>;
   retry(): void;
 }
@@ -128,9 +131,9 @@ export function TdAuthProvider({ children }: { children: ReactNode }) {
     return () => clearInterval(id);
   }, [state.status]);
 
-  const login = useCallback(
-    async (email: string, password: string) => {
-      const tokens = await tdApi.login(email, password);
+  /** Makes a session the API just issued this tab's sign-in (replacing and revoking any earlier one). */
+  const adopt = useCallback(
+    async (tokens: TdTokenSet) => {
       const generation = newGeneration();
       // Set first, so our own commit below is not mistaken for another tab's sign-in.
       activeGeneration.current = generation;
@@ -158,6 +161,26 @@ export function TdAuthProvider({ children }: { children: ReactNode }) {
     [becomeAnonymous, queryClient],
   );
 
+  const login = useCallback(async (email: string, password: string) => adopt(await tdApi.login(email, password)), [adopt]);
+
+  /**
+   * A one-time link redeemed: refused links and passwords throw; once the API has taken it the password is set,
+   * so a session that then cannot be taken up answers null (sign in with the new password) rather than an error.
+   */
+  const redeem = useCallback(
+    async (obtain: () => Promise<TdTokenSet>) => {
+      const tokens = await obtain();
+      try {
+        return await adopt(tokens);
+      } catch {
+        return null;
+      }
+    },
+    [adopt],
+  );
+  const acceptInvite = useCallback((token: string, password: string, name: string) => redeem(() => tdApi.acceptInvite(token, password, name)), [redeem]);
+  const resetPassword = useCallback((token: string, password: string) => redeem(() => tdApi.resetPassword(token, password)), [redeem]);
+
   const logout = useCallback(async () => {
     const session = tdTokens.read();
     becomeAnonymous(null);
@@ -172,7 +195,7 @@ export function TdAuthProvider({ children }: { children: ReactNode }) {
     void resolveIdentity();
   }, [resolveIdentity]);
 
-  const value = useMemo<TdAuthContextValue>(() => ({ ...state, login, logout, retry }), [state, login, logout, retry]);
+  const value = useMemo<TdAuthContextValue>(() => ({ ...state, login, acceptInvite, resetPassword, logout, retry }), [state, login, acceptInvite, resetPassword, logout, retry]);
 
   return <TdAuthContext.Provider value={value}>{children}</TdAuthContext.Provider>;
 }
