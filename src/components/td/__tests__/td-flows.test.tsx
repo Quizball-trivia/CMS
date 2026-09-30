@@ -218,8 +218,8 @@ describe('import', () => {
     expect((await admin.content('penalty-questions').list({ q: 'imp-' })).items).toHaveLength(2);
     fireEvent.click(await screen.findByText(/^cms:/, { selector: 'span' }));
     fireEvent.click(await screen.findByRole('button', { name: 'Undo this import' }));
-    // The undo is finished on this side (its key retired) once the batch shows its rows removed.
-    expect((await screen.findAllByText('removed')).length).toBe(2);
+    // The key is retired before the batch shows it undone (its Undo button goes).
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'Undo this import' })).toBeNull());
     expect((await admin.content('penalty-questions').list({ q: 'imp-' })).items).toHaveLength(0);
 
     // The same cells after an undo are a new import, not the undone batch answered again.

@@ -50,13 +50,14 @@ function writePending(staffId: string, value: PendingRequest | null) {
 
 /**
  * Whether the API refused this very request (so nothing started and a new attempt takes a new key).
- * A network error, a 5xx, an ended session (401), a rate limit or a cancelled sign-in say nothing
+ * A network error, a 5xx, an ended session (401), a lost role (403), a rate limit or a cancelled sign-in say nothing
  * about a request an earlier try may have started: its key is kept and asked again.
  */
 export function refusedOutright(error: unknown): boolean {
   if (!(error instanceof TdApiError)) return false;
   if (error.code === 'conflict_retry') return false;
-  return [400, 403, 404, 409, 422].includes(error.status);
+  // 403: the role may have gone after an earlier try went through, so it says nothing about that try either.
+  return [400, 404, 409, 422].includes(error.status);
 }
 
 const running = (p: Publication | undefined) => p?.status === 'running' || p?.status === 'failing';
@@ -180,6 +181,18 @@ export function TdReleasesTab() {
               <Button size="sm" className="rounded-lg" disabled={sending} onClick={() => void send(unanswered)}>
                 {sending ? <Loader2 className="animate-spin" /> : <RefreshCw />}
                 Ask again
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                className="rounded-lg"
+                title="Stop asking. It may have run: check the history below before publishing again."
+                onClick={() => {
+                  if (user) writePending(user.id, null);
+                  setUnanswered(null);
+                }}
+              >
+                Forget it
               </Button>
             </div>
           )}

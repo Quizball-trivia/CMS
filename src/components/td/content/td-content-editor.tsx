@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useMemo, useState, type ReactNode } from 'react';
 import { Archive, ArchiveRestore, Check, History, Loader2, RefreshCw, Save, Send, TriangleAlert } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
@@ -21,6 +21,7 @@ import { cn } from '@/lib/utils';
 import { useTdAuth } from '@/providers/td-auth-provider';
 import { TD_TYPE_CONFIG } from './content-types';
 import { TdCategoryApproval } from './td-category-approval';
+import { TdUploadingContext } from './td-uploading';
 import { issuesAt, TdField, TdNumberField } from './td-form';
 import { TdStatusChip, TD_STATUS_LABELS } from './td-status';
 
@@ -64,11 +65,9 @@ function EditorBody({ target, onSaved }: { target: TdEditorTarget; onSaved?: (ro
   // What the form was loaded from: the base of a three-way merge.
   const [base, setBase] = useState<TdDraft>(() => (target.row ? draftOf(target.row) : { data: config.empty(target.preset as never) as Record<string, unknown>, position: 0, note: '' }));
   const [draft, setDraft] = useState<TdDraft>(base);
-  // The draft as of the last render, for a write that finishes later (an upload may change it meanwhile).
-  const draftRef = useRef(draft);
-  useEffect(() => {
-    draftRef.current = draft;
-  }, [draft]);
+  // Uploads running inside the form: writes wait for them, so the draft never changes under a write.
+  const [uploads, setUploads] = useState(0);
+  const reportUploading = useCallback((on: boolean) => setUploads((n) => Math.max(0, n + (on ? 1 : -1))), []);
   const [issues, setIssues] = useState<SchemaIssue[]>([]);
   const [error, setError] = useState<unknown>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -102,23 +101,12 @@ function EditorBody({ target, onSaved }: { target: TdEditorTarget; onSaved?: (ro
   const schemaName = TD_CONTENT_SCHEMA_NAMES[type];
 
   async function run(label: string, work: () => Promise<TdContentRow>, done: string) {
-    const started = draftRef.current;
     setBusy(label);
     setError(null);
     setNotice(null);
     try {
       const next = await work();
-      if (sameDraft(draftRef.current, started)) {
-        adopt(next);
-      } else {
-        // Something changed the draft while this ran (an upload finishing): keep it on top of the answer.
-        setRow(next);
-        setBase(draftOf(next));
-        setDraft(mergeDrafts(started, draftRef.current, draftOf(next)).merged);
-        setIssues([]);
-        setConflict(null);
-        setNotice('Changes made while that ran are kept: save them.');
-      }
+      adopt(next);
       toast.success(done);
       onSaved?.(next);
     } catch (caught) {
@@ -172,7 +160,8 @@ function EditorBody({ target, onSaved }: { target: TdEditorTarget; onSaved?: (ro
     );
   };
 
-  const actions = row && user ? contentActions(row, user, history.data ?? null) : null;
+  // A trail whose last refresh failed may be stale: it does not count.
+  const actions = row && user ? contentActions(row, user, history.isError ? null : (history.data ?? null)) : null;
   const Editor = config.Editor;
   const title = creating ? `New ${config.singular}` : config.title(draft.data as never) || config.singular;
   const approvedDiffers = Boolean(row?.approved && (!sameDraft({ data: row.approved as Record<string, unknown>, position: row.approvedPosition ?? 0, note: '' }, { data: row.data as Record<string, unknown>, position: row.position, note: '' })));
@@ -260,22 +249,24 @@ function EditorBody({ target, onSaved }: { target: TdEditorTarget; onSaved?: (ro
             )}
             {notice && <p className="rounded-lg bg-(--td-input) px-3 py-2 text-xs text-(--td-text-2)">{notice}</p>}
             {/* Locked while a write and its refresh run: the answer replaces the form, so nothing typed meanwhile may be lost. */}
-            <fieldset disabled={busy !== null} className="contents">
-              <Editor value={draft.data as never} onChange={(data) => setDraft({ ...draft, data: data as Record<string, unknown> })} issues={issues} creating={creating} />
-              {!creating && (
-                <TdNumberField
-                  label="Position"
-                  value={draft.position}
-                  onChange={(position) => setDraft({ ...draft, position: position ?? 0 })}
-                  issues={issuesAt(issues, 'position')}
-                  hint="The order in a release. Changing it is a change to the content."
-                  className="max-w-40"
-                />
-              )}
-              <TdField label="Note" issues={issuesAt(issues, 'note')} hint="For the team: sources, checks, questions. Changing only the note keeps the row’s status.">
-                <Textarea value={draft.note} onChange={(event) => setDraft({ ...draft, note: event.target.value })} className="min-h-16 rounded-lg border-border bg-(--td-input) text-sm" />
-              </TdField>
-            </fieldset>
+            <TdUploadingContext.Provider value={reportUploading}>
+              <fieldset disabled={busy !== null} className="contents">
+                <Editor value={draft.data as never} onChange={(data) => setDraft({ ...draft, data: data as Record<string, unknown> })} issues={issues} creating={creating} />
+                {!creating && (
+                  <TdNumberField
+                    label="Position"
+                    value={draft.position}
+                    onChange={(position) => setDraft({ ...draft, position: position ?? 0 })}
+                    issues={issuesAt(issues, 'position')}
+                    hint="The order in a release. Changing it is a change to the content."
+                    className="max-w-40"
+                  />
+                )}
+                <TdField label="Note" issues={issuesAt(issues, 'note')} hint="For the team: sources, checks, questions. Changing only the note keeps the row’s status.">
+                  <Textarea value={draft.note} onChange={(event) => setDraft({ ...draft, note: event.target.value })} className="min-h-16 rounded-lg border-border bg-(--td-input) text-sm" />
+                </TdField>
+              </fieldset>
+            </TdUploadingContext.Provider>
             {issues.some((issue) => !issue.path.startsWith('data.') && issue.path !== 'note' && issue.path !== 'position') && (
               <TdErrorPanel error={new TdApiError(422, 'validation', 'Some fields are not valid', { issues })} />
             )}
@@ -289,13 +280,13 @@ function EditorBody({ target, onSaved }: { target: TdEditorTarget; onSaved?: (ro
           {actions && (actions.approve.reason || actions.restore.reason) && <p className="text-xs text-(--td-text-3)">{actions.approve.reason ?? actions.restore.reason}</p>}
           <div className="flex flex-wrap items-center gap-2">
             {(creating || actions?.save.allowed) && (
-              <Button onClick={save} disabled={busy !== null || !dirty} className="rounded-lg">
+              <Button onClick={save} disabled={busy !== null || !dirty || uploads > 0} className="rounded-lg">
                 {busy === 'save' ? <Loader2 className="animate-spin" /> : <Save />}
                 {creating ? 'Create draft' : 'Save'}
               </Button>
             )}
             {actions?.ready.allowed && (
-              <ActionButton busy={busy} name="ready" dirty={dirty} onClick={() => transition('ready', 'Marked ready for review')} icon={<Send />}>
+              <ActionButton busy={busy} name="ready" dirty={dirty || uploads > 0} onClick={() => transition('ready', 'Marked ready for review')} icon={<Send />}>
                 Mark ready
               </ActionButton>
             )}
@@ -303,7 +294,7 @@ function EditorBody({ target, onSaved }: { target: TdEditorTarget; onSaved?: (ro
               <ActionButton
                 busy={busy}
                 name="approve"
-                dirty={dirty}
+                dirty={dirty || uploads > 0}
                 onClick={() => (CATEGORY_TYPES.has(type) ? setApproving(true) : transition('approve', 'Approved'))}
                 icon={<Check />}
               >
@@ -311,18 +302,19 @@ function EditorBody({ target, onSaved }: { target: TdEditorTarget; onSaved?: (ro
               </ActionButton>
             )}
             {actions?.restore.allowed && (
-              <ActionButton busy={busy} name="restore" dirty={dirty} onClick={() => transition('restore', 'Restored')} icon={<ArchiveRestore />}>
+              <ActionButton busy={busy} name="restore" dirty={dirty || uploads > 0} onClick={() => transition('restore', 'Restored')} icon={<ArchiveRestore />}>
                 Restore
               </ActionButton>
             )}
             <span className="flex-1" />
             {actions?.archive.allowed && (
-              <Button variant="ghost" disabled={busy !== null || dirty} onClick={() => transition('archive', 'Archived')} className="rounded-lg text-(--td-text-2) hover:text-(--td-danger)">
+              <Button variant="ghost" disabled={busy !== null || dirty || uploads > 0} onClick={() => transition('archive', 'Archived')} className="rounded-lg text-(--td-text-2) hover:text-(--td-danger)">
                 {busy === 'archive' ? <Loader2 className="animate-spin" /> : <Archive />}
                 Archive
               </Button>
             )}
           </div>
+          {uploads > 0 && <p className="text-xs text-(--td-text-3)">Waiting for the upload to finish.</p>}
           {dirty && !creating && row && <p className="text-xs text-(--td-text-3)">Unsaved changes. Save before changing the status.</p>}
         </footer>
       )}
@@ -359,6 +351,7 @@ function TabButton({ active, onClick, children }: { active: boolean; onClick: ()
 }
 
 function ActionButton({ busy, name, dirty, onClick, icon, children }: { busy: string | null; name: string; dirty: boolean; onClick: () => void; icon: ReactNode; children: ReactNode }) {
+  // `dirty` also covers an upload running (the caller passes both).
   return (
     <Button variant="secondary" disabled={busy !== null || dirty} onClick={onClick} className="rounded-lg">
       {busy === name ? <Loader2 className="animate-spin" /> : icon}

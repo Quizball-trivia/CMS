@@ -64,8 +64,9 @@ describe('workflow actions offered', () => {
     expect(contentActions(row(), EDITOR, history(EDITOR, PUBLISHER)).archive.allowed).toBe(false);
     expect(contentActions(row(), OTHER_EDITOR, history(EDITOR)).archive.allowed).toBe(false);
     expect(contentActions(row({ approvedVersion: 1 }), EDITOR, history(EDITOR)).archive.allowed).toBe(false);
-    // A trail too long to read whole is not guessed at.
+    // A trail too long to read whole, or behind the row, is not guessed at.
     expect(contentActions(row(), EDITOR, { ...history(EDITOR), complete: false }).archive.allowed).toBe(false);
+    expect(contentActions(row({ version: 3 }), EDITOR, history(EDITOR)).archive.allowed).toBe(false);
     // Without the whole trail (loading, failed) an editor is not offered it.
     expect(contentActions(row(), EDITOR).archive.allowed).toBe(false);
     expect(contentActions(row({ approvedVersion: 1, status: 'approved' }), PUBLISHER).archive.allowed).toBe(true);

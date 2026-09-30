@@ -14,6 +14,7 @@ import { tdAdmin } from '@/lib/td/client';
 import { contentWriteIssues } from '@/lib/td/content-rules';
 import type { MediaUpload, SchemaIssue } from '@/lib/td/contract';
 import { issuesAt, TdTextField } from '@/components/td/content/td-form';
+import { useTdUploadingReport } from '@/components/td/content/td-uploading';
 import { cn } from '@/lib/utils';
 
 export const TD_UPLOAD_TYPES = ['image/jpeg', 'image/png', 'image/webp'] as const;
@@ -69,6 +70,7 @@ export function TdMediaThumb({ uploadId, url, alt, className }: { uploadId?: str
 export function TdUploadButton({ onUploaded, label = 'Upload image', variant = 'default' }: { onUploaded: (upload: MediaUpload) => void; label?: string; variant?: 'default' | 'secondary' }) {
   const input = useRef<HTMLInputElement>(null);
   const write = useTdWrite();
+  const reportUploading = useTdUploadingReport();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>(null);
   const choose = async (file: File | undefined) => {
@@ -80,6 +82,7 @@ export function TdUploadButton({ onUploaded, label = 'Upload image', variant = '
       return;
     }
     setBusy(true);
+    reportUploading?.(true);
     setError(null);
     try {
       onUploaded(await write((operation) => tdAdmin.media.upload(file, file.type, operation), []));
@@ -87,6 +90,7 @@ export function TdUploadButton({ onUploaded, label = 'Upload image', variant = '
       setError(caught);
     } finally {
       setBusy(false);
+      reportUploading?.(false);
     }
   };
   return (

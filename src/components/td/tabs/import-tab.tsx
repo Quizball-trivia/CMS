@@ -357,9 +357,11 @@ function BatchDetail({ id, canUndo }: { id: string; canUndo: boolean }) {
     setBusy(true);
     setError(null);
     try {
-      const out = await write((operation) => tdAdmin.imports.undo(id, operation), [tdKeys.content, tdKeys.releases, tdKeys.imports]);
+      const out = await write((operation) => tdAdmin.imports.undo(id, operation), []);
+      // Retired before any view refreshes: a re-read of the same file must already get a new key.
       retireBatchKey(out.batchKey);
       queryClient.setQueryData([...tdKeys.imports, 'batch', id], out);
+      await Promise.all([tdKeys.content, tdKeys.releases, tdKeys.imports].map((queryKey) => queryClient.invalidateQueries({ queryKey })));
       toast.success(`${out.counts.removed} removed, ${out.counts.kept} kept`);
     } catch (caught) {
       setError(caught);

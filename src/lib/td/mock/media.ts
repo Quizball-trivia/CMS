@@ -51,15 +51,28 @@ export function imageSize(bytes: Uint8Array, format: Format): { width: number; h
   }
 }
 
-/** zlib-inflated bytes, or null when they do not inflate (or the runtime cannot). */
-async function inflate(data: Uint8Array): Promise<Uint8Array | null> {
-  if (typeof DecompressionStream === 'undefined') return null;
+/**
+ * The first `limit` zlib-inflated bytes (or all, when fewer): reading stops there, so a small file
+ * cannot expand to fill memory; like the API's decoder, what inflates past the image is ignored.
+ * Null when the data does not inflate, undefined when the runtime cannot inflate.
+ */
+async function inflate(data: Uint8Array, limit: number): Promise<Uint8Array | null | undefined> {
+  if (typeof DecompressionStream === 'undefined') return undefined;
+  const reader = new Response(data as Uint8Array<ArrayBuffer>).body!.pipeThrough(new DecompressionStream('deflate')).getReader();
+  const out = new Uint8Array(limit);
+  let total = 0;
   try {
-    const stream = new Response(data as Uint8Array<ArrayBuffer>).body!.pipeThrough(new DecompressionStream('deflate'));
-    return new Uint8Array(await new Response(stream).arrayBuffer());
+    while (total < limit) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      out.set(value.subarray(0, limit - total), total);
+      total += Math.min(value.length, limit - total);
+    }
+    if (total >= limit) await reader.cancel();
   } catch {
     return null;
   }
+  return out.subarray(0, total);
 }
 
 const PNG_CHANNELS: Record<number, number> = { 0: 1, 2: 3, 3: 1, 4: 2, 6: 4 };
@@ -99,10 +112,16 @@ export async function structureProblem(bytes: Uint8Array, format: Format): Promi
     const interlaced = bytes[28] === 1;
     const joined = new Uint8Array(data.reduce((n, d) => n + d.length, 0));
     data.reduce((offset, d) => (joined.set(d, offset), offset + d.length), 0);
-    const pixels = await inflate(joined);
-    if (pixels === null) return typeof DecompressionStream === 'undefined' ? null : 'decode';
-    const expected = height * (1 + Math.ceil((width * bits) / 8));
-    return bits === 0 || (!interlaced && pixels.length < expected) ? 'decode' : null;
+    if (bits === 0) return 'decode';
+    const rowBytes = 1 + Math.ceil((width * bits) / 8);
+    const expected = height * rowBytes;
+    // Interlaced rows come in seven passes of smaller rows; only non-interlaced images are sized here.
+    const pixels = await inflate(joined, expected);
+    if (pixels === undefined) return null;
+    if (pixels === null || (!interlaced && pixels.length < expected)) return 'decode';
+    // Every scanline starts with its filter type, 0 to 4.
+    if (!interlaced) for (let row = 0; row < height; row++) if (pixels[row * rowBytes] > 4) return 'decode';
+    return null;
   }
   if (format === 'image/webp') {
     const size = view.getUint32(4, true) + 8;
@@ -116,10 +135,16 @@ export async function structureProblem(bytes: Uint8Array, format: Format): Promi
   // 0x00 (a stuffed byte) or a restart marker; any other marker ends the scan, EOI the image.
   let at = 2;
   let scanned = false;
+  let tables = false;
+  let frame = false;
   while (at + 1 < bytes.length) {
     if (bytes[at] !== 0xff) return 'decode';
     const marker = bytes[at + 1];
     if (marker === 0xd9) return !scanned ? 'decode' : at + 2 === bytes.length ? null : 'trailing_data';
+    if (marker === 0xdb) tables = true;
+    if (marker >= 0xc0 && marker <= 0xcf && marker !== 0xc4 && marker !== 0xc8 && marker !== 0xcc) frame = true;
+    // A scan needs its quantisation tables and a frame before it.
+    if (marker === 0xda && !(tables && frame)) return 'decode';
     if (marker === 0xff) {
       at += 1;
       continue;

@@ -46,13 +46,43 @@ describe('mock uploads refuse what the API’s decoder refuses', () => {
     expect(await upload(empty)).toMatchObject({ status: 422, body: { details: { reason: 'decode' } } });
   });
 
+  it('PNG image data that is not what the header promises (a bad filter byte); excess data is ignored, as the API does', async () => {
+    const { call } = mock();
+    const upload = (data: Uint8Array<ArrayBuffer>) => call('editor', 'POST', '/admin/media/uploads', undefined, { data, type: 'image/png' });
+    const png = async (width: number, height: number, raw: Uint8Array<ArrayBuffer>) => {
+      const deflated = new Uint8Array(await new Response(new Response(raw).body!.pipeThrough(new CompressionStream('deflate'))).arrayBuffer());
+      const chunk = (type: string, data: Uint8Array) => {
+        const out = new Uint8Array(12 + data.length);
+        const view = new DataView(out.buffer);
+        view.setUint32(0, data.length);
+        out.set(new TextEncoder().encode(type), 4);
+        out.set(data, 8);
+        return out;
+      };
+      const header = new Uint8Array(13);
+      new DataView(header.buffer).setUint32(0, width);
+      new DataView(header.buffer).setUint32(4, height);
+      header.set([8, 2, 0, 0, 0], 8);
+      return new Uint8Array([...PNG.slice(0, 8), ...chunk('IHDR', header), ...chunk('IDAT', deflated), ...chunk('IEND', new Uint8Array())]);
+    };
+    const rows = (filter: number) => new Uint8Array(Array.from({ length: 2 }, () => [filter, 1, 2, 3, 4, 5, 6]).flat());
+    expect((await upload(await png(2, 2, rows(0)))).status).toBe(201);
+    expect(await upload(await png(2, 2, rows(5)))).toMatchObject({ status: 422, body: { details: { reason: 'decode' } } });
+    // Inflating far past a 1×1 image: the API accepts it (the decoder stops at the image), and the mock reads no further either.
+    expect(await upload(await png(1, 1, new Uint8Array(1_000_000)))).toMatchObject({ status: 201, body: { width: 1, height: 1 } });
+    expect(await upload(await png(2, 2, new Uint8Array([0, 1, 2])))).toMatchObject({ status: 422, body: { details: { reason: 'decode' } } });
+  });
+
   it('a JPEG walked through its scan: data after the image is refused even when it ends in an end marker', async () => {
     const { call } = mock();
-    // SOI, SOF0 (8×8, 1 component), SOS, two bytes of scan data (one stuffed 0xFF), EOI.
-    const jpeg = new Uint8Array([0xff, 0xd8, 0xff, 0xc0, 0, 11, 8, 0, 8, 0, 8, 1, 1, 0x11, 0, 0xff, 0xda, 0, 8, 1, 1, 0, 0, 63, 0, 0x12, 0xff, 0x00, 0xff, 0xd9]);
+    // 16×9, encoded by macOS sips (the API decodes it too).
+    const jpeg = Uint8Array.from(atob('/9j/4AAQSkZJRgABAQAASABIAAD/4QBMRXhpZgAATU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAA6ABAAMAAAABAAEAAKACAAQAAAABAAAAEKADAAQAAAABAAAACQAAAAD/7QA4UGhvdG9zaG9wIDMuMAA4QklNBAQAAAAAAAA4QklNBCUAAAAAABDUHYzZjwCyBOmACZjs+EJ+/8AAEQgACQAQAwEiAAIRAQMRAf/EAB8AAAEFAQEBAQEBAAAAAAAAAAABAgMEBQYHCAkKC//EALUQAAIBAwMCBAMFBQQEAAABfQECAwAEEQUSITFBBhNRYQcicRQygZGhCCNCscEVUtHwJDNicoIJChYXGBkaJSYnKCkqNDU2Nzg5OkNERUZHSElKU1RVVldYWVpjZGVmZ2hpanN0dXZ3eHl6g4SFhoeIiYqSk5SVlpeYmZqio6Slpqeoqaqys7S1tre4ubrCw8TFxsfIycrS09TV1tfY2drh4uPk5ebn6Onq8fLz9PX29/j5+v/EAB8BAAMBAQEBAQEBAQEAAAAAAAABAgMEBQYHCAkKC//EALURAAIBAgQEAwQHBQQEAAECdwABAgMRBAUhMQYSQVEHYXETIjKBCBRCkaGxwQkjM1LwFWJy0QoWJDThJfEXGBkaJicoKSo1Njc4OTpDREVGR0hJSlNUVVZXWFlaY2RlZmdoaWpzdHV2d3h5eoKDhIWGh4iJipKTlJWWl5iZmqKjpKWmp6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW19jZ2uLj5OXm5+jp6vLz9PX29/j5+v/bAEMAAgICAgICAwICAwUDAwMFBgUFBQUGCAYGBgYGCAoICAgICAgKCgoKCgoKCgwMDAwMDA4ODg4ODw8PDw8PDw8PD//bAEMBAgICBAQEBwQEBxALCQsQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEP/dAAQAAf/aAAwDAQACEQMRAD8Akooor+Kz/UA//9k='), (c) => c.charCodeAt(0));
     const upload = (data: Uint8Array<ArrayBuffer>) => call('editor', 'POST', '/admin/media/uploads', undefined, { data, type: 'image/jpeg' });
-    expect((await upload(jpeg)).status).toBe(201);
+    expect(await upload(jpeg)).toMatchObject({ status: 201, body: { width: 16, height: 9 } });
     expect(await upload(new Uint8Array([...jpeg, 1, 2, 0xff, 0xd9]))).toMatchObject({ status: 422, body: { details: { reason: 'trailing_data' } } });
+    // A scan with no tables before it.
+    const bare = new Uint8Array([0xff, 0xd8, 0xff, 0xc0, 0, 11, 8, 0, 8, 0, 8, 1, 1, 0x11, 0, 0xff, 0xda, 0, 8, 1, 1, 0, 0, 63, 0, 0x12, 0xff, 0xd9]);
+    expect(await upload(bare)).toMatchObject({ status: 422, body: { details: { reason: 'decode' } } });
   });
 });
 

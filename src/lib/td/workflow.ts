@@ -18,7 +18,7 @@ export interface TdActionState {
 export const TD_PUBLISHER_ROLES: readonly TdRole[] = ['publisher', 'betsson_admin', 'ops'];
 export const isTdPublisher = (role: TdRole) => TD_PUBLISHER_ROLES.includes(role);
 
-type Row = Pick<TdContentRow, 'status' | 'approvedVersion' | 'lastEditor' | 'updatedBy'>;
+type Row = Pick<TdContentRow, 'status' | 'version' | 'approvedVersion' | 'lastEditor' | 'updatedBy'>;
 
 /**
  * `trail`: the row's history. The editor archive rule needs all of it (nobody
@@ -39,7 +39,9 @@ export function contentActions(row: Row, me: TdStaff, trail?: { items: ContentHi
 
   let archive: TdActionState = { allowed: !archived && publisher };
   if (!archived && !publisher) {
-    const untouched = Boolean(trail?.complete && trail.items.every((entry) => entry.actor.id === me.id));
+    // The trail counts when it is whole and current: its newest entry is the row's revision.
+    const current = Boolean(trail?.complete && trail.items[0]?.version === row.version);
+    const untouched = current && trail!.items.every((entry) => entry.actor.id === me.id);
     archive =
       row.approvedVersion === null && untouched
         ? { allowed: true }
