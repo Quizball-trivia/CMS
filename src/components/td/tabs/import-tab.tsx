@@ -23,34 +23,53 @@ import { isTdPublisher } from '@/lib/td/workflow';
 import { cn } from '@/lib/utils';
 import { useTdAuth } from '@/providers/td-auth-provider';
 
-/** Batch keys by payload hash, so a retry of the same items (a lost answer, a reload) is the same import. */
-const KEYS_STORAGE = 'td_import_keys';
+/**
+ * Batch keys by payload hash, per member, so a retry of the same items (a lost answer, a reload) is the same import.
+ * `sent` marks a key whose import went out without a final answer.
+ */
+interface SavedKey {
+  key: string;
+  sent: boolean;
+}
 
-function batchKeyFor(hash: string): string {
-  let known: Record<string, string> = {};
+const keysStorage = (staffId: string) => `td_import_keys:${staffId}`;
+
+function readKeys(staffId: string): Record<string, SavedKey> {
   try {
-    known = JSON.parse(sessionStorage.getItem(KEYS_STORAGE) ?? '{}') as Record<string, string>;
+    const parsed: unknown = JSON.parse(sessionStorage.getItem(keysStorage(staffId)) ?? '{}');
+    if (typeof parsed !== 'object' || parsed === null) return {};
+    return Object.fromEntries(
+      Object.entries(parsed as Record<string, Partial<SavedKey>>).flatMap(([hash, saved]) => (typeof saved?.key === 'string' ? [[hash, { key: saved.key, sent: saved.sent === true }]] : [])),
+    );
   } catch {
-    // Unavailable storage: a fresh key, which the API still de-duplicates by content if resent at once.
+    return {};
   }
+}
+
+function writeKeys(staffId: string, keys: Record<string, SavedKey>) {
+  try {
+    sessionStorage.setItem(keysStorage(staffId), JSON.stringify(keys));
+  } catch {
+    // Unavailable storage: the key lives in this view only, and the API still answers a resent key with its batch.
+  }
+}
+
+function batchKeyFor(staffId: string, hash: string): SavedKey {
+  const known = readKeys(staffId);
   if (known[hash]) return known[hash];
-  const key = `cms:${hash.slice(0, 24)}:${crypto.randomUUID().slice(0, 8)}`;
-  try {
-    sessionStorage.setItem(KEYS_STORAGE, JSON.stringify({ ...known, [hash]: key }));
-  } catch {
-    // Kept in memory for this import only.
-  }
-  return key;
+  const made = { key: `cms:${hash.slice(0, 24)}:${crypto.randomUUID().slice(0, 8)}`, sent: false };
+  writeKeys(staffId, { ...known, [hash]: made });
+  return made;
+}
+
+function markSent(staffId: string, hash: string, sent: boolean) {
+  const known = readKeys(staffId);
+  if (known[hash]) writeKeys(staffId, { ...known, [hash]: { ...known[hash], sent } });
 }
 
 /** A batch key is spent once its batch is undone: the same items then make a new import. */
-function retireBatchKey(batchKey: string) {
-  try {
-    const known = JSON.parse(sessionStorage.getItem(KEYS_STORAGE) ?? '{}') as Record<string, string>;
-    sessionStorage.setItem(KEYS_STORAGE, JSON.stringify(Object.fromEntries(Object.entries(known).filter(([, key]) => key !== batchKey))));
-  } catch {
-    // Nothing kept, nothing to retire.
-  }
+function retireBatchKey(staffId: string, batchKey: string) {
+  writeKeys(staffId, Object.fromEntries(Object.entries(readKeys(staffId)).filter(([, saved]) => saved.key !== batchKey)));
 }
 
 interface Prepared extends TdParsedImport {
@@ -60,6 +79,7 @@ interface Prepared extends TdParsedImport {
 }
 
 export function TdImportTab() {
+  const { user } = useTdAuth();
   const [type, setType] = useState<TdContentType>('penalty-questions');
   const [pasted, setPasted] = useState('');
   const [prepared, setPrepared] = useState<Prepared | null>(null);
@@ -81,11 +101,17 @@ export function TdImportTab() {
   };
 
   const prepare = async (text: string, source: string, json: boolean) => {
+    if (!user) return;
     reset();
     const parsed = json ? parseItemsJson(text) : parseSheet(type, text);
     const hash = await sha256Hex(canonicalJson(parsed.items));
     shown.current = hash;
-    setPrepared({ ...parsed, source, hash, batchKey: batchKeyFor(hash) });
+    const saved = batchKeyFor(user.id, hash);
+    const next = { ...parsed, source, hash, batchKey: saved.key };
+    setPrepared(next);
+    // These very items went out once without an answer. A check would count that import's own rows as duplicates,
+    // so its key is asked first: the API answers with that batch, or imports the items the member already confirmed.
+    if (saved.sent && parsed.items.length > 0 && parsed.problems.length === 0) await apply(next, true);
   };
 
   const check = async () => {
@@ -103,22 +129,28 @@ export function TdImportTab() {
     }
   };
 
-  const apply = async () => {
-    if (!prepared) return;
+  const apply = async (target: Prepared, replay = false) => {
+    if (!user) return;
     setBusy('apply');
     setError(null);
-    const target = prepared;
+    markSent(user.id, target.hash, true);
     try {
       const out = await write((operation) => tdAdmin.imports.apply(target.batchKey, target.items, operation), [tdKeys.content, tdKeys.releases, tdKeys.imports]);
       if (!out.created && out.batch.status !== 'applied') {
-        // Imported before and undone since: this key is spent. Read the items again for a new import.
-        retireBatchKey(target.batchKey);
+        // Imported before and undone since: this key is spent.
+        retireBatchKey(user.id, target.batchKey);
+        if (replay) {
+          if (shown.current === target.hash) setPrepared({ ...target, batchKey: batchKeyFor(user.id, target.hash).key });
+          return;
+        }
         setError(new TdApiError(409, 'conflict', 'These items were imported before and that import was undone. Read the file again to import them anew.'));
         return;
       }
       setResult(out);
       toast.success(out.created ? `${out.batch.rows.length} drafts imported` : 'These items were imported already; nothing was added');
     } catch (caught) {
+      // Refused, so nothing was imported under this key.
+      if (caught instanceof TdApiError && (caught.code === 'validation' || caught.code === 'conflict')) markSent(user.id, target.hash, false);
       // A preview that passed can still lose a race: the API answers with the whole report.
       if (caught instanceof TdApiError && caught.code === 'validation' && caught.details && typeof caught.details === 'object' && 'rows' in caught.details) {
         setReport({ hash: target.hash, report: caught.details as ContentImportReport });
@@ -231,7 +263,7 @@ export function TdImportTab() {
                   {busy === 'check' ? <Loader2 className="animate-spin" /> : <SearchCheck />}
                   Check
                 </Button>
-                <Button className="rounded-lg" disabled={busy !== null || !canApply} onClick={() => void apply()}>
+                <Button className="rounded-lg" disabled={busy !== null || !canApply} onClick={() => void apply(prepared)}>
                   {busy === 'apply' ? <Loader2 className="animate-spin" /> : <Upload />}
                   Import {current ? current.counts.create : ''} as drafts
                 </Button>
@@ -332,7 +364,7 @@ function ImportBatches() {
                 </span>
               )}
             </button>
-            {open === batch.id && <BatchDetail id={batch.id} canUndo={Boolean(user && (batch.createdBy.id === user.id || isTdPublisher(user.role)))} />}
+            {open === batch.id && user && <BatchDetail id={batch.id} staffId={user.id} canUndo={Boolean(user && (batch.createdBy.id === user.id || isTdPublisher(user.role)))} />}
           </li>
         ))}
       </ul>
@@ -347,7 +379,7 @@ function ImportBatches() {
   );
 }
 
-function BatchDetail({ id, canUndo }: { id: string; canUndo: boolean }) {
+function BatchDetail({ id, staffId, canUndo }: { id: string; staffId: string; canUndo: boolean }) {
   const queryClient = useQueryClient();
   const write = useTdWrite();
   const [busy, setBusy] = useState(false);
@@ -359,7 +391,7 @@ function BatchDetail({ id, canUndo }: { id: string; canUndo: boolean }) {
     try {
       const out = await write((operation) => tdAdmin.imports.undo(id, operation), []);
       // Retired before any view refreshes: a re-read of the same file must already get a new key.
-      retireBatchKey(out.batchKey);
+      retireBatchKey(staffId, out.batchKey);
       queryClient.setQueryData([...tdKeys.imports, 'batch', id], out);
       await Promise.all([tdKeys.content, tdKeys.releases, tdKeys.imports].map((queryKey) => queryClient.invalidateQueries({ queryKey })));
       toast.success(`${out.counts.removed} removed, ${out.counts.kept} kept`);

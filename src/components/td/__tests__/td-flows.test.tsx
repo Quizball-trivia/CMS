@@ -300,6 +300,35 @@ describe('import', () => {
     expect(await screen.findByText(/Imported 2 drafts as batch/)).toBeTruthy();
     expect((await admin.content('penalty-questions').list({ q: 'imp-' })).items).toHaveLength(2);
   });
+
+  it('an import whose answer was lost is answered with its own batch when the same cells are read again', async () => {
+    const inner = server;
+    let lose = true;
+    server = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      const response = await inner(input, init);
+      if (lose && init?.method === 'POST' && String(input).endsWith('/admin/content/imports')) {
+        lose = false;
+        throw new TypeError('Failed to fetch');
+      }
+      return response;
+    }) as typeof fetch;
+    const { admin } = await signIn('editor');
+    renderTd(<TdImportTab />);
+    fireEvent.change(screen.getByLabelText(/Or paste the cells here/), { target: { value: 'key\tq\tdisplay\taliases\nlost-1\tFirst?\tOne\tone\nlost-2\tSecond?\tTwo\ttwo' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Read the pasted cells' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Check' }));
+    fireEvent.click(await screen.findByRole('button', { name: /Import 2 as drafts/ }));
+    await waitFor(() => expect(lose).toBe(false));
+    await waitFor(() => expect(screen.getByRole('button', { name: /Import 2 as drafts/ }).hasAttribute('disabled')).toBe(false));
+    expect(screen.queryByText(/Imported 2 drafts/)).toBeNull();
+    expect((await admin.content('penalty-questions').list({ q: 'lost-' })).items).toHaveLength(2);
+
+    // Read again: asked with the same key before any check (which would call its own rows duplicates).
+    fireEvent.click(screen.getByRole('button', { name: 'Read the pasted cells' }));
+    expect(await screen.findByText(/Already imported as batch cms:/)).toBeTruthy();
+    expect((await admin.content('penalty-questions').list({ q: 'lost-' })).items).toHaveLength(2);
+    expect((await admin.imports.list()).items).toHaveLength(1);
+  });
 });
 
 describe('releases', () => {
