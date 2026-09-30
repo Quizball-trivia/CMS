@@ -19,6 +19,7 @@ export const tdKeys = {
   uploads: ['td', 'uploads'] as const,
   imports: ['td', 'imports'] as const,
   ops: ['td', 'ops'] as const,
+  integration: ['td', 'integration'] as const,
 };
 
 const PAGE = 50;

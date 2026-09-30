@@ -73,6 +73,18 @@ try {
   check('Betsson admin sees the staff list', (await page.locator('table tbody tr').count()) === 5);
   const adminNav = await navLabels(page);
   check('Betsson admin has Team and Integration but not Settings', adminNav.includes('Team') && adminNav.includes('Integration') && !adminNav.includes('Settings'));
+  await page.goto(`${BASE}/td/integration`);
+  await page.getByText('td-evt-0056', { exact: true }).waitFor();
+  await page.getByLabel('Search webhook events').fill('td-evt-0004');
+  await page.keyboard.press('Enter');
+  await page.getByText('td-evt-0004', { exact: true }).first().click();
+  const event = page.locator('[data-slot="sheet-content"]');
+  await event.getByText('Envelope sent').waitFor();
+  check(
+    'Betsson admin searches webhook events and opens one with its attempts, without retry',
+    (await event.locator('tbody tr').count()) === 31 && (await event.getByRole('button', { name: /Retry/ }).count()) === 0,
+  );
+  await page.keyboard.press('Escape');
 
   // Content workflow on the mock API: an editor drafts and marks ready, a publisher approves and publishes.
   await page.getByRole('button', { name: 'Sign out' }).click();
@@ -132,6 +144,13 @@ try {
   await page.goto(`${BASE}/td/settings`);
   await page.getByText('Tickets per day').first().waitFor();
   check('ops sees the settings', true);
+  await page.goto(`${BASE}/td/integration`);
+  await page.getByLabel('Search webhook events').fill('td-evt-0018');
+  await page.keyboard.press('Enter');
+  await page.getByText('td-evt-0018', { exact: true }).first().click();
+  await page.locator('[data-slot="sheet-content"]').getByRole('button', { name: 'Retry now' }).click();
+  await page.locator('[data-slot="sheet-content"]').getByText(/^(Retrying|Delivered)$/).first().waitFor();
+  check('ops retries a given-up webhook event', true);
 
   check('no page errors or CSP violations', errors.length === 0, errors.join(' | '));
 } catch (error) {

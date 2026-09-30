@@ -41,6 +41,8 @@ const { TdReleasesTab } = await import('../tabs/releases-tab');
 const { useTdWrite } = await import('@/hooks/use-td-content');
 const { CorrectionForm, OpsReviews } = await import('../tabs/players-tab');
 const { MaintenanceSetting, TicketsSetting } = await import('../tabs/ops-tabs');
+const { TdIntegrationTab } = await import('../tabs/integration-tab');
+const { TdApiError } = await import('@/lib/td/api-client');
 const { createFakeLockManager, deferred, sleep } = await import('@/lib/td/__tests__/helpers');
 const { browserPendingPublications } = await import('@/lib/td/pending-publications');
 
@@ -366,6 +368,98 @@ describe('penalties to review', () => {
     await waitFor(() => expect(screen.getAllByRole('button', { name: 'Open the match' })).toHaveLength(51));
     expect(list).toHaveBeenLastCalledWith('open', { cursor: 'page-2', limit: 50 }, expect.anything());
     expect(screen.queryByRole('button', { name: 'Load more' })).toBeNull();
+  });
+});
+
+describe('integration', () => {
+  const rows = () => screen.queryAllByText(/^td-evt-\d{4}$/, { selector: 'span' });
+  const search = async (q: string) => {
+    fireEvent.change(screen.getByLabelText('Search webhook events'), { target: { value: q } });
+    fireEvent.submit(screen.getByLabelText('Search webhook events').closest('form')!);
+    await waitFor(() => expect(rows().every((row) => row.closest('tr')?.textContent?.includes(q) || q.startsWith('7c1d'))).toBe(true));
+  };
+  const open = async (eventId: string) => {
+    await search(eventId);
+    fireEvent.click(await screen.findByText(eventId, { selector: 'span' }));
+    // The sheet for this event (a closing one for the last event may still be there).
+    return waitFor(() => {
+      const sheet = screen.getAllByRole('dialog').find((dialog) => within(dialog).queryByText(eventId, { selector: 'span' }));
+      if (!sheet) throw new Error(`no sheet for ${eventId}`);
+      return sheet;
+    });
+  };
+
+  it('lists events newest first, a page at a time, and finds a player’s by their Betsson id', async () => {
+    await signIn('betsson_admin');
+    renderTd(<TdIntegrationTab />);
+    await waitFor(() => expect(rows()).toHaveLength(50));
+    expect(rows()[0].textContent).toBe('td-evt-0056');
+    fireEvent.click(screen.getByRole('button', { name: 'Load more' }));
+    await waitFor(() => expect(rows()).toHaveLength(56));
+    fireEvent.change(screen.getByLabelText('Delivery status'), { target: { value: 'dead' } });
+    await waitFor(() => expect(rows().map((r) => r.textContent)).toEqual(['td-evt-0018', 'td-evt-0010', 'td-evt-0004']));
+    fireEvent.change(screen.getByLabelText('Delivery status'), { target: { value: '' } });
+    await search('bet-40017');
+    expect(rows().length).toBeGreaterThan(0);
+    for (const row of rows()) expect(row.closest('tr')!.textContent).toContain('bet-40017');
+  });
+
+  it('opens an event with its envelope and attempts; a Betsson admin sees no retry', async () => {
+    await signIn('betsson_admin');
+    renderTd(<TdIntegrationTab />);
+    const sheet = await open('td-evt-0004');
+    expect(await within(sheet).findByText('Given up')).toBeTruthy();
+    expect(within(sheet).getByText(/"eventId": "td-evt-0004"/)).toBeTruthy();
+    expect(within(sheet).getAllByText('webhook_http_503').length).toBeGreaterThan(0);
+    // The partner's HTML answer is shown as text.
+    expect(within(sheet).getAllByText('<html><body>Service Unavailable</body></html>').length).toBeGreaterThan(0);
+    expect(sheet.querySelectorAll('tbody tr')).toHaveLength(31);
+    expect(within(sheet).queryByRole('button', { name: /Retry/ })).toBeNull();
+  });
+
+  it('ops retries a given-up event, and moves one bound to an earlier address only once confirmed', async () => {
+    await signIn('ops');
+    renderTd(<TdIntegrationTab />);
+    let sheet = await open('td-evt-0018');
+    fireEvent.click(await within(sheet).findByRole('button', { name: 'Retry now' }));
+    expect(await within(sheet).findByText('Retrying')).toBeTruthy();
+    expect(within(sheet).queryByText('Retried by hand')!.nextElementSibling!.textContent).not.toBe('—');
+    fireEvent.keyDown(sheet, { key: 'Escape' });
+
+    sheet = await open('td-evt-0010');
+    expect(await within(sheet).findByText('earlier address')).toBeTruthy();
+    expect(within(sheet).queryByRole('button', { name: 'Retry now' })).toBeNull();
+    fireEvent.click(within(sheet).getByRole('button', { name: 'Retry to the current address' }));
+    fireEvent.click(within(sheet).getByRole('button', { name: 'Send to the current address' }));
+    await waitFor(() => expect(within(sheet).queryByText('earlier address')).toBeNull());
+    expect(within(sheet).getByText('Retrying')).toBeTruthy();
+    fireEvent.keyDown(sheet, { key: 'Escape' });
+
+    sheet = await open('td-evt-0001');
+    expect(await within(sheet).findByText('Delivered: nothing to retry.')).toBeTruthy();
+    fireEvent.keyDown(sheet, { key: 'Escape' });
+    sheet = await open('td-evt-0056');
+    expect(await within(sheet).findByText('Being sent now; look again in a moment.')).toBeTruthy();
+  });
+
+  it('says why a retry was refused: the API’s words for a conflict, and the hourly limit in plain words', async () => {
+    const ops = await signIn('ops');
+    renderTd(<TdIntegrationTab />);
+    const sheet = await open('td-evt-0018');
+    await within(sheet).findByRole('button', { name: 'Retry now' });
+    // Meanwhile another ops member retries it and it is delivered.
+    const other = await clientFor('ops');
+    await other.admin.integration.retryWebhook('td-evt-0018', false);
+    await other.admin.integration.webhook('td-evt-0018');
+    fireEvent.click(within(sheet).getByRole('button', { name: 'Retry now' }));
+    expect(await within(sheet).findByText('This event was delivered already')).toBeTruthy();
+    expect(await within(sheet).findByText('Delivered: nothing to retry.')).toBeTruthy();
+
+    h.admin = { ...ops.admin, integration: { ...ops.admin.integration, retryWebhook: async () => Promise.reject(new TdApiError(429, 'rate_limited', 'Too many requests; try again later')) } };
+    fireEvent.keyDown(sheet, { key: 'Escape' });
+    const dead = await open('td-evt-0004');
+    fireEvent.click(await within(dead).findByRole('button', { name: 'Retry now' }));
+    expect(await within(dead).findByText(/retried 60 events in the last hour/)).toBeTruthy();
   });
 });
 
