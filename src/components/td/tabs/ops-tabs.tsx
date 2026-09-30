@@ -13,7 +13,7 @@ import { TdIssueText, TdSwitchField } from '@/components/td/content/td-form';
 import { tdKeys, useTdWrite } from '@/hooks/use-td-content';
 import { TdApiError } from '@/lib/td/api-client';
 import { tdAdmin } from '@/lib/td/client';
-import { checkContract, type BoardPage, type SchemaIssue, type Settings, type SnapshotList, type SnapshotPage } from '@/lib/td/contract';
+import { checkContract, TD_ADMIN_CONTRACT_VERSION, type BoardPage, type SchemaIssue, type Settings, type SnapshotList, type SnapshotPage } from '@/lib/td/contract';
 import { downloadText } from '@/lib/td/download';
 import { formatDay, formatGeorgiaTime, georgiaToday } from '@/lib/td/georgia';
 import type { TdOperation } from '@/lib/td/operation';
@@ -222,7 +222,7 @@ export function TdSettingsTab() {
     <>
       <TicketsSetting settings={settings.data} onChanged={onChanged} onConflict={refresh} />
       <MaintenanceSetting settings={settings.data} onChanged={onChanged} onConflict={refresh} />
-      <p className="text-xs text-(--td-text-3)">Bot fallback delay and bot difficulty are not in the admin contract (v4); they stay server configuration for now.</p>
+      <p className="text-xs text-(--td-text-3)">Bot fallback delay and bot difficulty are not in the admin contract (v{TD_ADMIN_CONTRACT_VERSION}); they stay server configuration for now.</p>
     </>
   );
 }

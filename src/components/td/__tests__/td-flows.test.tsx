@@ -40,7 +40,8 @@ const { TdImportTab } = await import('../tabs/import-tab');
 const { TdReleasesTab } = await import('../tabs/releases-tab');
 const { useTdWrite } = await import('@/hooks/use-td-content');
 const { CorrectionForm, OpsReviews } = await import('../tabs/players-tab');
-const { MaintenanceSetting, TicketsSetting } = await import('../tabs/ops-tabs');
+const { MaintenanceSetting, TdSettingsTab, TicketsSetting } = await import('../tabs/ops-tabs');
+const { TD_ADMIN_CONTRACT_VERSION } = await import('@/lib/td/contract');
 const { TdIntegrationTab } = await import('../tabs/integration-tab');
 const { TdApiError } = await import('@/lib/td/api-client');
 const { createFakeLockManager, deferred, sleep } = await import('@/lib/td/__tests__/helpers');
@@ -303,6 +304,12 @@ describe('drafts stay bound to the revision reviewed', () => {
     answer.resolve();
     await waitFor(() => expect(input.disabled).toBe(false));
     expect(input.value).toBe('7');
+  });
+
+  it('the settings note names the admin contract version this CMS is pinned to', async () => {
+    await signIn('ops');
+    renderTd(<TdSettingsTab />);
+    expect(await screen.findByText(new RegExp(`not in the admin contract \\(v${TD_ADMIN_CONTRACT_VERSION}\\)`))).toBeTruthy();
   });
 
   it('a maintenance confirmation closes when the setting changes under it, instead of flipping its meaning', async () => {
