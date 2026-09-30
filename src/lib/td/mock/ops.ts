@@ -157,7 +157,8 @@ export function correct(ctx: MockContext, id: string, body: MatchCorrectionReque
     player.rating = replayed.rating;
     player.ratingVersion += 1;
     seat.ratingEvents.push({ seq: player.ratingVersion, deltaRule: rule, appliedDelta: applied, ratingAfter: replayed.rating, correctionId, at });
-    seat.ratingDelta = replayed.deltas.get(match.id) ?? 0;
+    // The result's rule, as the API records it (the floor only shapes the replayed rating).
+    seat.ratingDelta = rule;
     if (outcome === 'noContest' && !seat.ticketRefunded) {
       player.balance += 1;
       const refund: MockLedger = { id: String(900 + db.ledger.length), playerId: player.id, delta: 1, reason: 'refund', ref: `refund:${player.id}:match:${id}`, balanceAfter: player.balance, createdAt: at };

@@ -21,10 +21,9 @@ export const isTdPublisher = (role: TdRole) => TD_PUBLISHER_ROLES.includes(role)
 type Row = Pick<TdContentRow, 'status' | 'approvedVersion' | 'lastEditor' | 'updatedBy'>;
 
 /**
- * `trail`: the row's history (the editor archive rule needs it: nobody else
- * may ever have written to the row, not even a note or a ready). While it
- * loads an editor gets the action on a best guess, and the API has the last
- * word; a trail too long to read whole does not offer it.
+ * `trail`: the row's history. The editor archive rule needs all of it (nobody
+ * else may ever have written to the row, not even a note or a ready), so an
+ * editor is offered Archive only once the whole trail has been read.
  */
 export function contentActions(row: Row, me: TdStaff, trail?: { items: ContentHistory['items']; complete: boolean } | null): Record<TdContentAction, TdActionState> {
   const publisher = isTdPublisher(me.role);
@@ -40,9 +39,7 @@ export function contentActions(row: Row, me: TdStaff, trail?: { items: ContentHi
 
   let archive: TdActionState = { allowed: !archived && publisher };
   if (!archived && !publisher) {
-    const untouched = trail
-      ? trail.complete && trail.items.every((entry) => entry.actor.id === me.id)
-      : row.lastEditor.id === me.id && row.updatedBy.id === me.id;
+    const untouched = Boolean(trail?.complete && trail.items.every((entry) => entry.actor.id === me.id));
     archive =
       row.approvedVersion === null && untouched
         ? { allowed: true }

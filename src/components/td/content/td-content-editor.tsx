@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Archive, ArchiveRestore, Check, History, Loader2, RefreshCw, Save, Send, TriangleAlert } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
@@ -64,6 +64,11 @@ function EditorBody({ target, onSaved }: { target: TdEditorTarget; onSaved?: (ro
   // What the form was loaded from: the base of a three-way merge.
   const [base, setBase] = useState<TdDraft>(() => (target.row ? draftOf(target.row) : { data: config.empty(target.preset as never) as Record<string, unknown>, position: 0, note: '' }));
   const [draft, setDraft] = useState<TdDraft>(base);
+  // The draft as of the last render, for a write that finishes later (an upload may change it meanwhile).
+  const draftRef = useRef(draft);
+  useEffect(() => {
+    draftRef.current = draft;
+  }, [draft]);
   const [issues, setIssues] = useState<SchemaIssue[]>([]);
   const [error, setError] = useState<unknown>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -97,12 +102,23 @@ function EditorBody({ target, onSaved }: { target: TdEditorTarget; onSaved?: (ro
   const schemaName = TD_CONTENT_SCHEMA_NAMES[type];
 
   async function run(label: string, work: () => Promise<TdContentRow>, done: string) {
+    const started = draftRef.current;
     setBusy(label);
     setError(null);
     setNotice(null);
     try {
       const next = await work();
-      adopt(next);
+      if (sameDraft(draftRef.current, started)) {
+        adopt(next);
+      } else {
+        // Something changed the draft while this ran (an upload finishing): keep it on top of the answer.
+        setRow(next);
+        setBase(draftOf(next));
+        setDraft(mergeDrafts(started, draftRef.current, draftOf(next)).merged);
+        setIssues([]);
+        setConflict(null);
+        setNotice('Changes made while that ran are kept: save them.');
+      }
       toast.success(done);
       onSaved?.(next);
     } catch (caught) {

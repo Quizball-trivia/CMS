@@ -41,6 +41,18 @@ describe('mock uploads refuse what the API’s decoder refuses', () => {
     const actl = new Uint8Array([0, 0, 0, 8, ...new TextEncoder().encode('acTL'), 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0]);
     const animated = new Uint8Array([...PNG.slice(0, 33), ...actl, ...PNG.slice(33)]);
     expect(await upload(animated)).toMatchObject({ status: 422, body: { details: { reason: 'animated' } } });
+    // IHDR and IEND with no image data between them.
+    const empty = new Uint8Array([...PNG.slice(0, 33), ...PNG.slice(PNG.length - 12)]);
+    expect(await upload(empty)).toMatchObject({ status: 422, body: { details: { reason: 'decode' } } });
+  });
+
+  it('a JPEG walked through its scan: data after the image is refused even when it ends in an end marker', async () => {
+    const { call } = mock();
+    // SOI, SOF0 (8×8, 1 component), SOS, two bytes of scan data (one stuffed 0xFF), EOI.
+    const jpeg = new Uint8Array([0xff, 0xd8, 0xff, 0xc0, 0, 11, 8, 0, 8, 0, 8, 1, 1, 0x11, 0, 0xff, 0xda, 0, 8, 1, 1, 0, 0, 63, 0, 0x12, 0xff, 0x00, 0xff, 0xd9]);
+    const upload = (data: Uint8Array<ArrayBuffer>) => call('editor', 'POST', '/admin/media/uploads', undefined, { data, type: 'image/jpeg' });
+    expect((await upload(jpeg)).status).toBe(201);
+    expect(await upload(new Uint8Array([...jpeg, 1, 2, 0xff, 0xd9]))).toMatchObject({ status: 422, body: { details: { reason: 'trailing_data' } } });
   });
 });
 
@@ -75,12 +87,48 @@ describe('mock releases', () => {
     advance(0);
   });
 
+  it('check a roll back again as it runs: a release that stops serving today fails', async () => {
+    const storage = new MemoryStorage();
+    // Just before Georgian midnight (sessions last 15 mock minutes, so this is where it signs in).
+    let clock = Date.parse('2026-09-30T19:59:59.600Z');
+    const server = createMockTdApi({ storage: () => storage, latencyMs: 0, now: () => clock, blobs: memoryBlobStore(), lock: undefined });
+    const login = await server(`${BASE}/admin/auth/login`, { method: 'POST', body: JSON.stringify({ email: 'publisher@demo.tablederby.test', password: MOCK_PASSWORD }) });
+    const token = ((await login.json()) as { accessToken: string }).accessToken;
+    const as = (method: string, path: string, body?: unknown) =>
+      server(`${BASE}${path}`, { method, headers: { Authorization: `Bearer ${token}` }, body: body === undefined ? undefined : JSON.stringify(body) }).then((r) => r.json());
+    // Make the old release current-able for today only, then let the day turn before it runs.
+    const db = JSON.parse(storage.getItem('td_mock_db') ?? 'null') ?? (await as('GET', '/admin/releases'), JSON.parse(storage.getItem('td_mock_db')!));
+    const old = db.releases.find((r: { id: string }) => r.id === 'r-00000000000000a1');
+    old.dailies = Object.fromEntries(['footballLogic', 'putInOrder', 'careerPath'].map((g) => [g, { dates: { '2026-09-30': 'x' }, cycle: null, known: ['x'] }]));
+    storage.setItem('td_mock_db', JSON.stringify(db));
+    const started = await as('POST', '/admin/releases/r-00000000000000a1/rollback', { idemKey: 'rollback:day-turns' });
+    expect(started.status).toBe('running');
+    clock += 1_000;
+    expect(await as('GET', `/admin/publications/${started.id}`)).toMatchObject({ status: 'failed', error: { code: 'release_unavailable' } });
+  });
+
   it('refuse to roll back to a release that has no daily set for today', async () => {
     const { call } = mock();
     expect(await call('publisher', 'POST', '/admin/releases/r-00000000000000a1/rollback', { idemKey: 'rollback:old-one' })).toMatchObject({
       status: 409,
       body: { code: 'release_unrunnable' },
     });
+  });
+});
+
+describe('mock corrections', () => {
+  it('record the result’s rule as the rating delta; the floor only shapes the rating', async () => {
+    const { call } = mock();
+    const found = (await call('ops', 'GET', '/admin/players?q=Nika')).body.items[0];
+    const match = (await call('ops', 'GET', `/admin/players/${found.id}/matches`)).body.items.find((m: { status: string }) => m.status === 'settled');
+    const record = (await call('ops', 'GET', `/admin/matches/${match.matchId}`)).body;
+    const loser = record.players.find((p: { outcome: string }) => p.outcome === 'loss');
+    const out = await call('ops', 'POST', `/admin/matches/${match.matchId}/corrections`, { version: record.resultVersion, outcome: { kind: 'win', winner: loser.playerId }, reason: 'Wrong answer accepted' });
+    expect(out.status).toBe(201);
+    expect(out.body.players.map((p: { outcome: string; ratingDelta: number }) => [p.outcome, p.ratingDelta]).sort()).toEqual([
+      ['loss', -10],
+      ['win', 25],
+    ]);
   });
 });
 

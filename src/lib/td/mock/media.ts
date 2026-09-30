@@ -51,25 +51,58 @@ export function imageSize(bytes: Uint8Array, format: Format): { width: number; h
   }
 }
 
+/** zlib-inflated bytes, or null when they do not inflate (or the runtime cannot). */
+async function inflate(data: Uint8Array): Promise<Uint8Array | null> {
+  if (typeof DecompressionStream === 'undefined') return null;
+  try {
+    const stream = new Response(data as Uint8Array<ArrayBuffer>).body!.pipeThrough(new DecompressionStream('deflate'));
+    return new Uint8Array(await new Response(stream).arrayBuffer());
+  } catch {
+    return null;
+  }
+}
+
+const PNG_CHANNELS: Record<number, number> = { 0: 1, 2: 3, 3: 1, 4: 2, 6: 4 };
+
 /**
- * What the API's decoder would refuse, read from the file's structure (the mock cannot decode): a PNG walked
- * chunk by chunk to its IEND, a JPEG to its end marker, a WebP by its RIFF size; animation flags.
+ * What the API's decoder would refuse, read from the file's structure (the
+ * mock has no decoder): a PNG walked chunk by chunk to its IEND, with image
+ * data that inflates to what its header promises; a JPEG walked segment by
+ * segment and through its scans to the end marker; a WebP by its RIFF size;
+ * animation flags.
  */
-export function structureProblem(bytes: Uint8Array, format: Format): 'trailing_data' | 'animated' | 'decode' | null {
+export async function structureProblem(bytes: Uint8Array, format: Format): Promise<'trailing_data' | 'animated' | 'decode' | null> {
   const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
   const tag = (at: number) => String.fromCharCode(...bytes.slice(at, at + 4));
   if (format === 'image/png') {
     if (tag(12) !== 'IHDR') return 'decode';
+    const data: Uint8Array[] = [];
     let at = 8;
+    let ended = false;
     while (at + 12 <= bytes.length) {
       const length = view.getUint32(at);
       const type = tag(at + 4);
       if (at + 12 + length > bytes.length) return 'decode';
       if (type === 'acTL') return 'animated';
+      if (type === 'IDAT') data.push(bytes.slice(at + 8, at + 8 + length));
       at += 12 + length;
-      if (type === 'IEND') return at === bytes.length ? null : 'trailing_data';
+      if (type === 'IEND') {
+        if (at !== bytes.length) return 'trailing_data';
+        ended = true;
+        break;
+      }
     }
-    return 'decode';
+    if (!ended || data.length === 0) return 'decode';
+    const width = view.getUint32(16);
+    const height = view.getUint32(20);
+    const bits = bytes[24] * (PNG_CHANNELS[bytes[25]] ?? 0);
+    const interlaced = bytes[28] === 1;
+    const joined = new Uint8Array(data.reduce((n, d) => n + d.length, 0));
+    data.reduce((offset, d) => (joined.set(d, offset), offset + d.length), 0);
+    const pixels = await inflate(joined);
+    if (pixels === null) return typeof DecompressionStream === 'undefined' ? null : 'decode';
+    const expected = height * (1 + Math.ceil((width * bits) / 8));
+    return bits === 0 || (!interlaced && pixels.length < expected) ? 'decode' : null;
   }
   if (format === 'image/webp') {
     const size = view.getUint32(4, true) + 8;
@@ -79,9 +112,25 @@ export function structureProblem(bytes: Uint8Array, format: Format): 'trailing_d
     for (let at = 12; at + 8 <= bytes.length; at += 8 + view.getUint32(at + 4, true) + (view.getUint32(at + 4, true) % 2)) if (tag(at) === 'ANIM') return 'animated';
     return null;
   }
-  const end = bytes.length;
-  if (bytes[end - 2] === 0xff && bytes[end - 1] === 0xd9) return null;
-  for (let at = end - 3; at > 2; at--) if (bytes[at] === 0xff && bytes[at + 1] === 0xd9) return 'trailing_data';
+  // JPEG: segments carry their length; after a scan (SOS) comes entropy data, where 0xFF is followed by
+  // 0x00 (a stuffed byte) or a restart marker; any other marker ends the scan, EOI the image.
+  let at = 2;
+  let scanned = false;
+  while (at + 1 < bytes.length) {
+    if (bytes[at] !== 0xff) return 'decode';
+    const marker = bytes[at + 1];
+    if (marker === 0xd9) return !scanned ? 'decode' : at + 2 === bytes.length ? null : 'trailing_data';
+    if (marker === 0xff) {
+      at += 1;
+      continue;
+    }
+    if (at + 3 >= bytes.length) return 'decode';
+    const length = view.getUint16(at + 2);
+    at += 2 + length;
+    if (marker !== 0xda) continue;
+    scanned = true;
+    while (at + 1 < bytes.length && !(bytes[at] === 0xff && bytes[at + 1] !== 0x00 && (bytes[at + 1] < 0xd0 || bytes[at + 1] > 0xd7))) at += 1;
+  }
   return 'decode';
 }
 
@@ -95,7 +144,7 @@ export async function upload(ctx: MockContext, blobs: MockBlobStore, body: Array
   const format = sniff(bytes);
   if (format === null) throw refuse('signature', 'The file is not a JPEG, PNG or WebP image');
   if (format !== type) throw refuse('type', 'The file is not the type its Content-Type says');
-  const problem = structureProblem(bytes, format);
+  const problem = await structureProblem(bytes, format);
   if (problem) throw refuse(problem, STRUCTURE_MESSAGES[problem]);
   const size = imageSize(bytes, format);
   if (!size || size.width < 1 || size.height < 1) throw refuse('decode', 'The image could not be decoded');

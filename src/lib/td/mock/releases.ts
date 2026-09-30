@@ -261,7 +261,15 @@ export function advance(db: MockDb, now: number) {
     if (p.status !== 'running') continue;
     const due = Math.min(PHASES.length, Math.floor((now - Date.parse(p.requestedAt)) / PHASE_MS));
     if (p.kind === 'rollback') {
-      if (due >= 1) movePointer(db, p, now, p.releaseId!);
+      if (due >= 1) {
+        // Checked again as it runs, as the API does: the Georgian day may have turned since it was asked.
+        const target = db.releases.find((r) => r.id === p.releaseId);
+        if (!target || unrunnableGame(target, georgiaToday(now))) {
+          p.status = 'failed';
+          p.error = { code: 'release_unavailable', message: 'The release no longer serves every daily game today' };
+          p.finishedAt = new Date(now).toISOString();
+        } else movePointer(db, p, now, p.releaseId!);
+      }
       p.updatedAt = new Date(now).toISOString();
       continue;
     }
@@ -300,6 +308,17 @@ export function advance(db: MockDb, now: number) {
     }
     p.updatedAt = new Date(now).toISOString();
   }
+}
+
+/** A daily game the release has no set for on `today`, or null when it serves them all. */
+function unrunnableGame(release: MockDb['releases'][number], today: string): string | null {
+  return (
+    GAMES.find((game) => {
+      const daily = release.dailies?.[game];
+      const set = daily ? scheduledSet(daily.dates[today], daily.cycle, today) : null;
+      return set === null || !daily!.known.includes(set);
+    }) ?? null
+  );
 }
 
 function byKey(db: MockDb, idemKey: string, kind: MockPublication['kind'], target: string | null) {
@@ -349,12 +368,7 @@ export function rollback(ctx: MockContext, target: string, idemKey: string) {
   if (release.status !== 'available' || !was || ctx.db.pointer.releaseId === target)
     throw new MockError(409, 'not_rollback_target', 'Only an available release that was current before, and is not now');
   // It must still give every daily game a set today (the API's rollbackGaps).
-  const today = georgiaToday(ctx.now);
-  const gap = GAMES.find((game) => {
-    const daily = release.dailies?.[game];
-    const set = daily ? scheduledSet(daily.dates[today], daily.cycle, today) : null;
-    return set === null || !daily!.known.includes(set);
-  });
+  const gap = unrunnableGame(release, georgiaToday(ctx.now));
   if (gap) throw new MockError(409, 'release_unrunnable', `This release has no ${gap} set for today`);
   holdSlot(ctx.db);
   const p: MockPublication = { ...base(ctx), idemKey, kind: 'rollback', done: PHASES.length - 1, releaseId: target, report: null, snapshot: null };

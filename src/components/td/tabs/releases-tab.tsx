@@ -48,6 +48,17 @@ function writePending(staffId: string, value: PendingRequest | null) {
   }
 }
 
+/**
+ * Whether the API refused this very request (so nothing started and a new attempt takes a new key).
+ * A network error, a 5xx, an ended session (401), a rate limit or a cancelled sign-in say nothing
+ * about a request an earlier try may have started: its key is kept and asked again.
+ */
+export function refusedOutright(error: unknown): boolean {
+  if (!(error instanceof TdApiError)) return false;
+  if (error.code === 'conflict_retry') return false;
+  return [400, 403, 404, 409, 422].includes(error.status);
+}
+
 const running = (p: Publication | undefined) => p?.status === 'running' || p?.status === 'failing';
 const settled = (p: Publication) => !running(p) && p.notify.state !== 'pending';
 
@@ -108,9 +119,7 @@ export function TdReleasesTab() {
         const busy = (caught.details as { publicationId?: string } | undefined)?.publicationId;
         if (busy) setWatching(busy);
       }
-      // Only a refusal (4xx) is an answer: the request is over and a new attempt takes a new key. After a
-      // network error, a 5xx or a cancelled session the publication may have started: keep the key.
-      if (caught instanceof TdApiError && caught.status >= 400 && caught.status < 500) writePending(user.id, null);
+      if (refusedOutright(caught)) writePending(user.id, null);
       else setUnanswered(request);
       setRequestError(caught);
     } finally {

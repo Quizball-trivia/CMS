@@ -42,6 +42,15 @@ const history = (...actors: TdStaff[]) => ({
 });
 
 describe('workflow actions offered', () => {
+  it('keeps a publication key through refusals that say nothing about the request', async () => {
+    const { refusedOutright } = await import('@/components/td/tabs/releases-tab');
+    const { TdApiError } = await import('../api-client');
+    expect(refusedOutright(new TdApiError(409, 'not_rollback_target', 'x'))).toBe(true);
+    expect(refusedOutright(new TdApiError(400, 'invalid_request', 'x'))).toBe(true);
+    for (const kept of [new TdApiError(401, 'session_expired', 'x'), new TdApiError(429, 'rate_limited', 'x'), new TdApiError(502, 'http_502', 'x'), new TdApiError(0, 'session_changed', 'x'), new TdApiError(409, 'conflict_retry', 'x'), new TypeError('offline')])
+      expect(refusedOutright(kept)).toBe(false);
+  });
+
   it('offers ready on drafts, approval to publishers who did not make the last edit', () => {
     expect(contentActions(row(), EDITOR)).toMatchObject({ save: { allowed: true }, ready: { allowed: true }, approve: { allowed: false }, restore: { allowed: false } });
     const ready = row({ status: 'ready' });
@@ -57,8 +66,8 @@ describe('workflow actions offered', () => {
     expect(contentActions(row({ approvedVersion: 1 }), EDITOR, history(EDITOR)).archive.allowed).toBe(false);
     // A trail too long to read whole is not guessed at.
     expect(contentActions(row(), EDITOR, { ...history(EDITOR), complete: false }).archive.allowed).toBe(false);
-    // Without the trail: a best guess from the row, the API decides.
-    expect(contentActions(row(), EDITOR).archive.allowed).toBe(true);
+    // Without the whole trail (loading, failed) an editor is not offered it.
+    expect(contentActions(row(), EDITOR).archive.allowed).toBe(false);
     expect(contentActions(row({ approvedVersion: 1, status: 'approved' }), PUBLISHER).archive.allowed).toBe(true);
   });
 

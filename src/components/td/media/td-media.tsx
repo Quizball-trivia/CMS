@@ -27,10 +27,9 @@ export function mediaUsable(row: MediaRow): boolean {
   return Boolean(row.status !== 'archived' && row.approvedVersion !== null && approved?.author?.trim() && approved.license?.trim() && approved.source?.trim());
 }
 
-/** The image a release carries (the approved version), or the working one when nothing is approved yet. */
-export function releasedImage(row: MediaRow): { uploadId: string | null; url: string | null } {
-  const shown = row.approved && row.status !== 'archived' ? row.approved : row.data;
-  return { uploadId: shown.uploadId, url: shown.url };
+/** The image a release carries (the approved version, with its rights), or the working one when nothing is approved yet. */
+export function releasedImage(row: MediaRow): TdContentRow<'media'>['data'] {
+  return row.approved && row.status !== 'archived' ? row.approved : row.data;
 }
 
 /** A newer image waits for approval (releases keep the approved one until then). */
@@ -226,7 +225,9 @@ function TdMediaPickerDialog({
                 <TdMediaThumb uploadId={releasedImage(row).uploadId} url={releasedImage(row).url} alt={row.data.key} />
                 <span className="min-w-0 flex-1">
                   <span className="block truncate font-mono text-xs">{row.data.key}</span>
-                  <span className="block truncate text-xs text-(--td-text-3)">{row.data.author ?? 'No credit'} · {row.data.license ?? 'No licence'}</span>
+                  <span className="block truncate text-xs text-(--td-text-3)">
+                    {releasedImage(row).author ?? 'No credit'} · {releasedImage(row).license ?? 'No licence'}
+                  </span>
                   {replacementPending(row) && <span className="block text-xs text-amber-300">Replacement waits for approval</span>}
                 </span>
                 <TdStatusChip status={row.status} />
