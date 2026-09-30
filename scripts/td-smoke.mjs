@@ -59,7 +59,10 @@ try {
   await page.getByText('You do not have access to this section').waitFor();
   check('editor is denied Team', true);
   const editorNav = await navLabels(page);
-  check('editor sees the 11 content tabs only', editorNav.length === 11 && !editorNav.includes('Team') && !editorNav.includes('Settings'), editorNav.join(', '));
+  check('editor sees the 11 content tabs only', editorNav.length === 11 && !editorNav.includes('Team') && !editorNav.includes('Settings') && !editorNav.includes('Integration'), editorNav.join(', '));
+  await page.goto(`${BASE}/td/integration`);
+  await page.getByText('You do not have access to this section').waitFor();
+  check('editor opening Integration directly is denied, and no webhook event is read', !(await page.getByText(/^td-evt-/).count()));
   await page.locator('aside nav a', { hasText: 'Clubs' }).click();
   await page.waitForURL(/\/td\/clubs$/);
   await page.getByRole('heading', { level: 1, name: 'Clubs' }).waitFor();
