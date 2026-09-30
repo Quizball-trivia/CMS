@@ -168,6 +168,25 @@ describe('content editor', () => {
   });
 });
 
+describe('media', () => {
+  it('uploads a crest from the club editor and saves it as an image to pick', async () => {
+    const { admin } = await signIn('editor');
+    renderTd(<TdContentEditorSheet target={{ type: 'clubs', row: null, preset: { key: 'torpedo' } }} onClose={() => {}} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Choose' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Choose an image' });
+    const png = Uint8Array.from(atob('iVBORw0KGgoAAAANSUhEUgAAABAAAAAJCAIAAAC0SDtlAAAAFElEQVR42mP4GKVEEmIY1TAoNAAAV/DNUSF4ln8AAAAASUVORK5CYII='), (c) => c.charCodeAt(0));
+    fireEvent.change(within(dialog).getByTestId('td-upload-input'), { target: { files: [new File([png], 'crest.png', { type: 'image/png' })] } });
+    expect(await within(dialog).findByText(/Uploaded · 16 × 9 px/)).toBeTruthy();
+    expect((within(dialog).getByLabelText('Key') as HTMLInputElement).value).toBe('crest-torpedo');
+    fireEvent.change(within(dialog).getByLabelText('Licence'), { target: { value: 'CC0' } });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Save and use it' }));
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Choose an image' })).toBeNull());
+    expect(await screen.findByText('crest-torpedo')).toBeTruthy();
+    const [image] = (await admin.content('media').list({ q: 'crest-torpedo' })).items;
+    expect(image).toMatchObject({ status: 'draft', data: { key: 'crest-torpedo', width: 16, height: 9, license: 'CC0', author: null } });
+  });
+});
+
 describe('import', () => {
   it('reads pasted cells, checks them, imports all as drafts once, and undoes the batch', async () => {
     const { admin } = await signIn('editor');
@@ -202,6 +221,7 @@ describe('releases', () => {
     expect(await screen.findByText(/is current now\./, {}, { timeout: 5000 })).toBeTruthy();
     const list = await publisher.admin.releases.list();
     expect(list.pointer.version).toBe(3);
-    await waitFor(() => expect(localStorage.getItem(`td_pending_publication:${publisher.user.id}`)).toBeNull());
+    // Cleared once the replica notice is confirmed too (the next poll, a second later).
+    await waitFor(() => expect(localStorage.getItem(`td_pending_publication:${publisher.user.id}`)).toBeNull(), { timeout: 4000 });
   });
 });

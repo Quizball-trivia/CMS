@@ -93,7 +93,7 @@ export function ClubEditor({ value, onChange, issues, creating }: TdEditorProps<
         <TdOptionalTextField label="Flag" value={value.flag} onChange={(flag) => onChange({ ...value, flag })} issues={issuesAt(issues, 'data.flag')} placeholder="🇬🇪" />
         <TdTextField label="Crest file" value={value.crest} onChange={(crest) => onChange({ ...value, crest })} issues={issuesAt(issues, 'data.crest')} hint="A file under /assets/clubs, such as dinamo-tbilisi.webp." />
       </div>
-      <TdMediaPicker label="Uploaded crest" value={value.crestImageKey} onChange={(crestImageKey) => onChange({ ...value, crestImageKey })} hint="Shown instead of the crest file when chosen." />
+      <TdMediaPicker label="Uploaded crest" value={value.crestImageKey} onChange={(crestImageKey) => onChange({ ...value, crestImageKey })} suggestedKey={`crest-${value.key}`} hint="Shown instead of the crest file when chosen. Upload one from Choose." />
       <TdSwitchField label="Hidden from the club picker" checked={value.hidden} onChange={(hidden) => onChange({ ...value, hidden })} hint="Still resolvable, e.g. for Career Path crests." />
     </>
   );

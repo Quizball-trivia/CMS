@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, expect, it } from 'vitest';
 import { contractProblems, createHarness, type Credentials, type Role } from './api-harness';
 import { apiScenarios } from './api-scenarios';

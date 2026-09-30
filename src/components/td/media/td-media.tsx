@@ -11,7 +11,9 @@ import { TdErrorPanel } from '@/components/td/td-error-panel';
 import { useTdAllRows, useTdUploadUrl, useTdWrite } from '@/hooks/use-td-content';
 import type { TdContentRow } from '@/lib/td/admin-api';
 import { tdAdmin } from '@/lib/td/client';
-import type { MediaUpload } from '@/lib/td/contract';
+import { contentWriteIssues } from '@/lib/td/content-rules';
+import type { MediaUpload, SchemaIssue } from '@/lib/td/contract';
+import { issuesAt, TdTextField } from '@/components/td/content/td-form';
 import { cn } from '@/lib/utils';
 
 export const TD_UPLOAD_TYPES = ['image/jpeg', 'image/png', 'image/webp'] as const;
@@ -92,8 +94,21 @@ export function TdUploadButton({ onUploaded, label = 'Upload image', variant = '
   );
 }
 
-/** Chooses an image (a media row, by key) for a card, a practice question or a club. */
-export function TdMediaPicker({ label, value, onChange, hint }: { label: string; value: string | null; onChange: (key: string | null) => void; hint?: string }) {
+/** Chooses an image (a media row, by key) for a card, a practice question or a club; a new one can be uploaded on the spot. */
+export function TdMediaPicker({
+  label,
+  value,
+  onChange,
+  hint,
+  suggestedKey,
+}: {
+  label: string;
+  value: string | null;
+  onChange: (key: string | null) => void;
+  hint?: string;
+  /** The key offered for an image uploaded from here. */
+  suggestedKey?: string;
+}) {
   const [open, setOpen] = useState(false);
   const media = useTdAllRows('media', { status: 'draft,ready,approved' });
   const chosen = media.data?.rows.find((row) => row.data.key === value);
@@ -130,13 +145,38 @@ export function TdMediaPicker({ label, value, onChange, hint }: { label: string;
         )}
       </div>
       {hint && <p className="text-xs text-(--td-text-3)">{hint}</p>}
-      <TdMediaPickerDialog open={open} onOpenChange={setOpen} rows={media.data?.rows ?? []} loading={media.isLoading} onPick={(key) => { onChange(key); setOpen(false); }} />
+      <TdMediaPickerDialog
+        open={open}
+        onOpenChange={setOpen}
+        rows={media.data?.rows ?? []}
+        loading={media.isLoading}
+        suggestedKey={suggestedKey}
+        onPick={(key) => {
+          onChange(key);
+          setOpen(false);
+        }}
+      />
     </div>
   );
 }
 
-function TdMediaPickerDialog({ open, onOpenChange, rows, loading, onPick }: { open: boolean; onOpenChange: (open: boolean) => void; rows: MediaRow[]; loading: boolean; onPick: (key: string) => void }) {
+function TdMediaPickerDialog({
+  open,
+  onOpenChange,
+  rows,
+  loading,
+  onPick,
+  suggestedKey,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  rows: MediaRow[];
+  loading: boolean;
+  onPick: (key: string) => void;
+  suggestedKey?: string;
+}) {
   const [q, setQ] = useState('');
+  const [uploaded, setUploaded] = useState<MediaUpload | null>(null);
   const shown = useMemo(() => {
     const needle = q.trim().toLowerCase();
     return rows.filter((row) => !needle || [row.data.key, row.data.author, row.data.source].some((text) => text?.toLowerCase().includes(needle)));
@@ -148,9 +188,22 @@ function TdMediaPickerDialog({ open, onOpenChange, rows, loading, onPick }: { op
           <DialogTitle>Choose an image</DialogTitle>
           <DialogDescription>Images are approved with their licence, credit and source before anything showing them can be approved.</DialogDescription>
         </DialogHeader>
+        {uploaded ? (
+          <NewImageForm
+            upload={uploaded}
+            suggestedKey={suggestedKey}
+            onCancel={() => setUploaded(null)}
+            onSaved={(key) => {
+              setUploaded(null);
+              onPick(key);
+            }}
+          />
+        ) : (
+          <TdUploadButton variant="secondary" label="Upload a new image" onUploaded={setUploaded} />
+        )}
         <div className="relative">
           <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-(--td-text-3)" />
-          <Input autoFocus value={q} onChange={(event) => setQ(event.target.value)} placeholder="Search by key, credit or source" className="h-10 rounded-full bg-(--td-input) pl-9" />
+          <Input value={q} onChange={(event) => setQ(event.target.value)} placeholder="Search by key, credit or source" className="h-10 rounded-full bg-(--td-input) pl-9" />
         </div>
         <ul className="-mx-2 grid max-h-[50vh] gap-1 overflow-y-auto px-2 sm:grid-cols-2">
           {loading && <li className="text-sm text-(--td-text-3)">Loading…</li>}
@@ -173,3 +226,55 @@ function TdMediaPickerDialog({ open, onOpenChange, rows, loading, onPick }: { op
   );
 }
 
+/** Saves an upload as an image (a media draft) so it can be picked; a publisher approves it with its rights later. */
+function NewImageForm({ upload, suggestedKey, onCancel, onSaved }: { upload: MediaUpload; suggestedKey?: string; onCancel: () => void; onSaved: (key: string) => void }) {
+  const write = useTdWrite();
+  const [key, setKey] = useState(suggestedKey ?? `img-${upload.id.slice(0, 8)}`);
+  const [rights, setRights] = useState({ author: '', license: '', source: '' });
+  const [issues, setIssues] = useState<SchemaIssue[]>([]);
+  const [error, setError] = useState<unknown>(null);
+  const [busy, setBusy] = useState(false);
+  const orNull = (text: string) => (text.trim() ? text.trim() : null);
+  const save = async () => {
+    const data = { key: key.trim(), url: null, uploadId: upload.id, width: upload.width, height: upload.height, author: orNull(rights.author), license: orNull(rights.license), source: orNull(rights.source) };
+    const found = contentWriteIssues('media', 'Media', 'create', { data });
+    setIssues(found);
+    if (found.length) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await write((operation) => tdAdmin.content('media').create({ data }, operation));
+      onSaved(data.key);
+    } catch (caught) {
+      setError(caught);
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <div className="flex flex-col gap-3 rounded-lg border border-border p-3">
+      <div className="flex items-center gap-3">
+        <TdMediaThumb uploadId={upload.id} alt="New upload" className="h-14 w-20" />
+        <p className="text-xs text-(--td-text-3)">
+          Uploaded · {upload.width} × {upload.height} px. Save it as an image to use it; approving it needs its licence, credit and source.
+        </p>
+      </div>
+      <div className="grid gap-2 sm:grid-cols-2">
+        <TdTextField label="Key" value={key} onChange={setKey} issues={issuesAt(issues, 'data.key')} />
+        <TdTextField label="Credit (author)" value={rights.author} onChange={(author) => setRights({ ...rights, author })} />
+        <TdTextField label="Licence" value={rights.license} onChange={(license) => setRights({ ...rights, license })} />
+        <TdTextField label="Source" value={rights.source} onChange={(source) => setRights({ ...rights, source })} />
+      </div>
+      <TdErrorPanel error={error} />
+      <div className="flex gap-2">
+        <Button size="sm" className="rounded-lg" disabled={busy} onClick={() => void save()}>
+          {busy && <Loader2 className="animate-spin" />}
+          Save and use it
+        </Button>
+        <Button size="sm" variant="ghost" className="rounded-lg" onClick={onCancel}>
+          Cancel
+        </Button>
+      </div>
+    </div>
+  );
+}
