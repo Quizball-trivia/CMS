@@ -1,7 +1,7 @@
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { ReactNode } from 'react';
+import { StrictMode, type ReactNode } from 'react';
 import type { TdAdminApi } from '@/lib/td/admin-api';
 import type { TdApiClient } from '@/lib/td/api-client';
 import type { TdTokenStore } from '@/lib/td/token-store';
@@ -40,17 +40,18 @@ const { memoryBlobStore } = await import('@/lib/td/mock/blob-store');
 const { createMockTdApi, MOCK_PASSWORD, MOCK_STAFF } = await import('@/lib/td/mock-api');
 const { createOrigin, MemoryStorage } = await import('@/lib/td/__tests__/helpers');
 const { TdAuthProvider, useTdAuth } = await import('@/providers/td-auth-provider');
-const { TdSetPasswordForm } = await import('../td-set-password-form');
+const { forgetLinkTokens, TdSetPasswordForm } = await import('../td-set-password-form');
+const { deferred } = await import('@/lib/td/__tests__/helpers');
 const { TdLoginForm } = await import('../td-login-form');
 
 const BASE = 'https://td-api.mock';
 let server: typeof fetch;
 let calls: string[];
 
-function client(fetchImpl: typeof fetch) {
+/** A client of the mock; `tokens` keeps an existing session store (the same browser, another way to reach the API). */
+function client(fetchImpl: typeof fetch, tokens: TdTokenStore = createOrigin().store()) {
   const origin = createOrigin();
   const transport = createTransport(BASE, fetchImpl);
-  const tokens = origin.store();
   const refreshLock = origin.lock('td-refresh');
   const coordinator = createRefreshCoordinator({ tokens, refreshLock: () => refreshLock, requestRefresh: (token, id) => requestTokenRefresh(transport, token, id) });
   const api = createTdApiClient({ transport, tokens, coordinator });
@@ -74,15 +75,26 @@ function Who() {
   return <p data-testid="who">{status === 'authenticated' ? user?.name : status}</p>;
 }
 
+/** Under StrictMode, as `next dev` runs pages: effects run twice. */
 function renderPage(ui: ReactNode) {
   return render(
-    <QueryClientProvider client={new QueryClient()}>
-      <TdAuthProvider>
-        {ui}
-        <Who />
-      </TdAuthProvider>
-    </QueryClientProvider>,
+    <StrictMode>
+      <QueryClientProvider client={new QueryClient()}>
+        <TdAuthProvider>
+          {ui}
+          <Who />
+        </TdAuthProvider>
+      </QueryClientProvider>
+    </StrictMode>,
   );
+}
+
+/** Signs a seeded member in on this page's token store, as an earlier sign-in would have. */
+async function signedInAs(role: 'ops' | 'betsson_admin') {
+  const member = MOCK_STAFF.find((s) => s.role === role)!;
+  const session = await h.api.login(member.email, MOCK_PASSWORD);
+  await h.tokens.transact((tx) => tx.replace({ ...session, generation: `before-${role}`, staffId: member.id, refreshPendingSince: null }));
+  return member;
 }
 
 const fill = (label: string | RegExp, value: string) => fireEvent.change(screen.getByLabelText(label), { target: { value } });
@@ -98,6 +110,7 @@ beforeEach(() => {
   Object.assign(h, client(server));
   h.replace.mockReset();
   h.search = '';
+  forgetLinkTokens();
   window.history.replaceState(null, '', '/td/accept-invite');
 });
 
@@ -176,6 +189,104 @@ describe('invitation and reset links', () => {
     fill('Repeat the password', 'a long enough passphrase');
     await act(async () => fireEvent.click(await screen.findByRole('button', { name: 'Join' })));
     await waitFor(() => expect(h.replace).toHaveBeenCalledWith('/td/login?done=joined'));
+  });
+
+  it('clears the fragment with a history state Next’s router takes up (no internal marker kept)', async () => {
+    window.history.replaceState({ __NA: true, __PRIVATE_NEXTJS_INTERNALS_TREE: {} }, '', '/td/accept-invite#token=tdi_abcdefghijklmnopqrstuvwxyz');
+    const replaceState = vi.spyOn(window.history, 'replaceState');
+    renderPage(<TdSetPasswordForm kind="invite" />);
+    await screen.findByRole('heading', { name: 'Join the team' });
+    const clearing = replaceState.mock.calls.find(([, , url]) => url === '/td/accept-invite');
+    expect(clearing?.[0]).toBeNull();
+    // Still the captured token after StrictMode's second effect run: the form is there, not the damaged-link note.
+    expect(screen.getByLabelText('New password')).toBeTruthy();
+  });
+
+  it('a redemption answered after another sign-in leaves that sign-in alone', async () => {
+    const token = await managerLink('invite');
+    const answer = deferred<void>();
+    const inner = server;
+    Object.assign(h, client(((input: RequestInfo | URL, init?: RequestInit) =>
+      new URL(String(input)).pathname === '/admin/auth/accept-invite' ? answer.promise.then(() => inner(input, init)) : inner(input, init)) as typeof fetch));
+    window.history.replaceState(null, '', `/td/accept-invite#token=${token}`);
+    renderPage(<TdSetPasswordForm kind="invite" />);
+    fill('Your name', 'Late Joiner');
+    fill('New password', 'a long enough passphrase');
+    fill('Repeat the password', 'a long enough passphrase');
+    fireEvent.click(await screen.findByRole('button', { name: 'Join' }));
+    // Meanwhile Ops signs in in this browser.
+    const ops = await signedInAs('ops');
+    await waitFor(() => expect(screen.getByTestId('who').textContent).toBe(ops.name));
+    await act(async () => answer.resolve());
+    await waitFor(() => expect(h.replace).toHaveBeenCalledWith('/td/login?done=joined'));
+    expect(screen.getByTestId('who').textContent).toBe(ops.name);
+    expect(h.tokens.read()?.generation).toBe('before-ops');
+  });
+
+  it('while a signed-in member’s session hands over to the invited one, no identity is shown', async () => {
+    const admin = await signedInAs('betsson_admin');
+    const token = await managerLink('invite', 'handover@example.test');
+    const me = deferred<void>();
+    const inner = server;
+    let held = false;
+    Object.assign(h, client(((input: RequestInfo | URL, init?: RequestInit) => {
+      const path = new URL(String(input)).pathname;
+      // Only the new session's first /admin/me waits.
+      if (path === '/admin/me' && held) return me.promise.then(() => inner(input, init));
+      if (path === '/admin/auth/accept-invite') held = true;
+      return inner(input, init);
+    }) as typeof fetch, h.tokens));
+    window.history.replaceState(null, '', `/td/accept-invite#token=${token}`);
+    renderPage(<TdSetPasswordForm kind="invite" />);
+    await waitFor(() => expect(screen.getByTestId('who').textContent).toBe(admin.name));
+    expect(screen.getByText(/You are signed in as Demo Betsson Admin/)).toBeTruthy();
+    fill('Your name', 'Handed Over');
+    fill('New password', 'a long enough passphrase');
+    fill('Repeat the password', 'a long enough passphrase');
+    fireEvent.click(screen.getByRole('button', { name: 'Join' }));
+    await waitFor(() => expect(screen.getByTestId('who').textContent).toBe('loading'));
+    await act(async () => me.resolve());
+    await waitFor(() => expect(screen.getByTestId('who').textContent).toBe('Handed Over'));
+  });
+
+  it('a link taken without a usable session in the answer still ends at sign in with a note', async () => {
+    const token = await managerLink('invite');
+    const inner = server;
+    Object.assign(h, client((async (input: RequestInfo | URL, init?: RequestInit) => {
+      const response = await inner(input, init);
+      return new URL(String(input)).pathname === '/admin/auth/accept-invite' ? new Response('{}', { status: 200, headers: { 'Content-Type': 'application/json' } }) : response;
+    }) as typeof fetch));
+    window.history.replaceState(null, '', `/td/accept-invite#token=${token}`);
+    renderPage(<TdSetPasswordForm kind="invite" />);
+    fill('Your name', 'Luka');
+    fill('New password', 'a long enough passphrase');
+    fill('Repeat the password', 'a long enough passphrase');
+    await act(async () => fireEvent.click(await screen.findByRole('button', { name: 'Join' })));
+    await waitFor(() => expect(h.replace).toHaveBeenCalledWith('/td/login?done=joined'));
+  });
+
+  it('after a try with no answer, a spent link points to signing in, not to a new invitation', async () => {
+    const token = await managerLink('invite');
+    const inner = server;
+    let lose = true;
+    Object.assign(h, client((async (input: RequestInfo | URL, init?: RequestInit) => {
+      const response = await inner(input, init);
+      if (lose && new URL(String(input)).pathname === '/admin/auth/accept-invite') {
+        lose = false;
+        throw new TypeError('Failed to fetch');
+      }
+      return response;
+    }) as typeof fetch));
+    window.history.replaceState(null, '', `/td/accept-invite#token=${token}`);
+    renderPage(<TdSetPasswordForm kind="invite" />);
+    fill('Your name', 'Luka');
+    fill('New password', 'a long enough passphrase');
+    fill('Repeat the password', 'a long enough passphrase');
+    await act(async () => fireEvent.click(await screen.findByRole('button', { name: 'Join' })));
+    expect(await screen.findByText(/No answer from the Table Derby API\. It may have gone through/)).toBeTruthy();
+    await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Join' })));
+    expect(await screen.findByText(/most likely by your try that got no answer: sign in/)).toBeTruthy();
+    expect(screen.getByRole('link', { name: 'Sign in' }).getAttribute('href')).toBe('/td/login');
   });
 
   it('the login page shows a finished link’s note, only for the notes it knows', async () => {

@@ -155,10 +155,10 @@ export interface TdApiClient {
   /** Any signed-in request: raw bodies (uploads) and text or binary answers (exports, files). */
   request<T>(method: Method, path: string, options?: TdCallOptions): Promise<T>;
   login(email: string, password: string): Promise<TdTokenSet>;
-  /** Redeems a one-time invitation link; the answer is a new session. */
-  acceptInvite(token: string, password: string, name: string): Promise<TdTokenSet>;
-  /** Redeems a one-time reset link; the answer is a new session. */
-  resetPassword(token: string, password: string): Promise<TdTokenSet>;
+  /** Redeems a one-time invitation link: its session, or null when the link was taken but no usable session came back. */
+  acceptInvite(token: string, password: string, name: string): Promise<TdTokenSet | null>;
+  /** Redeems a one-time reset link, answered as acceptInvite is. */
+  resetPassword(token: string, password: string): Promise<TdTokenSet | null>;
   /** Revokes the whole refresh family; true only when the API confirmed it. */
   logout(refreshToken: string): Promise<boolean>;
   me(options?: TdRequestOptions): Promise<TdStaff>;
@@ -237,6 +237,20 @@ export function createTdApiClient({
     return tokens;
   }
 
+  /**
+   * A one-time link: a refusal throws, as any call; a success has spent the link, so an answer that is not a
+   * usable session (cut short, malformed) is null rather than an error the page would offer to retry.
+   */
+  async function redeemed(path: string, body: object): Promise<TdTokenSet | null> {
+    const response = await transport.send('POST', path, { body, timeoutMs: AUTH_TIMEOUT_MS });
+    if (!response.ok) throw await toApiError(response);
+    try {
+      return tokensFromResponse(await parse<TdTokenResponse>(response));
+    } catch {
+      return null;
+    }
+  }
+
   return {
     get: (path, options) => authed('GET', path, options),
     post: (path, body, options) => authed('POST', path, { ...options, body }),
@@ -245,8 +259,8 @@ export function createTdApiClient({
     request: (method, path, options) => authed(method, path, options),
 
     login: (email, password) => sessionFrom('/admin/auth/login', { email, password }),
-    acceptInvite: (token, password, name) => sessionFrom('/admin/auth/accept-invite', { token, password, name }),
-    resetPassword: (token, password) => sessionFrom('/admin/auth/reset', { token, password }),
+    acceptInvite: (token, password, name) => redeemed('/admin/auth/accept-invite', { token, password, name }),
+    resetPassword: (token, password) => redeemed('/admin/auth/reset', { token, password }),
 
     async logout(refreshToken) {
       // The refresh token, not the access token, identifies the family, so this

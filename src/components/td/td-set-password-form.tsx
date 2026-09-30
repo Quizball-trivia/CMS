@@ -36,15 +36,20 @@ export function passwordProblem(password: string, confirm: string): string | nul
   return null;
 }
 
-export function linkRefusal(error: unknown, kind: TdLinkKind): string {
+/**
+ * `unanswered`: an earlier try of this form got no answer, so it may have gone through; a spent link is then
+ * most likely spent by it, and signing in (not a new link) is the way on.
+ */
+export function linkRefusal(error: unknown, kind: TdLinkKind, unanswered = false): string {
   if (!(error instanceof TdApiError)) {
-    return 'No answer from the Table Derby API. If you already sent this form once, your password may be set: try signing in with it.';
+    return 'No answer from the Table Derby API. It may have gone through: try signing in with the password you chose, or send this again.';
   }
   switch (error.code) {
     case 'invalid_token':
+      if (unanswered) return 'This link is used now, most likely by your try that got no answer: sign in with the password you chose.';
       return kind === 'invite'
-        ? 'This invitation link has expired or was already used. Ask a team manager for a new one.'
-        : 'This reset link has expired or was already used. Ask a team manager for a new one.';
+        ? 'This invitation link has expired or was already used. If you already joined, sign in; otherwise ask a team manager for a new one.'
+        : 'This reset link has expired or was already used. If you already set a new password, sign in; otherwise ask a team manager for a new one.';
     case 'weak_password':
       return `The API refused this password: use ${PASSWORD_MIN} to ${PASSWORD_MAX} characters.`;
     case 'rate_limited':
@@ -57,6 +62,26 @@ export function linkRefusal(error: unknown, kind: TdLinkKind): string {
     default:
       return error.message;
   }
+}
+
+/**
+ * The token, read once per page load: the fragment is cleared as soon as it is read, so a second effect run
+ * (StrictMode) or a remount must find the captured copy, not an empty address bar.
+ */
+const captured: Partial<Record<TdLinkKind, string | null>> = {};
+
+function takeLinkToken(kind: TdLinkKind): string | null {
+  if (!(kind in captured) || window.location.hash) {
+    captured[kind] = linkTokenFrom(window.location.hash);
+    // A state without Next's own marker, so its router takes the new URL too and never restores the fragment.
+    if (window.location.hash) window.history.replaceState(null, '', `${window.location.pathname}${window.location.search}`);
+  }
+  return captured[kind] ?? null;
+}
+
+/** Forgets a spent token (tests, and a redeemed link). */
+export function forgetLinkTokens() {
+  for (const kind of Object.keys(captured) as TdLinkKind[]) delete captured[kind];
 }
 
 const inputClass = 'h-12 rounded-lg border-border bg-(--td-input) px-4 text-base text-foreground placeholder:text-(--td-text-3)';
@@ -80,13 +105,12 @@ export function TdSetPasswordForm({ kind }: { kind: TdLinkKind }) {
   const [error, setError] = useState<string | null>(null);
   const [tried, setTried] = useState(false);
 
+  const [unanswered, setUnanswered] = useState(false);
+
   useEffect(() => {
-    // Read once, then gone from the address bar (and so from history, bookmarks and screen shares).
-    const read = linkTokenFrom(window.location.hash);
-    if (window.location.hash) window.history.replaceState(window.history.state, '', `${window.location.pathname}${window.location.search}`);
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- the fragment is only readable after mount
-    setToken(read);
-  }, []);
+    // Read once, then gone from the address bar (and so from history, bookmarks and screen shares); the fragment only exists after mount.
+    setToken(takeLinkToken(kind));
+  }, [kind]);
 
   const copy = COPY[kind];
   const trimmedName = name.trim();
@@ -105,10 +129,12 @@ export function TdSetPasswordForm({ kind }: { kind: TdLinkKind }) {
     setSubmitting(true);
     try {
       const member = kind === 'invite' ? await acceptInvite(token, password, trimmedName) : await resetPassword(token, password);
+      forgetLinkTokens();
       // Signed in with the session the API answered; without one, the password is set all the same.
       router.replace(member ? TD_ROOT : `${TD_ROOT}/login?done=${copy.done}`);
     } catch (caught) {
-      setError(linkRefusal(caught, kind));
+      setError(linkRefusal(caught, kind, unanswered));
+      if (!(caught instanceof TdApiError)) setUnanswered(true);
       setSubmitting(false);
     }
   }
@@ -208,6 +234,12 @@ export function TdSetPasswordForm({ kind }: { kind: TdLinkKind }) {
             >
               {submitting ? <Loader2 className="animate-spin" /> : copy.submit}
             </Button>
+            <p className="mt-4 text-center text-xs text-(--td-text-3)">
+              Already set your password?{' '}
+              <Link href={`${TD_ROOT}/login`} className="text-primary underline">
+                Sign in
+              </Link>
+            </p>
           </form>
         )}
       </div>

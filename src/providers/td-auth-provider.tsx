@@ -138,6 +138,8 @@ export function TdAuthProvider({ children }: { children: ReactNode }) {
       // Set first, so our own commit below is not mistaken for another tab's sign-in.
       activeGeneration.current = generation;
       queryClient.clear();
+      // No identity shown while the credentials change hands: the old account's name and role never sit over the new tokens.
+      setState({ status: 'loading', user: null, notice: null });
       try {
         const replaced = await tdTokens.transact((tx) => {
           const previous = tx.read();
@@ -168,8 +170,11 @@ export function TdAuthProvider({ children }: { children: ReactNode }) {
    * so a session that then cannot be taken up answers null (sign in with the new password) rather than an error.
    */
   const redeem = useCallback(
-    async (obtain: () => Promise<TdTokenSet>) => {
+    async (obtain: () => Promise<TdTokenSet | null>) => {
+      // The sign-in this began under: if another sign-in or a sign-out happened meanwhile, it is left alone.
+      const before = tdTokens.read()?.generation ?? null;
       const tokens = await obtain();
+      if (!tokens || (tdTokens.read()?.generation ?? null) !== before) return null;
       try {
         return await adopt(tokens);
       } catch {
