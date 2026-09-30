@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { checkContract, matchContractRoute, TD_ADMIN_CONTRACT_VERSION, TD_CONTRACT } from '../contract';
 import cases from '../contract/pinned/fixtures/validation-cases.json';
-import { API_PATTERNS_WITHOUT_U, describePattern, unsupportedKeywords, validateSchema } from '../contract/validate';
+import { describePattern, unsupportedKeywords, validateSchema } from '../contract/validate';
 import { verifyTdContractPin } from '../contract/verify-pin';
 
 const CONTRACT_DIR = join(import.meta.dirname, '../contract');
@@ -83,32 +83,18 @@ describe('contract validator', () => {
     expect(validateSchema(schema, '😀😀😀')).toHaveLength(1);
   });
 
-  it('counts image URLs in UTF-16 units where the API compiles the pattern without u', () => {
+  it('counts image URLs in code points, as the API’s regexes do (the u flag)', () => {
     const valid = (schema: string, field: string) => cases.cases.find((c) => c.schema === schema && c.valid && typeof (c.value as Record<string, unknown>)[field] === 'string')!.value as Record<string, unknown>;
     const media = valid('MediaData', 'url');
     const logic = valid('FootballLogicData', 'imageA');
     const check = (schema: string, value: Record<string, unknown>) => validateSchema(TD_CONTRACT.schemas[schema], value).length === 0;
-    // 1,000 emoji: 2,000 units, within 2040 either way.
-    expect(check('MediaData', { ...media, url: `https://x.test/${'😀'.repeat(1000)}` })).toBe(true);
-    expect(check('FootballLogicData', { ...logic, imageA: `/${'😀'.repeat(1000)}` })).toBe(true);
-    expect(check('ContentImportItem', { type: 'football-logic', data: { ...logic, imageB: `https://x.test/${'😀'.repeat(1000)}` } })).toBe(true);
-    // 1,500 emoji: 1,500 code points but 3,000 units, which the API's regex refuses.
-    expect(check('MediaData', { ...media, url: `https://x.test/${'😀'.repeat(1500)}` })).toBe(false);
-    expect(check('FootballLogicData', { ...logic, imageA: `/${'😀'.repeat(1500)}` })).toBe(false);
-    expect(check('ContentImportItem', { type: 'football-logic', data: { ...logic, imageB: `https://x.test/${'😀'.repeat(1500)}` } })).toBe(false);
-  });
-
-  it('knows each pattern it compiles without u from the pinned contract (a new pin must be checked against the API)', () => {
-    const found = new Set<string>();
-    const walk = (node: unknown) => {
-      if (!node || typeof node !== 'object') return;
-      for (const [key, value] of Object.entries(node)) {
-        if (key === 'pattern' && typeof value === 'string') found.add(value);
-        else walk(value);
-      }
-    };
-    walk(TD_CONTRACT.schemas);
-    for (const pattern of API_PATTERNS_WITHOUT_U) expect(found.has(pattern), pattern).toBe(true);
+    // 1,500 emoji: 3,000 UTF-16 units but 1,500 code points, within 2040.
+    expect(check('MediaData', { ...media, url: `https://x.test/${'😀'.repeat(1500)}` })).toBe(true);
+    expect(check('FootballLogicData', { ...logic, imageA: `/${'😀'.repeat(1500)}` })).toBe(true);
+    expect(check('ContentImportItem', { type: 'football-logic', data: { ...logic, imageB: `https://x.test/${'😀'.repeat(1500)}` } })).toBe(true);
+    // Past 2040 code points either way.
+    expect(check('MediaData', { ...media, url: `https://x.test/${'😀'.repeat(2040)}` })).toBe(false);
+    expect(check('FootballLogicData', { ...logic, imageA: `/${'😀'.repeat(2041)}` })).toBe(false);
   });
 
   it('names the pattern families in plain words', () => {

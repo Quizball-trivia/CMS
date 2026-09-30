@@ -40,22 +40,12 @@ export const SUPPORTED_KEYWORDS = new Set([
   'title',
 ]);
 
-/**
- * The contract says every pattern applies with the `u` flag, but the API's zod
- * schemas compile these two without it (packages/contracts/src/adminContent.ts:
- * the media `url` and `imageRef`), so their `\S{1,2040}` counts UTF-16 code
- * units: a URL of 1,500 emoji is 3,000 units, which the API refuses. The CMS
- * follows the API, and without `u` these patterns only ever refuse more. Drop
- * this once the API compiles them with `u` (or the artifact records flags).
- */
-export const API_PATTERNS_WITHOUT_U: ReadonlySet<string> = new Set(['^https?:\\/\\/\\S{1,2040}$', '^(?:https?:\\/\\/|\\/)\\S{1,2040}$']);
-
 const patterns = new Map<string, RegExp>();
 function compiled(pattern: string): RegExp {
   let regex = patterns.get(pattern);
   if (!regex) {
-    // Otherwise ECMAScript with the `u` flag, as the API compiles them: lengths in code points.
-    regex = new RegExp(pattern, API_PATTERNS_WITHOUT_U.has(pattern) ? '' : 'u');
+    // The contract's patterns are ECMAScript with the `u` flag: lengths in code points.
+    regex = new RegExp(pattern, 'u');
     patterns.set(pattern, regex);
   }
   return regex;

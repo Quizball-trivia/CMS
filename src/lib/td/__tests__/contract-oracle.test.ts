@@ -61,12 +61,12 @@ describe.skipIf(!dir)('contract validator against Ajv', () => {
     expect(compared).toBeGreaterThan(50_000);
   });
 
-  it('gives the same verdict as the API’s zod schemas, image URLs in UTF-16 units included', () => {
+  it('gives the same verdict as the API’s zod schemas, image URLs of emoji included', () => {
     // Node's own loader (it strips the types), not Vite's: the checkout is outside this project.
     const { ADMIN_SCHEMAS } = createRequire(join(dir!, 'package.json'))('./src/adminContract.ts') as {
       ADMIN_SCHEMAS: Record<string, { schema: { safeParse(value: unknown): { success: boolean } } }>;
     };
-    // Where the API's regex has no `u` flag (the artifact says it has), zod is the API's verdict, not Ajv.
+    // Emoji count once in a code point pattern and twice in a UTF-16 one: the API's regexes and ours must agree.
     const urls = [`https://x.test/${'😀'.repeat(1000)}`, `https://x.test/${'😀'.repeat(1500)}`, `/${'😀'.repeat(1500)}`, `/${'😀'.repeat(1019)}`, `/${'😀'.repeat(1020)}`];
     let compared = 0;
     const disagreements: string[] = [];
