@@ -10,13 +10,15 @@
 import type { WebhookAttempt, WebhookEvent, WebhookEventDetail } from '../contract';
 import type { MockContext } from './content';
 import type { MockDb, MockPlayer } from './db';
-import { MockError, paginate } from './util';
+import { decodeCursor, encodeCursor, MockError } from './util';
 
 export const MOCK_WEBHOOK_DESTINATION = 'https://hooks.betsson.example#3f9a1c07b2d4';
 const EARLIER_DESTINATION = 'https://old-hooks.betsson.example#81c2d93e0a4f';
 const RETRIES_PER_HOUR = 60;
 const ATTEMPTS_SHOWN = 200;
 const RETRY_WINDOW_MS = 24 * 3_600_000;
+/** How long past its window a pending event may still be claimed (a dispatcher back from downtime gives it up after). */
+const EXPIRY_GRACE_MS = 5 * 60_000;
 const EVENT_ID = /^[A-Za-z0-9._:-]{1,128}$/;
 
 type RawAttempt = Omit<WebhookAttempt, 'delivered' | 'reason'>;
@@ -52,8 +54,9 @@ function dataFor(type: WebhookEvent['type'], i: number, matchId: string, georgia
       return { matchId, score: { player: i % 4, opponent: (i + 1) % 3 } };
     case 'match.settled':
       return { matchId, resultVersion: 1, outcome: i % 2 ? 'win' : 'loss', ratingDelta: i % 2 ? 12 : -9, ticketRefunded: false, score: { player: 3, opponent: 1 }, decidedBy: 'play' };
-    case 'match.corrected':
     case 'match.voided':
+      return { matchId, resultVersion: 1, outcome: 'noContest', ratingDelta: 0, ticketRefunded: true, score: null, decidedBy: 'void' };
+    case 'match.corrected':
       return { matchId, resultVersion: 2, outcome: 'noContest', ratingDelta: 0, ticketRefunded: true, score: { player: 2, opponent: 3 }, decidedBy: 'void' };
     case 'daily.completed':
       return { game: 'footballLogic', georgiaDate, solved: true, seconds: 40 + (i % 50) };
@@ -117,17 +120,38 @@ export function seedWebhooks(now: number, players: MockPlayer[], matchIds: strin
       });
       return { ...base, status: 'dead', attempts: 31, sentAt: null, deadAt: iso(enqueued + RETRY_WINDOW_MS), lastError: 'webhook_http_503', destination, log, next };
     };
+    // Retried by hand again and again over nine days: more attempts than the detail shows.
+    const longGivenUp = (): MockWebhook => {
+      const start = now - 9 * 86_400_000;
+      const log = Array.from({ length: 230 }, (_, a) => failed(start + a * 50 * 60_000, a + 1));
+      return {
+        ...base,
+        occurredAt: iso(start - 120),
+        enqueuedAt: iso(start),
+        payload: { ...base.payload, occurredAt: iso(start - 120) },
+        status: 'dead',
+        attempts: 230,
+        sentAt: null,
+        revivedAt: iso(now - 2 * 86_400_000),
+        deadAt: iso(now - 86_400_000),
+        lastError: 'webhook_http_503',
+        log,
+        next: 'fail',
+      };
+    };
     const retrying = (next: 'ok' | 'fail'): MockWebhook => {
       const log = [failed(enqueued + 60, 1), failed(enqueued + 30_060, 2), failed(enqueued + 90_060, 3)];
       return { ...base, status: 'pending', attempts: 3, sentAt: null, nextAttemptAt: iso(now + 15 * 60_000), lastError: 'webhook_http_503', log, next };
     };
+    if (i === 0) return longGivenUp();
     if (i === 3) return giveUp('fail');
     if (i === 9) return giveUp('ok', EARLIER_DESTINATION);
     if (i === 17) return giveUp('ok');
     if (i === 50) return retrying('ok');
     if (i === 53) return retrying('fail');
-    if (i === 55)
-      return { ...base, status: 'pending', attempts: 1, sentAt: null, log: [], sendingUntil: iso(now + 20 * 60_000), nextAttemptAt: iso(enqueued) };
+    // On their way now: one will be answered, the other refused.
+    if (i === 54 || i === 55)
+      return { ...base, status: 'pending', attempts: 1, sentAt: null, log: [], sendingUntil: iso(now + 20 * 60_000), nextAttemptAt: iso(enqueued), next: i === 55 ? 'ok' : 'fail' };
     return base;
   });
 }
@@ -171,15 +195,19 @@ function detail(w: MockWebhook): WebhookEventDetail {
 
 function deliver(w: MockWebhook, now: number) {
   const startedAt = new Date(now).toISOString();
+  w.sendingUntil = null;
   if (w.next === 'ok') {
     w.log.push({ attempt: w.attempts, startedAt, latencyMs: 210, httpStatus: 200, error: null, responseSnippet: '{"received":true}' });
-    Object.assign(w, { status: 'sent', sentAt: startedAt, lastError: null, sendingUntil: null });
+    Object.assign(w, { status: 'sent', sentAt: startedAt, lastError: null });
     return;
   }
-  w.log.push(failed(now, w.attempts));
-  w.lastError = w.log.at(-1)!.httpStatus === null ? 'webhook_timeout' : `webhook_http_${w.log.at(-1)!.httpStatus}`;
-  if (now - Date.parse(w.revivedAt ?? w.enqueuedAt) >= RETRY_WINDOW_MS) Object.assign(w, { status: 'dead', deadAt: startedAt });
-  else w.nextAttemptAt = new Date(now + backoff(w.attempts)).toISOString();
+  const attempt = failed(now, w.attempts);
+  w.log.push(attempt);
+  w.lastError = attempt.httpStatus === null ? 'webhook_timeout' : `webhook_http_${attempt.httpStatus}`;
+  // Failed at or past its window's end: given up. Before it: due again after the backoff, no later than the end.
+  const windowEnd = Date.parse(w.revivedAt ?? w.enqueuedAt) + RETRY_WINDOW_MS;
+  if (now >= windowEnd) Object.assign(w, { status: 'dead', deadAt: startedAt });
+  else w.nextAttemptAt = new Date(Math.min(now + backoff(w.attempts), windowEnd)).toISOString();
 }
 
 /** The dispatcher: a due event gets its next attempt, a delivery on its way lands. */
@@ -190,6 +218,11 @@ export function advance(db: MockDb, now: number) {
       continue;
     }
     if (w.status !== 'pending' || Date.parse(w.nextAttemptAt) > now) continue;
+    // Past its window and the grace (the dispatcher was away): given up without another attempt, as the API's claim does.
+    if (now > Date.parse(w.revivedAt ?? w.enqueuedAt) + RETRY_WINDOW_MS + EXPIRY_GRACE_MS) {
+      Object.assign(w, { status: 'dead', deadAt: new Date(now).toISOString(), lastError: w.lastError ?? 'window_passed' });
+      continue;
+    }
     w.attempts += 1;
     deliver(w, now);
   }
@@ -201,12 +234,20 @@ function hits(db: MockDb, w: MockWebhook, q: string): boolean {
   return db.players.some((p) => p.id === w.userId && p.partnerPlayerId === q);
 }
 
+/** Newest first; the cursor is the last event shown (as the API's `id <` cursor), so events changing status between pages skip nothing. */
 export function list(ctx: MockContext, query: { q?: string; status?: WebhookEvent['status']; cursor?: string; limit?: string }) {
+  let before = Number.POSITIVE_INFINITY;
+  if (query.cursor !== undefined) {
+    const decoded = decodeCursor<{ s: number }>(query.cursor);
+    if (!decoded || !Number.isSafeInteger(decoded.s) || decoded.s < 1) throw new MockError(400, 'invalid_request', 'The cursor is not valid');
+    before = decoded.s;
+  }
+  const limit = query.limit ? Number(query.limit) : 50;
   const rows = ctx.db.webhooks
-    .filter((w) => (query.q === undefined || hits(ctx.db, w, query.q)) && (query.status === undefined || w.status === query.status))
+    .filter((w) => w.seq < before && (query.q === undefined || hits(ctx.db, w, query.q)) && (query.status === undefined || w.status === query.status))
     .sort((a, b) => b.seq - a.seq);
-  const page = paginate(rows, query, `webhooks:${query.q ?? ''}:${query.status ?? ''}`);
-  return { items: page.items.map(view), nextCursor: page.nextCursor };
+  const page = rows.slice(0, limit);
+  return { items: page.map(view), nextCursor: rows.length > limit ? encodeCursor({ s: page.at(-1)!.seq }) : null };
 }
 
 function find(ctx: MockContext, eventId: string): MockWebhook {
@@ -217,16 +258,40 @@ function find(ctx: MockContext, eventId: string): MockWebhook {
 
 export const get = (ctx: MockContext, eventId: string) => detail(find(ctx, eventId));
 
-/**
- * Hand retries per member (their times), kept apart from the store as the API keeps its limiter in Redis:
- * a refused retry is counted too, and nothing rolls it back.
- */
-export type RetryLimiter = Map<string, number[]>;
+/** Hand retries per member, as the API's Redis limiter counts them: a fixed hour from the first, every call counted, refused or not. */
+export interface RetryLimiter {
+  hit(staffId: string, now: number): boolean;
+}
+
+const LIMITS_KEY = 'td_mock_webhook_retry_limits';
+
+/** Kept beside the store, not in it, so a refused retry still counts; shared by every tab of the browser. */
+export function createRetryLimiter(storage: () => Storage | null): RetryLimiter {
+  let memory: Record<string, { count: number; resetAt: number }> = {};
+  return {
+    hit(staffId, now) {
+      const store = storage();
+      let all = memory;
+      if (store) {
+        try {
+          all = JSON.parse(store.getItem(LIMITS_KEY) ?? '{}') as typeof memory;
+        } catch {
+          all = {};
+        }
+      }
+      const current = all[staffId];
+      const entry = current && current.resetAt > now ? current : { count: 0, resetAt: now + 3_600_000 };
+      entry.count += 1;
+      all[staffId] = entry;
+      if (store) store.setItem(LIMITS_KEY, JSON.stringify(all));
+      else memory = all;
+      return entry.count <= RETRIES_PER_HOUR;
+    },
+  };
+}
 
 export function retry(ctx: MockContext, eventId: string, retarget: boolean, limiter: RetryLimiter) {
-  const recent = (limiter.get(ctx.staff.id) ?? []).filter((t) => t > ctx.now - 3_600_000);
-  if (recent.length >= RETRIES_PER_HOUR) throw new MockError(429, 'rate_limited', 'Too many requests; try again later');
-  limiter.set(ctx.staff.id, [...recent, ctx.now]);
+  if (!limiter.hit(ctx.staff.id, ctx.now)) throw new MockError(429, 'rate_limited', 'Too many requests; try again later');
   const w = find(ctx, eventId);
   if (w.status === 'sent') throw new MockError(409, 'conflict', 'This event was delivered already');
   if (w.sendingUntil !== null) throw new MockError(409, 'conflict', 'This event is being sent now; look again in a moment');

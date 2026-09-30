@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest';
 import { TD_CONTRACT } from '../contract';
 import cases from '../contract/pinned/fixtures/validation-cases.json';
 import { validateSchema } from '../contract/validate';
+import { seedDb } from '../mock/db';
 
 /**
  * Opt-in: the validator against Ajv (strict JSON Schema 2020-12, as the API's
@@ -80,5 +81,16 @@ describe.skipIf(!dir)('contract validator against Ajv', () => {
     }
     expect(disagreements).toEqual([]);
     expect(compared).toBeGreaterThan(50_000);
+  });
+
+  it('seeds only webhook envelopes the partner contract accepts', () => {
+    const { validatePartnerEvent } = createRequire(join(dir!, '../partner-contract/package.json'))('./src/index.ts') as {
+      validatePartnerEvent(input: unknown): { ok: true } | { ok: false; errors: string[] };
+    };
+    const refused = seedDb(Date.parse('2026-09-30T08:00:00Z')).webhooks.flatMap((w) => {
+      const verdict = validatePartnerEvent(w.payload);
+      return verdict.ok ? [] : [`${w.eventId} ${w.type}: ${verdict.errors.join('; ')}`];
+    });
+    expect(refused).toEqual([]);
   });
 });

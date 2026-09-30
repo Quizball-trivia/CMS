@@ -333,6 +333,8 @@ export function apiScenarios(h: () => Harness) {
   it('integration: webhooks are for Betsson admins and ops to read, and for ops to retry', async () => {
     expect(await h().call('editor', 'GET', '/admin/integration/webhooks')).toMatchObject({ status: 403 });
     expect(await h().call('publisher', 'GET', '/admin/integration/webhooks')).toMatchObject({ status: 403 });
+    expect(await h().call('editor', 'GET', '/admin/integration/webhooks/no-such-event')).toMatchObject({ status: 403 });
+    expect(await h().call('publisher', 'POST', '/admin/integration/webhooks/no-such-event/retry', { body: {} })).toMatchObject({ status: 403 });
     expect((await h().call('betsson_admin', 'GET', '/admin/integration/webhooks?limit=5')).status).toBe(200);
     expect((await h().call('ops', 'GET', '/admin/integration/webhooks?status=dead')).status).toBe(200);
     expect(await h().call('ops', 'GET', '/admin/integration/webhooks?status=lost')).toMatchObject({ status: 400, body: { code: 'invalid_request' } });
@@ -353,15 +355,27 @@ export function apiScenarios(h: () => Harness) {
     // A real database needs partner events (the mock has them): reported as skipped, not passed.
     if (h().real && !sent) return ctx.skip();
     expect(sent).toBeDefined();
-    for (const q of [sent.eventId, sent.sessionId, sent.playerId, sent.userId])
-      expect((await list(`q=${encodeURIComponent(q)}&limit=200`)).map((e) => e.eventId), q).toContain(sent.eventId);
+    // Each search finds the event and only events that match it on that id.
+    expect((await list(`q=${encodeURIComponent(sent.eventId)}`)).map((e) => e.eventId)).toEqual([sent.eventId]);
+    for (const field of ['sessionId', 'playerId', 'userId'] as const) {
+      const found = await list(`q=${encodeURIComponent(sent[field])}&limit=200`);
+      expect(found.map((e) => e.eventId), field).toContain(sent.eventId);
+      expect(found.every((e) => e[field] === sent[field]), field).toBe(true);
+    }
     const shown = (await h().call('betsson_admin', 'GET', `/admin/integration/webhooks/${sent.eventId}`)).body as { event: Event; attempts: { delivered: boolean }[]; payload: { eventId: string } };
     expect(shown).toMatchObject({ event: { eventId: sent.eventId, status: 'sent' }, payload: { eventId: sent.eventId } });
     expect(shown.attempts.at(-1)?.delivered).toBe(true);
     expect(await h().call('ops', 'POST', `/admin/integration/webhooks/${sent.eventId}/retry`, { body: {} })).toMatchObject({ status: 409, body: { code: 'conflict' } });
 
     const dead = await list('status=dead&limit=200');
-    const here = dead.find((e) => e.destinationCurrent);
+    expect(dead.every((e) => e.status === 'dead')).toBe(true);
+    // More attempts than the detail keeps: the latest 200, oldest first.
+    const long = dead.find((e) => e.attempts > 200);
+    if (long) {
+      const attempts = ((await h().call('ops', 'GET', `/admin/integration/webhooks/${long.eventId}`)).body as { attempts: { attempt: number }[] }).attempts.map((a) => a.attempt);
+      expect(attempts).toEqual(Array.from({ length: 200 }, (_, i) => long.attempts - 199 + i));
+    }
+    const here = dead.find((e) => e.destinationCurrent && e.attempts <= 200);
     if (here) {
       const retried = await h().call('ops', 'POST', `/admin/integration/webhooks/${here.eventId}/retry`, { body: {} });
       expect(retried).toMatchObject({ status: 200, body: { event: { eventId: here.eventId, status: 'pending', attempts: here.attempts } } });
@@ -377,13 +391,20 @@ export function apiScenarios(h: () => Harness) {
         body: { event: { status: 'pending', destinationCurrent: true } },
       });
     }
-    if (h().real && (!here || !moved)) return ctx.skip();
-    expect(here && moved).toBeTruthy();
+    if (h().real && (!here || !moved || !long)) return ctx.skip();
+    expect(here && moved && long).toBeTruthy();
   });
 
-  it('integration: hand retries are limited per member (60 an hour)', async () => {
+  it('integration: hand retries are limited per member, 60 an hour, refused ones counted', async () => {
+    // What this run's retries already counted (the limiter comes after the role and body checks). A real
+    // API must start the run with this member's hour unused, as a fresh Redis gives.
+    const retries = (e: { method: string; path: string; status: number }) => e.method === 'POST' && /\/admin\/integration\/webhooks\/[^/]+\/retry$/.test(e.path);
+    const counted = h().exchanges.filter((e) => retries(e) && ![400, 401, 403].includes(e.status)).length;
+    let allowed = 0;
     let answer = await h().call('ops', 'POST', '/admin/integration/webhooks/no-such-event/retry', { body: {} });
-    for (let i = 0; i < 61 && answer.status !== 429; i++) answer = await h().call('ops', 'POST', '/admin/integration/webhooks/no-such-event/retry', { body: {} });
+    for (; answer.status !== 429 && allowed < 61; allowed++) answer = await h().call('ops', 'POST', '/admin/integration/webhooks/no-such-event/retry', { body: {} });
     expect(answer).toMatchObject({ status: 429, body: { code: 'rate_limited' } });
+    expect(counted + allowed).toBe(60);
+    expect(await h().call('ops', 'POST', '/admin/integration/webhooks/no-such-event/retry', { body: {} })).toMatchObject({ status: 429 });
   });
 }

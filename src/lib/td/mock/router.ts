@@ -56,7 +56,7 @@ function seedFile(): ArrayBuffer {
 
 export function createMockAdmin({ storage, blobs, now, lock }: MockAdminDeps) {
   let memory: MockDb | null = null;
-  const retryLimiter: integration.RetryLimiter = new Map();
+  const retryLimiter = integration.createRetryLimiter(storage);
   // Requests of this page run one at a time too (the Web Lock only orders tabs): each reads, changes and writes the whole store.
   let queue: Promise<unknown> = Promise.resolve();
   const serial = <T,>(work: () => Promise<T>): Promise<T> => {
