@@ -76,6 +76,9 @@ export function TdAuthProvider({ children }: { children: ReactNode }) {
       if (session && nearExpiry(session)) await tdRefresh.refresh({ generation });
       // Without a session this rejects with `not_signed_in` before any request.
       const me = await tdApi.me({ generation });
+      // A reload between a sign-in and its commit of the member's id leaves the session without it; actions
+      // check that id before they go out, so it is recorded here before anything is shown.
+      if (generation && tdTokens.read()?.staffId !== me.id) await tdTokens.transact((tx) => tx.update(generation, { staffId: me.id }));
       if (isCurrent()) setState({ status: 'authenticated', user: me, notice: null });
     } catch (error) {
       if (!isCurrent()) return;
