@@ -89,6 +89,26 @@ try {
   );
   await page.keyboard.press('Escape');
 
+  // A new member: the admin makes an invitation link on the Team tab; opened signed out, it joins and signs in.
+  await page.goto(`${BASE}/td/team`);
+  await page.getByRole('button', { name: 'Invite member' }).click();
+  await page.getByLabel('Email').fill('smoke.member@example.test');
+  await page.getByRole('button', { name: 'Make the invitation link' }).click();
+  const invitation = await page.getByLabel('Invitation link').inputValue();
+  check('Betsson admin makes a one-time invitation link', invitation.startsWith(`${BASE}/td/accept-invite#token=tdi_`), invitation.replace(/#token=.*/, '#token=…'));
+  await page.getByRole('button', { name: 'Sign out' }).click();
+  await page.waitForURL(/\/td\/login/);
+  await page.goto(invitation);
+  await page.getByRole('heading', { name: 'Join the team' }).waitFor();
+  check('the invitation opens signed out, and its token leaves the address bar', !page.url().includes('#'));
+  await page.getByLabel('Your name').fill('Smoke Member');
+  await page.getByLabel('New password').fill('smoke member passphrase');
+  await page.getByLabel('Repeat the password').fill('smoke member passphrase');
+  await page.getByRole('button', { name: 'Join' }).click();
+  await page.getByText('Smoke Member').first().waitFor();
+  const memberNav = await navLabels(page);
+  check('the new member is signed in as an editor', memberNav.length === 11 && !memberNav.includes('Team'), memberNav.join(', '));
+
   // Content workflow on the mock API: an editor drafts and marks ready, a publisher approves and publishes.
   await page.getByRole('button', { name: 'Sign out' }).click();
   await page.waitForURL(/\/td\/login/);

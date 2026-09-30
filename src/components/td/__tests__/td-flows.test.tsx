@@ -44,6 +44,7 @@ const { CorrectionForm, OpsReviews } = await import('../tabs/players-tab');
 const { MaintenanceSetting, TdSettingsTab, TicketsSetting } = await import('../tabs/ops-tabs');
 const { TD_ADMIN_CONTRACT_VERSION } = await import('@/lib/td/contract');
 const { TdIntegrationTab } = await import('../tabs/integration-tab');
+const { TdTeam } = await import('../td-team');
 const { TdApiError } = await import('@/lib/td/api-client');
 const { createFakeLockManager, deferred, sleep } = await import('@/lib/td/__tests__/helpers');
 const { browserPendingPublications } = await import('@/lib/td/pending-publications');
@@ -376,6 +377,38 @@ describe('penalties to review', () => {
     await waitFor(() => expect(screen.getAllByRole('button', { name: 'Open the match' })).toHaveLength(51));
     expect(list).toHaveBeenLastCalledWith('open', { cursor: 'page-2', limit: 50 }, expect.anything());
     expect(screen.queryByRole('button', { name: 'Load more' })).toBeNull();
+  });
+});
+
+describe('team', () => {
+  it('a team manager makes a one-time invitation link to copy; an editor sees no invite', async () => {
+    await signIn('betsson_admin');
+    renderTd(<TdTeam />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Invite member' }));
+    fireEvent.change(screen.getByLabelText('Email'), { target: { value: 'not an email' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Make the invitation link' }));
+    expect(await screen.findByText(/Enter a valid email address/)).toBeTruthy();
+
+    fireEvent.change(screen.getByLabelText('Email'), { target: { value: 'editor@demo.tablederby.test' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Make the invitation link' }));
+    expect(await screen.findByText(/already has an account/)).toBeTruthy();
+
+    fireEvent.change(screen.getByLabelText('Email'), { target: { value: 'New.Publisher@example.test' } });
+    fireEvent.change(screen.getByLabelText('Role'), { target: { value: 'publisher' } });
+    expect(screen.queryByRole('option', { name: 'Ops (Quizball)' })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Make the invitation link' }));
+    const link = (await screen.findByLabelText('Invitation link')) as HTMLInputElement;
+    expect(link.value).toMatch(new RegExp(`^${window.location.origin}/td/accept-invite#token=tdi_[A-Za-z0-9_-]{20,}$`));
+    expect(screen.getByText(/Shown once: it cannot be seen again/)).toBeTruthy();
+    // The team list shows them as invited.
+    expect(await screen.findByRole('cell', { name: 'new.publisher@example.test' })).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Done' }));
+    expect(screen.queryByLabelText('Invitation link')).toBeNull();
+    cleanup();
+
+    await signIn('editor');
+    renderTd(<TdTeam />);
+    expect(screen.queryByRole('button', { name: 'Invite member' })).toBeNull();
   });
 });
 
