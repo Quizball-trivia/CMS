@@ -49,7 +49,7 @@ describe('mock uploads refuse what the API’s decoder refuses', () => {
   it('PNG image data that is not what the header promises (a bad filter byte); excess data is ignored, as the API does', async () => {
     const { call } = mock();
     const upload = (data: Uint8Array<ArrayBuffer>) => call('editor', 'POST', '/admin/media/uploads', undefined, { data, type: 'image/png' });
-    const png = async (width: number, height: number, raw: Uint8Array<ArrayBuffer>) => {
+    const png = async (width: number, height: number, raw: Uint8Array<ArrayBuffer>, depth = 8, colour = 2) => {
       const deflated = new Uint8Array(await new Response(new Response(raw).body!.pipeThrough(new CompressionStream('deflate'))).arrayBuffer());
       const chunk = (type: string, data: Uint8Array) => {
         const out = new Uint8Array(12 + data.length);
@@ -62,7 +62,7 @@ describe('mock uploads refuse what the API’s decoder refuses', () => {
       const header = new Uint8Array(13);
       new DataView(header.buffer).setUint32(0, width);
       new DataView(header.buffer).setUint32(4, height);
-      header.set([8, 2, 0, 0, 0], 8);
+      header.set([depth, colour, 0, 0, 0], 8);
       return new Uint8Array([...PNG.slice(0, 8), ...chunk('IHDR', header), ...chunk('IDAT', deflated), ...chunk('IEND', new Uint8Array())]);
     };
     const rows = (filter: number) => new Uint8Array(Array.from({ length: 2 }, () => [filter, 1, 2, 3, 4, 5, 6]).flat());
@@ -71,6 +71,8 @@ describe('mock uploads refuse what the API’s decoder refuses', () => {
     // Inflating far past a 1×1 image: the API accepts it (the decoder stops at the image), and the mock reads no further either.
     expect(await upload(await png(1, 1, new Uint8Array(1_000_000)))).toMatchObject({ status: 201, body: { width: 1, height: 1 } });
     expect(await upload(await png(2, 2, new Uint8Array([0, 1, 2])))).toMatchObject({ status: 422, body: { details: { reason: 'decode' } } });
+    // A bit depth PNG does not have (255 bits a sample) is refused before anything is inflated.
+    expect(await upload(await png(4096, 4096, new Uint8Array([0, 1, 2]), 255, 6))).toMatchObject({ status: 422, body: { details: { reason: 'decode' } } });
     // A tiny file declaring 65,536² pixels is refused on its dimensions, with nothing allocated for it.
     expect(await upload(await png(65_536, 65_536, new Uint8Array([0, 1, 2])))).toMatchObject({ status: 422, body: { details: { reason: 'dimensions' } } });
   });

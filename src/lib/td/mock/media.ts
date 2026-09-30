@@ -59,23 +59,29 @@ export function imageSize(bytes: Uint8Array, format: Format): { width: number; h
 async function inflate(data: Uint8Array, limit: number): Promise<Uint8Array | null | undefined> {
   if (typeof DecompressionStream === 'undefined') return undefined;
   const reader = new Response(data as Uint8Array<ArrayBuffer>).body!.pipeThrough(new DecompressionStream('deflate')).getReader();
-  const out = new Uint8Array(limit);
+  // Only what actually inflates is held, never what a header claims.
+  const chunks: Uint8Array[] = [];
   let total = 0;
   try {
     while (total < limit) {
       const { done, value } = await reader.read();
       if (done) break;
-      out.set(value.subarray(0, limit - total), total);
-      total += Math.min(value.length, limit - total);
+      const kept = value.subarray(0, limit - total);
+      chunks.push(kept);
+      total += kept.length;
     }
     if (total >= limit) await reader.cancel();
   } catch {
     return null;
   }
-  return out.subarray(0, total);
+  const out = new Uint8Array(total);
+  chunks.reduce((offset, chunk) => (out.set(chunk, offset), offset + chunk.length), 0);
+  return out;
 }
 
 const PNG_CHANNELS: Record<number, number> = { 0: 1, 2: 3, 3: 1, 4: 2, 6: 4 };
+/** The bit depths PNG allows for each colour type. */
+const PNG_DEPTHS: Record<number, number[]> = { 0: [1, 2, 4, 8, 16], 2: [8, 16], 3: [1, 2, 4, 8], 4: [8, 16], 6: [8, 16] };
 
 /**
  * What the API's decoder would refuse, read from the file's structure (the
@@ -110,7 +116,8 @@ export async function structureProblem(bytes: Uint8Array, format: Format): Promi
     const height = view.getUint32(20);
     // Oversized or empty headers are refused on their dimensions (upload), before anything is inflated.
     if (width < 1 || height < 1 || width > MAX_SIDE || height > MAX_SIDE) return null;
-    const bits = bytes[24] * (PNG_CHANNELS[bytes[25]] ?? 0);
+    if (!PNG_DEPTHS[bytes[25]]?.includes(bytes[24])) return 'decode';
+    const bits = bytes[24] * PNG_CHANNELS[bytes[25]];
     const interlaced = bytes[28] === 1;
     const joined = new Uint8Array(data.reduce((n, d) => n + d.length, 0));
     data.reduce((offset, d) => (joined.set(d, offset), offset + d.length), 0);
