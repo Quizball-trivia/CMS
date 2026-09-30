@@ -16,37 +16,10 @@ import { TdApiError } from '@/lib/td/api-client';
 import { tdAdmin } from '@/lib/td/client';
 import type { Publication, ReleaseDetail, ReleaseList, ReleaseReport } from '@/lib/td/contract';
 import { formatDay, formatGeorgiaTime } from '@/lib/td/georgia';
+import { browserPendingPublications, type PendingPublications, type PendingRequest } from '@/lib/td/pending-publications';
 import { isTdPublisher } from '@/lib/td/workflow';
 import { cn } from '@/lib/utils';
 import { useTdAuth } from '@/providers/td-auth-provider';
-
-/* ── the unresolved publish or roll back, kept across reloads ───────── */
-
-interface PendingRequest {
-  kind: 'publish' | 'rollback';
-  idemKey: string;
-  releaseId: string | null;
-  publicationId: string | null;
-}
-
-const pendingKey = (staffId: string) => `td_pending_publication:${staffId}`;
-
-function readPending(staffId: string): PendingRequest | null {
-  try {
-    return JSON.parse(localStorage.getItem(pendingKey(staffId)) ?? 'null') as PendingRequest | null;
-  } catch {
-    return null;
-  }
-}
-
-function writePending(staffId: string, value: PendingRequest | null) {
-  try {
-    if (value) localStorage.setItem(pendingKey(staffId), JSON.stringify(value));
-    else localStorage.removeItem(pendingKey(staffId));
-  } catch {
-    // Without storage a lost answer is recovered from the release list's active publication instead.
-  }
-}
 
 /**
  * Whether the API refused this very request (so nothing started and a new attempt takes a new key).
@@ -93,26 +66,30 @@ export function TdReleasesTab() {
   });
   const list = useQuery({ queryKey: [...tdKeys.releases, 'list', 'first'], queryFn: ({ signal }) => tdAdmin.releases.list({ limit: 1 }, { signal }) });
   const [watching, setWatching] = useState<string | null>(null);
-  // A request sent whose answer never came: it is asked again (same key), never replaced by a new one.
-  const [unanswered, setUnanswered] = useState<PendingRequest | null>(null);
+  // Requests sent whose answer never came: each is asked again (same key), never replaced by a new one.
+  const [unanswered, setUnanswered] = useState<PendingRequest[]>([]);
   const [confirm, setConfirm] = useState<{ kind: 'publish' } | { kind: 'rollback'; releaseId: string } | null>(null);
   const [requestError, setRequestError] = useState<unknown>(null);
   const [sending, setSending] = useState(false);
   const recovered = useRef(false);
 
+  const without = (request: PendingRequest) => (list: PendingRequest[]) => list.filter((r) => r.idemKey !== request.idemKey);
+
   const send = async (request: PendingRequest) => {
     if (!user) return;
     setSending(true);
     setRequestError(null);
-    // Kept before it goes out: an answer lost to a reload is asked for again with the same key.
-    writePending(user.id, request);
-    setUnanswered(null);
+    let kept: PendingPublications | null = null;
     try {
+      kept = await browserPendingPublications(user.id);
+      // Kept before it goes out: an answer lost to a reload is asked for again with the same key.
+      await kept.keep(request);
+      setUnanswered(without(request));
       const publication = await write(
         (operation) => (request.kind === 'publish' ? tdAdmin.releases.publish(request.idemKey, operation) : tdAdmin.releases.rollback(request.releaseId!, request.idemKey, operation)),
         [tdKeys.releases],
       );
-      writePending(user.id, { ...request, publicationId: publication.id });
+      await kept.keep({ ...request, publicationId: publication.id });
       queryClient.setQueryData([...tdKeys.releases, 'publication', publication.id], publication);
       setWatching(publication.id);
     } catch (caught) {
@@ -120,30 +97,37 @@ export function TdReleasesTab() {
         const busy = (caught.details as { publicationId?: string } | undefined)?.publicationId;
         if (busy) setWatching(busy);
       }
-      if (refusedOutright(caught)) writePending(user.id, null);
-      else setUnanswered(request);
+      if (kept && refusedOutright(caught)) await kept.forget(request.idemKey).catch(() => undefined);
+      else setUnanswered((list) => [...without(request)(list), request]);
       setRequestError(caught);
     } finally {
       setSending(false);
     }
   };
 
-  // A request whose answer never arrived (closed tab, reload) is sent again, as the same request.
+  // Requests whose answer never arrived (reload, or a tab since closed) are sent again, as the same requests.
   useEffect(() => {
     if (!user || recovered.current) return;
     recovered.current = true;
-    const pending = readPending(user.id);
-    if (pending) void send(pending);
+    void (async () => {
+      const requests = await browserPendingPublications(user.id)
+        .then((kept) => kept.claim())
+        .catch(() => []);
+      for (const request of requests) await send(request);
+    })();
     // eslint-disable-next-line react-hooks/exhaustive-deps -- once per mount, for the signed-in member
   }, [user]);
+
+  const forget = (request: PendingRequest) => {
+    setUnanswered(without(request));
+    if (user) void browserPendingPublications(user.id).then((kept) => kept.forget(request.idemKey)).catch(() => undefined);
+  };
 
   const active = list.data?.active ?? null;
   const shownId = watching ?? active?.id ?? null;
 
   const onSettled = (publication: Publication) => {
-    if (!user) return;
-    const pending = readPending(user.id);
-    if (pending?.publicationId === publication.id) writePending(user.id, null);
+    if (user) void browserPendingPublications(user.id).then((kept) => kept.resolved(publication.id)).catch(() => undefined);
     void queryClient.invalidateQueries({ queryKey: tdKeys.releases });
   };
 
@@ -161,7 +145,7 @@ export function TdReleasesTab() {
             {publisher && (
               <Button
                 className="rounded-lg"
-                disabled={!report.data?.ok || report.data.unchanged || running(active ?? undefined) || sending || unanswered !== null}
+                disabled={!report.data?.ok || report.data.unchanged || running(active ?? undefined) || sending || unanswered.length > 0}
                 title={report.data?.unchanged ? 'The approved content is the current release' : undefined}
                 onClick={() => setConfirm({ kind: 'publish' })}
               >
@@ -173,29 +157,20 @@ export function TdReleasesTab() {
         }
       >
         <div className="p-5">
-          {unanswered && (
-            <div className="mb-4 flex flex-wrap items-center gap-2 rounded-lg border border-amber-400/40 bg-amber-400/5 px-3 py-2 text-sm text-amber-200">
+          {unanswered.map((request) => (
+            <div key={request.idemKey} className="mb-4 flex flex-wrap items-center gap-2 rounded-lg border border-amber-400/40 bg-amber-400/5 px-3 py-2 text-sm text-amber-200">
               <span className="min-w-0 flex-1">
-                {unanswered.kind === 'publish' ? 'Your publish' : `Your roll back to ${unanswered.releaseId}`} got no answer, so it may have started. Ask again: the same request is answered, never run twice.
+                {request.kind === 'publish' ? 'Your publish' : `Your roll back to ${request.releaseId}`} got no answer, so it may have started. Ask again: the same request is answered, never run twice.
               </span>
-              <Button size="sm" className="rounded-lg" disabled={sending} onClick={() => void send(unanswered)}>
+              <Button size="sm" className="rounded-lg" disabled={sending} onClick={() => void send(request)}>
                 {sending ? <Loader2 className="animate-spin" /> : <RefreshCw />}
                 Ask again
               </Button>
-              <Button
-                size="sm"
-                variant="ghost"
-                className="rounded-lg"
-                title="Stop asking. It may have run: check the history below before publishing again."
-                onClick={() => {
-                  if (user) writePending(user.id, null);
-                  setUnanswered(null);
-                }}
-              >
+              <Button size="sm" variant="ghost" className="rounded-lg" title="Stop asking. It may have run: check the history below before publishing again." onClick={() => forget(request)}>
                 Forget it
               </Button>
             </div>
-          )}
+          ))}
           <TdErrorPanel error={report.error ?? requestError} />
           {report.isLoading && <p className="text-sm text-(--td-text-3)">Checking the approved content…</p>}
           {report.data && <ReleaseReportView report={report.data} />}
@@ -205,7 +180,7 @@ export function TdReleasesTab() {
 
       {shownId && <PublicationProgress id={shownId} onSettled={onSettled} />}
 
-      <ReleaseHistory canRollback={publisher && !running(active ?? undefined) && !sending && unanswered === null} onRollback={(releaseId) => setConfirm({ kind: 'rollback', releaseId })} />
+      <ReleaseHistory canRollback={publisher && !running(active ?? undefined) && !sending && unanswered.length === 0} onRollback={(releaseId) => setConfirm({ kind: 'rollback', releaseId })} />
 
       {confirm && (
         <Dialog open onOpenChange={(open) => !open && setConfirm(null)}>

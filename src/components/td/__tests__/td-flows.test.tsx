@@ -41,6 +41,7 @@ const { useTdWrite } = await import('@/hooks/use-td-content');
 const { CorrectionForm } = await import('../tabs/players-tab');
 const { MaintenanceSetting, TicketsSetting } = await import('../tabs/ops-tabs');
 const { deferred } = await import('@/lib/td/__tests__/helpers');
+const { browserPendingPublications } = await import('@/lib/td/pending-publications');
 
 const BASE = 'https://td-api.mock';
 let server: typeof fetch;
@@ -318,6 +319,32 @@ describe('releases', () => {
     const list = await publisher.admin.releases.list();
     expect(list.pointer.version).toBe(3);
     // Cleared once the replica notice is confirmed too (the next poll, a second later).
-    await waitFor(() => expect(localStorage.getItem(`td_pending_publication:${publisher.user.id}`)).toBeNull(), { timeout: 4000 });
+    await waitFor(() => expect(localStorage.getItem(`td_pending_publications:${publisher.user.id}`)).toBeNull(), { timeout: 4000 });
+  });
+
+  it('after a reload asks again for this tab’s unanswered publish only; its refusal clears that one, never another tab’s', async () => {
+    const storage = new MemoryStorage();
+    const frozen = Date.now();
+    // A stopped clock keeps the publication started elsewhere running, so the asked-again publish is refused.
+    const inner = createMockTdApi({ storage: () => storage, latencyMs: 0, now: () => frozen, blobs: memoryBlobStore(), lock: undefined });
+    const sent: string[] = [];
+    server = ((input: RequestInfo | URL, init?: RequestInit) => {
+      if (String(input).endsWith('/admin/releases/publish')) sent.push((JSON.parse(String(init?.body)) as { idemKey: string }).idemKey);
+      return inner(input, init);
+    }) as typeof fetch;
+    const publisher = await signIn('publisher');
+    const elsewhere = await publisher.admin.releases.publish('publish:elsewhere');
+    sent.length = 0;
+    const kept = `td_pending_publications:${publisher.user.id}`;
+    await (await browserPendingPublications(publisher.user.id)).keep({ kind: 'publish', idemKey: 'publish:mine', releaseId: null, publicationId: null });
+    const theirs = { kind: 'publish', idemKey: 'publish:theirs', releaseId: null, publicationId: null, tab: 'another-open-tab' };
+    localStorage.setItem(kept, JSON.stringify({ ...JSON.parse(localStorage.getItem(kept)!), 'publish:theirs': theirs }));
+
+    renderTd(<TdReleasesTab />);
+    await waitFor(() => expect(JSON.parse(localStorage.getItem(kept)!)).toEqual({ 'publish:theirs': theirs }));
+    expect(sent).toEqual(['publish:mine']);
+    expect(await screen.findByText('Another publish or rollback is under way')).toBeTruthy();
+    expect(screen.queryByText(/got no answer/)).toBeNull();
+    expect(elsewhere.status).toBe('running');
   });
 });
