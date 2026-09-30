@@ -173,6 +173,11 @@ describe('content editor', () => {
     expect(save.hasAttribute('disabled')).toBe(true);
     fireEvent.click(save);
     expect((await admin.content('penalty-questions').get(row.id)).version).toBe(row.version);
+    // Still held on the other tabs of the editor, and the typed text is still there on the way back.
+    fireEvent.click(screen.getByRole('tab', { name: /History/ }));
+    expect(save.hasAttribute('disabled')).toBe(true);
+    fireEvent.click(screen.getByRole('tab', { name: 'Content' }));
+    expect(screen.getByText('Enter a number')).toBeTruthy();
 
     fireEvent.change(screen.getByLabelText('Position'), { target: { value: '7' } });
     expect(screen.queryByText('Enter a number')).toBeNull();

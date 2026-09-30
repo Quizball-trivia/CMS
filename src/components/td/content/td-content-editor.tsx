@@ -92,6 +92,7 @@ function EditorBody({ target, onSaved }: { target: TdEditorTarget; onSaved?: (ro
   const [approving, setApproving] = useState(false);
 
   const creating = row === null;
+  const otherTab = (tab === 'history' && row !== null) || (tab === 'approved' && Boolean(row?.approved));
   const dirty = creating || !sameDraft(draft, base);
   const history = useTdHistory(type, row?.id ?? null);
   const release = useTdCurrentRelease();
@@ -246,66 +247,69 @@ function EditorBody({ target, onSaved }: { target: TdEditorTarget; onSaved?: (ro
               setConflict(null);
             }}
           />
-        ) : tab === 'history' && row ? (
-          <HistoryList type={type} id={row.id} />
-        ) : tab === 'approved' && row?.approved ? (
-          <ApprovedCompare approved={row.approved as Record<string, unknown>} current={row.data as Record<string, unknown>} approvedPosition={row.approvedPosition} position={row.position} />
         ) : (
-          <div className="flex flex-col gap-4">
-            {approvedDiffers && (
-              <p className="flex items-start gap-2 rounded-lg bg-amber-400/10 px-3 py-2 text-xs text-amber-200">
-                <TriangleAlert className="mt-0.5 size-3.5 shrink-0" />
-                <span>
-                  This draft differs from the last approved version (v{row!.approvedVersion}). A release carries the approved version until this one is approved.{' '}
-                  <button type="button" className="underline" onClick={() => setTab('approved')}>
-                    Compare
-                  </button>
-                </span>
-              </p>
+          <>
+            {tab === 'history' && row && <HistoryList type={type} id={row.id} />}
+            {tab === 'approved' && row?.approved && (
+              <ApprovedCompare approved={row.approved as Record<string, unknown>} current={row.data as Record<string, unknown>} approvedPosition={row.approvedPosition} position={row.position} />
             )}
-            {notice && <p className="rounded-lg bg-(--td-input) px-3 py-2 text-xs text-(--td-text-2)">{notice}</p>}
-            {/* Locked while a write and its refresh run: the answer replaces the form, so nothing typed meanwhile may be lost. */}
-            <TdUploadingContext.Provider value={reportUploading}>
-              <TdInvalidInputContext.Provider value={reportInvalid}>
-                <fieldset disabled={busy !== null} className="contents">
-                  <Editor
-                    value={draft.data as never}
-                    onChange={(update: unknown) =>
-                      setDraft((current) => ({
-                        ...current,
-                        data: (typeof update === 'function' ? (update as (d: Record<string, unknown>) => Record<string, unknown>)(current.data) : update) as Record<string, unknown>,
-                      }))
-                    }
-                    issues={issues}
-                    creating={creating}
-                  />
-                  {!creating && (
-                    <TdNumberField
-                      label="Position"
-                      value={draft.position}
-                      onChange={(position) => setDraft({ ...draft, position: position ?? 0 })}
-                      issues={issuesAt(issues, 'position')}
-                      hint="The order in a release. Changing it is a change to the content."
-                      className="max-w-40"
+            {/* Hidden, not unmounted, on the other tabs: its fields keep what was typed, and a field whose text is not valid keeps holding Save. */}
+            <div className={cn('flex flex-col gap-4', otherTab && 'hidden')}>
+              {approvedDiffers && (
+                <p className="flex items-start gap-2 rounded-lg bg-amber-400/10 px-3 py-2 text-xs text-amber-200">
+                  <TriangleAlert className="mt-0.5 size-3.5 shrink-0" />
+                  <span>
+                    This draft differs from the last approved version (v{row!.approvedVersion}). A release carries the approved version until this one is approved.{' '}
+                    <button type="button" className="underline" onClick={() => setTab('approved')}>
+                      Compare
+                    </button>
+                  </span>
+                </p>
+              )}
+              {notice && <p className="rounded-lg bg-(--td-input) px-3 py-2 text-xs text-(--td-text-2)">{notice}</p>}
+              {/* Locked while a write and its refresh run: the answer replaces the form, so nothing typed meanwhile may be lost. */}
+              <TdUploadingContext.Provider value={reportUploading}>
+                <TdInvalidInputContext.Provider value={reportInvalid}>
+                  <fieldset disabled={busy !== null} className="contents">
+                    <Editor
+                      value={draft.data as never}
+                      onChange={(update: unknown) =>
+                        setDraft((current) => ({
+                          ...current,
+                          data: (typeof update === 'function' ? (update as (d: Record<string, unknown>) => Record<string, unknown>)(current.data) : update) as Record<string, unknown>,
+                        }))
+                      }
+                      issues={issues}
+                      creating={creating}
                     />
-                  )}
-                  <TdField label="Note" htmlFor={noteId} issues={issuesAt(issues, 'note')} hint="For the team: sources, checks, questions. Changing only the note keeps the row’s status.">
-                    <Textarea id={noteId} value={draft.note} onChange={(event) => setDraft({ ...draft, note: event.target.value })} className="min-h-16 rounded-lg border-border bg-(--td-input) text-sm" />
-                  </TdField>
-                </fieldset>
-              </TdInvalidInputContext.Provider>
-            </TdUploadingContext.Provider>
-            {issues.some((issue) => !issue.path.startsWith('data.') && issue.path !== 'note' && issue.path !== 'position') && (
-              <TdErrorPanel error={new TdApiError(422, 'validation', 'Some fields are not valid', { issues })} />
-            )}
-          </div>
+                    {!creating && (
+                      <TdNumberField
+                        label="Position"
+                        value={draft.position}
+                        onChange={(position) => setDraft({ ...draft, position: position ?? 0 })}
+                        issues={issuesAt(issues, 'position')}
+                        hint="The order in a release. Changing it is a change to the content."
+                        className="max-w-40"
+                      />
+                    )}
+                    <TdField label="Note" htmlFor={noteId} issues={issuesAt(issues, 'note')} hint="For the team: sources, checks, questions. Changing only the note keeps the row’s status.">
+                      <Textarea id={noteId} value={draft.note} onChange={(event) => setDraft({ ...draft, note: event.target.value })} className="min-h-16 rounded-lg border-border bg-(--td-input) text-sm" />
+                    </TdField>
+                  </fieldset>
+                </TdInvalidInputContext.Provider>
+              </TdUploadingContext.Provider>
+              {issues.some((issue) => !issue.path.startsWith('data.') && issue.path !== 'note' && issue.path !== 'position') && (
+                <TdErrorPanel error={new TdApiError(422, 'validation', 'Some fields are not valid', { issues })} />
+              )}
+            </div>
+          </>
         )}
       </div>
 
       {!conflict && (
         <footer className="flex flex-col gap-2 border-t border-(--td-divider) px-6 py-4">
           <TdErrorPanel error={error} hideIssues={issues.length > 0} />
-          {invalid.size > 0 && <p className="text-xs text-(--td-danger)">A number above is not valid: fix it to save.</p>}
+          {invalid.size > 0 && <p className="text-xs text-(--td-danger)">A number in the form is not valid: fix it to save.</p>}
           {actions && (actions.approve.reason || actions.restore.reason) && <p className="text-xs text-(--td-text-3)">{actions.approve.reason ?? actions.restore.reason}</p>}
           <div className="flex flex-wrap items-center gap-2">
             {(creating || actions?.save.allowed) && (
