@@ -1,13 +1,19 @@
+import { join } from "node:path";
 import type { NextConfig } from "next";
+import { verifyTdContractPin } from "./src/lib/td/contract/verify-pin";
 import { resolveTdConfig, tdContentSecurityPolicy } from "./src/lib/td/env";
 import { resolveWorkspace } from "./src/lib/workspace";
 
 // Fails the build on a bad workspace or Table Derby configuration (e.g. the
-// mock API with NEXT_PUBLIC_CMS_ENV=PROD). Inert for the Quizball workspace.
+// mock API with NEXT_PUBLIC_CMS_ENV=PROD), or on a pinned admin contract that
+// is not the one pin.json names. Inert for the Quizball workspace.
 const isTableDerby = resolveWorkspace(process.env.NEXT_PUBLIC_CMS_WORKSPACE) === "table-derby";
 const tdConfig = resolveTdConfig(process.env);
+if (isTableDerby) verifyTdContractPin(join(process.cwd(), "src/lib/td/contract"));
 
 const nextConfig: NextConfig = {
+  // `next dev` would otherwise write AGENTS.md and CLAUDE.md into the repository root.
+  agentRules: false,
   env: {
     // Always defined, so literal `===` checks fold at build time: a non-mock
     // build ships no mock API code, and the Quizball route guards compile away.

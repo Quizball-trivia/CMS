@@ -1,3 +1,4 @@
+import { createTdAdminApi } from './admin-api';
 import { createTdApiClient, createTransport, requestTokenRefresh, requestTokenRevoke } from './api-client';
 import { createBrowserLock, type CrossTabLock } from './cross-tab-lock';
 import { resolveTdConfig } from './env';
@@ -62,3 +63,6 @@ export const tdRefresh = createRefreshCoordinator({
 });
 
 export const tdApi = createTdApiClient({ transport, tokens: tdTokens, coordinator: tdRefresh, revoker: tdRevoker });
+
+/** One typed call per admin contract route, over the signed-in client. */
+export const tdAdmin = createTdAdminApi(tdApi);

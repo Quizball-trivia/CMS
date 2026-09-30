@@ -16,19 +16,24 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version-file: .nvmrc
           cache: npm
       - run: npm ci --no-audit --no-fund
       - run: npm run lint
       - run: npm run typecheck
       - run: npm test
       - run: npm run build
-      - name: build (Table Derby, staging with mock API)
+      - name: build (Table Derby, local with mock API)
+        run: npm run build
+        env:
+          NEXT_PUBLIC_CMS_WORKSPACE: table-derby
+          NEXT_PUBLIC_TD_API_MOCK: "1"
+      - name: build (Table Derby, staging shape)
         run: npm run build
         env:
           NEXT_PUBLIC_CMS_WORKSPACE: table-derby
           NEXT_PUBLIC_CMS_ENV: STAGING
-          NEXT_PUBLIC_TD_API_MOCK: "1"
+          NEXT_PUBLIC_TD_API_URL: https://td-api.invalid
       - name: build (Table Derby, production shape)
         run: npm run build
         env:
@@ -41,8 +46,8 @@ jobs:
     permissions:
       contents: read
     env:
+      # The mock runs only in local builds (no NEXT_PUBLIC_CMS_ENV, not on Vercel).
       NEXT_PUBLIC_CMS_WORKSPACE: table-derby
-      NEXT_PUBLIC_CMS_ENV: STAGING
       NEXT_PUBLIC_TD_API_MOCK: "1"
     steps:
       - uses: actions/checkout@v4
@@ -50,7 +55,7 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version-file: .nvmrc
           cache: npm
       - run: npm ci --no-audit --no-fund
       - run: npm run build

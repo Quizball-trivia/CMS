@@ -27,8 +27,17 @@ const sessionChanged = () => new TdApiError(0, SESSION_CHANGED, 'The session cha
 
 type Method = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
 
+/** A body sent as it is (an image upload), not as JSON. */
+export interface TdRawBody {
+  data: Blob;
+  contentType: string;
+}
+
 interface SendOptions {
   body?: unknown;
+  raw?: TdRawBody;
+  /** What the response should be; errors are JSON whatever this says. */
+  accept?: string;
   accessToken?: string | null;
   signal?: AbortSignal;
   timeoutMs?: number;
@@ -53,14 +62,15 @@ function combineSignals(signals: Array<AbortSignal | undefined>): AbortSignal | 
 
 export function createTransport(baseUrl: string, fetchImpl: typeof fetch): TdTransport {
   return {
-    send(method, path, { body, accessToken, signal, timeoutMs = REQUEST_TIMEOUT_MS } = {}) {
-      const headers: Record<string, string> = { Accept: 'application/json' };
-      if (body !== undefined) headers['Content-Type'] = 'application/json';
+    send(method, path, { body, raw, accept = 'application/json', accessToken, signal, timeoutMs = REQUEST_TIMEOUT_MS } = {}) {
+      const headers: Record<string, string> = { Accept: accept };
+      if (raw) headers['Content-Type'] = raw.contentType;
+      else if (body !== undefined) headers['Content-Type'] = 'application/json';
       if (accessToken) headers.Authorization = `Bearer ${accessToken}`;
       return fetchImpl(`${baseUrl}${path}`, {
         method,
         headers,
-        body: body === undefined ? undefined : JSON.stringify(body),
+        body: raw ? raw.data : body === undefined ? undefined : JSON.stringify(body),
         // Staff auth is bearer-only; never send or accept cookies from the TD API.
         credentials: 'omit',
         cache: 'no-store',
@@ -85,9 +95,15 @@ async function toApiError(response: Response): Promise<TdApiError> {
   );
 }
 
-async function parse<T>(response: Response): Promise<T> {
+export type TdResponseType = 'json' | 'text' | 'blob';
+
+const ACCEPT: Record<TdResponseType, string> = { json: 'application/json', text: 'text/csv, text/plain', blob: 'image/*' };
+
+async function parse<T>(response: Response, as: TdResponseType = 'json'): Promise<T> {
   if (!response.ok) throw await toApiError(response);
   if (response.status === 204) return undefined as T;
+  if (as === 'text') return (await response.text()) as T;
+  if (as === 'blob') return (await response.blob()) as T;
   return (await response.json()) as T;
 }
 
@@ -125,9 +141,19 @@ export interface TdRequestOptions {
   generation?: string | null;
 }
 
+export interface TdCallOptions extends TdRequestOptions {
+  body?: unknown;
+  raw?: TdRawBody;
+  responseType?: TdResponseType;
+}
+
 export interface TdApiClient {
   get<T>(path: string, options?: TdRequestOptions): Promise<T>;
   post<T>(path: string, body?: unknown, options?: TdRequestOptions): Promise<T>;
+  patch<T>(path: string, body?: unknown, options?: TdRequestOptions): Promise<T>;
+  delete<T = void>(path: string, options?: TdRequestOptions): Promise<T>;
+  /** Any signed-in request: raw bodies (uploads) and text or binary answers (exports, files). */
+  request<T>(method: Method, path: string, options?: TdCallOptions): Promise<T>;
   login(email: string, password: string): Promise<TdTokenSet>;
   /** Revokes the whole refresh family; true only when the API confirmed it. */
   logout(refreshToken: string): Promise<boolean>;
@@ -167,7 +193,8 @@ export function createTdApiClient({
     return controller.signal;
   };
 
-  async function authed<T>(method: Method, path: string, body: unknown, options: TdRequestOptions = {}): Promise<T> {
+  async function authed<T>(method: Method, path: string, options: TdCallOptions = {}): Promise<T> {
+    const { body, raw, responseType = 'json' } = options;
     const session = tokens.read();
     if (options.generation && session?.generation !== options.generation) throw sessionChanged();
     if (!session) throw new TdApiError(401, 'not_signed_in', 'Not signed in');
@@ -177,7 +204,7 @@ export function createTdApiClient({
     const signal = combineSignals([options.signal, cancellerFor(generation)]);
     const send = async (accessToken: string) => {
       try {
-        const response = await transport.send(method, path, { body, accessToken, signal });
+        const response = await transport.send(method, path, { body, raw, accept: ACCEPT[responseType], accessToken, signal });
         if (!stillCurrent()) throw sessionChanged();
         return response;
       } catch (error) {
@@ -186,7 +213,7 @@ export function createTdApiClient({
     };
 
     const response = await send(session.accessToken);
-    if (response.status !== 401) return parse<T>(response);
+    if (response.status !== 401) return parse<T>(response, responseType);
 
     const outcome = await coordinator.refresh({ generation, staleAccessToken: session.accessToken });
     if (outcome === 'terminal') throw new TdApiError(401, 'session_expired', 'Your session has ended; sign in again');
@@ -195,12 +222,15 @@ export function createTdApiClient({
     if (outcome === 'superseded' || !current || current.generation !== generation) throw sessionChanged();
     if (outcome === 'transient') throw new TdApiError(503, 'refresh_unavailable', 'Could not renew the session; try again');
     // Retried once: a second 401 is the API's answer, not a stale token.
-    return parse<T>(await send(current.accessToken));
+    return parse<T>(await send(current.accessToken), responseType);
   }
 
   return {
-    get: (path, options) => authed('GET', path, undefined, options),
-    post: (path, body, options) => authed('POST', path, body, options),
+    get: (path, options) => authed('GET', path, options),
+    post: (path, body, options) => authed('POST', path, { ...options, body }),
+    patch: (path, body, options) => authed('PATCH', path, { ...options, body }),
+    delete: (path, options) => authed('DELETE', path, options),
+    request: (method, path, options) => authed(method, path, options),
 
     async login(email, password) {
       const response = await transport.send('POST', '/admin/auth/login', {
@@ -238,6 +268,6 @@ export function createTdApiClient({
       return false;
     },
 
-    me: (options) => authed<TdStaff>('GET', '/admin/me', undefined, options),
+    me: (options) => authed<TdStaff>('GET', '/admin/me', options),
   };
 }

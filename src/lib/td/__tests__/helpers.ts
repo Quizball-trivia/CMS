@@ -52,16 +52,26 @@ export const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(r
 /**
  * Serialises callbacks per lock name, like navigator.locks across the tabs of
  * one origin, including `signal`: aborting while waiting rejects the request
- * with the signal's reason and never runs the callback.
+ * with the signal's reason and never runs the callback. `ifAvailable` gets a
+ * null lock while the name is held or queued; `query` lists the held names.
  */
 export function createFakeLockManager(): LockManager {
   const tails = new Map<string, Promise<void>>();
+  const queued = new Map<string, number>();
+  const held = new Map<string, number>();
+  const bump = (counts: Map<string, number>, name: string, by: number) => counts.set(name, (counts.get(name) ?? 0) + by);
   const request = (name: string, ...args: unknown[]) => {
-    const callback = args[args.length - 1] as (lock: Lock) => unknown;
-    const signal = args.length > 1 ? (args[0] as LockOptions).signal : undefined;
+    const callback = args[args.length - 1] as (lock: Lock | null) => unknown;
+    const options = args.length > 1 ? (args[0] as LockOptions) : undefined;
+    const signal = options?.signal;
+    if (options?.ifAvailable && (queued.get(name) ?? 0) > 0) return Promise.resolve().then(() => callback(null));
     const previous = tails.get(name) ?? Promise.resolve();
     let release!: () => void;
-    tails.set(name, previous.then(() => new Promise<void>((resolve) => (release = resolve))));
+    bump(queued, name, 1);
+    tails.set(name, previous.then(() => new Promise<void>((resolve) => (release = () => {
+      bump(queued, name, -1);
+      resolve();
+    }))));
     return new Promise((resolve, reject) => {
       let aborted = false;
       const onAbort = () => {
@@ -73,17 +83,20 @@ export function createFakeLockManager(): LockManager {
       void previous.then(async () => {
         signal?.removeEventListener('abort', onAbort);
         if (aborted) return release();
+        bump(held, name, 1);
         try {
           resolve(await callback({ name, mode: 'exclusive' } as Lock));
         } catch (error) {
           reject(error);
         } finally {
+          bump(held, name, -1);
           release();
         }
       });
     });
   };
-  return { request, query: async () => ({ held: [], pending: [] }) } as unknown as LockManager;
+  const query = async () => ({ held: [...held].filter(([, n]) => n > 0).map(([name]) => ({ name, mode: 'exclusive' })), pending: [] });
+  return { request, query } as unknown as LockManager;
 }
 
 export function jsonResponse(status: number, body?: unknown): Response {

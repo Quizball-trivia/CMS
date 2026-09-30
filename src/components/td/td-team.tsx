@@ -26,7 +26,7 @@ export function TdTeam() {
       title="Staff"
       description="Roles are enforced by the API on every request. Nobody can grant or remove the ops role here."
       actions={
-        <Button disabled className="rounded-lg" title="Invites arrive with the Table Derby API">
+        <Button disabled className="rounded-lg" title="Invites are not in this CMS build yet">
           <UserPlus />
           Invite
         </Button>

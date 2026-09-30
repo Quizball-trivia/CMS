@@ -67,6 +67,20 @@ afterEach(() => {
   cleanup();
 });
 
+it('records the member’s id on a session a reload caught before its sign-in committed it', async () => {
+  await put(tdTokens, session('gen-a', 'access-a', 'refresh-a', { staffId: null }));
+  h.me.mockResolvedValue(EDITOR);
+  const { result } = renderHook(useTdAuth, {
+    wrapper: ({ children }: { children: ReactNode }) => (
+      <QueryClientProvider client={new QueryClient()}>
+        <TdAuthProvider>{children}</TdAuthProvider>
+      </QueryClientProvider>
+    ),
+  });
+  await waitFor(() => expect(result.current.status).toBe('authenticated'));
+  expect(tdTokens.read()).toMatchObject({ generation: 'gen-a', staffId: EDITOR.id });
+});
+
 it('clears cached data and the session on logout, revoking with the refresh token', async () => {
   const client = new QueryClient();
   const { result } = await renderWithSession(client);

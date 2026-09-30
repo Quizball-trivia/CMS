@@ -4,9 +4,8 @@ import { MemoryStorage } from './helpers';
 
 const BASE = 'https://td-api.mock';
 
-function mockApi() {
-  const storage = new MemoryStorage();
-  let clock = Date.parse('2026-09-28T10:00:00Z');
+function mockApi(storage = new MemoryStorage(), start = Date.parse('2026-09-28T10:00:00Z')) {
+  let clock = start;
   const fetchMock = createMockTdApi({ storage: () => storage, latencyMs: 0, now: () => clock });
   const call = async (method: string, path: string, { body, token }: { body?: unknown; token?: string } = {}) => {
     const response = await fetchMock(`${BASE}${path}`, {
@@ -34,7 +33,7 @@ describe('mock Table Derby API', () => {
     const me = await call('GET', '/admin/me', { token: tokens.accessToken });
     expect(me).toEqual({
       status: 200,
-      body: { id: 'staff-publisher', email: 'publisher@demo.tablederby.test', name: 'Demo Publisher', role: 'publisher' },
+      body: { id: '5e1d0000-0000-4000-8000-000000000002', email: 'publisher@demo.tablederby.test', name: 'Demo Publisher', role: 'publisher' },
     });
   });
 
@@ -42,6 +41,107 @@ describe('mock Table Derby API', () => {
     const { call } = mockApi();
     expect((await call('POST', '/admin/auth/login', { body: { email: 'ops@demo.tablederby.test', password: 'nope' } })).status).toBe(401);
     expect((await call('POST', '/admin/auth/login', { body: { email: 'invited@demo.tablederby.test', password: MOCK_PASSWORD } })).status).toBe(401);
+  });
+
+  it('webhooks: a retried event gets its next attempt; one on its way lands and meanwhile cannot be retried', async () => {
+    const { call, login, advance } = mockApi();
+    let ops = (await login('ops@demo.tablederby.test')).accessToken as string;
+    const get = async (id: string) => (await call('GET', `/admin/integration/webhooks/${id}`, { token: ops })).body;
+    const retry = (id: string, body: object = {}) => call('POST', `/admin/integration/webhooks/${id}/retry`, { body, token: ops });
+
+    // Given up; the partner answers again now.
+    expect((await retry('td-evt-0018')).body.event).toMatchObject({ status: 'pending', attempts: 31 });
+    const delivered = await get('td-evt-0018');
+    expect(delivered.event).toMatchObject({ status: 'sent', attempts: 32, lastError: null });
+    expect(delivered.attempts.at(-1)).toMatchObject({ attempt: 32, httpStatus: 200, delivered: true, reason: null });
+    // Given up and still failing: pending again, with its next attempt failed.
+    await retry('td-evt-0004');
+    const failing = await get('td-evt-0004');
+    expect(failing.event).toMatchObject({ status: 'pending', attempts: 32, lastError: expect.stringMatching(/^webhook_/) });
+    expect(failing.attempts.at(-1)).toMatchObject({ attempt: 32, delivered: false });
+    // On its way: refused until it lands.
+    expect(await retry('td-evt-0056')).toMatchObject({ status: 409, body: { code: 'conflict', message: expect.stringMatching(/being sent now/) } });
+
+    advance(21 * 60_000);
+    ops = (await login('ops@demo.tablederby.test')).accessToken;
+    expect((await get('td-evt-0056')).event).toMatchObject({ status: 'sent', sending: false, attempts: 1 });
+    // A day of failed retries later it is given up again.
+    advance(25 * 3_600_000);
+    ops = (await login('ops@demo.tablederby.test')).accessToken;
+    expect((await get('td-evt-0004')).event).toMatchObject({ status: 'dead', nextAttemptAt: null });
+  });
+
+  it('webhooks: an in-flight delivery that fails is retried later; a pending event past its window is given up unsent', async () => {
+    const { call, login, advance } = mockApi();
+    // The store is seeded at its first admin request.
+    const first = (await login('ops@demo.tablederby.test')).accessToken as string;
+    expect((await call('GET', '/admin/integration/webhooks/td-evt-0055', { token: first })).body.event).toMatchObject({ sending: true });
+    advance(21 * 60_000);
+    const ops = (await login('ops@demo.tablederby.test')).accessToken as string;
+    const failed = (await call('GET', '/admin/integration/webhooks/td-evt-0055', { token: ops })).body;
+    expect(failed.event).toMatchObject({ status: 'pending', sending: false, attempts: 1, lastError: expect.stringMatching(/^webhook_/) });
+    expect(failed.attempts).toHaveLength(1);
+    expect(Date.parse(failed.event.nextAttemptAt)).toBeGreaterThan(Date.parse('2026-09-28T10:21:00Z'));
+    // Read again at once: nothing new is attempted before the backoff.
+    expect((await call('GET', '/admin/integration/webhooks/td-evt-0055', { token: ops })).body.attempts).toHaveLength(1);
+
+    // Another browser whose dispatcher was away for a day: the event due in 15 minutes was never tried.
+    const away = mockApi();
+    const token = (await away.login('ops@demo.tablederby.test')).accessToken as string;
+    expect((await away.call('GET', '/admin/integration/webhooks/td-evt-0051', { token })).body.event).toMatchObject({ status: 'pending', attempts: 3 });
+    away.advance(25 * 3_600_000);
+    const later = (await away.login('ops@demo.tablederby.test')).accessToken as string;
+    const expired = (await away.call('GET', '/admin/integration/webhooks/td-evt-0051', { token: later })).body;
+    // It would have been delivered at its next attempt, but its window (and the grace) passed first.
+    expect(expired.event).toMatchObject({ status: 'dead', attempts: 3, sentAt: null, lastError: 'webhook_http_503' });
+    expect(expired.attempts).toHaveLength(3);
+  });
+
+  it('webhooks: the next page continues after the last event shown, even when events change status in between', async () => {
+    const { call, login } = mockApi();
+    const ops = (await login('ops@demo.tablederby.test')).accessToken as string;
+    const first = (await call('GET', '/admin/integration/webhooks?status=dead&limit=1', { token: ops })).body;
+    expect(first.items.map((e: { eventId: string }) => e.eventId)).toEqual(['td-evt-0018']);
+    await call('POST', '/admin/integration/webhooks/td-evt-0018/retry', { body: {}, token: ops });
+    const next = (await call('GET', `/admin/integration/webhooks?status=dead&limit=1&cursor=${first.nextCursor}`, { token: ops })).body;
+    expect(next.items.map((e: { eventId: string }) => e.eventId)).toEqual(['td-evt-0010']);
+  });
+
+  it('a store saved by an older mock is seeded again, not reused', async () => {
+    const storage = new MemoryStorage();
+    storage.setItem('td_mock_db', JSON.stringify({ schema: 3, webhooks: [] }));
+    const { call, login } = mockApi(storage);
+    const ops = (await login('ops@demo.tablederby.test')).accessToken as string;
+    expect((await call('GET', '/admin/integration/webhooks/td-evt-0001', { token: ops })).body.event.attempts).toBe(230);
+    expect(JSON.parse(storage.getItem('td_mock_db')!).schema).toBe(4);
+  });
+
+  it('webhooks: an event shows its latest 200 attempts, oldest first', async () => {
+    const { call, login } = mockApi();
+    const ops = (await login('ops@demo.tablederby.test')).accessToken as string;
+    const long = (await call('GET', '/admin/integration/webhooks/td-evt-0001', { token: ops })).body;
+    expect(long.event.attempts).toBe(230);
+    expect(long.attempts.map((a: { attempt: number }) => a.attempt)).toEqual(Array.from({ length: 200 }, (_, i) => i + 31));
+  });
+
+  it('webhooks: 60 hand retries an hour per member, counted in a fixed hour from the first, across tabs', async () => {
+    const storage = new MemoryStorage();
+    const start = Date.parse('2026-09-28T10:00:00Z');
+    const tab = mockApi(storage, start);
+    let ops = (await tab.login('ops@demo.tablederby.test')).accessToken as string;
+    const retry = (api: ReturnType<typeof mockApi>, token: string) => api.call('POST', '/admin/integration/webhooks/no-such-event/retry', { body: {}, token });
+    expect((await retry(tab, ops)).status).toBe(404);
+    tab.advance(59 * 60_000);
+    ops = (await tab.login('ops@demo.tablederby.test')).accessToken;
+    for (let i = 0; i < 59; i++) expect((await retry(tab, ops)).status).toBe(404);
+    expect(await retry(tab, ops)).toMatchObject({ status: 429, body: { code: 'rate_limited' } });
+    // Another tab of the same browser shares the count.
+    const other = mockApi(storage, start + 59 * 60_000);
+    const opsThere = (await other.login('ops@demo.tablederby.test')).accessToken as string;
+    expect((await retry(other, opsThere)).status).toBe(429);
+    // An hour after the first retry the count starts again (a rolling hour would still refuse here).
+    tab.advance(60_000);
+    expect((await retry(tab, (await tab.login('ops@demo.tablederby.test')).accessToken)).status).toBe(404);
   });
 
   it('lists staff only for Betsson admins and ops', async () => {

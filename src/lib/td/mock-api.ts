@@ -1,12 +1,18 @@
-import type { TdRole, TdStaffMember, TdTokenResponse } from '@/types/td';
+import type { TdRole, TdTokenResponse } from '@/types/td';
+import { defaultBlobStore, type MockBlobStore } from './mock/blob-store';
+import { browserMockLock, createMockAdmin, type MockAdminDeps } from './mock/router';
+import { MOCK_STAFF } from './mock/staff';
 import { TD_STORAGE_KEYS } from './token-store';
 
+export { MOCK_STAFF };
+
 /**
- * Stand-in for the Table Derby API (`NEXT_PUBLIC_TD_API_MOCK=1`, never in
- * production; see env.ts), plugged in as the client's `fetch`. It speaks the
+ * Stand-in for the Table Derby API (`NEXT_PUBLIC_TD_API_MOCK=1`, local
+ * development only; see env.ts), plugged in as the client's `fetch`. It speaks the
  * real contract, including refresh-token rotation and reuse detection, so the
  * real client and refresh coordinator run against it. Its session table lives
- * in localStorage so every tab talks to the same "server".
+ * in localStorage so every tab talks to the same "server". Every other route
+ * of the admin contract is answered by mock/router.ts.
  */
 
 export const MOCK_PASSWORD = 'demo';
@@ -14,14 +20,6 @@ const ACCESS_TTL_MS = 15 * 60_000;
 const REFRESH_TTL_MS = 12 * 60 * 60_000;
 /** A lost refresh answer may be retried this long, as the same request. */
 const REFRESH_RETRY_MS = 60_000;
-
-export const MOCK_STAFF: readonly TdStaffMember[] = [
-  { id: 'staff-editor', email: 'editor@demo.tablederby.test', name: 'Demo Editor', role: 'editor', status: 'active', lastSignInAt: '2026-09-27T08:40:00Z' },
-  { id: 'staff-publisher', email: 'publisher@demo.tablederby.test', name: 'Demo Publisher', role: 'publisher', status: 'active', lastSignInAt: '2026-09-26T16:05:00Z' },
-  { id: 'staff-betsson-admin', email: 'admin@demo.tablederby.test', name: 'Demo Betsson Admin', role: 'betsson_admin', status: 'active', lastSignInAt: '2026-09-25T11:20:00Z' },
-  { id: 'staff-ops', email: 'ops@demo.tablederby.test', name: 'Demo Ops', role: 'ops', status: 'active', lastSignInAt: '2026-09-28T07:15:00Z' },
-  { id: 'staff-invited', email: 'invited@demo.tablederby.test', name: 'Invited Editor', role: 'editor', status: 'invited', lastSignInAt: null },
-];
 
 const STAFF_VIEWERS: readonly TdRole[] = ['betsson_admin', 'ops'];
 
@@ -51,6 +49,10 @@ export interface MockTdApiOptions {
   storage: () => Storage | null;
   now?: () => number;
   latencyMs?: number;
+  /** Where uploaded images are kept (IndexedDB in a browser). */
+  blobs?: MockBlobStore;
+  /** Serialises content requests across tabs (Web Locks in a browser). */
+  lock?: MockAdminDeps['lock'];
 }
 
 function json(status: number, body: unknown): Response {
@@ -71,11 +73,20 @@ function randomToken(prefix: string): string {
 interface MockRequest {
   method: string;
   path: string;
+  query: URLSearchParams;
   headers: Headers;
   body: Record<string, unknown> | null;
+  raw: ArrayBuffer | null;
 }
 
-export function createMockTdApi({ storage, now = Date.now, latencyMs = 120 }: MockTdApiOptions): typeof fetch {
+export function createMockTdApi({
+  storage,
+  now = Date.now,
+  latencyMs = 120,
+  blobs = defaultBlobStore(),
+  lock = browserMockLock(),
+}: MockTdApiOptions): typeof fetch {
+  const admin = createMockAdmin({ storage, blobs, now, lock });
   const empty = (): MockServerState => ({ refreshTokens: {}, revokedFamilies: [] });
   let memoryState = empty();
 
@@ -127,7 +138,7 @@ export function createMockTdApi({ storage, now = Date.now, latencyMs = 120 }: Mo
     }
   }
 
-  function handle({ method, path, headers, body }: MockRequest): Response {
+  async function handle({ method, path, query, headers, body, raw }: MockRequest): Promise<Response> {
     const route = `${method} ${path}`;
     const state = load();
 
@@ -191,23 +202,32 @@ export function createMockTdApi({ storage, now = Date.now, latencyMs = 120 }: Mo
       if (!STAFF_VIEWERS.includes(staff.role)) return error(403, 'forbidden', 'Your role cannot view the team');
       return json(200, { items: MOCK_STAFF });
     }
-    return error(404, 'not_found', `No mock for ${route}`);
+    return admin({ method, path, query, headers, body, raw }, { id: staff.id, name: staff.name, role: staff.role });
   }
 
   return async (input, init = {}) => {
-    const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
+    const url = new URL(typeof input === 'string' ? input : input instanceof URL ? input.href : input.url);
     let body: Record<string, unknown> | null = null;
-    try {
-      body = typeof init.body === 'string' ? (JSON.parse(init.body) as Record<string, unknown>) : null;
-    } catch {
-      body = null;
+    let raw: ArrayBuffer | null = null;
+    if (typeof init.body === 'string') {
+      try {
+        body = JSON.parse(init.body) as Record<string, unknown>;
+      } catch {
+        body = null;
+      }
+    } else if (init.body instanceof Blob) {
+      raw = await init.body.arrayBuffer();
+    } else if (init.body instanceof ArrayBuffer) {
+      raw = init.body;
     }
     if (latencyMs > 0) await new Promise((resolve) => setTimeout(resolve, latencyMs));
     return handle({
       method: (init.method ?? 'GET').toUpperCase(),
-      path: new URL(url).pathname,
+      path: url.pathname,
+      query: url.searchParams,
       headers: new Headers(init.headers),
       body,
+      raw,
     });
   };
 }

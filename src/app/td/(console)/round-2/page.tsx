@@ -1,16 +1,14 @@
 import type { Metadata } from 'next';
-import { TdTabPlaceholder } from '@/components/td/td-page';
+import { TdTabPage } from '@/components/td/td-page';
+import { TdWhoamiTab } from '@/components/td/tabs/rounds-tabs';
 import { getTab } from '@/lib/td/navigation';
 
 export const metadata: Metadata = { title: getTab('round-2').label };
 
 export default function Page() {
   return (
-    <TdTabPlaceholder
-      tabKey="round-2"
-      sectionTitle="Subjects"
-      columns={['Subject', 'Clues', 'Answer', 'Status', 'Updated']}
-      emptyTitle="No subjects yet"
-    />
+    <TdTabPage tab="round-2">
+      <TdWhoamiTab />
+    </TdTabPage>
   );
 }

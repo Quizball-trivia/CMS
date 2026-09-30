@@ -14,18 +14,30 @@ describe('resolveTdConfig', () => {
     });
   });
 
-  it('allows the mock API on the staging project, including its Vercel production slot', () => {
-    expect(resolveTdConfig({ ...HOSTED, NEXT_PUBLIC_CMS_ENV: 'STAGING', VERCEL_ENV: 'production', NEXT_PUBLIC_TD_API_MOCK: '1' })).toMatchObject({
-      deployEnv: 'staging',
-      mock: true,
-      apiOrigin: null,
-    });
-    expect(resolveTdConfig({ ...TD, NEXT_PUBLIC_TD_API_MOCK: '1' })).toMatchObject({ deployEnv: 'local', mock: true });
+  it('allows the mock API only in local development', () => {
+    expect(resolveTdConfig({ ...TD, NEXT_PUBLIC_TD_API_MOCK: '1' })).toMatchObject({ deployEnv: 'local', mock: true, apiOrigin: null });
   });
 
-  it('always refuses the mock API for PROD', () => {
-    expect(() => resolveTdConfig({ ...HOSTED, NEXT_PUBLIC_CMS_ENV: 'PROD', NEXT_PUBLIC_TD_API_MOCK: '1' })).toThrow(/not allowed/);
-    expect(() => resolveTdConfig({ ...TD, NEXT_PUBLIC_CMS_ENV: 'PROD', NEXT_PUBLIC_TD_API_MOCK: '1' })).toThrow(/not allowed/);
+  it('refuses the mock API in every hosted build or named product environment, staging included', () => {
+    // Its demo accounts sign in with a public password.
+    for (const env of [
+      { ...HOSTED, NEXT_PUBLIC_CMS_ENV: 'STAGING', VERCEL_ENV: 'production' },
+      { ...HOSTED, NEXT_PUBLIC_CMS_ENV: 'STAGING', VERCEL_ENV: 'preview' },
+      { ...HOSTED, NEXT_PUBLIC_CMS_ENV: 'PROD' },
+      { ...TD, NEXT_PUBLIC_CMS_ENV: 'STAGING' },
+      { ...TD, NEXT_PUBLIC_CMS_ENV: 'PROD' },
+    ])
+      expect(() => resolveTdConfig({ ...env, NEXT_PUBLIC_TD_API_MOCK: '1' }), JSON.stringify(env)).toThrow(/local development only/);
+    // Hosted without a product environment is refused before the mock is looked at.
+    expect(() => resolveTdConfig({ ...TD, VERCEL: 'true', NEXT_PUBLIC_TD_API_MOCK: '1' })).toThrow(/must set NEXT_PUBLIC_CMS_ENV/);
+  });
+
+  it('counts a deployment marker that is present but empty as set', () => {
+    expect(() => resolveTdConfig({ ...TD, NEXT_PUBLIC_CMS_ENV: '', NEXT_PUBLIC_TD_API_MOCK: '1' })).toThrow(/local development only/);
+    expect(() => resolveTdConfig({ ...TD, VERCEL: '', NEXT_PUBLIC_TD_API_MOCK: '1' })).toThrow(/must set NEXT_PUBLIC_CMS_ENV/);
+    expect(() => resolveTdConfig({ ...TD, VERCEL: '', NEXT_PUBLIC_TD_API_URL: 'https://api.example.test' })).toThrow(/must set NEXT_PUBLIC_CMS_ENV/);
+    // Unset is still local.
+    expect(resolveTdConfig({ ...TD, NEXT_PUBLIC_CMS_ENV: undefined, VERCEL: undefined, NEXT_PUBLIC_TD_API_MOCK: '1' })).toMatchObject({ mock: true });
   });
 
   it.each(['PRODUCTION', 'prod', 'Staging', ' PROD', 'local'])('refuses the unknown product environment %j', (value) => {
@@ -74,7 +86,7 @@ describe('tdContentSecurityPolicy', () => {
   });
 
   it('allows only the CMS itself when mocked', () => {
-    const config = resolveTdConfig({ ...HOSTED, NEXT_PUBLIC_CMS_ENV: 'STAGING', NEXT_PUBLIC_TD_API_MOCK: '1' });
+    const config = resolveTdConfig({ ...TD, NEXT_PUBLIC_TD_API_MOCK: '1' });
     expect(directive(tdContentSecurityPolicy(config), 'connect-src')).toBe("connect-src 'self'");
   });
 
@@ -90,7 +102,7 @@ describe('tdContentSecurityPolicy', () => {
   });
 
   it('allows eval and the dev socket under next dev, whatever API the build uses', () => {
-    const config = resolveTdConfig({ ...HOSTED, NEXT_PUBLIC_CMS_ENV: 'STAGING', NEXT_PUBLIC_TD_API_MOCK: '1' });
+    const config = resolveTdConfig({ ...TD, NEXT_PUBLIC_TD_API_MOCK: '1' });
     const policy = tdContentSecurityPolicy(config, true);
     expect(directive(policy, 'script-src')).toContain("'unsafe-eval'");
     expect(directive(policy, 'connect-src')).toContain('ws:');
