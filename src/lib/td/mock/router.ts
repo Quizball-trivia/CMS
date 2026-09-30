@@ -33,7 +33,7 @@ export interface MockAdminDeps {
   storage: () => Storage | null;
   blobs: MockBlobStore;
   now: () => number;
-  /** Serialises requests across tabs; absent where there is only one (tests). */
+  /** Serialises requests across tabs; absent where there is only one page (tests). */
   lock?: <T>(work: () => Promise<T>) => Promise<T>;
 }
 
@@ -55,6 +55,13 @@ function seedFile(): ArrayBuffer {
 
 export function createMockAdmin({ storage, blobs, now, lock }: MockAdminDeps) {
   let memory: MockDb | null = null;
+  // Requests of this page run one at a time too (the Web Lock only orders tabs): each reads, changes and writes the whole store.
+  let queue: Promise<unknown> = Promise.resolve();
+  const serial = <T,>(work: () => Promise<T>): Promise<T> => {
+    const next = queue.then(work, work);
+    queue = next.catch(() => undefined);
+    return next;
+  };
 
   const load = (): MockDb => {
     const store = storage();
@@ -220,6 +227,6 @@ export function createMockAdmin({ storage, blobs, now, lock }: MockAdminDeps) {
         throw error;
       }
     };
-    return lock ? lock(run) : run();
+    return serial(() => (lock ? lock(run) : run()));
   };
 }
