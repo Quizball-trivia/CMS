@@ -351,16 +351,28 @@ export function apiScenarios(h: () => Harness) {
   it('integration: search by event, session and player; detail; retry of a delivered, a given-up and a moved event', async (ctx) => {
     type Event = { eventId: string; sessionId: string; playerId: string; userId: string; status: string; destinationCurrent: boolean; revivedAt: string | null; attempts: number };
     const list = async (query: string) => ((await h().call('ops', 'GET', `/admin/integration/webhooks?${query}`)).body as { items: Event[] }).items;
+    /** Every page of a listing, newest first. */
+    const all = async (query: string) => {
+      const found: Event[] = [];
+      for (let cursor: string | null = null, first = true; first || cursor; first = false) {
+        const page = (await h().call('ops', 'GET', `/admin/integration/webhooks?${query}&limit=200${cursor ? `&cursor=${cursor}` : ''}`)).body as { items: Event[]; nextCursor: string | null };
+        found.push(...page.items);
+        cursor = page.nextCursor;
+      }
+      return found;
+    };
     const [sent] = await list('status=sent&limit=1');
     // A real database needs partner events (the mock has them): reported as skipped, not passed.
     if (h().real && !sent) return ctx.skip();
     expect(sent).toBeDefined();
-    // Each search finds the event and only events that match it on that id.
+    // Each search finds exactly the events that match on that id: none missing, none extra.
     expect((await list(`q=${encodeURIComponent(sent.eventId)}`)).map((e) => e.eventId)).toEqual([sent.eventId]);
+    const everything = await all('status=sent');
+    for (const status of ['pending', 'dead'] as const) everything.push(...(await all(`status=${status}`)));
     for (const field of ['sessionId', 'playerId', 'userId'] as const) {
-      const found = await list(`q=${encodeURIComponent(sent[field])}&limit=200`);
-      expect(found.map((e) => e.eventId), field).toContain(sent.eventId);
-      expect(found.every((e) => e[field] === sent[field]), field).toBe(true);
+      const expected = everything.filter((e) => e[field] === sent[field]).map((e) => e.eventId).sort();
+      const found = (await all(`q=${encodeURIComponent(sent[field])}`)).map((e) => e.eventId);
+      expect([...found].sort(), field).toEqual(expected);
     }
     const shown = (await h().call('betsson_admin', 'GET', `/admin/integration/webhooks/${sent.eventId}`)).body as { event: Event; attempts: { delivered: boolean }[]; payload: { eventId: string } };
     expect(shown).toMatchObject({ event: { eventId: sent.eventId, status: 'sent' }, payload: { eventId: sent.eventId } });
@@ -372,8 +384,10 @@ export function apiScenarios(h: () => Harness) {
     // More attempts than the detail keeps: the latest 200, oldest first.
     const long = dead.find((e) => e.attempts > 200);
     if (long) {
+      // The latest 200 records (a late outcome may repeat or reorder attempt numbers, so no stricter order is promised).
       const attempts = ((await h().call('ops', 'GET', `/admin/integration/webhooks/${long.eventId}`)).body as { attempts: { attempt: number }[] }).attempts.map((a) => a.attempt);
-      expect(attempts).toEqual(Array.from({ length: 200 }, (_, i) => long.attempts - 199 + i));
+      expect(attempts).toHaveLength(200);
+      expect(Math.max(...attempts)).toBe(long.attempts);
     }
     const here = dead.find((e) => e.destinationCurrent && e.attempts <= 200);
     if (here) {

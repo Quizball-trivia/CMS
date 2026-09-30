@@ -107,6 +107,15 @@ describe('mock Table Derby API', () => {
     expect(next.items.map((e: { eventId: string }) => e.eventId)).toEqual(['td-evt-0010']);
   });
 
+  it('a store saved by an older mock is seeded again, not reused', async () => {
+    const storage = new MemoryStorage();
+    storage.setItem('td_mock_db', JSON.stringify({ schema: 3, webhooks: [] }));
+    const { call, login } = mockApi(storage);
+    const ops = (await login('ops@demo.tablederby.test')).accessToken as string;
+    expect((await call('GET', '/admin/integration/webhooks/td-evt-0001', { token: ops })).body.event.attempts).toBe(230);
+    expect(JSON.parse(storage.getItem('td_mock_db')!).schema).toBe(4);
+  });
+
   it('webhooks: an event shows its latest 200 attempts, oldest first', async () => {
     const { call, login } = mockApi();
     const ops = (await login('ops@demo.tablederby.test')).accessToken as string;

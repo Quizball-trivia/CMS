@@ -9,7 +9,7 @@ import { seedContent } from './seed-content';
 import { MOCK_STAFF } from './staff';
 
 /** Bumped whenever the stored shape or the seed changes: an older store is replaced. */
-export const MOCK_DB_SCHEMA = 3;
+export const MOCK_DB_SCHEMA = 4;
 
 export interface Actor {
   id: string | null;
