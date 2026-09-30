@@ -4,11 +4,12 @@ import type { AdminMatchRecord, OpsReview, Publication, ReleaseDetail, ReleaseRe
 import type { DailyCycle } from '../georgia';
 import { addDays, georgiaToday } from '../georgia';
 import type { Data } from './model';
+import { seedWebhooks, type MockWebhook } from './integration';
 import { seedContent } from './seed-content';
 import { MOCK_STAFF } from './staff';
 
 /** Bumped whenever the stored shape or the seed changes: an older store is replaced. */
-export const MOCK_DB_SCHEMA = 2;
+export const MOCK_DB_SCHEMA = 3;
 
 export interface Actor {
   id: string | null;
@@ -210,6 +211,7 @@ export interface MockDb {
   snapshots: MockSnapshot[];
   settings: Settings;
   reviews: OpsReview[];
+  webhooks: MockWebhook[];
 }
 
 export const SEED_UPLOAD_ID = '00000000-0000-4000-8000-00000000f001';
@@ -335,6 +337,7 @@ export function seedDb(now: number): MockDb {
       ticketsPerDay: { value: 5, effectiveFrom: null, today: 5, version: 0, updatedAt: null, updatedBy: null },
       maintenance: { enabled: false, version: 0, updatedAt: null, updatedBy: null },
     },
+    webhooks: seedWebhooks(now, players, matches.filter((m) => m.status === 'settled').map((m) => m.id)),
     reviews: [
       {
         id: seedId(0x6000, 1),

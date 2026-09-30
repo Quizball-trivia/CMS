@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { TD_CONTRACT } from '../contract';
+import { matchContractRoute, TD_CONTRACT } from '../contract';
 import { memoryBlobStore } from '../mock/blob-store';
 import { createMockTdApi, MOCK_PASSWORD, MOCK_STAFF } from '../mock-api';
 import { contractProblems, createHarness, type Role } from './api-harness';
@@ -27,7 +27,12 @@ describe('mock Table Derby admin API', () => {
   });
 
   it('was driven through every route the tabs use', () => {
-    const hit = new Set(harness.exchanges.map((e) => `${e.method} ${e.path.replace(/\/[0-9a-f-]{36}(?=\/|$)/g, '/:id').replace(/\/r-[0-9a-f]{16}(?=\/|$)/g, '/:id')}`));
+    const hit = new Set(
+      harness.exchanges.map((e) => {
+        const matched = matchContractRoute(e.method, e.path.split('?')[0]);
+        return matched ? `${matched.route.method} ${matched.route.path}` : `${e.method} ${e.path}`;
+      }),
+    );
     const missing = TD_CONTRACT.routes
       .filter((route) => route.auth === 'staff' && !NOT_MOCKED.has(`${route.method} ${route.path}`))
       .map((route) => `${route.method} ${route.path}`)

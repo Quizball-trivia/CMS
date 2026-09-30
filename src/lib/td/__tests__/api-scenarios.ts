@@ -329,4 +329,61 @@ export function apiScenarios(h: () => Harness) {
       expect(await h().call('ops', 'POST', `/admin/reviews/${reviews.items[0].id}/dismiss`, { body: { note: 'Again' } })).toMatchObject({ status: 409, body: { code: 'conflict' } });
     }
   });
+
+  it('integration: webhooks are for Betsson admins and ops to read, and for ops to retry', async () => {
+    expect(await h().call('editor', 'GET', '/admin/integration/webhooks')).toMatchObject({ status: 403 });
+    expect(await h().call('publisher', 'GET', '/admin/integration/webhooks')).toMatchObject({ status: 403 });
+    expect((await h().call('betsson_admin', 'GET', '/admin/integration/webhooks?limit=5')).status).toBe(200);
+    expect((await h().call('ops', 'GET', '/admin/integration/webhooks?status=dead')).status).toBe(200);
+    expect(await h().call('ops', 'GET', '/admin/integration/webhooks?status=lost')).toMatchObject({ status: 400, body: { code: 'invalid_request' } });
+    expect(await h().call('ops', 'GET', `/admin/integration/webhooks?q=${encodeURIComponent(' padded')}`)).toMatchObject({ status: 400 });
+    expect(await h().call('betsson_admin', 'GET', '/admin/integration/webhooks/no-such-event')).toMatchObject({ status: 404, body: { code: 'not_found' } });
+    expect(await h().call('ops', 'POST', '/admin/integration/webhooks/no-such-event/retry', { body: {} })).toMatchObject({ status: 404 });
+    expect(await h().call('betsson_admin', 'POST', '/admin/integration/webhooks/no-such-event/retry', { body: {} })).toMatchObject({ status: 403 });
+    expect(await h().call('ops', 'POST', '/admin/integration/webhooks/no-such-event/retry', { body: { destination: 'https://elsewhere.example/hook' } })).toMatchObject({
+      status: 400,
+      body: { code: 'invalid_request' },
+    });
+  });
+
+  it('integration: search by event, session and player; detail; retry of a delivered, a given-up and a moved event', async (ctx) => {
+    type Event = { eventId: string; sessionId: string; playerId: string; userId: string; status: string; destinationCurrent: boolean; revivedAt: string | null; attempts: number };
+    const list = async (query: string) => ((await h().call('ops', 'GET', `/admin/integration/webhooks?${query}`)).body as { items: Event[] }).items;
+    const [sent] = await list('status=sent&limit=1');
+    // A real database needs partner events (the mock has them): reported as skipped, not passed.
+    if (h().real && !sent) return ctx.skip();
+    expect(sent).toBeDefined();
+    for (const q of [sent.eventId, sent.sessionId, sent.playerId, sent.userId])
+      expect((await list(`q=${encodeURIComponent(q)}&limit=200`)).map((e) => e.eventId), q).toContain(sent.eventId);
+    const shown = (await h().call('betsson_admin', 'GET', `/admin/integration/webhooks/${sent.eventId}`)).body as { event: Event; attempts: { delivered: boolean }[]; payload: { eventId: string } };
+    expect(shown).toMatchObject({ event: { eventId: sent.eventId, status: 'sent' }, payload: { eventId: sent.eventId } });
+    expect(shown.attempts.at(-1)?.delivered).toBe(true);
+    expect(await h().call('ops', 'POST', `/admin/integration/webhooks/${sent.eventId}/retry`, { body: {} })).toMatchObject({ status: 409, body: { code: 'conflict' } });
+
+    const dead = await list('status=dead&limit=200');
+    const here = dead.find((e) => e.destinationCurrent);
+    if (here) {
+      const retried = await h().call('ops', 'POST', `/admin/integration/webhooks/${here.eventId}/retry`, { body: {} });
+      expect(retried).toMatchObject({ status: 200, body: { event: { eventId: here.eventId, status: 'pending', attempts: here.attempts } } });
+      expect((retried.body as { event: Event }).event.revivedAt).not.toBeNull();
+    }
+    const moved = dead.find((e) => !e.destinationCurrent);
+    if (moved) {
+      const refused = await h().call('ops', 'POST', `/admin/integration/webhooks/${moved.eventId}/retry`, { body: {} });
+      expect(refused).toMatchObject({ status: 409, body: { code: 'conflict' } });
+      expect((refused.body as { message: string }).message).toMatch(/retarget/);
+      expect(await h().call('ops', 'POST', `/admin/integration/webhooks/${moved.eventId}/retry`, { body: { retarget: true } })).toMatchObject({
+        status: 200,
+        body: { event: { status: 'pending', destinationCurrent: true } },
+      });
+    }
+    if (h().real && (!here || !moved)) return ctx.skip();
+    expect(here && moved).toBeTruthy();
+  });
+
+  it('integration: hand retries are limited per member (60 an hour)', async () => {
+    let answer = await h().call('ops', 'POST', '/admin/integration/webhooks/no-such-event/retry', { body: {} });
+    for (let i = 0; i < 61 && answer.status !== 429; i++) answer = await h().call('ops', 'POST', '/admin/integration/webhooks/no-such-event/retry', { body: {} });
+    expect(answer).toMatchObject({ status: 429, body: { code: 'rate_limited' } });
+  });
 }

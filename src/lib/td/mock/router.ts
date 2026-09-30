@@ -12,6 +12,7 @@ import type { MockBlobStore } from './blob-store';
 import * as content from './content';
 import { MOCK_DB_SCHEMA, SEED_UPLOAD_ID, seedDb, type MockDb } from './db';
 import * as imports from './imports';
+import * as integration from './integration';
 import * as media from './media';
 import * as ops from './ops';
 import * as releases from './releases';
@@ -55,6 +56,7 @@ function seedFile(): ArrayBuffer {
 
 export function createMockAdmin({ storage, blobs, now, lock }: MockAdminDeps) {
   let memory: MockDb | null = null;
+  const retryLimiter: integration.RetryLimiter = new Map();
   // Requests of this page run one at a time too (the Web Lock only orders tabs): each reads, changes and writes the whole store.
   let queue: Promise<unknown> = Promise.resolve();
   const serial = <T,>(work: () => Promise<T>): Promise<T> => {
@@ -193,6 +195,12 @@ export function createMockAdmin({ storage, blobs, now, lock }: MockAdminDeps) {
         return json(200, ops.listReviews(ctx, query));
       case 'POST /admin/reviews/:id/dismiss':
         return json(200, ops.dismissReview(ctx, params.id, body.note));
+      case 'GET /admin/integration/webhooks':
+        return json(200, integration.list(ctx, query));
+      case 'GET /admin/integration/webhooks/:id':
+        return json(200, integration.get(ctx, params.id));
+      case 'POST /admin/integration/webhooks/:id/retry':
+        return json(200, integration.retry(ctx, params.id, checked<{ retarget?: boolean }>().retarget ?? false, retryLimiter));
       case 'GET /admin/settings':
         return json(200, ops.settings(ctx));
       case 'PATCH /admin/settings/tickets-per-day':
@@ -223,6 +231,7 @@ export function createMockAdmin({ storage, blobs, now, lock }: MockAdminDeps) {
       const db = load();
       const ctx: content.MockContext = { db, staff, now: now() };
       releases.advance(db, ctx.now);
+      integration.advance(db, ctx.now);
       try {
         const response = await dispatch(ctx, route, params, req);
         save(db);

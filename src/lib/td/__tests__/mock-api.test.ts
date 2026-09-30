@@ -44,6 +44,34 @@ describe('mock Table Derby API', () => {
     expect((await call('POST', '/admin/auth/login', { body: { email: 'invited@demo.tablederby.test', password: MOCK_PASSWORD } })).status).toBe(401);
   });
 
+  it('webhooks: a retried event gets its next attempt; one on its way lands and meanwhile cannot be retried', async () => {
+    const { call, login, advance } = mockApi();
+    let ops = (await login('ops@demo.tablederby.test')).accessToken as string;
+    const get = async (id: string) => (await call('GET', `/admin/integration/webhooks/${id}`, { token: ops })).body;
+    const retry = (id: string, body: object = {}) => call('POST', `/admin/integration/webhooks/${id}/retry`, { body, token: ops });
+
+    // Given up; the partner answers again now.
+    expect((await retry('td-evt-0018')).body.event).toMatchObject({ status: 'pending', attempts: 31 });
+    const delivered = await get('td-evt-0018');
+    expect(delivered.event).toMatchObject({ status: 'sent', attempts: 32, lastError: null });
+    expect(delivered.attempts.at(-1)).toMatchObject({ attempt: 32, httpStatus: 200, delivered: true, reason: null });
+    // Given up and still failing: pending again, with its next attempt failed.
+    await retry('td-evt-0004');
+    const failing = await get('td-evt-0004');
+    expect(failing.event).toMatchObject({ status: 'pending', attempts: 32, lastError: expect.stringMatching(/^webhook_/) });
+    expect(failing.attempts.at(-1)).toMatchObject({ attempt: 32, delivered: false });
+    // On its way: refused until it lands.
+    expect(await retry('td-evt-0056')).toMatchObject({ status: 409, body: { code: 'conflict', message: expect.stringMatching(/being sent now/) } });
+
+    advance(21 * 60_000);
+    ops = (await login('ops@demo.tablederby.test')).accessToken;
+    expect((await get('td-evt-0056')).event).toMatchObject({ status: 'sent', sending: false, attempts: 1 });
+    // A day of failed retries later it is given up again.
+    advance(25 * 3_600_000);
+    ops = (await login('ops@demo.tablederby.test')).accessToken;
+    expect((await get('td-evt-0004')).event).toMatchObject({ status: 'dead', nextAttemptAt: null });
+  });
+
   it('lists staff only for Betsson admins and ops', async () => {
     const { call, login } = mockApi();
     const editor = await login('editor@demo.tablederby.test');

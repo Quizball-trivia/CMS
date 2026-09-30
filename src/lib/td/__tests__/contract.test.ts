@@ -21,7 +21,7 @@ describe('pinned admin contract', () => {
     const dir = mkdtempSync(join(tmpdir(), 'td-pin-'));
     try {
       cpSync(CONTRACT_DIR, dir, { recursive: true });
-      expect(() => verifyTdContractPin(dir, TD_ADMIN_CONTRACT_VERSION + 1)).toThrow(/written for v5/);
+      expect(() => verifyTdContractPin(dir, TD_ADMIN_CONTRACT_VERSION + 1)).toThrow(new RegExp(`written for v${TD_ADMIN_CONTRACT_VERSION + 1}`));
       const file = join(dir, 'pinned/admin-contract.d.ts');
       writeFileSync(file, `${readFileSync(file, 'utf8')}\n`);
       expect(() => verifyTdContractPin(dir)).toThrow(/admin-contract.d.ts does not match its pinned hash/);

@@ -171,6 +171,15 @@ export function createTdAdminApi(api: TdApiClient) {
       dismiss: (id: string, note: string, options?: TdRequestOptions) =>
         api.post<C.OpsReview>(`/admin/reviews/${segment(id)}/dismiss`, { note }, options),
     },
+    integration: {
+      /** `q`: an event id, a partner session id, the partner's player id or a Table Derby player id (exact). */
+      webhooks: (query: { q?: string; status?: C.WebhookEvent['status'] } & TdPageQuery = {}, options?: TdRequestOptions) =>
+        api.get<C.WebhookEventList>(`/admin/integration/webhooks${queryString({ q: query.q, status: query.status, ...page(query) })}`, options),
+      webhook: (eventId: string, options?: TdRequestOptions) => api.get<C.WebhookEventDetail>(`/admin/integration/webhooks/${segment(eventId)}`, options),
+      /** Ops. With `retarget`, an event bound to an earlier webhook address moves to the current one. */
+      retryWebhook: (eventId: string, retarget: boolean, options?: TdRequestOptions) =>
+        api.post<C.WebhookEventDetail>(`/admin/integration/webhooks/${segment(eventId)}/retry`, retarget ? { retarget: true } : {}, options),
+    },
     settings: {
       get: (options?: TdRequestOptions) => api.get<C.Settings>('/admin/settings', options),
       ticketsPerDay: (version: number, value: number, options?: TdRequestOptions) =>
