@@ -1,0 +1,2 @@
+# The pinned Table Derby admin contract is hashed byte for byte (src/lib/td/contract/pin.json).
+src/lib/td/contract/pinned/** -text

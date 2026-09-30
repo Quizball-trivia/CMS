@@ -34,7 +34,7 @@ describe('mock Table Derby API', () => {
     const me = await call('GET', '/admin/me', { token: tokens.accessToken });
     expect(me).toEqual({
       status: 200,
-      body: { id: 'staff-publisher', email: 'publisher@demo.tablederby.test', name: 'Demo Publisher', role: 'publisher' },
+      body: { id: '5e1d0000-0000-4000-8000-000000000002', email: 'publisher@demo.tablederby.test', name: 'Demo Publisher', role: 'publisher' },
     });
   });
 
