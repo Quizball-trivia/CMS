@@ -33,17 +33,17 @@ export const TD_FIXED_FIELDS: Record<TdContentType, readonly string[]> = {
  */
 export const TD_MERGE_UNITS: Record<TdContentType, readonly (readonly string[])[]> = {
   'card-categories': [],
-  cards: [['display', 'aliases', 'lines', 'photo', 'imageKey']],
+  cards: [['value', 'display', 'aliases', 'lines', 'photo', 'imageKey']],
   'whoami-subjects': [['display', 'aliases', 'clues']],
   'box-categories': [],
   'box-questions': [['q', 'display', 'aliases']],
   'penalty-questions': [['q', 'display', 'aliases']],
-  'practice-questions': [['prompt', 'options', 'answer', 'explanation', 'imageKey']],
+  'practice-questions': [['difficulty', 'prompt', 'options', 'answer', 'explanation', 'imageKey']],
   media: [['url', 'uploadId', 'width', 'height', 'author', 'license', 'source']],
   clubs: [['label', 'value'], ['crest', 'crestImageKey']],
-  'football-logic': [['prompt', 'imageA', 'imageB', 'displayAnswer', 'acceptedAnswers']],
+  'football-logic': [['category', 'prompt', 'imageA', 'imageB', 'displayAnswer', 'acceptedAnswers']],
   'put-in-order': [['prompt', 'items']],
-  'career-path': [['displayAnswer', 'acceptedAnswers', 'clubs']],
+  'career-path': [['prompt', 'displayAnswer', 'acceptedAnswers', 'clubs']],
   'daily-schedule': [],
   'daily-settings': [['seconds', 'cycle']],
 };

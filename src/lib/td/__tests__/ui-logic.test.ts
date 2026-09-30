@@ -110,12 +110,21 @@ describe('merge units: fields that only make sense together merge as one', () =>
     expect(mergeDrafts(base, mine, theirs).conflicts).toEqual([]);
     const { merged, conflicts } = mergeDrafts(base, mine, theirs, units);
     expect(conflicts).toHaveLength(1);
-    expect(conflicts[0]).toMatchObject({ field: 'data.prompt+options+answer+explanation+imageKey', unit: ['prompt', 'options', 'answer', 'explanation', 'imageKey'] });
+    expect(conflicts[0]).toMatchObject({ field: 'data.difficulty+prompt+options+answer+explanation+imageKey', unit: ['difficulty', 'prompt', 'options', 'answer', 'explanation', 'imageKey'] });
     expect(merged.data).toMatchObject({ options: ['A', 'C', 'B'], answer: 0 });
     expect(resolveConflicts(merged, conflicts, { [conflicts[0].field]: 'theirs' }).data).toMatchObject({ options: ['A', 'B', 'C'], answer: 1 });
     // A change to a field outside the unit still merges.
     const other = { ...theirs, data: { ...base.data, category: 'Clubs' } };
     expect(mergeDrafts(base, mine, other, units)).toMatchObject({ conflicts: [], merged: { data: { options: ['A', 'C', 'B'], answer: 0, category: 'Clubs' } } });
+  });
+
+  it('a career path’s prompt goes with its answer and clubs', () => {
+    const cp = (prompt: string, displayAnswer: string, clubs: string[]) => ({ data: { key: 'cp', puzzle: 'p', prompt, displayAnswer, acceptedAnswers: [displayAnswer.toLowerCase()], clubs }, position: 0, note: '' });
+    const base = cp('Whose career is this?', 'Messi', ['Barcelona', 'PSG']);
+    const mine = cp('Whose career is this? An Argentine forward.', 'Messi', ['Barcelona', 'PSG']);
+    const theirs = cp('Whose career is this?', 'Ronaldo', ['Sporting', 'Man Utd']);
+    expect(mergeDrafts(base, mine, theirs).conflicts).toEqual([]);
+    expect(mergeDrafts(base, mine, theirs, TD_MERGE_UNITS['career-path']).conflicts).toHaveLength(1);
   });
 
   it('an answer and its spellings, an image and its size and rights, a round and its order', () => {
