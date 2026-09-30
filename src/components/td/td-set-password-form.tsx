@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
+import { useCallback, useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { AlertCircle, Eye, EyeOff, Loader2 } from 'lucide-react';
@@ -118,7 +118,8 @@ export function TdSetPasswordForm({ kind }: { kind: TdLinkKind }) {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- the address bar is only readable after mount
     setLink(firstLink(kind));
     const onFragment = () => {
-      if (!window.location.hash) return;
+      // Only this page's own links: on the way to the other link page (a popstate across routes) its fragment is left for it.
+      if (!window.location.hash || window.location.pathname !== TD_LINK_PATHS[kind]) return;
       const token = takeFragment(kind);
       setLink((current) => ({ token, version: (current?.version ?? 0) + 1 }));
     };
@@ -154,7 +155,7 @@ function LinkForm({ kind, token }: { kind: TdLinkKind; token: string | null }) {
   // False once another link replaced this form: its late answer must not steer the page away from the new one.
   const current = useRef(true);
   // Replaced, or about to be: a fragment in the address bar is always a new link not taken yet (ours is cleared).
-  const replaced = () => !current.current || window.location.hash !== '';
+  const replaced = useCallback(() => !current.current || window.location.hash !== '', []);
   useEffect(() => {
     current.current = true;
     return () => {
@@ -169,8 +170,8 @@ function LinkForm({ kind, token }: { kind: TdLinkKind; token: string | null }) {
 
   useEffect(() => {
     // Nobody signed in: the login page, with its note, is the way on.
-    if (setWithoutSession && status === 'anonymous') router.replace(done);
-  }, [setWithoutSession, status, router, done]);
+    if (setWithoutSession && status === 'anonymous' && !replaced()) router.replace(done);
+  }, [setWithoutSession, status, router, done, replaced]);
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();

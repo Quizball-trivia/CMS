@@ -518,6 +518,54 @@ describe('invitation and reset links', () => {
     expect(h.replace).toHaveBeenCalledWith('/td/login?done=joined');
   });
 
+  it('the invite page leaves a reset link’s fragment for the reset page on a popstate across routes', async () => {
+    const token = await managerLink('reset');
+    window.history.replaceState(null, '', '/td/accept-invite#token=tdi_abcdefghijklmnopqrstuvwxyz');
+    const invitePage = renderPage(<TdSetPasswordForm kind="invite" />);
+    await screen.findByRole('heading', { name: 'Join the team' });
+    // Back/forward lands on the reset link while the invite page is still mounted.
+    await act(async () => {
+      window.history.pushState(null, '', `/td/reset#token=${token}`);
+      window.dispatchEvent(new PopStateEvent('popstate', { state: null }));
+      await sleep(300);
+    });
+    expect(window.location.hash).toBe(`#token=${token}`);
+    invitePage.unmount();
+    renderPage(<TdSetPasswordForm kind="reset" />);
+    expect(await screen.findByRole('heading', { name: 'Set a new password' })).toBeTruthy();
+    expect(screen.getByLabelText('New password')).toBeTruthy();
+    expect(window.location.hash).toBe('');
+  });
+
+  it('with nobody signed in any more, the page still waits for a new link in the address bar before going to sign in', async () => {
+    await signedInAs('betsson_admin');
+    const token = await managerLink('invite', 'waiting@example.test');
+    const inner = server;
+    Object.assign(h, client((async (input: RequestInfo | URL, init?: RequestInit) => {
+      const response = await inner(input, init);
+      return new URL(String(input)).pathname === '/admin/auth/accept-invite' ? new Response('{}', { status: 200, headers: { 'Content-Type': 'application/json' } }) : response;
+    }) as typeof fetch, h.origin as ReturnType<typeof createOrigin>, h.tokens));
+    window.history.replaceState(null, '', `/td/accept-invite#token=${token}`);
+    renderPage(<TdSetPasswordForm kind="invite" />);
+    await waitFor(() => expect(screen.getByTestId('who').textContent).toBe('Demo Betsson Admin'));
+    fill('Your name', 'Waiter');
+    fill('New password', 'a long enough passphrase');
+    fill('Repeat the password', 'a long enough passphrase');
+    await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Join' })));
+    expect(await screen.findByText(/still signed in as Demo Betsson Admin/)).toBeTruthy();
+    // A new link arrives by pushState, and at that moment another tab signs out.
+    window.history.pushState(null, '', '/td/accept-invite#token=tdi_zyxwvutsrqponmlkjihgfedcba');
+    await act(async () => {
+      await h.tokens.transact((tx) => tx.clear('before-betsson_admin'));
+    });
+    await waitFor(() => expect(screen.getByTestId('who').textContent).toBe('anonymous'));
+    expect(h.replace).not.toHaveBeenCalled();
+    // The new link is taken: a fresh form for it, and still no redirect.
+    await waitFor(() => expect(screen.getByLabelText('Your name')).toBeTruthy());
+    expect(window.location.hash).toBe('');
+    expect(h.replace).not.toHaveBeenCalled();
+  });
+
   it('the login page shows a finished link’s note, only for the notes it knows', async () => {
     h.search = 'done=joined';
     renderPage(<TdLoginForm />);
