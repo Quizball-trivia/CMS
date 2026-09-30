@@ -17,6 +17,15 @@ describe('pinned admin contract', () => {
     expect(TD_CONTRACT.contract).toBe('table-derby-admin');
   });
 
+  it('is v6: match inputs can be archived or expired, with the date they went to the archive', () => {
+    expect(TD_ADMIN_CONTRACT_VERSION).toBe(6);
+    expect(TD_CONTRACT.version).toBe(6);
+    const record = TD_CONTRACT.schemas.AdminMatchRecord as { properties: { inputs: { properties: Record<string, { anyOf?: { enum?: string[] }[] }> } } };
+    const inputs = record.properties.inputs;
+    expect(inputs.properties.missing.anyOf?.[0].enum).toEqual(['redis_lost', 'never_started', 'not_recorded', 'archived', 'expired']);
+    expect(Object.keys(inputs.properties)).toContain('archivedAt');
+  });
+
   it('refuses an edited copy and a version the client is not written for', () => {
     const dir = mkdtempSync(join(tmpdir(), 'td-pin-'));
     try {

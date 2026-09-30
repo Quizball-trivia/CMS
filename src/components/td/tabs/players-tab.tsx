@@ -271,13 +271,15 @@ export function replaySteps(entries: unknown[]): TdReplayStep[] {
 
 const clock = (ms: number | null) => (ms === null ? '—' : `${Math.floor(ms / 60_000)}:${String(Math.floor((ms % 60_000) / 1000)).padStart(2, '0')}.${String(Math.floor((ms % 1000) / 100))}`);
 
-const MISSING: Record<string, string> = {
+const MISSING: Record<NonNullable<AdminMatchRecord['inputs']['missing']>, string> = {
   redis_lost: 'Its inputs were lost with the live state (a Redis restart), so it was voided.',
   never_started: 'It was voided before it started.',
   not_recorded: 'Its inputs were not kept.',
+  archived: 'Its inputs are in the archive, which cannot be read just now. Try again in a moment.',
+  expired: 'Its inputs were deleted from the archive, 730 days after the match.',
 };
 
-function Replay({ record }: { record: AdminMatchRecord }) {
+export function Replay({ record }: { record: AdminMatchRecord }) {
   const steps = useMemo(() => (record.inputs.entries ? replaySteps(record.inputs.entries) : []), [record.inputs.entries]);
   const [index, setIndex] = useState(0);
   const [playing, setPlaying] = useState(false);
@@ -292,11 +294,19 @@ function Replay({ record }: { record: AdminMatchRecord }) {
   }, [running, index, steps, speed]);
   const names = new Map(record.players.map((p) => [p.seat, p.displayName]));
 
+  const archivedAt = record.inputs.archivedAt ? <p className="text-xs text-(--td-text-3)">Archived {formatGeorgiaTime(record.inputs.archivedAt)}</p> : null;
+
   if (!record.inputs.kept) {
-    return <p className="text-sm text-(--td-text-3)">{record.inputs.missing ? MISSING[record.inputs.missing] : record.status === 'live' ? 'The match is live: its inputs are kept when it settles.' : 'No inputs were kept.'}</p>;
+    return (
+      <div className="flex flex-col gap-1">
+        <p className="text-sm text-(--td-text-3)">{record.inputs.missing ? MISSING[record.inputs.missing] : record.status === 'live' ? 'The match is live: its inputs are kept when it settles.' : 'No inputs were kept.'}</p>
+        {archivedAt}
+      </div>
+    );
   }
   return (
     <div className="flex flex-col gap-3">
+      {archivedAt}
       <div className="flex items-center gap-2">
         <Button variant="secondary" size="icon-sm" aria-label="First step" onClick={() => setIndex(0)}>
           <SkipBack />
