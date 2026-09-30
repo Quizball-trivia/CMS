@@ -1,6 +1,7 @@
 import { act, cleanup, fireEvent, render, renderHook, screen, waitFor, within } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { toast } from 'sonner';
 import { useState, type ReactNode } from 'react';
 import type { TdAdminApi, TdContentRow } from '@/lib/td/admin-api';
 import type { TdApiClient } from '@/lib/td/api-client';
@@ -584,6 +585,37 @@ describe('releases', () => {
     expect(list.pointer.version).toBe(3);
     // Cleared once the replica notice is confirmed too (the next poll, a second later).
     await waitFor(() => expect(localStorage.getItem(`td_pending_publications:${publisher.user.id}`)).toBeNull(), { timeout: 4000 });
+  });
+
+  it('says “Publishing…” as the publish goes out, before its answer, and not for one refused before sending', async () => {
+    const said = vi.spyOn(toast, 'message');
+    const editor = await clientFor('editor');
+    const row = await editor.admin.content('penalty-questions').create({ data: penalty('announce-publish') });
+    const ready = await editor.admin.content('penalty-questions').ready(row.id, row.version);
+    const publisher = await signIn('publisher');
+    await publisher.admin.content('penalty-questions').approve(ready.id, ready.version);
+    const answer = deferred<void>();
+    const publish = publisher.admin.releases.publish;
+    h.admin = { ...publisher.admin, releases: { ...publisher.admin.releases, publish: async (...args: Parameters<typeof publish>) => (await answer.promise, publish(...args)) } };
+    renderTd(<TdReleasesTab />);
+    await screen.findByText('Valid: it can be published.');
+    const confirmPublish = async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Publish' }));
+      await act(async () => fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Publish' })));
+    };
+    // Someone else signed in meanwhile: refused here, nothing said.
+    const own = publisher.tokens.read()!;
+    const next = await clientFor('ops');
+    await put(publisher.tokens, { ...next.tokens.read()!, generation: 'gen-next', staffId: next.user.id });
+    await confirmPublish();
+    expect(await screen.findByText(/switched accounts/)).toBeTruthy();
+    expect(said).not.toHaveBeenCalled();
+
+    await put(publisher.tokens, own);
+    await confirmPublish();
+    // Said while the publish still waits for its answer.
+    await waitFor(() => expect(said).toHaveBeenCalledWith('Publishing…'));
+    answer.resolve();
   });
 
   it('a kept publish that waited while its member signed out is never sent as the next member', async () => {

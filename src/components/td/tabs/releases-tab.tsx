@@ -111,12 +111,14 @@ export function TdReleasesTab() {
     }
   };
 
-  const start = async (request: HeldRequest) => {
+  /** `sending` runs once the request is sure to go out, before its answer; never for one refused here. */
+  const start = async (request: HeldRequest, sending?: () => void) => {
     const operation = user ? begin(user.id) : null;
     if (!user || !operation) {
       setRequestError(new TdApiError(0, SESSION_CHANGED, 'The session changed; the request was cancelled'));
       return;
     }
+    sending?.();
     await send(request, user.id, operation);
   };
 
@@ -232,7 +234,7 @@ export function TdReleasesTab() {
                       ? { kind: 'publish', idemKey: `publish:${crypto.randomUUID()}`, releaseId: null, publicationId: null, adopted: false }
                       : { kind: 'rollback', idemKey: `rollback:${crypto.randomUUID()}`, releaseId: confirm.releaseId, publicationId: null, adopted: false };
                   setConfirm(null);
-                  void start(request).then(() => toast.message(confirm.kind === 'publish' ? 'Publishing…' : 'Rolling back…'));
+                  void start(request, () => toast.message(confirm.kind === 'publish' ? 'Publishing…' : 'Rolling back…'));
                 }}
               >
                 {confirm.kind === 'publish' ? <Rocket /> : <Undo2 />}
