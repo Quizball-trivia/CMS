@@ -12,6 +12,8 @@ const tdConfig = resolveTdConfig(process.env);
 if (isTableDerby) verifyTdContractPin(join(process.cwd(), "src/lib/td/contract"));
 
 const nextConfig: NextConfig = {
+  // `next dev` would otherwise write AGENTS.md and CLAUDE.md into the repository root.
+  agentRules: false,
   env: {
     // Always defined, so literal `===` checks fold at build time: a non-mock
     // build ships no mock API code, and the Quizball route guards compile away.
