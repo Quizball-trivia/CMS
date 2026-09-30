@@ -12,11 +12,12 @@ import { TdEmptyState, TdSection } from '@/components/td/td-page';
 import { TdErrorPanel } from '@/components/td/td-error-panel';
 import { tdKeys, useTdWrite } from '@/hooks/use-td-content';
 import type { TdContentType } from '@/lib/td/admin-api';
-import { TdApiError } from '@/lib/td/api-client';
-import { tdAdmin } from '@/lib/td/client';
+import { SESSION_CHANGED, TdApiError } from '@/lib/td/api-client';
+import { tdAdmin, tdTokens } from '@/lib/td/client';
 import type { Publication, ReleaseDetail, ReleaseList, ReleaseReport } from '@/lib/td/contract';
 import { formatDay, formatGeorgiaTime } from '@/lib/td/georgia';
-import { browserPendingPublications, type PendingPublications, type PendingRequest } from '@/lib/td/pending-publications';
+import { beginOperation, operationIsCurrent, type TdOperation } from '@/lib/td/operation';
+import { browserPendingPublications, type HeldRequest, type PendingPublications, type PendingRequest } from '@/lib/td/pending-publications';
 import { isTdPublisher } from '@/lib/td/workflow';
 import { cn } from '@/lib/utils';
 import { useTdAuth } from '@/providers/td-auth-provider';
@@ -67,37 +68,42 @@ export function TdReleasesTab() {
   const list = useQuery({ queryKey: [...tdKeys.releases, 'list', 'first'], queryFn: ({ signal }) => tdAdmin.releases.list({ limit: 1 }, { signal }) });
   const [watching, setWatching] = useState<string | null>(null);
   // Requests sent whose answer never came: each is asked again (same key), never replaced by a new one.
-  const [unanswered, setUnanswered] = useState<PendingRequest[]>([]);
+  const [unanswered, setUnanswered] = useState<HeldRequest[]>([]);
   const [confirm, setConfirm] = useState<{ kind: 'publish' } | { kind: 'rollback'; releaseId: string } | null>(null);
   const [requestError, setRequestError] = useState<unknown>(null);
   const [sending, setSending] = useState(false);
-  const recovered = useRef(false);
+  const recoveredFor = useRef<string | null>(null);
 
-  const without = (request: PendingRequest) => (list: PendingRequest[]) => list.filter((r) => r.idemKey !== request.idemKey);
+  const without = (request: PendingRequest) => (list: HeldRequest[]) => list.filter((r) => r.idemKey !== request.idemKey);
 
-  const send = async (request: PendingRequest) => {
-    if (!user) return;
+  // The sign-in an action begins under, only while it is still this member's: none of their requests may go out as another.
+  const begin = (staffId: string) => (tdTokens.read()?.staffId === staffId ? beginOperation(tdTokens) : null);
+
+  const send = async (request: HeldRequest, staffId: string, operation: TdOperation) => {
     setSending(true);
     setRequestError(null);
     let kept: PendingPublications | null = null;
     try {
-      kept = await browserPendingPublications(user.id);
+      kept = await browserPendingPublications(staffId);
       // Kept before it goes out: an answer lost to a reload is asked for again with the same key.
       await kept.keep(request);
       setUnanswered(without(request));
       const publication = await write(
-        (operation) => (request.kind === 'publish' ? tdAdmin.releases.publish(request.idemKey, operation) : tdAdmin.releases.rollback(request.releaseId!, request.idemKey, operation)),
+        (op) => (request.kind === 'publish' ? tdAdmin.releases.publish(request.idemKey, op) : tdAdmin.releases.rollback(request.releaseId!, request.idemKey, op)),
         [tdKeys.releases],
+        operation,
       );
       await kept.keep({ ...request, publicationId: publication.id });
       queryClient.setQueryData([...tdKeys.releases, 'publication', publication.id], publication);
       setWatching(publication.id);
     } catch (caught) {
+      // Signed out or switched meanwhile: the request stays kept for its member, asked again when they are back.
+      if (caught instanceof TdApiError && caught.code === SESSION_CHANGED) return;
       if (caught instanceof TdApiError && caught.code === 'publication_in_progress') {
         const busy = (caught.details as { publicationId?: string } | undefined)?.publicationId;
         if (busy) setWatching(busy);
       }
-      if (kept && refusedOutright(caught)) await kept.forget(request.idemKey).catch(() => undefined);
+      if (kept && refusedOutright(caught)) await kept.refused(request.idemKey).catch(() => undefined);
       else setUnanswered((list) => [...without(request)(list), request]);
       setRequestError(caught);
     } finally {
@@ -105,20 +111,37 @@ export function TdReleasesTab() {
     }
   };
 
+  const start = async (request: HeldRequest) => {
+    const operation = user ? begin(user.id) : null;
+    if (!user || !operation) {
+      setRequestError(new TdApiError(0, SESSION_CHANGED, 'The session changed; the request was cancelled'));
+      return;
+    }
+    await send(request, user.id, operation);
+  };
+
   // Requests whose answer never arrived (reload, or a tab since closed) are sent again, as the same requests.
   useEffect(() => {
-    if (!user || recovered.current) return;
-    recovered.current = true;
+    if (!user || recoveredFor.current === user.id) return;
+    recoveredFor.current = user.id;
+    const staffId = user.id;
+    // Begun before waiting for the kept requests, which may take a while (another tab holds the lock).
+    const operation = begin(staffId);
+    if (!operation) return;
     void (async () => {
-      const requests = await browserPendingPublications(user.id)
+      const requests = await browserPendingPublications(staffId)
         .then((kept) => kept.claim())
         .catch(() => []);
-      for (const request of requests) await send(request);
+      for (const request of requests) {
+        if (!operationIsCurrent(tdTokens, operation)) return;
+        await send(request, staffId, operation);
+      }
     })();
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- once per mount, for the signed-in member
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once per member, per mount
   }, [user]);
 
-  const forget = (request: PendingRequest) => {
+  // Only a request this tab created: one taken over from a closed tab is settled by the API's answer alone.
+  const forget = (request: HeldRequest) => {
     setUnanswered(without(request));
     if (user) void browserPendingPublications(user.id).then((kept) => kept.forget(request.idemKey)).catch(() => undefined);
   };
@@ -160,15 +183,18 @@ export function TdReleasesTab() {
           {unanswered.map((request) => (
             <div key={request.idemKey} className="mb-4 flex flex-wrap items-center gap-2 rounded-lg border border-amber-400/40 bg-amber-400/5 px-3 py-2 text-sm text-amber-200">
               <span className="min-w-0 flex-1">
-                {request.kind === 'publish' ? 'Your publish' : `Your roll back to ${request.releaseId}`} got no answer, so it may have started. Ask again: the same request is answered, never run twice.
+                {request.kind === 'publish' ? 'Your publish' : `Your roll back to ${request.releaseId}`}
+                {request.adopted ? ' (sent from a tab since closed)' : ''} got no answer, so it may have started. Ask again: the same request is answered, never run twice.
               </span>
-              <Button size="sm" className="rounded-lg" disabled={sending} onClick={() => void send(request)}>
+              <Button size="sm" className="rounded-lg" disabled={sending} onClick={() => void start(request)}>
                 {sending ? <Loader2 className="animate-spin" /> : <RefreshCw />}
                 Ask again
               </Button>
-              <Button size="sm" variant="ghost" className="rounded-lg" title="Stop asking. It may have run: check the history below before publishing again." onClick={() => forget(request)}>
-                Forget it
-              </Button>
+              {!request.adopted && (
+                <Button size="sm" variant="ghost" className="rounded-lg" title="Stop asking. It may have run: check the history below before publishing again." onClick={() => forget(request)}>
+                  Forget it
+                </Button>
+              )}
             </div>
           ))}
           <TdErrorPanel error={report.error ?? requestError} />
@@ -201,12 +227,12 @@ export function TdReleasesTab() {
               <Button
                 className="rounded-lg"
                 onClick={() => {
-                  const request: PendingRequest =
+                  const request: HeldRequest =
                     confirm.kind === 'publish'
-                      ? { kind: 'publish', idemKey: `publish:${crypto.randomUUID()}`, releaseId: null, publicationId: null }
-                      : { kind: 'rollback', idemKey: `rollback:${crypto.randomUUID()}`, releaseId: confirm.releaseId, publicationId: null };
+                      ? { kind: 'publish', idemKey: `publish:${crypto.randomUUID()}`, releaseId: null, publicationId: null, adopted: false }
+                      : { kind: 'rollback', idemKey: `rollback:${crypto.randomUUID()}`, releaseId: confirm.releaseId, publicationId: null, adopted: false };
                   setConfirm(null);
-                  void send(request).then(() => toast.message(confirm.kind === 'publish' ? 'Publishing…' : 'Rolling back…'));
+                  void start(request).then(() => toast.message(confirm.kind === 'publish' ? 'Publishing…' : 'Rolling back…'));
                 }}
               >
                 {confirm.kind === 'publish' ? <Rocket /> : <Undo2 />}

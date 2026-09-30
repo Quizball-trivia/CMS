@@ -41,7 +41,7 @@ const { TdReleasesTab } = await import('../tabs/releases-tab');
 const { useTdWrite } = await import('@/hooks/use-td-content');
 const { CorrectionForm, OpsReviews } = await import('../tabs/players-tab');
 const { MaintenanceSetting, TicketsSetting } = await import('../tabs/ops-tabs');
-const { deferred } = await import('@/lib/td/__tests__/helpers');
+const { createFakeLockManager, deferred, sleep } = await import('@/lib/td/__tests__/helpers');
 const { browserPendingPublications } = await import('@/lib/td/pending-publications');
 
 const BASE = 'https://td-api.mock';
@@ -420,6 +420,41 @@ describe('releases', () => {
     await waitFor(() => expect(localStorage.getItem(`td_pending_publications:${publisher.user.id}`)).toBeNull(), { timeout: 4000 });
   });
 
+  it('a kept publish that waited while its member signed out is never sent as the next member', async () => {
+    const locks = createFakeLockManager();
+    Object.defineProperty(navigator, 'locks', { configurable: true, value: locks });
+    try {
+      const inner = server;
+      const sent: string[] = [];
+      server = ((input: RequestInfo | URL, init?: RequestInit) => {
+        if (String(input).endsWith('/admin/releases/publish')) sent.push((JSON.parse(String(init?.body)) as { idemKey: string }).idemKey);
+        return inner(input, init);
+      }) as typeof fetch;
+      const publisher = await signIn('publisher');
+      const next = await clientFor('ops');
+      const kept = `td_pending_publications:${publisher.user.id}`;
+      await (await browserPendingPublications(publisher.user.id)).keep({ kind: 'publish', idemKey: 'publish:mine', releaseId: null, publicationId: null });
+      // Another tab holds the kept list while this one mounts, so the recovery waits.
+      const release = deferred<void>();
+      const holding = deferred<void>();
+      void locks.request('td-pending-publications', () => {
+        holding.resolve();
+        return release.promise;
+      });
+      await holding.promise;
+      renderTd(<TdReleasesTab />);
+      await sleep(20);
+      // Meanwhile someone else signs in in this browser.
+      await put(publisher.tokens, { ...next.tokens.read()!, generation: 'gen-next', staffId: next.user.id });
+      release.resolve();
+      await sleep(50);
+      expect(sent).toEqual([]);
+      expect(Object.keys(JSON.parse(localStorage.getItem(kept)!) as object)).toEqual(['publish:mine']);
+    } finally {
+      Object.defineProperty(navigator, 'locks', { configurable: true, value: undefined });
+    }
+  });
+
   it('after a reload asks again for this tab’s unanswered publish only; its refusal clears that one, never another tab’s', async () => {
     const storage = new MemoryStorage();
     const frozen = Date.now();
@@ -435,7 +470,7 @@ describe('releases', () => {
     sent.length = 0;
     const kept = `td_pending_publications:${publisher.user.id}`;
     await (await browserPendingPublications(publisher.user.id)).keep({ kind: 'publish', idemKey: 'publish:mine', releaseId: null, publicationId: null });
-    const theirs = { kind: 'publish', idemKey: 'publish:theirs', releaseId: null, publicationId: null, tab: 'another-open-tab' };
+    const theirs = { kind: 'publish', idemKey: 'publish:theirs', releaseId: null, publicationId: null, tab: 'another-open-tab', holder: 'another-open-tab' };
     localStorage.setItem(kept, JSON.stringify({ ...JSON.parse(localStorage.getItem(kept)!), 'publish:theirs': theirs }));
 
     renderTd(<TdReleasesTab />);

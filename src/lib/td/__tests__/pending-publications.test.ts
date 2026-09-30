@@ -4,6 +4,7 @@ import { claimTabId, createPendingPublications, liveTabIds, type PendingRequest 
 import { createFakeLockManager, deferred, MemoryStorage, sleep } from './helpers';
 
 const publish = (idemKey: string, publicationId: string | null = null): PendingRequest => ({ kind: 'publish', idemKey, releaseId: null, publicationId });
+const held = (request: PendingRequest, adopted = false) => ({ ...request, adopted });
 
 /** One browser: a localStorage and Web Locks shared by its tabs. */
 function browser() {
@@ -37,22 +38,43 @@ describe('pending publications, kept per request', () => {
     await second.store.forget('publish:a');
 
     expect(await second.store.claim()).toEqual([]);
-    expect(await first.store.claim()).toEqual([publish('publish:a')]);
+    expect(await first.store.claim()).toEqual([held(publish('publish:a'))]);
   });
 
-  it('a closed tab’s requests are taken by the next tab that looks; an open tab’s never are', async () => {
+  it('a closed tab’s requests are taken by the next tab that looks, which may not forget them; an open tab’s are never taken', async () => {
     const { openTab } = browser();
     const closing = await openTab('tab-a');
     const staying = await openTab('tab-b');
     await closing.store.keep(publish('publish:a', 'pub-1'));
+    await closing.store.keep(publish('publish:c'));
     expect(await staying.store.claim()).toEqual([]);
 
     closing.close();
     await sleep(0);
-    expect(await staying.store.claim()).toEqual([publish('publish:a', 'pub-1')]);
-    // Now the second tab's own: it can let it go.
-    await staying.store.forget('publish:a');
+    expect(await staying.store.claim()).toEqual([held(publish('publish:a', 'pub-1'), true), held(publish('publish:c'), true)]);
+    // Asked again and again unanswered, then "Forget it": not this tab's to drop, so it stays.
+    await staying.store.keep(publish('publish:c'));
+    await staying.store.forget('publish:c');
+    expect(await staying.store.claim()).toHaveLength(2);
+    // The API's answer settles it: a refusal of that very key, or its publication settling.
+    await staying.store.refused('publish:c');
+    await staying.store.resolved('pub-1');
     expect(await staying.store.claim()).toEqual([]);
+  });
+
+  it('a third tab takes over from a taker that closed too, and the request is still the first tab’s', async () => {
+    const { openTab } = browser();
+    const first = await openTab('tab-a');
+    await first.store.keep(publish('publish:a'));
+    first.close();
+    const second = await openTab('tab-b');
+    await sleep(0);
+    expect(await second.store.claim()).toEqual([held(publish('publish:a'), true)]);
+    const third = await openTab('tab-c');
+    expect(await third.store.claim()).toEqual([]);
+    second.close();
+    await sleep(0);
+    expect(await third.store.claim()).toEqual([held(publish('publish:a'), true)]);
   });
 
   it('a publication the API reports settled clears its request whichever tab sent it', async () => {
@@ -62,14 +84,14 @@ describe('pending publications, kept per request', () => {
     await first.store.keep(publish('publish:a', 'pub-1'));
     await first.store.keep(publish('publish:c'));
     await second.store.resolved('pub-1');
-    expect(await first.store.claim()).toEqual([publish('publish:c')]);
+    expect(await first.store.claim()).toEqual([held(publish('publish:c'))]);
   });
 
   it('without a way to tell which tabs are open, another tab’s request is never taken', async () => {
     const { storeFor } = browser();
     await storeFor('tab-a', async () => null).keep(publish('publish:a'));
     expect(await storeFor('tab-b', async () => null).claim()).toEqual([]);
-    expect(await storeFor('tab-a', async () => null).claim()).toEqual([publish('publish:a')]);
+    expect(await storeFor('tab-a', async () => null).claim()).toEqual([held(publish('publish:a'))]);
   });
 
   it('keeps every request of one tab, each under its own key, with its publication once known', async () => {
@@ -79,8 +101,8 @@ describe('pending publications, kept per request', () => {
     await tab.store.keep({ kind: 'rollback', idemKey: 'rollback:b', releaseId: 'rel-2', publicationId: null });
     await tab.store.keep(publish('publish:a', 'pub-9'));
     expect(JSON.parse(storage.getItem('td_pending_publications:staff-1')!)).toEqual({
-      'publish:a': { ...publish('publish:a', 'pub-9'), tab: 'tab-a' },
-      'rollback:b': { kind: 'rollback', idemKey: 'rollback:b', releaseId: 'rel-2', publicationId: null, tab: 'tab-a' },
+      'publish:a': { ...publish('publish:a', 'pub-9'), tab: 'tab-a', holder: 'tab-a' },
+      'rollback:b': { kind: 'rollback', idemKey: 'rollback:b', releaseId: 'rel-2', publicationId: null, tab: 'tab-a', holder: 'tab-a' },
     });
     await tab.store.resolved('pub-9');
     await tab.store.forget('rollback:b');

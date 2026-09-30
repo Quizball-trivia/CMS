@@ -92,8 +92,13 @@ const sessionChanged = () => new TdApiError(0, SESSION_CHANGED, 'The session cha
 export function useTdWrite() {
   const queryClient = useQueryClient();
   return useCallback(
-    async <R>(work: (operation: TdOperation) => Promise<R>, invalidate: readonly QueryKey[] = [tdKeys.content, tdKeys.releases]): Promise<R> => {
-      const operation = beginOperation(tdTokens);
+    async <R>(
+      work: (operation: TdOperation) => Promise<R>,
+      invalidate: readonly QueryKey[] = [tdKeys.content, tdKeys.releases],
+      // An action that awaited something first passes the operation it began with, so it cannot go out under the next sign-in.
+      started?: TdOperation,
+    ): Promise<R> => {
+      const operation = started ?? beginOperation(tdTokens);
       const result = await retryConflicts(() => work(operation));
       if (!operationIsCurrent(tdTokens, operation)) throw sessionChanged();
       await Promise.all(invalidate.map((queryKey) => queryClient.invalidateQueries({ queryKey })));

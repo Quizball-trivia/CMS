@@ -8,19 +8,29 @@ export interface PendingRequest {
   publicationId: string | null;
 }
 
+/** A request as a tab asks it again: `adopted` when a tab since closed sent it, so this tab may not simply let it go. */
+export interface HeldRequest extends PendingRequest {
+  adopted: boolean;
+}
+
 interface Kept extends PendingRequest {
+  /** The tab that sent it first: only that tab may forget it. */
   tab: string;
+  /** The tab asking it now (the sender, or the tab that took it over when the sender closed). */
+  holder: string;
 }
 
 export interface PendingPublications {
-  /** Records a request of this tab's before it goes out, and again once its publication is known. */
+  /** Records a request this tab sends, before it goes out and again once its publication is known. */
   keep(request: PendingRequest): Promise<void>;
-  /** Drops a request of this tab's (refused outright, or forgotten). Another tab's request is never dropped here. */
+  /** Drops a request this tab created, at the operator's word. Another tab's request is never dropped this way. */
   forget(idemKey: string): Promise<void>;
+  /** Drops a request the API refused outright: nothing runs under its key. */
+  refused(idemKey: string): Promise<void>;
   /** Drops the requests whose publication the API reports settled, whichever tab sent them. */
   resolved(publicationId: string): Promise<void>;
-  /** This tab's requests plus those of tabs that are gone, which become this tab's to ask again. */
-  claim(): Promise<PendingRequest[]>;
+  /** The requests this tab holds, plus those held by tabs that are gone, which this tab now holds. */
+  claim(): Promise<HeldRequest[]>;
 }
 
 interface Options {
@@ -46,7 +56,11 @@ export function createPendingPublications({ staffId, tab, storage, lock, liveTab
     try {
       const parsed: unknown = JSON.parse(storage()?.getItem(key) ?? '{}');
       if (typeof parsed !== 'object' || parsed === null) return new Map();
-      return new Map(Object.values(parsed).filter(isKept).map((entry) => [entry.idemKey, entry]));
+      return new Map(
+        Object.values(parsed)
+          .filter(isKept)
+          .map((entry) => [entry.idemKey, { ...entry, holder: typeof entry.holder === 'string' ? entry.holder : entry.tab }]),
+      );
     } catch {
       return new Map();
     }
@@ -77,11 +91,15 @@ export function createPendingPublications({ staffId, tab, storage, lock, liveTab
   return {
     keep: (request) =>
       update((all) => {
-        all.set(request.idemKey, { ...requestOf(request), tab });
+        all.set(request.idemKey, { ...requestOf(request), tab: all.get(request.idemKey)?.tab ?? tab, holder: tab });
       }),
     forget: (idemKey) =>
       update((all) => {
         if (all.get(idemKey)?.tab === tab) all.delete(idemKey);
+      }),
+    refused: (idemKey) =>
+      update((all) => {
+        all.delete(idemKey);
       }),
     resolved: (publicationId) =>
       update((all) => {
@@ -90,13 +108,13 @@ export function createPendingPublications({ staffId, tab, storage, lock, liveTab
     claim: () =>
       update(async (all) => {
         const live = await liveTabs();
-        const mine: PendingRequest[] = [];
+        const held: HeldRequest[] = [];
         for (const entry of all.values()) {
-          if (entry.tab !== tab && (live === null || live.has(entry.tab))) continue;
-          all.set(entry.idemKey, { ...requestOf(entry), tab });
-          mine.push(requestOf(entry));
+          if (entry.holder !== tab && (live === null || live.has(entry.holder))) continue;
+          all.set(entry.idemKey, { ...entry, holder: tab });
+          held.push({ ...requestOf(entry), adopted: entry.tab !== tab });
         }
-        return mine;
+        return held;
       }),
   };
 }
