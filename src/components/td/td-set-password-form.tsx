@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { AlertCircle, Eye, EyeOff, Loader2 } from 'lucide-react';
@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { TdApiError } from '@/lib/td/api-client';
 import { checkContract } from '@/lib/td/contract';
+import { TD_LINK_PATHS } from '@/lib/td/link-fragment';
 import { TD_ROOT } from '@/lib/workspace-guard';
 import { useTdAuth } from '@/providers/td-auth-provider';
 import { TdEnvironmentBadge } from './td-environment-badge';
@@ -65,19 +66,30 @@ export function linkRefusal(error: unknown, kind: TdLinkKind, unanswered = false
 }
 
 /**
- * The token, read once per page load: the fragment is cleared as soon as it is read, so a second effect run
- * (StrictMode) or a remount must find the captured copy, not an empty address bar.
+ * The token, read once per page load: the fragment is cleared as soon as it is read (before hydration by
+ * LINK_FRAGMENT_SCRIPT, else here), so a second effect run (StrictMode) or a remount finds the captured copy.
  */
 const captured: Partial<Record<TdLinkKind, string | null>> = {};
 
-function takeLinkToken(kind: TdLinkKind): string | null {
-  if (!(kind in captured) || window.location.hash) {
-    captured[kind] = linkTokenFrom(window.location.hash);
-    // A state without Next's own marker, so its router takes the new URL too and never restores the fragment.
-    if (window.location.hash) window.history.replaceState(null, '', `${window.location.pathname}${window.location.search}`);
-  }
+/** Takes the token of a fragment in the address bar now (a new link on the same page included) and clears it. */
+function takeFragment(kind: TdLinkKind): string | null {
+  captured[kind] = linkTokenFrom(window.location.hash);
+  // A state without Next's own marker, so its router takes the new URL too and never restores the fragment.
+  window.history.replaceState(null, '', `${window.location.pathname}${window.location.search}`);
   return captured[kind] ?? null;
 }
+
+function takeLinkToken(kind: TdLinkKind): string | null {
+  const early = window.__tdLinkToken;
+  if (early && early.path === TD_LINK_PATHS[kind]) {
+    delete window.__tdLinkToken;
+    captured[kind] = early.token && linkTokenFrom(`#token=${encodeURIComponent(early.token)}`);
+  }
+  if (window.location.hash) return takeFragment(kind);
+  return kind in captured ? (captured[kind] ?? null) : null;
+}
+
+const firstLink = (kind: TdLinkKind) => ({ token: takeLinkToken(kind), version: 1 });
 
 /** Forgets a spent token (tests, and a redeemed link). */
 export function forgetLinkTokens() {
@@ -93,10 +105,29 @@ const COPY: Record<TdLinkKind, { title: string; lead: string; submit: string; do
 
 /** Redeems an invitation or reset link (`/td/accept-invite#token=…`, `/td/reset#token=…`). */
 export function TdSetPasswordForm({ kind }: { kind: TdLinkKind }) {
-  const { status, user, acceptInvite, resetPassword } = useTdAuth();
+  // undefined: not read yet (the fragment exists only in the browser); null: missing or damaged. Each new link
+  // (another fragment on this same page) starts a fresh form, so nothing typed for one link goes with the next.
+  const [link, setLink] = useState<{ token: string | null; version: number } | undefined>(undefined);
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- the address bar is only readable after mount
+    setLink(firstLink(kind));
+    const onFragment = () => {
+      if (!window.location.hash) return;
+      const token = takeFragment(kind);
+      setLink((current) => ({ token, version: (current?.version ?? 0) + 1 }));
+    };
+    window.addEventListener('hashchange', onFragment);
+    return () => window.removeEventListener('hashchange', onFragment);
+  }, [kind]);
+
+  if (!link) return <TdFullScreenLoader />;
+  return <LinkForm key={link.version} kind={kind} token={link.token} />;
+}
+
+function LinkForm({ kind, token }: { kind: TdLinkKind; token: string | null }) {
+  const { status, user, acceptInvite, resetPassword, logout } = useTdAuth();
   const router = useRouter();
-  // undefined: not read yet (the fragment exists only in the browser); null: missing or damaged.
-  const [token, setToken] = useState<string | null | undefined>(undefined);
   const [name, setName] = useState('');
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
@@ -104,17 +135,19 @@ export function TdSetPasswordForm({ kind }: { kind: TdLinkKind }) {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [tried, setTried] = useState(false);
-
   const [unanswered, setUnanswered] = useState(false);
-
-  useEffect(() => {
-    // Read once, then gone from the address bar (and so from history, bookmarks and screen shares); the fragment only exists after mount.
-    setToken(takeLinkToken(kind));
-  }, [kind]);
+  // The link is spent and the password set, but no session came of it here.
+  const [setWithoutSession, setSetWithoutSession] = useState(false);
 
   const copy = COPY[kind];
+  const done = `${TD_ROOT}/login?done=${copy.done}`;
   const trimmedName = name.trim();
   const problem = passwordProblem(password, confirm) ?? (kind === 'invite' && (trimmedName === '' || [...trimmedName].length > 80) ? 'Enter your name (at most 80 characters).' : null);
+
+  useEffect(() => {
+    // Nobody signed in: the login page, with its note, is the way on.
+    if (setWithoutSession && status === 'anonymous') router.replace(done);
+  }, [setWithoutSession, status, router, done]);
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -130,8 +163,8 @@ export function TdSetPasswordForm({ kind }: { kind: TdLinkKind }) {
     try {
       const member = kind === 'invite' ? await acceptInvite(token, password, trimmedName) : await resetPassword(token, password);
       forgetLinkTokens();
-      // Signed in with the session the API answered; without one, the password is set all the same.
-      router.replace(member ? TD_ROOT : `${TD_ROOT}/login?done=${copy.done}`);
+      if (member) router.replace(TD_ROOT);
+      else setSetWithoutSession(true);
     } catch (caught) {
       setError(linkRefusal(caught, kind, unanswered));
       if (!(caught instanceof TdApiError)) setUnanswered(true);
@@ -139,110 +172,138 @@ export function TdSetPasswordForm({ kind }: { kind: TdLinkKind }) {
     }
   }
 
-  if (token === undefined) return <TdFullScreenLoader />;
-
-  return (
+  const frame = (body: ReactNode) => (
     <div className="flex min-h-screen flex-col items-center justify-center px-4 py-10">
       <div className="w-full max-w-[400px]">
         <div className="mb-8 flex flex-col items-center gap-4">
           <TdWordmark size="lg" />
           <TdEnvironmentBadge />
         </div>
-
-        {token === null ? (
-          <div className="rounded-xl border border-border bg-card p-6 text-center sm:p-8">
-            <h1 className="text-2xl font-bold">{copy.title}</h1>
-            <p role="alert" className="mt-4 text-sm text-(--td-danger)">
-              This link is incomplete or damaged. Open the whole link you were given, or ask a team manager for a new one.
-            </p>
-            <Link href={`${TD_ROOT}/login`} className="mt-6 inline-block text-sm text-primary underline">
-              Go to sign in
-            </Link>
-          </div>
-        ) : (
-          <form onSubmit={onSubmit} className="rounded-xl border border-border bg-card p-6 sm:p-8" noValidate>
-            <h1 className="text-center text-2xl font-bold">{copy.title}</h1>
-            <p className="mt-1 text-center text-sm text-(--td-text-3)">{copy.lead}</p>
-
-            {status === 'authenticated' && user && (
-              <p className="mt-6 rounded-lg bg-amber-400/10 px-3 py-2.5 text-sm text-amber-200">
-                You are signed in as {user.name}. Finishing here signs you in with this account instead.
-              </p>
-            )}
-
-            {(error ?? (tried ? problem : null)) && (
-              <p role="alert" className="mt-6 flex items-start gap-2 rounded-lg bg-(--td-danger)/10 px-3 py-2.5 text-sm text-(--td-danger)">
-                <AlertCircle className="mt-0.5 size-4 shrink-0" />
-                {error ?? problem}
-              </p>
-            )}
-
-            {kind === 'invite' && (
-              <div className="mt-6 flex flex-col gap-2">
-                <Label htmlFor="td-name" className="text-xs font-medium text-(--td-text-3)">
-                  Your name
-                </Label>
-                <Input id="td-name" autoComplete="name" maxLength={120} value={name} onChange={(event) => setName(event.target.value)} className={inputClass} />
-              </div>
-            )}
-
-            <div className="mt-4 flex flex-col gap-2">
-              <Label htmlFor="td-new-password" className="text-xs font-medium text-(--td-text-3)">
-                New password
-              </Label>
-              <div className="relative">
-                <Input
-                  id="td-new-password"
-                  type={showPassword ? 'text' : 'password'}
-                  autoComplete="new-password"
-                  value={password}
-                  onChange={(event) => setPassword(event.target.value)}
-                  className={`${inputClass} pr-12`}
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword((shown) => !shown)}
-                  aria-label={showPassword ? 'Hide password' : 'Show password'}
-                  className="absolute inset-y-0 right-0 grid w-12 place-items-center text-(--td-text-3) hover:text-foreground"
-                >
-                  {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
-                </button>
-              </div>
-              <p className="text-xs text-(--td-text-3)">
-                {PASSWORD_MIN} to {PASSWORD_MAX} characters. A long phrase is easier to remember than a short, complicated word.
-              </p>
-            </div>
-
-            <div className="mt-4 flex flex-col gap-2">
-              <Label htmlFor="td-confirm-password" className="text-xs font-medium text-(--td-text-3)">
-                Repeat the password
-              </Label>
-              <Input
-                id="td-confirm-password"
-                type={showPassword ? 'text' : 'password'}
-                autoComplete="new-password"
-                value={confirm}
-                onChange={(event) => setConfirm(event.target.value)}
-                className={inputClass}
-              />
-            </div>
-
-            <Button
-              type="submit"
-              disabled={submitting}
-              className="mt-6 h-12 w-full rounded-lg text-sm font-semibold disabled:bg-(--td-border) disabled:text-(--td-text-3) disabled:opacity-100"
-            >
-              {submitting ? <Loader2 className="animate-spin" /> : copy.submit}
-            </Button>
-            <p className="mt-4 text-center text-xs text-(--td-text-3)">
-              Already set your password?{' '}
-              <Link href={`${TD_ROOT}/login`} className="text-primary underline">
-                Sign in
-              </Link>
-            </p>
-          </form>
-        )}
+        {body}
       </div>
     </div>
+  );
+
+  if (setWithoutSession) {
+    // Someone is still signed in (the earlier account, or one who signed in meanwhile): theirs is never ended silently.
+    if (status !== 'authenticated' || !user) return <TdFullScreenLoader />;
+    return frame(
+      <div className="rounded-xl border border-border bg-card p-6 sm:p-8">
+        <h1 className="text-center text-2xl font-bold">{kind === 'invite' ? 'You have joined' : 'Password set'}</h1>
+        <p role="status" className="mt-4 text-sm text-(--td-text-2)">
+          {kind === 'invite' ? 'Your account is ready' : 'Your new password is set'}, but this browser is still signed in as {user.name}.
+        </p>
+        <div className="mt-6 flex flex-col gap-2">
+          <Button
+            className="h-11 rounded-lg"
+            onClick={async () => {
+              await logout();
+              router.replace(done);
+            }}
+          >
+            Sign out and sign in with the new password
+          </Button>
+          <Button variant="secondary" className="h-11 rounded-lg" onClick={() => router.replace(TD_ROOT)}>
+            Stay signed in as {user.name}
+          </Button>
+        </div>
+      </div>,
+    );
+  }
+
+  return frame(
+    token === null ? (
+      <div className="rounded-xl border border-border bg-card p-6 text-center sm:p-8">
+        <h1 className="text-2xl font-bold">{copy.title}</h1>
+        <p role="alert" className="mt-4 text-sm text-(--td-danger)">
+          This link is incomplete or damaged. Open the whole link you were given, or ask a team manager for a new one.
+        </p>
+        <Link href={`${TD_ROOT}/login`} className="mt-6 inline-block text-sm text-primary underline">
+          Go to sign in
+        </Link>
+      </div>
+    ) : (
+      <form onSubmit={onSubmit} className="rounded-xl border border-border bg-card p-6 sm:p-8" noValidate>
+        <h1 className="text-center text-2xl font-bold">{copy.title}</h1>
+        <p className="mt-1 text-center text-sm text-(--td-text-3)">{copy.lead}</p>
+
+        {status === 'authenticated' && user && (
+          <p className="mt-6 rounded-lg bg-amber-400/10 px-3 py-2.5 text-sm text-amber-200">
+            You are signed in as {user.name}. Finishing here signs you in with this account instead.
+          </p>
+        )}
+
+        {(error ?? (tried ? problem : null)) && (
+          <p role="alert" className="mt-6 flex items-start gap-2 rounded-lg bg-(--td-danger)/10 px-3 py-2.5 text-sm text-(--td-danger)">
+            <AlertCircle className="mt-0.5 size-4 shrink-0" />
+            {error ?? problem}
+          </p>
+        )}
+
+        {kind === 'invite' && (
+          <div className="mt-6 flex flex-col gap-2">
+            <Label htmlFor="td-name" className="text-xs font-medium text-(--td-text-3)">
+              Your name
+            </Label>
+            <Input id="td-name" autoComplete="name" maxLength={120} value={name} onChange={(event) => setName(event.target.value)} className={inputClass} />
+          </div>
+        )}
+
+        <div className="mt-4 flex flex-col gap-2">
+          <Label htmlFor="td-new-password" className="text-xs font-medium text-(--td-text-3)">
+            New password
+          </Label>
+          <div className="relative">
+            <Input
+              id="td-new-password"
+              type={showPassword ? 'text' : 'password'}
+              autoComplete="new-password"
+              value={password}
+              onChange={(event) => setPassword(event.target.value)}
+              className={`${inputClass} pr-12`}
+            />
+            <button
+              type="button"
+              onClick={() => setShowPassword((shown) => !shown)}
+              aria-label={showPassword ? 'Hide password' : 'Show password'}
+              className="absolute inset-y-0 right-0 grid w-12 place-items-center text-(--td-text-3) hover:text-foreground"
+            >
+              {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+            </button>
+          </div>
+          <p className="text-xs text-(--td-text-3)">
+            {PASSWORD_MIN} to {PASSWORD_MAX} characters. A long phrase is easier to remember than a short, complicated word.
+          </p>
+        </div>
+
+        <div className="mt-4 flex flex-col gap-2">
+          <Label htmlFor="td-confirm-password" className="text-xs font-medium text-(--td-text-3)">
+            Repeat the password
+          </Label>
+          <Input
+            id="td-confirm-password"
+            type={showPassword ? 'text' : 'password'}
+            autoComplete="new-password"
+            value={confirm}
+            onChange={(event) => setConfirm(event.target.value)}
+            className={inputClass}
+          />
+        </div>
+
+        <Button
+          type="submit"
+          disabled={submitting}
+          className="mt-6 h-12 w-full rounded-lg text-sm font-semibold disabled:bg-(--td-border) disabled:text-(--td-text-3) disabled:opacity-100"
+        >
+          {submitting ? <Loader2 className="animate-spin" /> : copy.submit}
+        </Button>
+        <p className="mt-4 text-center text-xs text-(--td-text-3)">
+          Already set your password?{' '}
+          <Link href={`${TD_ROOT}/login`} className="text-primary underline">
+            Sign in
+          </Link>
+        </p>
+      </form>
+    ),
   );
 }

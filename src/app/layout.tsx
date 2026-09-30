@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
 import { Inter, Geist_Mono } from "next/font/google";
+import Script from "next/script";
 import { Providers } from "@/providers";
 import { WORKSPACE } from "@/lib/workspace";
+import { LINK_FRAGMENT_SCRIPT } from "@/lib/td/link-fragment";
 import "./globals.css";
 
 const inter = Inter({
@@ -32,6 +34,12 @@ export default function RootLayout({
       <body
         className={`${inter.variable} ${geistMono.variable} antialiased`}
       >
+        {/* Before hydration, so the router never sees a one-time link token in the URL (src/lib/td/link-fragment.ts). */}
+        {WORKSPACE === "table-derby" && (
+          <Script id="td-link-fragment" strategy="beforeInteractive">
+            {LINK_FRAGMENT_SCRIPT}
+          </Script>
+        )}
         {/* Chosen per build, not per path: a Table Derby build never mounts Quizball auth, not even on 404s. */}
         {WORKSPACE === "table-derby" ? children : <Providers>{children}</Providers>}
       </body>

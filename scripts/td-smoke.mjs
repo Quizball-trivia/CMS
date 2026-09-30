@@ -101,6 +101,14 @@ try {
   await page.goto(invitation);
   await page.getByRole('heading', { name: 'Join the team' }).waitFor();
   check('the invitation opens signed out, and its token leaves the address bar', !page.url().includes('#'));
+  // The App Router's own copy of the URL must not hold the token either: a router refresh would put it back.
+  await page.evaluate(() => window.next?.router?.refresh());
+  await page.waitForTimeout(1500);
+  check(
+    'a router refresh after hydration does not bring the token back',
+    !page.url().includes('#') && (await page.evaluate(() => window.__tdLinkToken === undefined)) && (await page.getByLabel('New password').count()) === 1,
+    page.url().replace(/#token=.*/, '#token=…'),
+  );
   await page.getByLabel('Your name').fill('Smoke Member');
   await page.getByLabel('New password').fill('smoke member passphrase');
   await page.getByLabel('Repeat the password').fill('smoke member passphrase');

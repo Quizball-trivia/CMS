@@ -131,22 +131,35 @@ export function TdAuthProvider({ children }: { children: ReactNode }) {
     return () => clearInterval(id);
   }, [state.status]);
 
-  /** Makes a session the API just issued this tab's sign-in (replacing and revoking any earlier one). */
+  /**
+   * Makes a session the API just issued this tab's sign-in, replacing (and revoking) the stored one. With
+   * `expected`, only if the stored sign-in is still that one when the replacement runs under the session lock;
+   * otherwise it is left alone, the unused new session is revoked, and this answers null.
+   */
   const adopt = useCallback(
-    async (tokens: TdTokenSet) => {
+    async (tokens: TdTokenSet, expected?: string | null): Promise<TdStaff | null> => {
       const generation = newGeneration();
       // Set first, so our own commit below is not mistaken for another tab's sign-in.
       activeGeneration.current = generation;
       queryClient.clear();
       // No identity shown while the credentials change hands: the old account's name and role never sit over the new tokens.
       setState({ status: 'loading', user: null, notice: null });
+      let taken = false;
       try {
-        const replaced = await tdTokens.transact((tx) => {
+        const outcome = await tdTokens.transact((tx) => {
           const previous = tx.read();
+          if (expected !== undefined && (previous?.generation ?? null) !== expected) return { stale: true as const };
           tx.replace({ ...tokens, generation, staffId: null, refreshPendingSince: null });
-          return previous;
+          return { stale: false as const, previous };
         });
-        if (replaced) void tdApi.logout(replaced.refreshToken);
+        if (outcome.stale) {
+          void tdApi.logout(tokens.refreshToken);
+          // Show the sign-in that came first again, as it stands in the store.
+          void resolveIdentity();
+          return null;
+        }
+        taken = true;
+        if (outcome.previous) void tdApi.logout(outcome.previous.refreshToken);
         const me = await tdApi.me({ generation });
         const committed = await tdTokens.transact((tx) => tx.update(generation, { staffId: me.id }));
         if (!committed || activeGeneration.current !== generation) {
@@ -155,15 +168,23 @@ export function TdAuthProvider({ children }: { children: ReactNode }) {
         setState({ status: 'authenticated', user: me, notice: null });
         return me;
       } catch (error) {
+        if (!taken) void tdApi.logout(tokens.refreshToken);
         if (activeGeneration.current === generation) becomeAnonymous(null);
         await endGeneration(generation);
         throw error;
       }
     },
-    [becomeAnonymous, queryClient],
+    [becomeAnonymous, queryClient, resolveIdentity],
   );
 
-  const login = useCallback(async (email: string, password: string) => adopt(await tdApi.login(email, password)), [adopt]);
+  const login = useCallback(
+    async (email: string, password: string) => {
+      const member = await adopt(await tdApi.login(email, password));
+      if (!member) throw new TdApiError(0, SESSION_CHANGED, 'Another sign-in replaced this one');
+      return member;
+    },
+    [adopt],
+  );
 
   /**
    * A one-time link redeemed: refused links and passwords throw; once the API has taken it the password is set,
@@ -171,12 +192,12 @@ export function TdAuthProvider({ children }: { children: ReactNode }) {
    */
   const redeem = useCallback(
     async (obtain: () => Promise<TdTokenSet | null>) => {
-      // The sign-in this began under: if another sign-in or a sign-out happened meanwhile, it is left alone.
+      // The sign-in this began under: another sign-in or a sign-out meanwhile is left alone (checked again under the lock).
       const before = tdTokens.read()?.generation ?? null;
       const tokens = await obtain();
-      if (!tokens || (tdTokens.read()?.generation ?? null) !== before) return null;
+      if (!tokens) return null;
       try {
-        return await adopt(tokens);
+        return await adopt(tokens, before);
       } catch {
         return null;
       }
