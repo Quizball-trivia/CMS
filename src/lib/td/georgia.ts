@@ -12,6 +12,38 @@ export function georgiaToday(now: number = Date.now()): string {
   return new Date(now + OFFSET_MS).toISOString().slice(0, 10);
 }
 
+/** Milliseconds from `now` to the next Georgian midnight (20:00 UTC). */
+export function msToNextGeorgiaDay(now: number = Date.now()): number {
+  return DAY_MS - ((((now + OFFSET_MS) % DAY_MS) + DAY_MS) % DAY_MS);
+}
+
+/**
+ * Calls `onChange` at every Georgian midnight, and when the page is shown
+ * again: a timer does not run while the machine sleeps.
+ */
+export function subscribeGeorgiaDay(onChange: () => void): () => void {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const arm = () => {
+    clearTimeout(timer);
+    // A little past midnight, so the date read then is already the new one.
+    timer = setTimeout(() => {
+      onChange();
+      arm();
+    }, msToNextGeorgiaDay() + 250);
+  };
+  const onVisible = () => {
+    if (document.visibilityState !== 'visible') return;
+    onChange();
+    arm();
+  };
+  arm();
+  document.addEventListener('visibilitychange', onVisible);
+  return () => {
+    clearTimeout(timer);
+    document.removeEventListener('visibilitychange', onVisible);
+  };
+}
+
 /** Whole days since 1970-01-01 for a calendar date, or null when it is not one. */
 export function dayNumber(day: string): number | null {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) return null;

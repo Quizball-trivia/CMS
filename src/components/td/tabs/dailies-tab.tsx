@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useSyncExternalStore } from 'react';
+import { useState } from 'react';
 import { ChevronLeft, ChevronRight, Pencil, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { TdSection } from '@/components/td/td-page';
@@ -11,7 +11,8 @@ import { TD_DAILY_GAMES, useTdPuzzles, type TdPuzzle } from '@/components/td/con
 import { TdStatusChip } from '@/components/td/content/td-status';
 import { useTdAllRows } from '@/hooks/use-td-content';
 import type { TdContentRow, TdDailyGame } from '@/lib/td/admin-api';
-import { addDays, daysFrom, formatDay, formatMonth, georgiaToday, monthGrid, scheduledSet, shiftMonth, type DailyCycle } from '@/lib/td/georgia';
+import { addDays, daysFrom, formatDay, formatMonth, monthGrid, scheduledSet, shiftMonth, type DailyCycle } from '@/lib/td/georgia';
+import { useGeorgiaToday } from '@/hooks/use-georgia-today';
 import { cn } from '@/lib/utils';
 
 const ALL = 'draft,ready,approved,archived';
@@ -69,8 +70,6 @@ export function planDays(dates: string[], today: string, rows: ScheduleRow[], se
   });
 }
 
-const noSubscription = () => () => {};
-
 export function TdDailiesTab() {
   const [game, setGame] = useState<TdDailyGame>('footballLogic');
   const [target, setTarget] = useState<TdEditorTarget | null>(null);
@@ -119,8 +118,7 @@ export function TdDailiesTab() {
 }
 
 function TdCalendar({ game, onOpen }: { game: TdDailyGame; onOpen: (target: TdEditorTarget) => void }) {
-  // Client-only: a prerendered page must not carry its build date.
-  const today = useSyncExternalStore(noSubscription, () => georgiaToday(), () => null);
+  const today = useGeorgiaToday();
   const [month, setMonth] = useState<string | null>(null);
   const shown = month ?? today?.slice(0, 7) ?? null;
   const weeks = shown ? monthGrid(`${shown}-01`) : [];
