@@ -7,8 +7,8 @@ import { TD_STORAGE_KEYS } from './token-store';
 export { MOCK_STAFF };
 
 /**
- * Stand-in for the Table Derby API (`NEXT_PUBLIC_TD_API_MOCK=1`, never in
- * production; see env.ts), plugged in as the client's `fetch`. It speaks the
+ * Stand-in for the Table Derby API (`NEXT_PUBLIC_TD_API_MOCK=1`, local
+ * development only; see env.ts), plugged in as the client's `fetch`. It speaks the
  * real contract, including refresh-token rotation and reuse detection, so the
  * real client and refresh coordinator run against it. Its session table lives
  * in localStorage so every tab talks to the same "server". Every other route

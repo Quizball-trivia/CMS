@@ -1,5 +1,6 @@
 // Headless smoke test for a running Table Derby mock build (CI: `next start` of
-// NEXT_PUBLIC_CMS_WORKSPACE=table-derby NEXT_PUBLIC_CMS_ENV=STAGING NEXT_PUBLIC_TD_API_MOCK=1).
+// NEXT_PUBLIC_CMS_WORKSPACE=table-derby NEXT_PUBLIC_TD_API_MOCK=1, a local build: the mock is
+// refused in any hosted build or with NEXT_PUBLIC_CMS_ENV set).
 // Usage: node scripts/td-smoke.mjs [baseUrl]. Needs the `playwright` package and a Chromium.
 import { readFileSync } from 'node:fs';
 import { chromium } from 'playwright';

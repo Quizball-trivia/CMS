@@ -31,13 +31,16 @@ function parseFlag(name: string, raw: string | undefined): boolean {
   throw new Error(`${name} must be "1", "0" or unset, got "${raw}"`);
 }
 
+/** Vercel sets VERCEL on every build it hosts; any value counts. */
+const isHosted = (env: TdEnvInput) => env.VERCEL !== undefined && env.VERCEL !== '';
+
 /** The product environment; Vercel's own environment says nothing about it (staging has a production slot too). */
 function resolveDeployEnv(env: TdEnvInput): TdDeployEnv {
   const raw = env.NEXT_PUBLIC_CMS_ENV;
   if (raw === 'PROD') return 'production';
   if (raw === 'STAGING') return 'staging';
   if (raw === undefined || raw === '') {
-    if (env.VERCEL === '1') throw new Error('Hosted Table Derby CMS builds must set NEXT_PUBLIC_CMS_ENV to PROD or STAGING');
+    if (isHosted(env)) throw new Error('Hosted Table Derby CMS builds must set NEXT_PUBLIC_CMS_ENV to PROD or STAGING');
     return 'local';
   }
   throw new Error(`NEXT_PUBLIC_CMS_ENV must be PROD or STAGING, got "${raw}"`);
@@ -54,15 +57,17 @@ export function resolveTdConfig(env: TdEnvInput): TdConfig {
   const mock = parseFlag('NEXT_PUBLIC_TD_API_MOCK', env.NEXT_PUBLIC_TD_API_MOCK);
 
   if (mock) {
-    if (deployEnv === 'production') {
-      throw new Error('NEXT_PUBLIC_TD_API_MOCK=1 is not allowed when NEXT_PUBLIC_CMS_ENV=PROD');
+    // The mock carries demo accounts with a public password: it may only run on a developer's machine,
+    // never in a build that is hosted or names a product environment.
+    if (deployEnv !== 'local' || isHosted(env)) {
+      throw new Error('NEXT_PUBLIC_TD_API_MOCK=1 is for local development only: not on Vercel and not with NEXT_PUBLIC_CMS_ENV set');
     }
     return { deployEnv, apiUrl: MOCK_API_URL, apiOrigin: null, mock };
   }
 
   const raw = env.NEXT_PUBLIC_TD_API_URL?.trim() ?? '';
   if (!raw) {
-    throw new Error('Table Derby CMS needs NEXT_PUBLIC_TD_API_URL (or NEXT_PUBLIC_TD_API_MOCK=1 outside production)');
+    throw new Error('Table Derby CMS needs NEXT_PUBLIC_TD_API_URL (or NEXT_PUBLIC_TD_API_MOCK=1 in local development)');
   }
   let url: URL;
   try {
