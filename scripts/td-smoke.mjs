@@ -91,6 +91,11 @@ try {
 
   // A new member: the admin makes an invitation link on the Team tab; opened signed out, it joins and signs in.
   await page.goto(`${BASE}/td/team`);
+  // Made, not used: the editor still signs in with the demo password below.
+  await page.getByRole('button', { name: 'Reset link for Demo Editor' }).click();
+  const resetUrl = await page.getByLabel('Reset link').inputValue();
+  check('Betsson admin makes a one-time reset link for a member', resetUrl.startsWith(`${BASE}/td/reset#token=tdr_`), resetUrl.replace(/#token=.*/, '#token=…'));
+  await page.getByRole('button', { name: 'Done' }).click();
   await page.getByRole('button', { name: 'Invite member' }).click();
   await page.getByLabel('Email').fill('smoke.member@example.test');
   await page.getByRole('button', { name: 'Make the invitation link' }).click();

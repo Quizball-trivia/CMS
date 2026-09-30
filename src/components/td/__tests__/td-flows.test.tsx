@@ -381,6 +381,55 @@ describe('penalties to review', () => {
 });
 
 describe('team', () => {
+  it('a team manager makes a one-time reset link for an active member; none for themselves, ops or someone not signed up', async () => {
+    const admin = await signIn('betsson_admin');
+    renderTd(<TdTeam />);
+    expect(await screen.findByRole('button', { name: 'Reset link for Demo Editor' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Reset link for Demo Publisher' })).toBeTruthy();
+    for (const name of ['Demo Betsson Admin', 'Demo Ops', 'Invited Editor']) expect(screen.queryByRole('button', { name: `Reset link for ${name}` })).toBeNull();
+
+    // The publisher's (the editor signs in again below with the demo password).
+    fireEvent.click(screen.getByRole('button', { name: 'Reset link for Demo Publisher' }));
+    const link = (await screen.findByLabelText('Reset link')) as HTMLInputElement;
+    expect(link.value).toMatch(new RegExp(`^${window.location.origin}/td/reset#token=tdr_[A-Za-z0-9_-]{20,}$`));
+    expect(screen.getByText(/Reset link for/).textContent).toContain('publisher@demo.tablederby.test');
+    expect(screen.getByText(/Shown once: it cannot be seen again.*\(Georgia\)\. Making another reset link for them stops this one\./)).toBeTruthy();
+    // The link is one the API takes, once.
+    const token = decodeURIComponent(link.value.split('#token=')[1]);
+    await expect(admin.api.resetPassword(token, 'a brand new passphrase')).resolves.toMatchObject({ accessToken: expect.any(String) });
+    await expect(admin.api.resetPassword(token, 'a brand new passphrase')).rejects.toMatchObject({ code: 'invalid_token' });
+    fireEvent.click(screen.getByRole('button', { name: 'Done' }));
+    expect(screen.queryByLabelText('Reset link')).toBeNull();
+    cleanup();
+
+    // Ops may make one for a Betsson admin, never for an ops member (themselves included).
+    await signIn('ops');
+    renderTd(<TdTeam />);
+    expect(await screen.findByRole('button', { name: 'Reset link for Demo Betsson Admin' })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Reset link for Demo Ops' })).toBeNull();
+    cleanup();
+
+    await signIn('editor');
+    renderTd(<TdTeam />);
+    await waitFor(() => expect(screen.queryByText('Loading…')).toBeNull());
+    expect(screen.queryByRole('button', { name: /^Reset link for/ })).toBeNull();
+  });
+
+  it('says in plain words why a reset link was not made', async () => {
+    const admin = await signIn('betsson_admin');
+    const refusals = [new TdApiError(409, 'conflict', 'Re-enable them first'), new TdApiError(404, 'not_found', 'No such member'), new TypeError('Failed to fetch')];
+    h.admin = { ...admin.admin, staff: { ...admin.admin.staff, resetLink: async () => Promise.reject(refusals.shift()) } };
+    renderTd(<TdTeam />);
+    const make = async () => fireEvent.click(await screen.findByRole('button', { name: 'Reset link for Demo Editor' }));
+    await make();
+    expect(await screen.findByText('No reset link for editor@demo.tablederby.test: Re-enable them first.')).toBeTruthy();
+    await make();
+    expect(await screen.findByText('editor@demo.tablederby.test is no longer on the team.')).toBeTruthy();
+    await make();
+    expect(await screen.findByText(/No answer from the Table Derby API, so a link may have been made\. Make another/)).toBeTruthy();
+    expect(screen.queryByLabelText('Reset link')).toBeNull();
+  });
+
   it('a team manager makes a one-time invitation link to copy; an editor sees no invite', async () => {
     await signIn('betsson_admin');
     renderTd(<TdTeam />);
