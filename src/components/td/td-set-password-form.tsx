@@ -153,6 +153,8 @@ function LinkForm({ kind, token }: { kind: TdLinkKind; token: string | null }) {
   const [setWithoutSession, setSetWithoutSession] = useState(false);
   // False once another link replaced this form: its late answer must not steer the page away from the new one.
   const current = useRef(true);
+  // Replaced, or about to be: a fragment in the address bar is always a new link not taken yet (ours is cleared).
+  const replaced = () => !current.current || window.location.hash !== '';
   useEffect(() => {
     current.current = true;
     return () => {
@@ -184,11 +186,11 @@ function LinkForm({ kind, token }: { kind: TdLinkKind; token: string | null }) {
     try {
       const member = kind === 'invite' ? await acceptInvite(token, password, trimmedName) : await resetPassword(token, password);
       forgetSpent(kind, token);
-      if (!current.current) return;
+      if (replaced()) return;
       if (member) router.replace(TD_ROOT);
       else setSetWithoutSession(true);
     } catch (caught) {
-      if (!current.current) return;
+      if (replaced()) return;
       setError(linkRefusal(caught, kind, unanswered));
       if (!(caught instanceof TdApiError)) setUnanswered(true);
       setSubmitting(false);

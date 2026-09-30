@@ -468,6 +468,30 @@ describe('invitation and reset links', () => {
     expect(screen.getByTestId('who').textContent).toBe('Second Member');
   });
 
+  it('a late answer that lands before a router-navigated new link is taken does not redirect either', async () => {
+    const first = await managerLink('invite', 'window-first@example.test');
+    const second = await managerLink('invite', 'window-second@example.test');
+    const answer = deferred<void>();
+    const inner = server;
+    Object.assign(h, client(((input: RequestInfo | URL, init?: RequestInit) => {
+      const body = new URL(String(input)).pathname === '/admin/auth/accept-invite' ? (JSON.parse(String(init?.body)) as { token?: string }) : null;
+      return body?.token === first ? answer.promise.then(() => inner(input, init)) : inner(input, init);
+    }) as typeof fetch));
+    window.history.replaceState(null, '', `/td/accept-invite#token=${first}`);
+    renderPage(<TdSetPasswordForm kind="invite" />);
+    fill('Your name', 'First Member');
+    fill('New password', 'a long enough passphrase');
+    fill('Repeat the password', 'a long enough passphrase');
+    fireEvent.click(await screen.findByRole('button', { name: 'Join' }));
+    // The new link arrives by pushState and the old answer lands at once, before the next check takes the fragment.
+    window.history.pushState(null, '', `/td/accept-invite#token=${second}`);
+    await act(async () => answer.resolve());
+    expect(h.replace).not.toHaveBeenCalled();
+    await waitFor(() => expect(window.location.hash).toBe(''));
+    await waitFor(() => expect((screen.getByLabelText('Your name') as HTMLInputElement).value).toBe(''));
+    expect(h.replace).not.toHaveBeenCalled();
+  });
+
   it('when the API cannot say who is signed in after a link was taken, the page offers to try again or go to sign in', async () => {
     const token = await managerLink('invite');
     const answer = deferred<void>();
