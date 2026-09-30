@@ -2,8 +2,15 @@
 
 import { TdMediaPicker, TdMediaThumb, TdUploadButton } from '@/components/td/media/td-media';
 import { cn } from '@/lib/utils';
-import { issuesAt, TdField, TdIssueText, TdListField, TdOptionalTextField, TdSelectField, TdSwitchField, TdTextField } from '../td-form';
+import { issuesAt, TdField, TdIssueText, TdListField, TdOptionalTextField, TdSelectField, TdSwitchField, TdTextField, type TdListChange } from '../td-form';
 import { KeyField, type TdEditorProps } from './rounds';
+
+/** The right option's index after the options list changed: it follows its option. */
+export function followAnswer(answer: number, change: TdListChange): number {
+  if (change.kind === 'move') return answer === change.from ? change.to : answer === change.to ? change.from : answer;
+  if (change.kind === 'remove') return change.index < answer ? answer - 1 : answer;
+  return answer;
+}
 
 export function PracticeEditor({ value, onChange, issues, creating }: TdEditorProps<'practice-questions'>) {
   return (
@@ -28,7 +35,8 @@ export function PracticeEditor({ value, onChange, issues, creating }: TdEditorPr
       <TdListField
         label="Options (choose the right one)"
         values={value.options}
-        onChange={(options) => onChange({ ...value, options, answer: Math.min(value.answer, Math.max(0, options.length - 1)) })}
+        onChange={(options, change) => onChange({ ...value, options, answer: followAnswer(value.answer, change) })}
+        canRemove={(index) => (index === value.answer ? 'Mark another option as right before removing this one' : true)}
         issues={issues}
         path="data.options"
         max={8}

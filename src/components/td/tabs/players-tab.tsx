@@ -15,7 +15,7 @@ import { TdIssueText } from '@/components/td/content/td-form';
 import { tdKeys, useTdWrite } from '@/hooks/use-td-content';
 import { TdApiError } from '@/lib/td/api-client';
 import { tdAdmin } from '@/lib/td/client';
-import { checkContract, type AdminLedgerList, type AdminMatchRecord, type AdminPlayerMatchList, type SchemaIssue } from '@/lib/td/contract';
+import { checkContract, type AdminLedgerList, type AdminMatchRecord, type AdminPlayerList, type AdminPlayerMatchList, type SchemaIssue } from '@/lib/td/contract';
 import { formatDay, formatGeorgiaTime } from '@/lib/td/georgia';
 import { cn } from '@/lib/utils';
 import { useTdAuth } from '@/providers/td-auth-provider';
@@ -31,11 +31,14 @@ export function TdPlayersTab() {
   const [q, setQ] = useState('');
   const [player, setPlayer] = useState<string | null>(null);
   const [match, setMatch] = useState<string | null>(null);
-  const results = useQuery({
+  const results = useInfiniteQuery({
     queryKey: [...tdKeys.ops, 'players', q],
-    queryFn: ({ signal }) => tdAdmin.players.search(q, { limit: 50 }, { signal }),
+    queryFn: ({ pageParam, signal }) => tdAdmin.players.search(q, { cursor: pageParam, limit: 50 }, { signal }),
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: (last: AdminPlayerList) => last.nextCursor ?? undefined,
     enabled: q !== '',
   });
+  const found = results.data?.pages.flatMap((page) => page.items) ?? [];
   return (
     <>
       <TdSection
@@ -58,8 +61,8 @@ export function TdPlayersTab() {
         <TdErrorPanel error={results.error} className="m-5" />
         {!q && <TdEmptyState icon={Users} title="Search to see players" />}
         {results.isLoading && <p className="px-5 py-4 text-sm text-(--td-text-3)">Searching…</p>}
-        {results.data && results.data.items.length === 0 && <TdEmptyState title="No player matches" />}
-        {results.data && results.data.items.length > 0 && (
+        {results.data && found.length === 0 && <TdEmptyState title="No player matches" />}
+        {found.length > 0 && (
           <div className="overflow-x-auto">
             <Table>
               <TableHeader>
@@ -72,7 +75,7 @@ export function TdPlayersTab() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {results.data.items.map((p) => (
+                {found.map((p) => (
                   <TableRow key={p.id} onClick={() => setPlayer(p.id)} className={cn('cursor-pointer border-(--td-divider) hover:bg-secondary/40', player === p.id && 'bg-secondary/60')}>
                     <TableCell className="px-3 py-2.5 pl-5 font-medium">{p.displayName}</TableCell>
                     <TableCell className="px-3 py-2.5 font-mono text-xs text-(--td-text-2)">{p.partnerPlayerId ?? `${p.provider}`}</TableCell>
@@ -84,6 +87,13 @@ export function TdPlayersTab() {
                 ))}
               </TableBody>
             </Table>
+          </div>
+        )}
+        {results.hasNextPage && (
+          <div className="border-t border-(--td-divider) px-5 py-3">
+            <Button variant="secondary" size="sm" className="rounded-lg" disabled={results.isFetchingNextPage} onClick={() => void results.fetchNextPage()}>
+              Load more
+            </Button>
           </div>
         )}
       </TdSection>
@@ -205,28 +215,57 @@ export interface TdReplayStep {
   seat: string | null;
   kind: string;
   details: Record<string, unknown> | null;
+  /** An entry this reader does not understand, as it came. */
   raw: unknown;
+}
+
+type Input = Record<string, unknown>;
+
+/** One kept entry: the match queue's `<stamp µs>|<input JSON>` (the admin API passes it on as a string), or an object. */
+function decodeEntry(entry: unknown): { stamp: number | null; input: Input } | null {
+  if (typeof entry === 'string') {
+    const m = /^(\d{1,20})\|([\s\S]*)$/.exec(entry);
+    if (!m) return null;
+    try {
+      const input = JSON.parse(m[2]) as unknown;
+      return input && typeof input === 'object' && !Array.isArray(input) ? { stamp: Number(m[1]), input: input as Input } : null;
+    } catch {
+      return null;
+    }
+  }
+  if (entry && typeof entry === 'object' && !Array.isArray(entry)) {
+    const input = entry as Input;
+    return { stamp: typeof input.at === 'number' ? input.at * 1000 : null, input };
+  }
+  return null;
 }
 
 /**
  * The kept input log as steps. Contract v4 types the entries as unknown (the
- * engine's own inputs), so this reads `at`, `seat` and `kind` where they are
- * and keeps anything else as it came.
+ * engine's queued inputs): `{kind: 'command', seat, command: {kind, …}}`,
+ * `presence`, `ready`, `void`. Anything else is shown as it came.
  */
 export function replaySteps(entries: unknown[]): TdReplayStep[] {
-  const times = entries.map((e) => (e && typeof e === 'object' && typeof (e as { at?: unknown }).at === 'number' ? (e as { at: number }).at : null));
-  const first = times.find((t): t is number => t !== null) ?? null;
+  const decoded = entries.map(decodeEntry);
+  const first = decoded.find((d) => d?.stamp !== null && d?.stamp !== undefined)?.stamp ?? null;
   return entries.map((entry, i) => {
-    if (!entry || typeof entry !== 'object' || Array.isArray(entry)) return { offset: null, seat: null, kind: 'unknown', details: null, raw: entry };
-    const { seat, kind, ...rest } = entry as Record<string, unknown>;
+    const d = decoded[i];
+    if (!d) return { offset: null, seat: null, kind: 'unknown', details: null, raw: entry };
+    const offset = d.stamp !== null && first !== null ? Math.round((d.stamp - first) / 1000) : null;
+    const { kind, seat, command, ...rest } = d.input;
     delete rest.at;
-    return {
-      offset: times[i] !== null && first !== null ? times[i]! - first : null,
-      seat: typeof seat === 'string' ? seat : null,
-      kind: typeof kind === 'string' ? kind : 'unknown',
-      details: Object.keys(rest).length ? rest : null,
-      raw: null,
-    };
+    if (kind === 'command' && command && typeof command === 'object') {
+      const { kind: commandKind, seat: commandSeat, ...details } = command as Input;
+      delete details.id;
+      return {
+        offset,
+        seat: typeof seat === 'string' ? seat : typeof commandSeat === 'string' ? commandSeat : null,
+        kind: typeof commandKind === 'string' ? commandKind : 'command',
+        details: Object.keys(details).length ? details : null,
+        raw: null,
+      };
+    }
+    return { offset, seat: typeof seat === 'string' ? seat : null, kind: typeof kind === 'string' ? kind : 'unknown', details: Object.keys(rest).length ? rest : null, raw: null };
   });
 }
 

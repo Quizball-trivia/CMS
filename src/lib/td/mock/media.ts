@@ -51,6 +51,42 @@ export function imageSize(bytes: Uint8Array, format: Format): { width: number; h
   }
 }
 
+/**
+ * What the API's decoder would refuse, read from the file's structure (the mock cannot decode): a PNG walked
+ * chunk by chunk to its IEND, a JPEG to its end marker, a WebP by its RIFF size; animation flags.
+ */
+export function structureProblem(bytes: Uint8Array, format: Format): 'trailing_data' | 'animated' | 'decode' | null {
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  const tag = (at: number) => String.fromCharCode(...bytes.slice(at, at + 4));
+  if (format === 'image/png') {
+    if (tag(12) !== 'IHDR') return 'decode';
+    let at = 8;
+    while (at + 12 <= bytes.length) {
+      const length = view.getUint32(at);
+      const type = tag(at + 4);
+      if (at + 12 + length > bytes.length) return 'decode';
+      if (type === 'acTL') return 'animated';
+      at += 12 + length;
+      if (type === 'IEND') return at === bytes.length ? null : 'trailing_data';
+    }
+    return 'decode';
+  }
+  if (format === 'image/webp') {
+    const size = view.getUint32(4, true) + 8;
+    if (size > bytes.length) return 'decode';
+    if (size < bytes.length) return 'trailing_data';
+    if (tag(12) === 'VP8X' && (bytes[20] & 0x02) !== 0) return 'animated';
+    for (let at = 12; at + 8 <= bytes.length; at += 8 + view.getUint32(at + 4, true) + (view.getUint32(at + 4, true) % 2)) if (tag(at) === 'ANIM') return 'animated';
+    return null;
+  }
+  const end = bytes.length;
+  if (bytes[end - 2] === 0xff && bytes[end - 1] === 0xd9) return null;
+  for (let at = end - 3; at > 2; at--) if (bytes[at] === 0xff && bytes[at + 1] === 0xd9) return 'trailing_data';
+  return 'decode';
+}
+
+const STRUCTURE_MESSAGES = { trailing_data: 'The file carries data after the image', animated: 'Animated images are not accepted', decode: 'The image could not be decoded' };
+
 export async function upload(ctx: MockContext, blobs: MockBlobStore, body: ArrayBuffer | null, contentType: string | null): Promise<MockUpload> {
   const type = (contentType ?? '').split(';')[0].trim().toLowerCase();
   if (!body || !TYPES.includes(type as Format)) throw refuse('type', 'Images are JPEG, PNG or WebP');
@@ -59,6 +95,8 @@ export async function upload(ctx: MockContext, blobs: MockBlobStore, body: Array
   const format = sniff(bytes);
   if (format === null) throw refuse('signature', 'The file is not a JPEG, PNG or WebP image');
   if (format !== type) throw refuse('type', 'The file is not the type its Content-Type says');
+  const problem = structureProblem(bytes, format);
+  if (problem) throw refuse(problem, STRUCTURE_MESSAGES[problem]);
   const size = imageSize(bytes, format);
   if (!size || size.width < 1 || size.height < 1) throw refuse('decode', 'The image could not be decoded');
   if (size.width > MAX_SIDE || size.height > MAX_SIDE) throw refuse('dimensions', 'An image is at most 4096 pixels a side');

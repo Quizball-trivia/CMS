@@ -97,7 +97,19 @@ export async function apply(ctx: MockContext, batchKey: string, items: unknown[]
     rows: [],
   };
   parsed.forEach((item, index) => {
-    const row = createRow(ctx, item!.type, { data: item!.data, position: item!.position, note: item!.note }, batch.id);
+    let row: MockRow;
+    try {
+      row = createRow(ctx, item!.type, { data: item!.data, position: item!.position, note: item!.note }, batch.id);
+    } catch (error) {
+      // A row the preview passed but the store refused: the report names it, as the API's does.
+      if (!(error instanceof MockError) || (error.code !== 'validation' && error.code !== 'already_exists')) throw error;
+      const reported = report.rows[index];
+      reported.action = 'error';
+      if (error.code === 'already_exists') reported.issues.push({ code: 'duplicate', message: 'this key was taken meanwhile', path: 'data.key' });
+      else for (const issue of (error.details as { issues?: { path: string; message: string }[] }).issues ?? []) reported.issues.push({ code: 'rule', ...issue });
+      report.counts = { ...report.counts, create: report.counts.create - 1, error: report.counts.error + 1 };
+      throw new MockError(422, 'validation', 'Some items cannot be imported', report);
+    }
     batch.rows.push({ index, type: row.type, id: row.id, label: rowLabel(row), contentVersion: row.contentVersion, outcome: 'created', reason: null });
   });
   ctx.db.batches.push(batch);

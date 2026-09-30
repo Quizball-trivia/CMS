@@ -156,7 +156,7 @@ function EditorBody({ target, onSaved }: { target: TdEditorTarget; onSaved?: (ro
     );
   };
 
-  const actions = row && user ? contentActions(row, user, history.data?.complete ? history.data.items : null) : null;
+  const actions = row && user ? contentActions(row, user, history.data ?? null) : null;
   const Editor = config.Editor;
   const title = creating ? `New ${config.singular}` : config.title(draft.data as never) || config.singular;
   const approvedDiffers = Boolean(row?.approved && (!sameDraft({ data: row.approved as Record<string, unknown>, position: row.approvedPosition ?? 0, note: '' }, { data: row.data as Record<string, unknown>, position: row.position, note: '' })));
@@ -243,20 +243,23 @@ function EditorBody({ target, onSaved }: { target: TdEditorTarget; onSaved?: (ro
               </p>
             )}
             {notice && <p className="rounded-lg bg-(--td-input) px-3 py-2 text-xs text-(--td-text-2)">{notice}</p>}
-            <Editor value={draft.data as never} onChange={(data) => setDraft({ ...draft, data: data as Record<string, unknown> })} issues={issues} creating={creating} />
-            {!creating && (
-              <TdNumberField
-                label="Position"
-                value={draft.position}
-                onChange={(position) => setDraft({ ...draft, position: position ?? 0 })}
-                issues={issuesAt(issues, 'position')}
-                hint="The order in a release. Changing it is a change to the content."
-                className="max-w-40"
-              />
-            )}
-            <TdField label="Note" issues={issuesAt(issues, 'note')} hint="For the team: sources, checks, questions. Changing only the note keeps the row’s status.">
-              <Textarea value={draft.note} onChange={(event) => setDraft({ ...draft, note: event.target.value })} className="min-h-16 rounded-lg border-border bg-(--td-input) text-sm" />
-            </TdField>
+            {/* Locked while a write and its refresh run: the answer replaces the form, so nothing typed meanwhile may be lost. */}
+            <fieldset disabled={busy !== null} className="contents">
+              <Editor value={draft.data as never} onChange={(data) => setDraft({ ...draft, data: data as Record<string, unknown> })} issues={issues} creating={creating} />
+              {!creating && (
+                <TdNumberField
+                  label="Position"
+                  value={draft.position}
+                  onChange={(position) => setDraft({ ...draft, position: position ?? 0 })}
+                  issues={issuesAt(issues, 'position')}
+                  hint="The order in a release. Changing it is a change to the content."
+                  className="max-w-40"
+                />
+              )}
+              <TdField label="Note" issues={issuesAt(issues, 'note')} hint="For the team: sources, checks, questions. Changing only the note keeps the row’s status.">
+                <Textarea value={draft.note} onChange={(event) => setDraft({ ...draft, note: event.target.value })} className="min-h-16 rounded-lg border-border bg-(--td-input) text-sm" />
+              </TdField>
+            </fieldset>
             {issues.some((issue) => !issue.path.startsWith('data.') && issue.path !== 'note' && issue.path !== 'position') && (
               <TdErrorPanel error={new TdApiError(422, 'validation', 'Some fields are not valid', { issues })} />
             )}

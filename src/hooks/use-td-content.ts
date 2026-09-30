@@ -2,7 +2,8 @@ import { useCallback, useEffect, useMemo } from 'react';
 import { useInfiniteQuery, useQuery, useQueryClient, type QueryKey } from '@tanstack/react-query';
 import type { TdContentList, TdContentRow, TdContentType } from '@/lib/td/admin-api';
 import { tdAdmin, tdTokens } from '@/lib/td/client';
-import type { ContentListQuery } from '@/lib/td/contract';
+import type { ContentHistory, ContentListQuery } from '@/lib/td/contract';
+import { SESSION_CHANGED, TdApiError } from '@/lib/td/api-client';
 import { beginOperation, operationIsCurrent, retryConflicts, type TdOperation } from '@/lib/td/operation';
 
 export type TdListQuery = Omit<ContentListQuery, 'cursor' | 'limit'>;
@@ -60,22 +61,33 @@ export function useTdContentRow<T extends TdContentType>(type: T, id: string | n
   });
 }
 
-/** A row's trail, newest first (the first 200 changes; `complete` says whether that is all of it). */
+/** A row's trail, newest first, read to its end (up to 5,000 changes; `complete` says whether that is all of it). */
 export function useTdHistory(type: TdContentType, id: string | null) {
   return useQuery({
     queryKey: tdKeys.history(type, id ?? ''),
     enabled: id !== null,
     queryFn: async ({ signal }) => {
-      const out = await tdAdmin.content(type).history(id!, { limit: 200 }, { signal });
-      return { items: out.items, complete: out.nextCursor === null };
+      const items: ContentHistory['items'] = [];
+      let cursor: string | undefined;
+      for (let page = 0; page < 25; page++) {
+        const out = await tdAdmin.content(type).history(id!, { cursor, limit: 200 }, { signal });
+        items.push(...out.items);
+        if (!out.nextCursor) return { items, complete: true };
+        cursor = out.nextCursor;
+      }
+      return { items, complete: false };
     },
   });
 }
 
+const sessionChanged = () => new TdApiError(0, SESSION_CHANGED, 'The session changed; the request was cancelled');
+
 /**
  * Runs one user action under the sign-in it started with (retrying only
  * `conflict_retry`), then refreshes what it may have changed: by default all
- * content and the release views.
+ * content and the release views. If the sign-in changed meanwhile it ends in
+ * SESSION_CHANGED instead of a result, so nothing of the old session reaches
+ * the new one's screens or cache.
  */
 export function useTdWrite() {
   const queryClient = useQueryClient();
@@ -83,7 +95,9 @@ export function useTdWrite() {
     async <R>(work: (operation: TdOperation) => Promise<R>, invalidate: readonly QueryKey[] = [tdKeys.content, tdKeys.releases]): Promise<R> => {
       const operation = beginOperation(tdTokens);
       const result = await retryConflicts(() => work(operation));
-      if (operationIsCurrent(tdTokens, operation)) await Promise.all(invalidate.map((queryKey) => queryClient.invalidateQueries({ queryKey })));
+      if (!operationIsCurrent(tdTokens, operation)) throw sessionChanged();
+      await Promise.all(invalidate.map((queryKey) => queryClient.invalidateQueries({ queryKey })));
+      if (!operationIsCurrent(tdTokens, operation)) throw sessionChanged();
       return result;
     },
     [queryClient],

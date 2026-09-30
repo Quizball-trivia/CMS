@@ -134,6 +134,7 @@ export function correct(ctx: MockContext, id: string, body: MatchCorrectionReque
     throw new MockError(409, 'same_result', 'That is the result already');
   const at = nowIso(ctx);
   const correctionId = uuid();
+  const ratingBefore = new Map(match.players.map((seat) => [seat.playerId, db.players.find((p) => p.id === seat.playerId)!.rating]));
   const snapshot = () => ({
     status: match.status as 'settled' | 'void',
     decidedBy: match.decidedBy ?? 'play',
@@ -145,17 +146,18 @@ export function correct(ctx: MockContext, id: string, body: MatchCorrectionReque
   match.status = body.outcome.kind === 'void' ? 'void' : 'settled';
   match.decidedBy = 'corrected';
   match.correctedAt = at;
+  for (const seat of match.players) seat.outcome = body.outcome.kind === 'void' ? 'noContest' : seat.playerId === winner ? 'win' : 'loss';
   for (const seat of match.players) {
     const player = db.players.find((p) => p.id === seat.playerId)!;
-    const outcome: Outcome = body.outcome.kind === 'void' ? 'noContest' : seat.playerId === winner ? 'win' : 'loss';
+    const outcome = seat.outcome as Outcome;
     const rule = outcome === 'win' ? 25 : outcome === 'loss' ? -10 : 0;
-    const target = Math.max(0, player.rating - (seat.ratingDelta ?? 0) + rule);
-    const applied = target - player.rating;
-    player.rating = target;
+    // Recomputed from the history, as the API does: the zero floor makes subtracting the old delta wrong.
+    const replayed = replayRating(db, player);
+    const applied = replayed.rating - ratingBefore.get(player.id)!;
+    player.rating = replayed.rating;
     player.ratingVersion += 1;
-    seat.ratingEvents.push({ seq: player.ratingVersion, deltaRule: rule, appliedDelta: applied, ratingAfter: target, correctionId, at });
-    seat.outcome = outcome;
-    seat.ratingDelta = (seat.ratingDelta ?? 0) + applied;
+    seat.ratingEvents.push({ seq: player.ratingVersion, deltaRule: rule, appliedDelta: applied, ratingAfter: replayed.rating, correctionId, at });
+    seat.ratingDelta = replayed.deltas.get(match.id) ?? 0;
     if (outcome === 'noContest' && !seat.ticketRefunded) {
       player.balance += 1;
       const refund: MockLedger = { id: String(900 + db.ledger.length), playerId: player.id, delta: 1, reason: 'refund', ref: `refund:${player.id}:match:${id}`, balanceAfter: player.balance, createdAt: at };
@@ -180,6 +182,22 @@ export function correct(ctx: MockContext, id: string, body: MatchCorrectionReque
     if (review.matchId === id && review.status === 'open')
       Object.assign(review, { status: 'corrected', closedAt: at, closedBy: { id: ctx.staff.id, name: ctx.staff.name }, closingCorrectionId: correctionId });
   return matchRecord(ctx, id);
+}
+
+/** A player's rating replayed over their decided matches in order, from where it started: +25, −10 floored at 0, 0 for no contest. */
+export function replayRating(db: MockDb, player: MockPlayer): { rating: number; deltas: Map<string, number> } {
+  const decided = db.matches
+    .filter((m) => (m.status === 'settled' || m.status === 'void') && m.players.some((p) => p.playerId === player.id))
+    .sort((a, b) => (a.settledAt ?? a.createdAt).localeCompare(b.settledAt ?? b.createdAt));
+  let rating = player.startRating;
+  const deltas = new Map<string, number>();
+  for (const m of decided) {
+    const outcome = m.players.find((p) => p.playerId === player.id)!.outcome;
+    const next = outcome === 'win' ? rating + 25 : outcome === 'loss' ? Math.max(0, rating - 10) : rating;
+    deltas.set(m.id, next - rating);
+    rating = next;
+  }
+  return { rating, deltas };
 }
 
 /* ── leaderboard ──────────────────────────────────────────────────── */

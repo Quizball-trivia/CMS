@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { reviewCategory } from '@/components/td/content/td-category-approval';
 import { planDays } from '@/components/td/tabs/dailies-tab';
 import { replaySteps } from '@/components/td/tabs/players-tab';
+import { followAnswer } from '@/components/td/content/editors/library';
 import type { TdContentRow } from '../admin-api';
 import { daysFrom } from '../georgia';
 import { mergeDrafts, resolveConflicts } from '../merge';
@@ -35,8 +36,10 @@ function row(over: Partial<TdContentRow<'cards'>> = {}): TdContentRow<'cards'> {
   };
 }
 
-const history = (...actors: TdStaff[]) =>
-  actors.map((who, i) => ({ id: String(i + 1), at: '2026-09-30T08:00:00.000Z', actor: actor(who), action: 'edit' as const, fromStatus: null, toStatus: null, version: i + 1, contentVersion: 1, batchId: null }));
+const history = (...actors: TdStaff[]) => ({
+  items: actors.map((who, i) => ({ id: String(i + 1), at: '2026-09-30T08:00:00.000Z', actor: actor(who), action: 'edit' as const, fromStatus: null, toStatus: null, version: i + 1, contentVersion: 1, batchId: null })),
+  complete: true,
+});
 
 describe('workflow actions offered', () => {
   it('offers ready on drafts, approval to publishers who did not make the last edit', () => {
@@ -52,6 +55,8 @@ describe('workflow actions offered', () => {
     expect(contentActions(row(), EDITOR, history(EDITOR, PUBLISHER)).archive.allowed).toBe(false);
     expect(contentActions(row(), OTHER_EDITOR, history(EDITOR)).archive.allowed).toBe(false);
     expect(contentActions(row({ approvedVersion: 1 }), EDITOR, history(EDITOR)).archive.allowed).toBe(false);
+    // A trail too long to read whole is not guessed at.
+    expect(contentActions(row(), EDITOR, { ...history(EDITOR), complete: false }).archive.allowed).toBe(false);
     // Without the trail: a best guess from the row, the API decides.
     expect(contentActions(row(), EDITOR).archive.allowed).toBe(true);
     expect(contentActions(row({ approvedVersion: 1, status: 'approved' }), PUBLISHER).archive.allowed).toBe(true);
@@ -131,12 +136,33 @@ describe('dailies calendar projection', () => {
 });
 
 describe('replay of the kept inputs', () => {
-  it('reads time, seat and kind where they are and keeps anything else', () => {
-    expect(replaySteps([{ at: 1000, seat: 'me', kind: 'ready' }, { at: 3500, seat: 'op', kind: 'answer', text: 'x' }, 'odd', { note: 'no time' }])).toEqual([
+  it('reads the queue’s <stamp µs>|<input> entries, commands nested, and keeps what it cannot read', () => {
+    const entry = (us: number, input: object) => `${us}|${JSON.stringify(input)}`;
+    expect(
+      replaySteps([
+        entry(1_000_000, { kind: 'ready', seat: 'me' }),
+        entry(3_500_000, { kind: 'command', seat: 'op', command: { id: 'x', seat: 'op', kind: 'submit', text: 'messi', roundId: 1, step: 2 } }),
+        entry(4_000_000, { kind: 'presence', seat: 'me', connected: false }),
+        'odd',
+        { at: 5_000, seat: 'me', kind: 'ready' },
+      ]),
+    ).toEqual([
       { offset: 0, seat: 'me', kind: 'ready', details: null, raw: null },
-      { offset: 2500, seat: 'op', kind: 'answer', details: { text: 'x' }, raw: null },
+      { offset: 2500, seat: 'op', kind: 'submit', details: { text: 'messi', roundId: 1, step: 2 }, raw: null },
+      { offset: 3000, seat: 'me', kind: 'presence', details: { connected: false }, raw: null },
       { offset: null, seat: null, kind: 'unknown', details: null, raw: 'odd' },
-      { offset: null, seat: null, kind: 'unknown', details: { note: 'no time' }, raw: null },
+      { offset: 4000, seat: 'me', kind: 'ready', details: null, raw: null },
     ]);
+  });
+});
+
+describe('practice: the right option follows its option', () => {
+  it('moves with it, and shifts when an earlier option goes', () => {
+    expect(followAnswer(1, { kind: 'move', from: 1, to: 0 })).toBe(0);
+    expect(followAnswer(0, { kind: 'move', from: 1, to: 0 })).toBe(1);
+    expect(followAnswer(2, { kind: 'move', from: 0, to: 1 })).toBe(2);
+    expect(followAnswer(2, { kind: 'remove', index: 0 })).toBe(1);
+    expect(followAnswer(1, { kind: 'remove', index: 3 })).toBe(1);
+    expect(followAnswer(1, { kind: 'edit' })).toBe(1);
   });
 });

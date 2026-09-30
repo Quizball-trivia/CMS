@@ -63,6 +63,11 @@ export function createMockAdmin({ storage, blobs, now, lock }: MockAdminDeps) {
     return next;
   };
 
+  const fresh = () => {
+    const db = seedDb(now());
+    releases.completeSeed(db, now());
+    return db;
+  };
   const load = (): MockDb => {
     const store = storage();
     if (store) {
@@ -72,9 +77,9 @@ export function createMockAdmin({ storage, blobs, now, lock }: MockAdminDeps) {
       } catch {
         // Unreadable: start again from the seed.
       }
-      return seedDb(now());
+      return fresh();
     }
-    memory ??= seedDb(now());
+    memory ??= fresh();
     // A copy, so a refused request leaves nothing behind.
     return clone(memory);
   };

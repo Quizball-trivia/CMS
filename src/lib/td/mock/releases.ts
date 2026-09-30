@@ -1,14 +1,16 @@
 /**
  * The release report, publications (publish and roll back, phases advancing
- * with time as the API's worker runs them) and the release history.
+ * with time as the API's worker runs them) and the release history. What a
+ * release holds is taken as the API's envelope takes it and fixed when the
+ * release is made, so history never changes with later edits.
  */
 import type { TdContentType } from '../admin-api';
 import { TD_CONTENT_TYPES } from '../admin-api';
 import type { ReleaseReport } from '../contract';
 import { daysFrom, georgiaToday, scheduledSet, type DailyCycle } from '../georgia';
 import { actorOf, nowIso, rowLabel, type MockContext } from './content';
-import type { Member, MockDb, MockPublication, MockRow } from './db';
-import { DAILY_TYPE, type Data } from './model';
+import type { DailySnapshot, Manifest, Member, MockDb, MockPublication, MockRow, ReleaseSnapshot } from './db';
+import { DAILY_TYPE } from './model';
 import { canonicalJson, MockError, paginate, sha256Hex, uuid } from './util';
 
 export const PHASES = ['snapshot', 'validate', 'media', 'artifact', 'available', 'pointer'] as const;
@@ -25,33 +27,92 @@ type Issue = ReleaseReport['errors'][number];
 const approvedRows = (db: MockDb, type?: TdContentType) =>
   db.rows.filter((row) => row.approvedVersion !== null && row.status !== 'archived' && (!type || row.type === type));
 
-const members = (db: MockDb): Member[] =>
-  approvedRows(db).map((row) => ({ type: row.type, id: row.id, label: rowLabel({ ...row, data: row.approved! }), contentVersion: row.approvedVersion! }));
+const imageField = (type: TdContentType) => (type === 'clubs' ? 'crestImageKey' : type === 'cards' || type === 'practice-questions' ? 'imageKey' : null);
 
-/** The media a release shows: images the approved cards, practice questions and clubs name. */
-function usedMedia(db: MockDb): MockRow[] {
-  const keys = new Set<string>();
-  for (const row of approvedRows(db)) {
-    const key = row.approved?.[row.type === 'clubs' ? 'crestImageKey' : 'imageKey'];
-    if ((row.type === 'cards' || row.type === 'practice-questions' || row.type === 'clubs') && typeof key === 'string') keys.add(key);
+/**
+ * The rows a release published now holds, as the API's envelope takes them:
+ * every approved, live row, but cards and box questions only through an
+ * approved category, and only the images the release shows.
+ */
+export function releaseRows(db: MockDb): MockRow[] {
+  const keys = (type: TdContentType) => new Set(approvedRows(db, type).map((row) => String(row.approved!.key)));
+  const cardCategories = keys('card-categories');
+  const boxCategories = keys('box-categories');
+  const rows = approvedRows(db).filter((row) => {
+    if (row.type === 'cards') return cardCategories.has(String(row.approved!.categoryKey));
+    if (row.type === 'box-questions') return boxCategories.has(String(row.approved!.categoryKey));
+    return row.type !== 'media';
+  });
+  const shown = new Set<string>();
+  for (const row of rows) {
+    const field = imageField(row.type);
+    const key = field ? row.approved![field] : null;
+    if (typeof key === 'string') shown.add(key);
   }
-  return approvedRows(db, 'media').filter((row) => keys.has(String(row.approved!.key)));
+  return [...rows, ...approvedRows(db, 'media').filter((row) => shown.has(String(row.approved!.key)))];
 }
 
-function coverage(db: MockDb, game: (typeof GAMES)[number], today: string) {
-  const setting = approvedRows(db, 'daily-settings').find((row) => row.approved!.game === game);
-  const cycle = (setting?.approved?.cycle ?? null) as DailyCycle | null;
-  const dates = new Map(
-    approvedRows(db, 'daily-schedule')
-      .filter((row) => row.approved!.game === game)
-      .map((row) => [String(row.approved!.date), String(row.approved!.puzzle)]),
-  );
-  const known = new Set(approvedRows(db, DAILY_TYPE[game]).map((row) => String(row.approved!.puzzle)));
+const approvedOf = (rows: MockRow[], type: TdContentType) => rows.filter((row) => row.type === type).map((row) => row.approved!);
+
+function dailiesOf(rows: MockRow[]): DailySnapshot {
+  const out = {} as DailySnapshot;
+  for (const game of GAMES) {
+    const settings = approvedOf(rows, 'daily-settings').find((d) => d.game === game);
+    out[game] = {
+      dates: Object.fromEntries(approvedOf(rows, 'daily-schedule').filter((d) => d.game === game).map((d) => [String(d.date), String(d.puzzle)])),
+      cycle: (settings?.cycle ?? null) as DailyCycle | null,
+      known: [...new Set(approvedOf(rows, DAILY_TYPE[game]).map((d) => String(d.puzzle)))],
+    };
+  }
+  return out;
+}
+
+function coverage(daily: DailySnapshot[keyof DailySnapshot], today: string) {
   const missing = daysFrom(today, COVERAGE_DAYS).filter((day) => {
-    const set = scheduledSet(dates.get(day), cycle, day);
-    return set === null || !known.has(set);
+    const set = scheduledSet(daily.dates[day], daily.cycle, day);
+    return set === null || !daily.known.includes(set);
   });
-  return { setting, covered: COVERAGE_DAYS - missing.length, missing: missing.slice(0, 30) };
+  return { covered: COVERAGE_DAYS - missing.length, missing: missing.slice(0, 30) };
+}
+
+function manifestOf(rows: MockRow[], dailies: DailySnapshot, today: string): Manifest {
+  const count = (type: TdContentType) => rows.filter((row) => row.type === type).length;
+  const practice = approvedOf(rows, 'practice-questions');
+  const daily = (game: (typeof GAMES)[number]) => ({
+    sets: dailies[game].known.length,
+    items: count(DAILY_TYPE[game]),
+    scheduledDates: Object.keys(dailies[game].dates).length,
+    cycle: dailies[game].cycle?.sets.length ?? 0,
+    coveredDays: coverage(dailies[game], today).covered,
+  });
+  return {
+    cards: { categories: count('card-categories'), cards: count('cards') },
+    whoAmI: { subjects: count('whoami-subjects') },
+    box: { categories: count('box-categories'), questions: count('box-questions') },
+    penalties: { questions: count('penalty-questions') },
+    dailies: { footballLogic: daily('footballLogic'), putInOrder: daily('putInOrder'), careerPath: daily('careerPath') },
+    practice: { easy: practice.filter((d) => d.difficulty === 'easy').length, medium: practice.filter((d) => d.difficulty === 'medium').length, hard: practice.filter((d) => d.difficulty === 'hard').length },
+    clubs: count('clubs'),
+    media: count('media'),
+  };
+}
+
+/** What a release made now holds: members, manifest, dailies and uploads. */
+export function snapshotOf(db: MockDb, now: number): ReleaseSnapshot {
+  const rows = releaseRows(db);
+  const dailies = dailiesOf(rows);
+  return {
+    members: rows.map((row) => ({ type: row.type, id: row.id, label: rowLabel({ ...row, data: row.approved! }), contentVersion: row.approvedVersion! })),
+    manifest: manifestOf(rows, dailies, georgiaToday(now)),
+    dailies,
+    uploads: approvedOf(rows, 'media').flatMap((d) => (typeof d.uploadId === 'string' ? [d.uploadId] : [])),
+  };
+}
+
+/** The seeded current release holds the seed's content. */
+export function completeSeed(db: MockDb, now: number) {
+  const current = db.releases.find((r) => r.id === db.pointer.releaseId);
+  if (current && current.manifest === null) Object.assign(current, snapshotOf(db, now));
 }
 
 function changeCounts(before: Member[], after: Member[]) {
@@ -65,63 +126,72 @@ function changeCounts(before: Member[], after: Member[]) {
   })).filter((c) => c.added || c.changed || c.removed);
 }
 
-export async function report(db: MockDb, now: number): Promise<{ report: ReleaseReport; wouldBe: string }> {
+export async function report(db: MockDb, now: number): Promise<{ report: ReleaseReport; releaseId: string; snapshot: ReleaseSnapshot }> {
   const today = georgiaToday(now);
+  const rows = releaseRows(db);
+  const snapshot = snapshotOf(db, now);
   const errors: Issue[] = [];
   const warnings: Issue[] = [];
-  const approvedOf = (type: TdContentType) => approvedRows(db, type).map((row) => row.approved!);
   const childCount = (parent: TdContentType, child: TdContentType, need: number) =>
-    approvedOf(parent).filter((category) => approvedOf(child).filter((c) => c.categoryKey === category.key).length >= need).length;
-  const practice = approvedOf('practice-questions');
-  const byDifficulty = (d: string) => practice.filter((q) => q.difficulty === d).length;
+    approvedOf(rows, parent).filter((category) => approvedOf(rows, child).filter((c) => c.categoryKey === category.key).length >= need).length;
+  const practice = snapshot.manifest.practice;
   const pools: ReleaseReport['pools'] = {
     cardDecks: { ready: childCount('card-categories', 'cards', MATCH.deck), needed: 1, deckSize: MATCH.deck },
-    whoAmI: { ready: approvedOf('whoami-subjects').filter((s) => (s.clues as unknown[]).length >= MATCH.clues).length, needed: MATCH.subjects, clues: MATCH.clues },
+    whoAmI: { ready: approvedOf(rows, 'whoami-subjects').filter((s) => (s.clues as unknown[]).length >= MATCH.clues).length, needed: MATCH.subjects, clues: MATCH.clues },
     box: { ready: childCount('box-categories', 'box-questions', MATCH.boxQuestions), needed: MATCH.boxCategories, questions: MATCH.boxQuestions },
-    penalties: { ready: approvedOf('penalty-questions').length, needed: MATCH.penalties },
-    practice: { easy: byDifficulty('easy'), medium: byDifficulty('medium'), hard: byDifficulty('hard'), needed: PRACTICE_NEEDED },
+    penalties: { ready: snapshot.manifest.penalties.questions, needed: MATCH.penalties },
+    practice: { ...practice, needed: PRACTICE_NEEDED },
   };
   if (pools.cardDecks.ready < 1) errors.push({ code: 'pool', message: `a match needs a card category with ${MATCH.deck} approved cards` });
   if (pools.whoAmI.ready < MATCH.subjects) errors.push({ code: 'pool', message: `a match needs ${MATCH.subjects} subjects with ${MATCH.clues} clues; ${pools.whoAmI.ready} have them` });
   if (pools.box.ready < MATCH.boxCategories) errors.push({ code: 'pool', message: `a match needs ${MATCH.boxCategories} box categories with ${MATCH.boxQuestions} questions; ${pools.box.ready} have them` });
   if (pools.penalties.ready < MATCH.penalties) errors.push({ code: 'pool', message: `a match needs ${MATCH.penalties} penalty questions; ${pools.penalties.ready} are approved` });
   for (const d of ['easy', 'medium', 'hard'] as const)
-    if (pools.practice[d] < PRACTICE_NEEDED[d]) errors.push({ code: 'practice', message: `practice opens with ${PRACTICE_NEEDED[d]} ${d} questions; ${pools.practice[d]} are approved` });
+    if (practice[d] < PRACTICE_NEEDED[d]) errors.push({ code: 'practice', message: `practice opens with ${PRACTICE_NEEDED[d]} ${d} questions; ${practice[d]} are approved` });
   const dailies = {} as ReleaseReport['dailies'];
   for (const game of GAMES) {
-    const c = coverage(db, game, today);
-    if (!c.setting) errors.push({ code: 'schema', message: `${game} has no approved settings` });
+    if (!approvedOf(rows, 'daily-settings').some((d) => d.game === game)) errors.push({ code: 'schema', message: `${game} has no approved settings` });
+    const c = coverage(snapshot.dailies[game], today);
     if (c.missing.length) errors.push({ code: 'dailies', message: `${game} has no set for ${c.missing.length} of the next ${COVERAGE_DAYS} days, from ${c.missing[0]}` });
-    dailies[game] = { covered: c.covered, missing: c.missing };
+    dailies[game] = c;
   }
-  const media = usedMedia(db);
-  const uploads = media.filter((row) => typeof row.approved!.uploadId === 'string');
-  const external = media.filter((row) => typeof row.approved!.url === 'string');
-  const noRights = media.filter((row) => ['author', 'license', 'source'].some((f) => !String(row.approved![f] ?? '').trim()));
-  for (const row of noRights) warnings.push({ code: 'rights_missing', message: 'an image has no licence, credit or source', ref: { type: 'media', key: String(row.approved!.key) } });
-  for (const row of external) warnings.push({ code: 'image_external', message: 'an image is kept by URL, not re-hosted', ref: { type: 'media', key: String(row.approved!.key) } });
-  const pending = uploads.filter((row) => !db.uploads.find((u) => u.id === row.approved!.uploadId)?.public).length;
-  const after = members(db);
-  const wouldBe = `r-${(await sha256Hex(canonicalJson(approvedRows(db).map((row) => [row.type, row.approved, row.approvedPosition]).sort((a, b) => canonicalJson(a).localeCompare(canonicalJson(b)))))).slice(0, 16)}`;
+  const shown = new Set(approvedOf(rows, 'media').map((d) => String(d.key)));
+  for (const row of rows) {
+    const field = imageField(row.type);
+    const key = field ? row.approved![field] : null;
+    if (typeof key === 'string' && !shown.has(key)) errors.push({ code: 'schema', message: `${row.type} ${String(row.approved!.key)}: its image ${key} is not approved`, ref: { type: row.type, key: String(row.approved!.key) } });
+  }
+  const media = approvedOf(rows, 'media');
+  const uploads = media.filter((d) => typeof d.uploadId === 'string');
+  const external = media.filter((d) => typeof d.url === 'string');
+  const noRights = media.filter((d) => ['author', 'license', 'source'].some((f) => !String(d[f] ?? '').trim()));
+  for (const d of noRights) warnings.push({ code: 'rights_missing', message: 'an image has no licence, credit or source', ref: { type: 'media', key: String(d.key) } });
+  for (const d of external) warnings.push({ code: 'image_external', message: 'an image is kept by URL, not re-hosted', ref: { type: 'media', key: String(d.key) } });
+  const pending = uploads.filter((d) => !db.uploads.find((u) => u.id === d.uploadId)?.public).length;
+  const releaseId = `r-${(await sha256Hex(canonicalJson(rows.map((row) => [row.type, row.approved, row.approvedPosition]).sort((a, b) => canonicalJson(a).localeCompare(canonicalJson(b)))))).slice(0, 16)}`;
   const current = db.releases.find((r) => r.id === db.pointer.releaseId) ?? null;
-  const releaseId = pending ? null : wouldBe;
-  const out: ReleaseReport = {
-    ok: errors.length === 0,
+  const changes = changeCounts(current?.members ?? [], snapshot.members);
+  const shownId = pending ? null : releaseId;
+  return {
+    report: {
+      ok: errors.length === 0,
+      releaseId: shownId,
+      currentReleaseId: db.pointer.releaseId,
+      // The seeded releases' ids are not hashes of their content, so "no member changed" counts as the same release too.
+      unchanged: shownId !== null && (shownId === db.pointer.releaseId || (current !== null && current.members.length > 0 && changes.length === 0)),
+      checkedAt: new Date(now).toISOString(),
+      from: today,
+      days: COVERAGE_DAYS,
+      errors,
+      warnings,
+      pools,
+      dailies,
+      media: { images: media.length, uploaded: uploads.length, external: external.length, missingRights: noRights.length, pending },
+      changes: { complete: current === null || current.members.length > 0, types: changes },
+    },
     releaseId,
-    currentReleaseId: db.pointer.releaseId,
-    // The seeded releases' ids are not hashes of their content, so "no member changed" counts as the same release too.
-    unchanged: releaseId !== null && (releaseId === db.pointer.releaseId || (current !== null && current.members.length > 0 && changeCounts(current.members, after).length === 0)),
-    checkedAt: new Date(now).toISOString(),
-    from: today,
-    days: COVERAGE_DAYS,
-    errors,
-    warnings,
-    pools,
-    dailies,
-    media: { images: media.length, uploaded: uploads.length, external: external.length, missingRights: noRights.length, pending },
-    changes: { complete: current === null || current.members.length > 0, types: changeCounts(current?.members ?? [], after) },
+    snapshot,
   };
-  return { report: out, wouldBe };
 }
 
 export async function validate(ctx: MockContext) {
@@ -195,6 +265,7 @@ export function advance(db: MockDb, now: number) {
       p.updatedAt = new Date(now).toISOString();
       continue;
     }
+    const snapshot = p.snapshot!;
     while (p.status === 'running' && p.done < due) {
       const phase = PHASES[p.done];
       if (phase === 'validate' && !p.report?.ok) {
@@ -203,15 +274,23 @@ export function advance(db: MockDb, now: number) {
         p.finishedAt = new Date(now).toISOString();
         break;
       }
-      if (phase === 'media') {
-        const used = new Set(p.members.filter((m) => m.type === 'media').map((m) => db.rows.find((r) => r.id === m.id)?.approved?.uploadId));
-        for (const upload of db.uploads) if (used.has(upload.id)) upload.public = true;
-      }
+      if (phase === 'media') for (const upload of db.uploads) if (snapshot.uploads.includes(upload.id)) upload.public = true;
       if (phase === 'available') {
-        const id = p.wouldBe!;
-        if (!db.releases.some((r) => r.id === id))
-          db.releases.push({ id, hash: `${id.slice(2)}${'0'.repeat(48)}`, formatVersion: 2, status: 'available', createdAt: new Date(now).toISOString(), createdBy: p.requestedBy, members: p.members, publicationId: p.id, replaced: db.pointer.releaseId });
-        p.releaseId = id;
+        if (!db.releases.some((r) => r.id === snapshot.releaseId))
+          db.releases.push({
+            id: snapshot.releaseId,
+            hash: `${snapshot.releaseId.slice(2)}${'0'.repeat(48)}`,
+            formatVersion: 2,
+            status: 'available',
+            createdAt: new Date(now).toISOString(),
+            createdBy: p.requestedBy,
+            members: snapshot.members,
+            manifest: snapshot.manifest,
+            dailies: snapshot.dailies,
+            publicationId: p.id,
+            replaced: db.pointer.releaseId,
+          });
+        p.releaseId = snapshot.releaseId;
       }
       if (phase === 'pointer') {
         movePointer(db, p, now, p.releaseId!);
@@ -236,32 +315,27 @@ function holdSlot(db: MockDb) {
   if (active) throw new MockError(409, 'publication_in_progress', 'Another publish or rollback is under way', { publicationId: active.id });
 }
 
+const base = (ctx: MockContext) => ({
+  id: uuid(),
+  status: 'running' as const,
+  previousReleaseId: ctx.db.pointer.releaseId,
+  expectedPointerVersion: ctx.db.pointer.version,
+  pointerVersion: null,
+  changed: null,
+  requestedBy: actorOf(ctx),
+  requestedAt: nowIso(ctx),
+  updatedAt: nowIso(ctx),
+  finishedAt: null,
+  error: null,
+  notify: { state: 'none' as const, attempts: 0, at: null },
+});
+
 export async function publish(ctx: MockContext, idemKey: string) {
   const found = byKey(ctx.db, idemKey, 'publish', null);
   if (found) return { status: 200, body: publicationView(found) };
   holdSlot(ctx.db);
-  const snapshot = await report(ctx.db, ctx.now);
-  const p: MockPublication = {
-    id: uuid(),
-    idemKey,
-    kind: 'publish',
-    status: 'running',
-    done: 0,
-    releaseId: null,
-    previousReleaseId: ctx.db.pointer.releaseId,
-    expectedPointerVersion: ctx.db.pointer.version,
-    pointerVersion: null,
-    changed: null,
-    requestedBy: actorOf(ctx),
-    requestedAt: nowIso(ctx),
-    updatedAt: nowIso(ctx),
-    finishedAt: null,
-    error: null,
-    report: snapshot.report,
-    members: members(ctx.db),
-    wouldBe: snapshot.wouldBe,
-    notify: { state: 'none', attempts: 0, at: null },
-  };
+  const made = await report(ctx.db, ctx.now);
+  const p: MockPublication = { ...base(ctx), idemKey, kind: 'publish', done: 0, releaseId: null, report: made.report, snapshot: { ...made.snapshot, releaseId: made.releaseId } };
   ctx.db.publications.push(p);
   return { status: 202, body: publicationView(p) };
 }
@@ -274,28 +348,16 @@ export function rollback(ctx: MockContext, target: string, idemKey: string) {
   const was = ctx.db.pointerHistory.some((move) => move.releaseId === target);
   if (release.status !== 'available' || !was || ctx.db.pointer.releaseId === target)
     throw new MockError(409, 'not_rollback_target', 'Only an available release that was current before, and is not now');
+  // It must still give every daily game a set today (the API's rollbackGaps).
+  const today = georgiaToday(ctx.now);
+  const gap = GAMES.find((game) => {
+    const daily = release.dailies?.[game];
+    const set = daily ? scheduledSet(daily.dates[today], daily.cycle, today) : null;
+    return set === null || !daily!.known.includes(set);
+  });
+  if (gap) throw new MockError(409, 'release_unrunnable', `This release has no ${gap} set for today`);
   holdSlot(ctx.db);
-  const p: MockPublication = {
-    id: uuid(),
-    idemKey,
-    kind: 'rollback',
-    status: 'running',
-    done: PHASES.length - 1,
-    releaseId: target,
-    previousReleaseId: ctx.db.pointer.releaseId,
-    expectedPointerVersion: ctx.db.pointer.version,
-    pointerVersion: null,
-    changed: null,
-    requestedBy: actorOf(ctx),
-    requestedAt: nowIso(ctx),
-    updatedAt: nowIso(ctx),
-    finishedAt: null,
-    error: null,
-    report: null,
-    members: [],
-    wouldBe: null,
-    notify: { state: 'none', attempts: 0, at: null },
-  };
+  const p: MockPublication = { ...base(ctx), idemKey, kind: 'rollback', done: PHASES.length - 1, releaseId: target, report: null, snapshot: null };
   ctx.db.publications.push(p);
   return { status: 202, body: publicationView(p) };
 }
@@ -336,42 +398,27 @@ export function listReleases(ctx: MockContext, query: { cursor?: string; limit?:
   };
 }
 
+const EMPTY_DAILY = { sets: 0, items: 0, scheduledDates: 0, cycle: 0, coveredDays: 0 };
+const EMPTY_MANIFEST: Manifest = {
+  cards: { categories: 0, cards: 0 },
+  whoAmI: { subjects: 0 },
+  box: { categories: 0, questions: 0 },
+  penalties: { questions: 0 },
+  dailies: { footballLogic: EMPTY_DAILY, putInOrder: EMPTY_DAILY, careerPath: EMPTY_DAILY },
+  practice: { easy: 0, medium: 0, hard: 0 },
+  clubs: 0,
+  media: 0,
+};
+
 export function releaseDetail(ctx: MockContext, id: string) {
   const { db } = ctx;
   const release = db.releases.find((r) => r.id === id);
   if (!release) throw new MockError(404, 'not_found', 'No such release');
-  const count = (type: TdContentType) => release.members.filter((m) => m.type === type).length;
-  const dataOf = (m: Member): Data | null => db.rows.find((r) => r.id === m.id)?.approved ?? null;
-  const practice = release.members.filter((m) => m.type === 'practice-questions').map(dataOf);
-  const daily = (game: (typeof GAMES)[number]) => {
-    const items = release.members.filter((m) => m.type === DAILY_TYPE[game]);
-    const settings = release.members.map(dataOf).find((d) => d?.game === game && 'seconds' in d);
-    return {
-      sets: new Set(items.map((m) => dataOf(m)?.puzzle)).size,
-      items: items.length,
-      scheduledDates: release.members.filter((m) => m.type === 'daily-schedule' && dataOf(m)?.game === game).length,
-      cycle: ((settings?.cycle as DailyCycle | null)?.sets ?? []).length,
-      coveredDays: items.length ? coverage(db, game, georgiaToday(ctx.now)).covered : 0,
-    };
-  };
   const against = release.replaced ? db.releases.find((r) => r.id === release.replaced) : undefined;
   const ref = (m: Member) => ({ type: m.type, id: m.id, label: m.label, contentVersion: m.contentVersion });
   return {
     release: summary(db, id),
-    manifest: {
-      cards: { categories: count('card-categories'), cards: count('cards') },
-      whoAmI: { subjects: count('whoami-subjects') },
-      box: { categories: count('box-categories'), questions: count('box-questions') },
-      penalties: { questions: count('penalty-questions') },
-      dailies: { footballLogic: daily('footballLogic'), putInOrder: daily('putInOrder'), careerPath: daily('careerPath') },
-      practice: {
-        easy: practice.filter((d) => d?.difficulty === 'easy').length,
-        medium: practice.filter((d) => d?.difficulty === 'medium').length,
-        hard: practice.filter((d) => d?.difficulty === 'hard').length,
-      },
-      clubs: count('clubs'),
-      media: count('media'),
-    },
+    manifest: release.manifest ?? EMPTY_MANIFEST,
     members: release.members.map(ref),
     diff: against
       ? {

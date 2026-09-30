@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useTdAllRows } from '@/hooks/use-td-content';
 import type { TdDailyGame } from '@/lib/td/admin-api';
+import { georgiaToday } from '@/lib/td/georgia';
 import { cn } from '@/lib/utils';
 import { issuesAt, tdInputClass, TdField, TdIssueText, TdNumberField, TdOptionalTextField, TdSelectField, TdSpellingsField, TdSwitchField, TdTextField } from '../td-form';
 import { KeyField, type TdEditorProps } from './rounds';
@@ -219,7 +220,7 @@ export function DailySettingsEditor({ value, onChange, issues, creating }: TdEdi
       <TdSwitchField
         label="Cycle of puzzles"
         checked={cycle !== null}
-        onChange={(on) => onChange({ ...value, cycle: on ? { anchor: new Date().toISOString().slice(0, 10), sets: puzzles.slice(0, 1).map((p) => p.key) } : null })}
+        onChange={(on) => onChange({ ...value, cycle: on ? { anchor: georgiaToday(), sets: puzzles.slice(0, 1).map((p) => p.key) } : null })}
         hint="Dates without a puzzle of their own play these in turn, one a day, the anchor date playing the first."
       />
       {cycle && (

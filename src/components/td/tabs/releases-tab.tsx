@@ -81,6 +81,8 @@ export function TdReleasesTab() {
   });
   const list = useQuery({ queryKey: [...tdKeys.releases, 'list', 'first'], queryFn: ({ signal }) => tdAdmin.releases.list({ limit: 1 }, { signal }) });
   const [watching, setWatching] = useState<string | null>(null);
+  // A request sent whose answer never came: it is asked again (same key), never replaced by a new one.
+  const [unanswered, setUnanswered] = useState<PendingRequest | null>(null);
   const [confirm, setConfirm] = useState<{ kind: 'publish' } | { kind: 'rollback'; releaseId: string } | null>(null);
   const [requestError, setRequestError] = useState<unknown>(null);
   const [sending, setSending] = useState(false);
@@ -92,6 +94,7 @@ export function TdReleasesTab() {
     setRequestError(null);
     // Kept before it goes out: an answer lost to a reload is asked for again with the same key.
     writePending(user.id, request);
+    setUnanswered(null);
     try {
       const publication = await write(
         (operation) => (request.kind === 'publish' ? tdAdmin.releases.publish(request.idemKey, operation) : tdAdmin.releases.rollback(request.releaseId!, request.idemKey, operation)),
@@ -105,8 +108,10 @@ export function TdReleasesTab() {
         const busy = (caught.details as { publicationId?: string } | undefined)?.publicationId;
         if (busy) setWatching(busy);
       }
-      // A refusal is an answer: this request is over, a new attempt takes a new key.
-      if (caught instanceof TdApiError && caught.status > 0) writePending(user.id, null);
+      // Only a refusal (4xx) is an answer: the request is over and a new attempt takes a new key. After a
+      // network error, a 5xx or a cancelled session the publication may have started: keep the key.
+      if (caught instanceof TdApiError && caught.status >= 400 && caught.status < 500) writePending(user.id, null);
+      else setUnanswered(request);
       setRequestError(caught);
     } finally {
       setSending(false);
@@ -146,7 +151,7 @@ export function TdReleasesTab() {
             {publisher && (
               <Button
                 className="rounded-lg"
-                disabled={!report.data?.ok || report.data.unchanged || running(active ?? undefined) || sending}
+                disabled={!report.data?.ok || report.data.unchanged || running(active ?? undefined) || sending || unanswered !== null}
                 title={report.data?.unchanged ? 'The approved content is the current release' : undefined}
                 onClick={() => setConfirm({ kind: 'publish' })}
               >
@@ -158,6 +163,17 @@ export function TdReleasesTab() {
         }
       >
         <div className="p-5">
+          {unanswered && (
+            <div className="mb-4 flex flex-wrap items-center gap-2 rounded-lg border border-amber-400/40 bg-amber-400/5 px-3 py-2 text-sm text-amber-200">
+              <span className="min-w-0 flex-1">
+                {unanswered.kind === 'publish' ? 'Your publish' : `Your roll back to ${unanswered.releaseId}`} got no answer, so it may have started. Ask again: the same request is answered, never run twice.
+              </span>
+              <Button size="sm" className="rounded-lg" disabled={sending} onClick={() => void send(unanswered)}>
+                {sending ? <Loader2 className="animate-spin" /> : <RefreshCw />}
+                Ask again
+              </Button>
+            </div>
+          )}
           <TdErrorPanel error={report.error ?? requestError} />
           {report.isLoading && <p className="text-sm text-(--td-text-3)">Checking the approved content…</p>}
           {report.data && <ReleaseReportView report={report.data} />}
@@ -167,7 +183,7 @@ export function TdReleasesTab() {
 
       {shownId && <PublicationProgress id={shownId} onSettled={onSettled} />}
 
-      <ReleaseHistory canRollback={publisher && !running(active ?? undefined) && !sending} onRollback={(releaseId) => setConfirm({ kind: 'rollback', releaseId })} />
+      <ReleaseHistory canRollback={publisher && !running(active ?? undefined) && !sending && unanswered === null} onRollback={(releaseId) => setConfirm({ kind: 'rollback', releaseId })} />
 
       {confirm && (
         <Dialog open onOpenChange={(open) => !open && setConfirm(null)}>

@@ -3,7 +3,7 @@
 import { useRef, useState } from 'react';
 import { CheckCircle2, ChevronDown, Download, FileUp, Loader2, SearchCheck, Undo2, Upload } from 'lucide-react';
 import { toast } from 'sonner';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Textarea } from '@/components/ui/textarea';
@@ -14,7 +14,7 @@ import { tdKeys, useTdWrite } from '@/hooks/use-td-content';
 import type { TdContentType } from '@/lib/td/admin-api';
 import { TdApiError } from '@/lib/td/api-client';
 import { tdAdmin } from '@/lib/td/client';
-import type { ContentImportBatch, ContentImportReport } from '@/lib/td/contract';
+import type { ContentImportBatch, ContentImportBatchList, ContentImportReport } from '@/lib/td/contract';
 import { downloadText } from '@/lib/td/download';
 import { formatGeorgiaTime } from '@/lib/td/georgia';
 import { canonicalJson, sha256Hex } from '@/lib/td/hash';
@@ -43,6 +43,16 @@ function batchKeyFor(hash: string): string {
   return key;
 }
 
+/** A batch key is spent once its batch is undone: the same items then make a new import. */
+function retireBatchKey(batchKey: string) {
+  try {
+    const known = JSON.parse(sessionStorage.getItem(KEYS_STORAGE) ?? '{}') as Record<string, string>;
+    sessionStorage.setItem(KEYS_STORAGE, JSON.stringify(Object.fromEntries(Object.entries(known).filter(([, key]) => key !== batchKey))));
+  } catch {
+    // Nothing kept, nothing to retire.
+  }
+}
+
 interface Prepared extends TdParsedImport {
   source: string;
   hash: string;
@@ -53,14 +63,17 @@ export function TdImportTab() {
   const [type, setType] = useState<TdContentType>('penalty-questions');
   const [pasted, setPasted] = useState('');
   const [prepared, setPrepared] = useState<Prepared | null>(null);
-  const [report, setReport] = useState<ContentImportReport | null>(null);
+  // The report and the payload hash it was made for: an answer for items no longer shown is dropped.
+  const [report, setReport] = useState<{ hash: string; report: ContentImportReport } | null>(null);
   const [result, setResult] = useState<{ created: boolean; batch: ContentImportBatch } | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<unknown>(null);
   const file = useRef<HTMLInputElement>(null);
+  const shown = useRef<string | null>(null);
   const write = useTdWrite();
 
   const reset = () => {
+    shown.current = null;
     setPrepared(null);
     setReport(null);
     setResult(null);
@@ -71,6 +84,7 @@ export function TdImportTab() {
     reset();
     const parsed = json ? parseItemsJson(text) : parseSheet(type, text);
     const hash = await sha256Hex(canonicalJson(parsed.items));
+    shown.current = hash;
     setPrepared({ ...parsed, source, hash, batchKey: batchKeyFor(hash) });
   };
 
@@ -78,10 +92,12 @@ export function TdImportTab() {
     if (!prepared) return;
     setBusy('check');
     setError(null);
+    const target = prepared;
     try {
-      setReport(await write((operation) => tdAdmin.imports.preview(prepared.items, operation), []));
+      const out = await write((operation) => tdAdmin.imports.preview(target.items, operation), []);
+      if (shown.current === target.hash) setReport({ hash: target.hash, report: out });
     } catch (caught) {
-      setError(caught);
+      if (shown.current === target.hash) setError(caught);
     } finally {
       setBusy(null);
     }
@@ -91,14 +107,21 @@ export function TdImportTab() {
     if (!prepared) return;
     setBusy('apply');
     setError(null);
+    const target = prepared;
     try {
-      const out = await write((operation) => tdAdmin.imports.apply(prepared.batchKey, prepared.items, operation), [tdKeys.content, tdKeys.releases, tdKeys.imports]);
+      const out = await write((operation) => tdAdmin.imports.apply(target.batchKey, target.items, operation), [tdKeys.content, tdKeys.releases, tdKeys.imports]);
+      if (!out.created && out.batch.status !== 'applied') {
+        // Imported before and undone since: this key is spent. Read the items again for a new import.
+        retireBatchKey(target.batchKey);
+        setError(new TdApiError(409, 'conflict', 'These items were imported before and that import was undone. Read the file again to import them anew.'));
+        return;
+      }
       setResult(out);
       toast.success(out.created ? `${out.batch.rows.length} drafts imported` : 'These items were imported already; nothing was added');
     } catch (caught) {
       // A preview that passed can still lose a race: the API answers with the whole report.
       if (caught instanceof TdApiError && caught.code === 'validation' && caught.details && typeof caught.details === 'object' && 'rows' in caught.details) {
-        setReport(caught.details as ContentImportReport);
+        setReport({ hash: target.hash, report: caught.details as ContentImportReport });
       }
       setError(caught);
     } finally {
@@ -107,7 +130,8 @@ export function TdImportTab() {
   };
 
   const columns = TD_IMPORT_COLUMNS[type];
-  const canApply = prepared && report && report.counts.error === 0 && prepared.problems.length === 0 && !result;
+  const current = report && prepared && report.hash === prepared.hash ? report.report : null;
+  const canApply = prepared && current && current.counts.error === 0 && prepared.problems.length === 0 && !result;
 
   return (
     <>
@@ -118,6 +142,7 @@ export function TdImportTab() {
               Content type
               <select
                 value={type}
+                disabled={busy !== null}
                 onChange={(event) => {
                   setType(event.target.value as TdContentType);
                   reset();
@@ -147,7 +172,7 @@ export function TdImportTab() {
                 if (chosen) await prepare(await chosen.text(), chosen.name, chosen.name.toLowerCase().endsWith('.json'));
               }}
             />
-            <Button className="rounded-lg" onClick={() => file.current?.click()}>
+            <Button className="rounded-lg" disabled={busy !== null} onClick={() => file.current?.click()}>
               <FileUp />
               Choose a file
             </Button>
@@ -178,7 +203,7 @@ export function TdImportTab() {
               Or paste the cells here (with the header row)
             </label>
             <Textarea id="td-import-paste" value={pasted} onChange={(event) => setPasted(event.target.value)} className="min-h-28 rounded-lg border-border bg-(--td-input) font-mono text-xs" />
-            <Button variant="secondary" className="w-fit rounded-lg" disabled={!pasted.trim()} onClick={() => void prepare(pasted, 'pasted cells', false)}>
+            <Button variant="secondary" className="w-fit rounded-lg" disabled={!pasted.trim() || busy !== null} onClick={() => void prepare(pasted, 'pasted cells', false)}>
               Read the pasted cells
             </Button>
           </div>
@@ -208,11 +233,11 @@ export function TdImportTab() {
                 </Button>
                 <Button className="rounded-lg" disabled={busy !== null || !canApply} onClick={() => void apply()}>
                   {busy === 'apply' ? <Loader2 className="animate-spin" /> : <Upload />}
-                  Import {report ? report.counts.create : ''} as drafts
+                  Import {current ? current.counts.create : ''} as drafts
                 </Button>
               </div>
               <TdErrorPanel error={error} hideIssues />
-              {report && <ImportReport report={report} lines={prepared.lines} />}
+              {current && <ImportReport report={current} lines={prepared.lines} />}
               {result && (
                 <p className="flex items-center gap-2 rounded-lg bg-(--td-new)/10 px-3 py-2 text-sm text-(--td-new)">
                   <CheckCircle2 className="size-4" />
@@ -281,13 +306,19 @@ const KEEP_REASONS: Record<string, string> = { edited: 'changed since', approved
 function ImportBatches() {
   const { user } = useTdAuth();
   const [open, setOpen] = useState<string | null>(null);
-  const batches = useQuery({ queryKey: [...tdKeys.imports, 'list'], queryFn: ({ signal }) => tdAdmin.imports.list({ limit: 50 }, { signal }) });
+  const batches = useInfiniteQuery({
+    queryKey: [...tdKeys.imports, 'list'],
+    queryFn: ({ pageParam, signal }) => tdAdmin.imports.list({ cursor: pageParam, limit: 50 }, { signal }),
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: (last: ContentImportBatchList) => last.nextCursor ?? undefined,
+  });
+  const items = batches.data?.pages.flatMap((page) => page.items) ?? [];
   return (
     <TdSection title="Imports" description="Undo removes the rows of a batch nobody has touched since (not even a note or a ready) and keeps the others, saying why.">
       <TdErrorPanel error={batches.error} className="m-5" />
-      {batches.data?.items.length === 0 && <TdEmptyState title="No imports yet" />}
+      {batches.isSuccess && items.length === 0 && <TdEmptyState title="No imports yet" />}
       <ul className="divide-y divide-(--td-divider)">
-        {batches.data?.items.map((batch) => (
+        {items.map((batch) => (
           <li key={batch.id} className="px-5 py-3">
             <button type="button" className="flex w-full flex-wrap items-center gap-x-4 gap-y-1 text-left" onClick={() => setOpen(open === batch.id ? null : batch.id)}>
               <span className="font-mono text-xs">{batch.batchKey}</span>
@@ -305,6 +336,13 @@ function ImportBatches() {
           </li>
         ))}
       </ul>
+      {batches.hasNextPage && (
+        <div className="border-t border-(--td-divider) px-5 py-3">
+          <Button variant="secondary" size="sm" className="rounded-lg" disabled={batches.isFetchingNextPage} onClick={() => void batches.fetchNextPage()}>
+            Load more
+          </Button>
+        </div>
+      )}
     </TdSection>
   );
 }
@@ -320,6 +358,7 @@ function BatchDetail({ id, canUndo }: { id: string; canUndo: boolean }) {
     setError(null);
     try {
       const out = await write((operation) => tdAdmin.imports.undo(id, operation), [tdKeys.content, tdKeys.releases, tdKeys.imports]);
+      retireBatchKey(out.batchKey);
       queryClient.setQueryData([...tdKeys.imports, 'batch', id], out);
       toast.success(`${out.counts.removed} removed, ${out.counts.kept} kept`);
     } catch (caught) {

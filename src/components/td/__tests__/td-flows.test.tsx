@@ -1,4 +1,4 @@
-import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, renderHook, screen, waitFor, within } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ReactNode } from 'react';
@@ -37,6 +37,8 @@ const { createOrigin, MemoryStorage, put } = await import('@/lib/td/__tests__/he
 const { TdContentEditorSheet } = await import('../content/td-content-editor');
 const { TdImportTab } = await import('../tabs/import-tab');
 const { TdReleasesTab } = await import('../tabs/releases-tab');
+const { useTdWrite } = await import('@/hooks/use-td-content');
+const { deferred } = await import('@/lib/td/__tests__/helpers');
 
 const BASE = 'https://td-api.mock';
 let server: typeof fetch;
@@ -187,6 +189,21 @@ describe('media', () => {
   });
 });
 
+describe('operations and the session', () => {
+  it('a write that finishes after another sign-in ends as cancelled and refreshes nothing', async () => {
+    const editor = await signIn('editor');
+    const client = new QueryClient();
+    const invalidate = vi.spyOn(client, 'invalidateQueries');
+    const { result } = renderHook(() => useTdWrite(), { wrapper: ({ children }: { children: ReactNode }) => <QueryClientProvider client={client}>{children}</QueryClientProvider> });
+    const answer = deferred<string>();
+    const running = result.current(() => answer.promise);
+    await put(editor.tokens, { accessToken: 'other', refreshToken: 'other-refresh-token-000000', expiresAt: Date.now() + 60_000, generation: 'someone-else', staffId: null, refreshPendingSince: null });
+    answer.resolve('old result');
+    await expect(running).rejects.toMatchObject({ code: 'session_changed' });
+    expect(invalidate).not.toHaveBeenCalled();
+  });
+});
+
 describe('import', () => {
   it('reads pasted cells, checks them, imports all as drafts once, and undoes the batch', async () => {
     const { admin } = await signIn('editor');
@@ -202,6 +219,13 @@ describe('import', () => {
     fireEvent.click(await screen.findByText(/^cms:/, { selector: 'span' }));
     fireEvent.click(await screen.findByRole('button', { name: 'Undo this import' }));
     await waitFor(async () => expect((await admin.content('penalty-questions').list({ q: 'imp-' })).items).toHaveLength(0));
+
+    // The same cells after an undo are a new import, not the undone batch answered again.
+    fireEvent.click(screen.getByRole('button', { name: 'Read the pasted cells' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Check' }));
+    fireEvent.click(await screen.findByRole('button', { name: /Import 2 as drafts/ }));
+    expect(await screen.findByText(/Imported 2 drafts as batch/)).toBeTruthy();
+    expect((await admin.content('penalty-questions').list({ q: 'imp-' })).items).toHaveLength(2);
   });
 });
 

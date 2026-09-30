@@ -226,6 +226,8 @@ export function TdSwitchField({ label, checked, onChange, hint }: { label: strin
   );
 }
 
+export type TdListChange = { kind: 'edit' | 'add' } | { kind: 'move'; from: number; to: number } | { kind: 'remove'; index: number };
+
 /** An ordered list of short texts (clue lines, clues, options), with add, remove and reorder. */
 export function TdListField({
   label,
@@ -240,10 +242,14 @@ export function TdListField({
   numbered,
   multiline,
   renderMarker,
+  canRemove,
 }: {
   label: string;
   values: string[];
-  onChange: (values: string[]) => void;
+  /** With what changed, for a caller that keeps an index into the list (a practice question's right option). */
+  onChange: (values: string[], change: TdListChange) => void;
+  /** An item that may not be removed now (the reason is its title). */
+  canRemove?: (index: number) => string | true;
   issues?: SchemaIssue[];
   /** The list's issue path, for per-item messages (`data.clues`). */
   path: string;
@@ -256,11 +262,11 @@ export function TdListField({
   renderMarker?: (index: number) => ReactNode;
 }) {
   const own = issues.filter((issue) => issue.path === path);
-  const set = (index: number, value: string) => onChange(values.map((v, i) => (i === index ? value : v)));
+  const set = (index: number, value: string) => onChange(values.map((v, i) => (i === index ? value : v)), { kind: 'edit' });
   const move = (index: number, by: number) => {
     const next = [...values];
     [next[index], next[index + by]] = [next[index + by], next[index]];
-    onChange(next);
+    onChange(next, { kind: 'move', from: index, to: index + by });
   };
   return (
     <TdField label={label} hint={hint} issues={own}>
@@ -297,7 +303,15 @@ export function TdListField({
                   <Button type="button" variant="ghost" size="icon-sm" aria-label="Move down" disabled={index === values.length - 1} onClick={() => move(index, 1)}>
                     <ArrowDown />
                   </Button>
-                  <Button type="button" variant="ghost" size="icon-sm" aria-label="Remove" onClick={() => onChange(values.filter((_, i) => i !== index))}>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-sm"
+                    aria-label="Remove"
+                    disabled={canRemove !== undefined && canRemove(index) !== true}
+                    title={canRemove && canRemove(index) !== true ? String(canRemove(index)) : undefined}
+                    onClick={() => onChange(values.filter((_, i) => i !== index), { kind: 'remove', index })}
+                  >
                     <X />
                   </Button>
                 </div>
@@ -307,7 +321,7 @@ export function TdListField({
           );
         })}
       </ol>
-      <Button type="button" variant="secondary" size="sm" className="w-fit rounded-lg" disabled={max !== undefined && values.length >= max} onClick={() => onChange([...values, ''])}>
+      <Button type="button" variant="secondary" size="sm" className="w-fit rounded-lg" disabled={max !== undefined && values.length >= max} onClick={() => onChange([...values, ''], { kind: 'add' })}>
         <Plus />
         {addLabel}
       </Button>

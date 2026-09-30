@@ -27,6 +27,15 @@ export function mediaUsable(row: MediaRow): boolean {
   return Boolean(row.status !== 'archived' && row.approvedVersion !== null && approved?.author?.trim() && approved.license?.trim() && approved.source?.trim());
 }
 
+/** The image a release carries (the approved version), or the working one when nothing is approved yet. */
+export function releasedImage(row: MediaRow): { uploadId: string | null; url: string | null } {
+  const shown = row.approved && row.status !== 'archived' ? row.approved : row.data;
+  return { uploadId: shown.uploadId, url: shown.url };
+}
+
+/** A newer image waits for approval (releases keep the approved one until then). */
+export const replacementPending = (row: MediaRow) => Boolean(row.approved && (row.data.uploadId !== row.approved.uploadId || row.data.url !== row.approved.url));
+
 /** What a browser can check before sending; the API checks the bytes again. */
 export function uploadProblem(file: File): string | null {
   if (!TD_UPLOAD_TYPES.includes(file.type as (typeof TD_UPLOAD_TYPES)[number])) return 'Only JPEG, PNG or WebP images are accepted.';
@@ -116,14 +125,17 @@ export function TdMediaPicker({
     <div className="flex flex-col gap-1.5">
       <span className="text-xs font-medium text-(--td-text-3)">{label}</span>
       <div className="flex items-center gap-3 rounded-lg border border-border bg-(--td-input)/40 p-2">
-        <TdMediaThumb uploadId={chosen?.data.uploadId} url={chosen?.data.url} alt={value ?? 'No image'} />
+        <TdMediaThumb uploadId={chosen ? releasedImage(chosen).uploadId : null} url={chosen ? releasedImage(chosen).url : null} alt={value ?? 'No image'} />
         <div className="min-w-0 flex-1">
           {value ? (
             <>
               <p className="truncate font-mono text-xs">{value}</p>
               {chosen ? (
                 mediaUsable(chosen) ? (
-                  <p className="text-xs text-(--td-new)">Approved with its rights</p>
+                  <p className="text-xs text-(--td-new)">
+                    Approved with its rights
+                    {replacementPending(chosen) && <span className="text-amber-300"> · a replacement waits for approval; releases show the one here</span>}
+                  </p>
                 ) : (
                   <p className="text-xs text-amber-300">Not approved with its rights yet: approving this needs it</p>
                 )
@@ -211,10 +223,11 @@ function TdMediaPickerDialog({
           {shown.map((row) => (
             <li key={row.id}>
               <button type="button" onClick={() => onPick(row.data.key)} className="flex w-full items-center gap-3 rounded-lg p-2 text-left hover:bg-card">
-                <TdMediaThumb uploadId={row.data.uploadId} url={row.data.url} alt={row.data.key} />
+                <TdMediaThumb uploadId={releasedImage(row).uploadId} url={releasedImage(row).url} alt={row.data.key} />
                 <span className="min-w-0 flex-1">
                   <span className="block truncate font-mono text-xs">{row.data.key}</span>
                   <span className="block truncate text-xs text-(--td-text-3)">{row.data.author ?? 'No credit'} · {row.data.license ?? 'No licence'}</span>
+                  {replacementPending(row) && <span className="block text-xs text-amber-300">Replacement waits for approval</span>}
                 </span>
                 <TdStatusChip status={row.status} />
               </button>

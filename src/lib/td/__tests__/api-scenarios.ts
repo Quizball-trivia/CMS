@@ -297,16 +297,20 @@ export function apiScenarios(h: () => Harness) {
     expect((await h().call('ops', 'GET', '/admin/reviews?status=all')).status).toBe(200);
   });
 
-  it('players: search, profile, matches, tickets, a match record and its correction', async () => {
+  it('players: search, profile, matches, tickets, a match record and its correction', async (ctx) => {
     const found = await h().call('betsson_admin', 'GET', '/admin/players?q=N');
     expect(found.status).toBe(200);
     const players = (found.body as { items: { id: string }[] }).items;
-    if (h().real && players.length === 0) return;
+    // A real database needs players with a settled match (the mock has them): reported as skipped, not passed.
+    if (h().real && players.length === 0) return ctx.skip();
+    expect(players.length).toBeGreaterThan(0);
     const player = players[0].id;
     expect((await h().call('betsson_admin', 'GET', `/admin/players/${player}`)).status).toBe(200);
     expect((await h().call('betsson_admin', 'GET', `/admin/players/${player}/tickets`)).status).toBe(200);
     const matches = (await h().call('betsson_admin', 'GET', `/admin/players/${player}/matches`)).body as { items: { matchId: string; status: string; resultVersion: number }[] };
     const settled = matches.items.find((m) => m.status === 'settled');
+    if (h().real && !settled) return ctx.skip();
+    expect(settled).toBeDefined();
     if (!settled) return;
     const record = await h().call('betsson_admin', 'GET', `/admin/matches/${settled.matchId}`);
     expect(record.status).toBe(200);

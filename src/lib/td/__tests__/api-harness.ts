@@ -89,17 +89,35 @@ export function contractProblems(exchange: Exchange): string[] {
   if (exchange.status >= 400) {
     const issues = checkContract('AdminError', exchange.body);
     if (issues.length) return [`${where}: not an AdminError (${describe(issues)})`];
-    const code = (exchange.body as { code: string }).code;
+    const { code, details } = exchange.body as { code: string; details?: unknown };
+    const problems: string[] = [];
     // Contract v4 omits 403 from its role-gated operations reads, which the API's staff guard answers like every other.
-    if (exchange.status === 403 && code === 'forbidden' && route.roles) return [];
     const listed = route.errors[String(exchange.status)] ?? [];
-    return listed.includes(code) ? [] : [`${where}: ${code} is not listed for this route (${listed.join(', ') || 'none'})`];
+    if (!listed.includes(code) && !(exchange.status === 403 && code === 'forbidden' && route.roles))
+      problems.push(`${where}: ${code} is not listed for this route (${listed.join(', ') || 'none'})`);
+    const detailSchema = refusalDetails(route.path, route.method, code);
+    if (detailSchema && details !== undefined) {
+      const issues = checkContract(detailSchema, details);
+      if (issues.length) problems.push(`${where}: ${code} details are not ${detailSchema} (${describe(issues)})`);
+    }
+    return problems;
   }
   if (!(String(exchange.status) in route.responses)) return [`${where}: status not in the contract (${Object.keys(route.responses).join(', ')})`];
   const schema = route.responses[String(exchange.status)];
   if (schema === null) return [];
   const issues = checkContract(schema, exchange.body);
   return issues.length ? [`${where}: body is not ${schema} (${describe(issues)})`] : [];
+}
+
+/** The contract's shape for a refusal's details, where it names one. */
+function refusalDetails(path: string, method: string, code: string): string | null {
+  const content = path.startsWith('/admin/content/') && !path.startsWith('/admin/content/imports');
+  if (code === 'validation') return method === 'POST' && path === '/admin/content/imports' ? 'ContentImportReport' : content ? 'ValidationDetails' : null;
+  if (code === 'revision_conflict') return content ? 'RevisionConflictDetails' : 'OpsRevisionConflictDetails';
+  if (code === 'dependency_unapproved') return 'DependencyDetails';
+  if (code === 'invalid_image') return 'ImageRefusalDetails';
+  if (code === 'publication_in_progress') return 'PublicationBusyDetails';
+  return null;
 }
 
 /** A 16×9 PNG (the mock and the real API both decode it). */

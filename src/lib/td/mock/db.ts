@@ -1,13 +1,14 @@
 import type { TdContentStatus, TdContentType } from '../admin-api';
 import { TD_CONTENT_TYPES } from '../admin-api';
-import type { AdminMatchRecord, OpsReview, Publication, ReleaseReport, Settings } from '../contract';
+import type { AdminMatchRecord, OpsReview, Publication, ReleaseDetail, ReleaseReport, Settings } from '../contract';
+import type { DailyCycle } from '../georgia';
 import { addDays, georgiaToday } from '../georgia';
 import type { Data } from './model';
 import { seedContent } from './seed-content';
 import { MOCK_STAFF } from './staff';
 
 /** Bumped whenever the stored shape or the seed changes: an older store is replaced. */
-export const MOCK_DB_SCHEMA = 1;
+export const MOCK_DB_SCHEMA = 2;
 
 export interface Actor {
   id: string | null;
@@ -94,6 +95,20 @@ export interface Member {
   contentVersion: number;
 }
 
+export type Manifest = ReleaseDetail['manifest'];
+
+/** Per daily game: its dated sets, its cycle and the sets it holds, as the release has them. */
+export type DailySnapshot = Record<'footballLogic' | 'putInOrder' | 'careerPath', { dates: Record<string, string>; cycle: DailyCycle | null; known: string[] }>;
+
+/** What a release holds, fixed when it is made. */
+export interface ReleaseSnapshot {
+  members: Member[];
+  manifest: Manifest;
+  dailies: DailySnapshot;
+  /** The uploads its images are (made public at publish). */
+  uploads: string[];
+}
+
 export interface MockRelease {
   id: string;
   hash: string;
@@ -102,6 +117,9 @@ export interface MockRelease {
   createdAt: string;
   createdBy: Actor;
   members: Member[];
+  /** Null for a release older than the CMS (published by the deploy, no recorded content). */
+  manifest: Manifest | null;
+  dailies: DailySnapshot | null;
   publicationId: string | null;
   /** The release current before this one was first made current (its diff baseline). */
   replaced: string | null;
@@ -133,9 +151,8 @@ export interface MockPublication {
   finishedAt: string | null;
   error: Publication['error'];
   report: ReleaseReport | null;
-  members: Member[];
-  /** The release a publish makes, known from its snapshot. */
-  wouldBe: string | null;
+  /** A publish's snapshot of the approved content and the release id it makes. */
+  snapshot: (ReleaseSnapshot & { releaseId: string }) | null;
   notify: Publication['notify'];
 }
 
@@ -149,6 +166,8 @@ export interface MockPlayer {
   clubId: string | null;
   createdAt: string;
   lastSeenAt: string | null;
+  /** Where the rating history starts (seeded players did not start at 0). */
+  startRating: number;
   rating: number;
   ratingVersion: number;
   ticketsPerDay: number;
@@ -273,14 +292,12 @@ export function seedDb(now: number): MockDb {
       audit.push({ id: ++n, rowId: id, type, at: at(1, 2), actor: editor, action: 'ready', fromStatus: 'draft', toStatus: 'ready', version: 2, contentVersion: 1, batchId: null });
   });
 
-  const approvedMembers = rows
-    .filter((r) => r.approvedVersion !== null)
-    .map((r) => ({ type: r.type, id: r.id, label: String(r.data.key ?? r.data.game), contentVersion: r.approvedVersion! }));
   const older = 'r-00000000000000a1';
   const current = 'r-00000000000000b2';
+  // The current release's content is filled in from the seed by the router (completeSeed).
   const releases: MockRelease[] = [
-    { id: older, hash: 'a1'.repeat(32), formatVersion: 1, status: 'available', createdAt: at(30), createdBy: SYSTEM, members: [], publicationId: null, replaced: null },
-    { id: current, hash: 'b2'.repeat(32), formatVersion: 2, status: 'available', createdAt: at(20), createdBy: staffActor('publisher'), members: approvedMembers, publicationId: null, replaced: older },
+    { id: older, hash: 'a1'.repeat(32), formatVersion: 1, status: 'available', createdAt: at(30), createdBy: SYSTEM, members: [], manifest: null, dailies: null, publicationId: null, replaced: null },
+    { id: current, hash: 'b2'.repeat(32), formatVersion: 2, status: 'available', createdAt: at(20), createdBy: staffActor('publisher'), members: [], manifest: null, dailies: null, publicationId: null, replaced: older },
   ];
 
   const { players, matches, ledger } = seedPlay(now);
@@ -355,6 +372,7 @@ function seedPlay(now: number) {
     clubId: i % 3 === 0 ? 'dinamo-tbilisi' : null,
     createdAt: at(60 * 24 * (20 - i)),
     lastSeenAt: at(30 + i * 45),
+    startRating: 200,
     rating: 200,
     ratingVersion: 0,
     ticketsPerDay: 5,
@@ -429,16 +447,20 @@ function seedPlay(now: number) {
         entries:
           i === 4
             ? null
-            : [
-                { at: t0 + 2_000, seat: 'me', kind: 'ready' },
-                { at: t0 + 2_400, seat: 'op', kind: 'ready' },
-                { at: t0 + 9_100, seat: 'op', kind: 'pick', card: 3 },
-                { at: t0 + 15_800, seat: 'op', kind: 'answer', text: 'messi' },
-                { at: t0 + 31_200, seat: 'me', kind: 'buzz' },
-                { at: t0 + 33_900, seat: 'me', kind: 'answer', text: 'kaladze' },
-                { at: t0 + 61_000, seat: 'me', kind: 'pick', category: 'world-cups' },
-                { at: t0 + 70_500, seat: 'op', kind: 'penalty', side: 'left' },
-              ],
+            : // As the match queue keeps them: `<stamp µs>|<input JSON>`.
+              (
+                [
+                  [2_000, { kind: 'ready', seat: 'me' }],
+                  [2_400, { kind: 'ready', seat: 'op' }],
+                  [9_100, { kind: 'command', seat: 'op', command: { id: 'c1', seat: 'op', kind: 'draw', slot: 3, roundId: 1, step: 1 } }],
+                  [15_800, { kind: 'command', seat: 'op', command: { id: 'c2', seat: 'op', kind: 'submit', text: 'messi', roundId: 1, step: 2 } }],
+                  [24_000, { kind: 'presence', seat: 'me', connected: false }],
+                  [26_500, { kind: 'presence', seat: 'me', connected: true }],
+                  [31_200, { kind: 'command', seat: 'me', command: { id: 'c3', seat: 'me', kind: 'buzz', roundId: 2, step: 1 } }],
+                  [33_900, { kind: 'command', seat: 'me', command: { id: 'c4', seat: 'me', kind: 'submit', text: 'kaladze', roundId: 2, step: 1 } }],
+                  [61_000, { kind: 'command', seat: 'me', command: { id: 'c5', seat: 'me', kind: 'open', slot: 4, roundId: 3, step: 1 } }],
+                ] as const
+              ).map(([ms, input]) => `${(t0 + ms) * 1000}|${JSON.stringify(input)}`),
         missing: i === 4 ? 'not_recorded' : null,
       },
       players: seats,

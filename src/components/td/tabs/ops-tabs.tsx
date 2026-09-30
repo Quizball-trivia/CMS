@@ -13,7 +13,7 @@ import { TdIssueText, TdSwitchField } from '@/components/td/content/td-form';
 import { tdKeys, useTdWrite } from '@/hooks/use-td-content';
 import { TdApiError } from '@/lib/td/api-client';
 import { tdAdmin } from '@/lib/td/client';
-import { checkContract, type BoardPage, type SchemaIssue, type Settings, type SnapshotPage } from '@/lib/td/contract';
+import { checkContract, type BoardPage, type SchemaIssue, type Settings, type SnapshotList, type SnapshotPage } from '@/lib/td/contract';
 import { downloadText } from '@/lib/td/download';
 import { formatDay, formatGeorgiaTime, georgiaToday } from '@/lib/td/georgia';
 import type { TdOperation } from '@/lib/td/operation';
@@ -84,7 +84,13 @@ export function TdLeaderboardTab() {
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (last: BoardPage) => last.nextCursor ?? undefined,
   });
-  const snapshots = useQuery({ queryKey: [...tdKeys.ops, 'snapshots'], queryFn: ({ signal }) => tdAdmin.leaderboard.snapshots({ limit: 50 }, { signal }) });
+  const snapshots = useInfiniteQuery({
+    queryKey: [...tdKeys.ops, 'snapshots'],
+    queryFn: ({ pageParam, signal }) => tdAdmin.leaderboard.snapshots({ cursor: pageParam, limit: 50 }, { signal }),
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: (last: SnapshotList) => last.nextCursor ?? undefined,
+  });
+  const snapshotItems = snapshots.data?.pages.flatMap((page) => page.items) ?? [];
   const first = board.data?.pages[0];
 
   const take = async () => {
@@ -143,9 +149,9 @@ export function TdLeaderboardTab() {
           <TdErrorPanel error={snapshotError} />
         </div>
         <TdErrorPanel error={snapshots.error} className="m-5" />
-        {snapshots.data?.items.length === 0 && <TdEmptyState title="No snapshots yet" />}
+        {snapshots.isSuccess && snapshotItems.length === 0 && <TdEmptyState title="No snapshots yet" />}
         <ul className="divide-y divide-(--td-divider)">
-          {snapshots.data?.items.map((snapshot) => (
+          {snapshotItems.map((snapshot) => (
             <li key={snapshot.id} className="px-5 py-3">
               <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
                 <button type="button" className="font-medium hover:underline" onClick={() => setOpen(open === snapshot.id ? null : snapshot.id)} aria-expanded={open === snapshot.id}>
@@ -170,6 +176,13 @@ export function TdLeaderboardTab() {
             </li>
           ))}
         </ul>
+        {snapshots.hasNextPage && (
+          <div className="border-t border-(--td-divider) px-5 py-3">
+            <Button variant="secondary" size="sm" className="rounded-lg" disabled={snapshots.isFetchingNextPage} onClick={() => void snapshots.fetchNextPage()}>
+              Load more
+            </Button>
+          </div>
+        )}
       </TdSection>
     </>
   );
