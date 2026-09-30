@@ -18,11 +18,14 @@ const REASON_CODES: Array<[code: string, meaning: string]> = [
   ['rate_limited', 'Too many requests'],
 ];
 
-const LOG_EMPTY = 'Entries appear once Betsson calls the Table Derby API.';
+const LOG_EMPTY = 'These logs come with the webhook API (admin contract v5), on another branch.';
 
 export default function TdIntegrationPage() {
   return (
     <TdTabPage tab="integration">
+      <p className="rounded-xl border border-amber-400/30 bg-amber-400/5 px-4 py-3 text-sm text-amber-200">
+        Not wired yet: session inits, launches and webhook deliveries arrive with admin contract v5 (the webhook API). This CMS pins v4.
+      </p>
       <div className="relative">
         <Search className="pointer-events-none absolute left-4 top-1/2 size-4 -translate-y-1/2 text-(--td-text-3)" />
         <Input disabled placeholder="Search by playerId, sessionId or eventId" className="h-11 rounded-full bg-(--td-input) pl-11" />

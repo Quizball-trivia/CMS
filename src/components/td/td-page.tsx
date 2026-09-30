@@ -69,7 +69,7 @@ export function TdEmptyState({ icon: Icon, title, children }: { icon?: LucideIco
   );
 }
 
-/** Column headers with an empty body: the shape of a list whose editor is not built yet. */
+/** Column headers with an empty body: the shape of a list whose data is not wired yet. */
 export function TdPlaceholderTable({
   columns,
   emptyTitle,
@@ -105,8 +105,6 @@ export function TdPlaceholderTable({
   );
 }
 
-export const TD_NOT_BUILT_YET = 'The editor for this tab arrives with the Table Derby API.';
-
 /** Every console page renders through this: it names the page's own tab, which the role gate uses. */
 export function TdTabPage({ tab, actions, children }: { tab: TdTabKey; actions?: ReactNode; children?: ReactNode }) {
   return (
@@ -114,26 +112,5 @@ export function TdTabPage({ tab, actions, children }: { tab: TdTabKey; actions?:
       <TdPageHeader tabKey={tab} actions={actions} />
       {children}
     </TdTabGate>
-  );
-}
-
-/** Standard page for tabs whose editor is not in this slice. */
-export function TdTabPlaceholder({
-  tabKey,
-  sectionTitle,
-  columns,
-  emptyTitle,
-}: {
-  tabKey: TdTabKey;
-  sectionTitle: string;
-  columns: string[];
-  emptyTitle: string;
-}) {
-  return (
-    <TdTabPage tab={tabKey}>
-      <TdSection title={sectionTitle}>
-        <TdPlaceholderTable columns={columns} icon={TD_TAB_ICONS[tabKey]} emptyTitle={emptyTitle} emptyBody={TD_NOT_BUILT_YET} />
-      </TdSection>
-    </TdTabPage>
   );
 }

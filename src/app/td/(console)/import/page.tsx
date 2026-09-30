@@ -1,16 +1,14 @@
 import type { Metadata } from 'next';
-import { TdTabPlaceholder } from '@/components/td/td-page';
+import { TdTabPage } from '@/components/td/td-page';
+import { TdImportTab } from '@/components/td/tabs/import-tab';
 import { getTab } from '@/lib/td/navigation';
 
 export const metadata: Metadata = { title: getTab('import').label };
 
-export default function Page() {
+export default function TdImportPage() {
   return (
-    <TdTabPlaceholder
-      tabKey="import"
-      sectionTitle="Import batches"
-      columns={['Batch', 'File', 'Rows', 'Result', 'Imported by', 'When']}
-      emptyTitle="No imports yet"
-    />
+    <TdTabPage tab="import">
+      <TdImportTab />
+    </TdTabPage>
   );
 }

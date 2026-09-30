@@ -1,16 +1,14 @@
 import type { Metadata } from 'next';
-import { TdTabPlaceholder } from '@/components/td/td-page';
+import { TdTabPage } from '@/components/td/td-page';
+import { TdReleasesTab } from '@/components/td/tabs/releases-tab';
 import { getTab } from '@/lib/td/navigation';
 
 export const metadata: Metadata = { title: getTab('releases').label };
 
-export default function Page() {
+export default function TdReleasesPage() {
   return (
-    <TdTabPlaceholder
-      tabKey="releases"
-      sectionTitle="Releases"
-      columns={['Release', 'Published', 'By', 'Changes', 'Validation']}
-      emptyTitle="Nothing has been published yet"
-    />
+    <TdTabPage tab="releases">
+      <TdReleasesTab />
+    </TdTabPage>
   );
 }

@@ -109,7 +109,8 @@ export async function report(db: MockDb, now: number): Promise<{ report: Release
     ok: errors.length === 0,
     releaseId,
     currentReleaseId: db.pointer.releaseId,
-    unchanged: releaseId !== null && releaseId === db.pointer.releaseId,
+    // The seeded releases' ids are not hashes of their content, so "no member changed" counts as the same release too.
+    unchanged: releaseId !== null && (releaseId === db.pointer.releaseId || (current !== null && current.members.length > 0 && changeCounts(current.members, after).length === 0)),
     checkedAt: new Date(now).toISOString(),
     from: today,
     days: COVERAGE_DAYS,

@@ -1,4 +1,5 @@
 import type { TdAdminErrorCode } from '../contract';
+import { canonicalJson, sha256Hex } from '../hash';
 
 /** A refusal the mock answers with, in the contract's error shape. */
 export class MockError extends Error {
@@ -37,24 +38,7 @@ export function equal(a: unknown, b: unknown): boolean {
   return canonicalJson(a) === canonicalJson(b);
 }
 
-/** JSON with object keys sorted, so equal values read the same. */
-export function canonicalJson(value: unknown): string {
-  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(',')}]`;
-  if (value && typeof value === 'object') {
-    return `{${Object.keys(value)
-      .sort()
-      .filter((key) => (value as Record<string, unknown>)[key] !== undefined)
-      .map((key) => `${JSON.stringify(key)}:${canonicalJson((value as Record<string, unknown>)[key])}`)
-      .join(',')}}`;
-  }
-  return JSON.stringify(value);
-}
-
-export async function sha256Hex(data: string | ArrayBuffer): Promise<string> {
-  const bytes = typeof data === 'string' ? new TextEncoder().encode(data) : new Uint8Array(data);
-  const digest = await crypto.subtle.digest('SHA-256', bytes);
-  return Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, '0')).join('');
-}
+export { canonicalJson, sha256Hex };
 
 /** Opaque page cursors: base64url of the offset and what the list was sorted by. */
 export function encodeCursor(value: object): string {
