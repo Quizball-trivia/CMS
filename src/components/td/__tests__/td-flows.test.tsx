@@ -40,7 +40,7 @@ const { TdContentEditorSheet } = await import('../content/td-content-editor');
 const { TdImportTab } = await import('../tabs/import-tab');
 const { TdReleasesTab } = await import('../tabs/releases-tab');
 const { useTdWrite } = await import('@/hooks/use-td-content');
-const { CorrectionForm, OpsReviews } = await import('../tabs/players-tab');
+const { CorrectionForm, OpsReviews, Replay } = await import('../tabs/players-tab');
 const { MaintenanceSetting, TdSettingsTab, TicketsSetting } = await import('../tabs/ops-tabs');
 const { TD_ADMIN_CONTRACT_VERSION } = await import('@/lib/td/contract');
 const { TdIntegrationTab } = await import('../tabs/integration-tab');
@@ -238,6 +238,34 @@ describe('media', () => {
     expect(await screen.findByText('crest-torpedo')).toBeTruthy();
     const [image] = (await admin.content('media').list({ q: 'crest-torpedo' })).items;
     expect(image).toMatchObject({ status: 'draft', data: { key: 'crest-torpedo', width: 16, height: 9, license: 'CC0', author: null } });
+  });
+});
+
+describe('match inputs that are not on hand', () => {
+  it('says why, names the archive’s two reasons, and shows when the inputs went to the archive', async () => {
+    const ops = await signIn('ops');
+    const player = (await ops.admin.players.search('Nika')).items[0];
+    const played = (await ops.admin.players.matches(player.id)).items.find((m) => m.status === 'settled')!;
+    const record = await ops.admin.matches.get(played.matchId);
+    const withInputs = (inputs: typeof record.inputs) => <Replay record={{ ...record, inputs }} />;
+
+    const { rerender } = renderTd(withInputs({ kept: false, entries: null, missing: 'archived', archivedAt: '2026-03-01T08:30:00Z' }));
+    expect(screen.getByText('Its inputs are in the archive, which cannot be read just now. Try again in a moment.')).toBeTruthy();
+    expect(screen.getByText(/^Archived .*2026/)).toBeTruthy();
+
+    rerender(<QueryClientProvider client={new QueryClient()}>{withInputs({ kept: false, entries: null, missing: 'expired', archivedAt: '2026-03-01T08:30:00Z' })}</QueryClientProvider>);
+    expect(screen.getByText('Its inputs were deleted from the archive, 730 days after the match.')).toBeTruthy();
+    expect(screen.getByText(/^Archived .*2026/)).toBeTruthy();
+
+    // Without archivedAt (never archived) nothing is said about the archive.
+    rerender(<QueryClientProvider client={new QueryClient()}>{withInputs({ kept: false, entries: null, missing: 'not_recorded' })}</QueryClientProvider>);
+    expect(screen.getByText('Its inputs were not kept.')).toBeTruthy();
+    expect(screen.queryByText(/^Archived/)).toBeNull();
+
+    // Inputs read back from the archive still replay, and say when they went there.
+    rerender(<QueryClientProvider client={new QueryClient()}>{withInputs({ kept: true, entries: [{ kind: 'ready', seat: 'me', at: 1_000 }], missing: null, archivedAt: '2026-03-01T08:30:00Z' })}</QueryClientProvider>);
+    expect(screen.getByText(/^Archived .*2026/)).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Play' })).toBeTruthy();
   });
 });
 
