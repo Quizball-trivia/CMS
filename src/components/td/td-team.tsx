@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, type FormEvent, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { AlertCircle, Check, Copy, KeyRound, Loader2, UserPlus, Users } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -40,23 +40,26 @@ export function canMakeResetLink(actor: { id: string; role: TdRole } | null | un
 export const inviteLink = (origin: string, token: string) => `${origin}${TD_LINK_PATHS.invite}#token=${encodeURIComponent(token)}`;
 export const resetLink = (origin: string, token: string) => `${origin}${TD_LINK_PATHS.reset}#token=${encodeURIComponent(token)}`;
 
-/** A reset link refused, in plain words (a conflict in the API's own: not signed up yet, or disabled). */
+/** A reset link refused, in plain words. */
 export function resetLinkRefusal(error: unknown, email: string): string {
   if (!(error instanceof TdApiError)) return 'No answer from the Table Derby API, so a link may have been made. Make another: an earlier one then stops working.';
-  if (error.status === 403) return 'You cannot make a reset link for this member: not for yourself, and not for an ops member.';
   if (error.code === 'not_found') return `${email} is no longer on the team.`;
-  if (error.code === 'conflict') return `No reset link for ${email}: ${error.message.replace(/\.?$/, '.')}`;
+  // The API says which rule refused it (your role, yourself, an ops member; not signed up, disabled) in plain words.
+  if (error.status === 403 || error.code === 'conflict') return `No reset link for ${email}: ${error.message.replace(/\.?$/, '.')}`;
   return describeTdError(error).title;
 }
 
 /** A one-time link shown once, to copy and send by hand. */
-function OneTimeLink({ label, intro, link, expiresAt, again, onDone }: { label: string; intro: ReactNode; link: string; expiresAt: string; again: string; onDone: () => void }) {
+function OneTimeLink({ label, heading, intro, link, expiresAt, again, onDone }: { label: string; heading: string; intro: ReactNode; link: string; expiresAt: string; again: string; onDone: () => void }) {
   const [copied, setCopied] = useState(false);
+  const input = useRef<HTMLInputElement>(null);
+  // Straight to the link (and into view): it may appear far from the button that made it.
+  useEffect(() => input.current?.focus(), [link]);
   return (
-    <div className="flex flex-col gap-3 border-b border-(--td-divider) px-5 py-4">
+    <section aria-label={heading} className="flex flex-col gap-3 border-b border-(--td-divider) px-5 py-4">
       <p className="text-sm">{intro} Send them this link yourself: the API does not email it.</p>
       <div className="flex flex-wrap items-center gap-2">
-        <Input readOnly value={link} aria-label={label} onFocus={(event) => event.target.select()} className="h-10 min-w-0 flex-1 rounded-lg bg-(--td-input) font-mono text-xs" />
+        <Input ref={input} readOnly value={link} aria-label={label} onFocus={(event) => event.target.select()} className="h-10 min-w-0 flex-1 rounded-lg bg-(--td-input) font-mono text-xs" />
         <Button
           variant="secondary"
           className="rounded-lg"
@@ -74,7 +77,7 @@ function OneTimeLink({ label, intro, link, expiresAt, again, onDone }: { label: 
       <Button variant="ghost" className="w-fit rounded-lg" onClick={onDone}>
         Done
       </Button>
-    </div>
+    </section>
   );
 }
 
@@ -117,6 +120,7 @@ function InviteMember({ onClose }: { onClose: () => void }) {
     return (
       <OneTimeLink
         label="Invitation link"
+        heading={`Invitation link for ${invited.email}`}
         intro={
           <>
             Invitation for <span className="font-mono text-xs">{invited.email}</span>.
@@ -187,7 +191,16 @@ export function TdTeam() {
   const resetColumn = Boolean(data?.items.some((member) => canMakeResetLink(user, member)));
   const columns = resetColumn ? [...COLUMNS, ''] : COLUMNS;
 
-  const makeResetLink = async (member: TdStaffMember) => {
+  // Where focus goes back when a link panel is closed.
+  const returnFocus = useRef<HTMLElement | null>(null);
+  const inviteButton = useRef<HTMLButtonElement>(null);
+  const [inviteClosed, setInviteClosed] = useState(false);
+  useEffect(() => {
+    if (inviteClosed && !inviting) inviteButton.current?.focus();
+  }, [inviteClosed, inviting]);
+
+  const makeResetLink = async (member: TdStaffMember, trigger: HTMLElement) => {
+    returnFocus.current = trigger;
     setMaking(member.id);
     setResetError(null);
     setReset(null);
@@ -209,17 +222,25 @@ export function TdTeam() {
       description="Roles are enforced by the API on every request. Nobody can grant or remove the ops role here."
       actions={
         canInvite(user?.role) && !inviting ? (
-          <Button className="rounded-lg" onClick={() => setInviting(true)}>
+          <Button ref={inviteButton} className="rounded-lg" onClick={() => setInviting(true)}>
             <UserPlus />
             Invite member
           </Button>
         ) : undefined
       }
     >
-      {inviting && canInvite(user?.role) && <InviteMember onClose={() => setInviting(false)} />}
+      {inviting && canInvite(user?.role) && (
+        <InviteMember
+          onClose={() => {
+            setInviting(false);
+            setInviteClosed(true);
+          }}
+        />
+      )}
       {reset && (
         <OneTimeLink
           label="Reset link"
+          heading={`Reset link for ${reset.email}`}
           intro={
             <>
               Reset link for <span className="font-mono text-xs">{reset.email}</span>. Opening it sets a new password and signs them out everywhere else.
@@ -228,7 +249,10 @@ export function TdTeam() {
           link={reset.link}
           expiresAt={reset.expiresAt}
           again="Making another reset link for them stops this one."
-          onDone={() => setReset(null)}
+          onDone={() => {
+            setReset(null);
+            returnFocus.current?.focus();
+          }}
         />
       )}
       {resetError && (
@@ -289,7 +313,7 @@ export function TdTeam() {
                         className="rounded-lg"
                         disabled={making !== null}
                         aria-label={`Reset link for ${member.name || member.email}`}
-                        onClick={() => void makeResetLink(member)}
+                        onClick={(event) => void makeResetLink(member, event.currentTarget)}
                       >
                         {making === member.id ? <Loader2 className="animate-spin" /> : <KeyRound />}
                         Reset link

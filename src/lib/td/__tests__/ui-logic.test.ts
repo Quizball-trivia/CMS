@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest';
+import type { TdStaffMember } from '@/types/td';
 import type { WebhookEventDetail } from '@/lib/td/contract';
 import { reviewCategory } from '@/components/td/content/td-category-approval';
 import { planDays } from '@/components/td/tabs/dailies-tab';
 import { replaySteps } from '@/components/td/tabs/players-tab';
 import { pollInterval } from '@/components/td/tabs/integration-tab';
+import { canMakeResetLink } from '@/components/td/td-team';
 import { followAnswer } from '@/components/td/content/editors/library';
 import type { TdContentRow } from '../admin-api';
 import { daysFrom } from '../georgia';
@@ -98,6 +100,21 @@ describe('three-way merge of a stale edit', () => {
     expect(merged.position).toBe(3);
     expect(resolveConflicts(merged, conflicts, { 'data.aliases': 'theirs' }).data.aliases).toEqual(['a', 'c']);
     expect(resolveConflicts(merged, conflicts, {}).data.aliases).toEqual(['a', 'b']);
+  });
+});
+
+describe('who gets a Reset link', () => {
+  const member = (role: TdStaffMember['role'], status: TdStaffMember['status'] = 'active', id = `m-${role}`): TdStaffMember => ({ id, email: `${role}@x.test`, name: role, role, status, lastSignInAt: null });
+  it('team managers, for an active member who is neither themselves nor ops', () => {
+    const admin = { id: 'me', role: 'betsson_admin' as const };
+    expect(canMakeResetLink(admin, member('editor'))).toBe(true);
+    expect(canMakeResetLink({ id: 'me', role: 'ops' }, member('betsson_admin'))).toBe(true);
+    expect(canMakeResetLink(admin, member('betsson_admin', 'active', 'me'))).toBe(false);
+    expect(canMakeResetLink(admin, member('ops'))).toBe(false);
+    expect(canMakeResetLink(admin, member('editor', 'invited'))).toBe(false);
+    expect(canMakeResetLink(admin, member('editor', 'disabled'))).toBe(false);
+    for (const role of ['editor', 'publisher'] as const) expect(canMakeResetLink({ id: 'me', role }, member('editor'))).toBe(false);
+    expect(canMakeResetLink(null, member('editor'))).toBe(false);
   });
 });
 
