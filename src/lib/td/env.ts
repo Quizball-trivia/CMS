@@ -31,8 +31,8 @@ function parseFlag(name: string, raw: string | undefined): boolean {
   throw new Error(`${name} must be "1", "0" or unset, got "${raw}"`);
 }
 
-/** Vercel sets VERCEL on every build it hosts; any value counts. */
-const isHosted = (env: TdEnvInput) => env.VERCEL !== undefined && env.VERCEL !== '';
+/** Vercel sets VERCEL on every build it hosts; any value counts, empty included. */
+const isHosted = (env: TdEnvInput) => env.VERCEL !== undefined;
 
 /** The product environment; Vercel's own environment says nothing about it (staging has a production slot too). */
 function resolveDeployEnv(env: TdEnvInput): TdDeployEnv {
@@ -59,7 +59,8 @@ export function resolveTdConfig(env: TdEnvInput): TdConfig {
   if (mock) {
     // The mock carries demo accounts with a public password: it may only run on a developer's machine,
     // never in a build that is hosted or names a product environment.
-    if (deployEnv !== 'local' || isHosted(env)) {
+    // A product environment variable that is present at all (even empty) marks a deployment, not a developer's machine.
+    if (deployEnv !== 'local' || isHosted(env) || env.NEXT_PUBLIC_CMS_ENV !== undefined) {
       throw new Error('NEXT_PUBLIC_TD_API_MOCK=1 is for local development only: not on Vercel and not with NEXT_PUBLIC_CMS_ENV set');
     }
     return { deployEnv, apiUrl: MOCK_API_URL, apiOrigin: null, mock };

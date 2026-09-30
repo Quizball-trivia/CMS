@@ -32,6 +32,14 @@ describe('resolveTdConfig', () => {
     expect(() => resolveTdConfig({ ...TD, VERCEL: 'true', NEXT_PUBLIC_TD_API_MOCK: '1' })).toThrow(/must set NEXT_PUBLIC_CMS_ENV/);
   });
 
+  it('counts a deployment marker that is present but empty as set', () => {
+    expect(() => resolveTdConfig({ ...TD, NEXT_PUBLIC_CMS_ENV: '', NEXT_PUBLIC_TD_API_MOCK: '1' })).toThrow(/local development only/);
+    expect(() => resolveTdConfig({ ...TD, VERCEL: '', NEXT_PUBLIC_TD_API_MOCK: '1' })).toThrow(/must set NEXT_PUBLIC_CMS_ENV/);
+    expect(() => resolveTdConfig({ ...TD, VERCEL: '', NEXT_PUBLIC_TD_API_URL: 'https://api.example.test' })).toThrow(/must set NEXT_PUBLIC_CMS_ENV/);
+    // Unset is still local.
+    expect(resolveTdConfig({ ...TD, NEXT_PUBLIC_CMS_ENV: undefined, VERCEL: undefined, NEXT_PUBLIC_TD_API_MOCK: '1' })).toMatchObject({ mock: true });
+  });
+
   it.each(['PRODUCTION', 'prod', 'Staging', ' PROD', 'local'])('refuses the unknown product environment %j', (value) => {
     expect(() => resolveTdConfig({ ...TD, NEXT_PUBLIC_CMS_ENV: value, NEXT_PUBLIC_TD_API_MOCK: '1' })).toThrow(/NEXT_PUBLIC_CMS_ENV/);
   });
