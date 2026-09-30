@@ -6,6 +6,7 @@ import type { TdAdminApi, TdContentRow } from '@/lib/td/admin-api';
 import type { TdApiClient } from '@/lib/td/api-client';
 import type { TdTokenStore } from '@/lib/td/token-store';
 import type { TdRole, TdStaff } from '@/types/td';
+import type { OpsReview } from '@/lib/td/contract';
 
 const h = vi.hoisted(() => ({
   admin: null as unknown as TdAdminApi,
@@ -38,7 +39,7 @@ const { TdContentEditorSheet } = await import('../content/td-content-editor');
 const { TdImportTab } = await import('../tabs/import-tab');
 const { TdReleasesTab } = await import('../tabs/releases-tab');
 const { useTdWrite } = await import('@/hooks/use-td-content');
-const { CorrectionForm } = await import('../tabs/players-tab');
+const { CorrectionForm, OpsReviews } = await import('../tabs/players-tab');
 const { MaintenanceSetting, TicketsSetting } = await import('../tabs/ops-tabs');
 const { deferred } = await import('@/lib/td/__tests__/helpers');
 const { browserPendingPublications } = await import('@/lib/td/pending-publications');
@@ -272,6 +273,39 @@ describe('operations and the session', () => {
     answer.resolve('old result');
     await expect(running).rejects.toMatchObject({ code: 'session_changed' });
     expect(invalidate).not.toHaveBeenCalled();
+  });
+});
+
+describe('penalties to review', () => {
+  it('pages through every review, not only the first 50', async () => {
+    const client = await signIn('ops');
+    const review = (n: number): OpsReview => ({
+      id: `review-${n}`,
+      kind: 'penalty',
+      playerId: 'player-1',
+      matchId: `match-${n}`,
+      georgiaDate: '2026-09-29',
+      source: 'correction',
+      correctionId: null,
+      countedThen: 2,
+      countedNow: 1,
+      createdAt: '2026-09-29T10:00:00.000Z',
+      status: 'open',
+      closedAt: null,
+      closedBy: null,
+      closingCorrectionId: null,
+      note: null,
+    });
+    const list = vi.fn(async (_status?: 'open' | 'all', query?: { cursor?: string; limit?: number }) =>
+      query?.cursor === 'page-2' ? { items: [review(51)], nextCursor: null } : { items: Array.from({ length: 50 }, (_, i) => review(i + 1)), nextCursor: 'page-2' },
+    );
+    h.admin = { ...client.admin, reviews: { ...client.admin.reviews, list } };
+    renderTd(<OpsReviews onMatch={() => {}} />);
+    await waitFor(() => expect(screen.getAllByRole('button', { name: 'Open the match' })).toHaveLength(50));
+    fireEvent.click(screen.getByRole('button', { name: 'Load more' }));
+    await waitFor(() => expect(screen.getAllByRole('button', { name: 'Open the match' })).toHaveLength(51));
+    expect(list).toHaveBeenLastCalledWith('open', { cursor: 'page-2', limit: 50 }, expect.anything());
+    expect(screen.queryByRole('button', { name: 'Load more' })).toBeNull();
   });
 });
 

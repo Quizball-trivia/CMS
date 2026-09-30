@@ -15,7 +15,7 @@ import { TdIssueText } from '@/components/td/content/td-form';
 import { tdKeys, useTdWrite } from '@/hooks/use-td-content';
 import { TdApiError } from '@/lib/td/api-client';
 import { tdAdmin } from '@/lib/td/client';
-import { checkContract, type AdminLedgerList, type AdminMatchRecord, type AdminPlayerList, type AdminPlayerMatchList, type SchemaIssue } from '@/lib/td/contract';
+import { checkContract, type AdminLedgerList, type AdminMatchRecord, type AdminPlayerList, type AdminPlayerMatchList, type OpsReviewList, type SchemaIssue } from '@/lib/td/contract';
 import { formatDay, formatGeorgiaTime } from '@/lib/td/georgia';
 import { cn } from '@/lib/utils';
 import { useTdAuth } from '@/providers/td-auth-provider';
@@ -563,9 +563,15 @@ export function CorrectionForm({ record }: { record: AdminMatchRecord }) {
   );
 }
 
-function OpsReviews({ onMatch }: { onMatch: (id: string) => void }) {
+export function OpsReviews({ onMatch }: { onMatch: (id: string) => void }) {
   const [status, setStatus] = useState<'open' | 'all'>('open');
-  const reviews = useQuery({ queryKey: [...tdKeys.ops, 'reviews', status], queryFn: ({ signal }) => tdAdmin.reviews.list(status, { limit: 50 }, { signal }) });
+  const reviews = useInfiniteQuery({
+    queryKey: [...tdKeys.ops, 'reviews', status],
+    queryFn: ({ pageParam, signal }) => tdAdmin.reviews.list(status, { cursor: pageParam, limit: 50 }, { signal }),
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: (last: OpsReviewList) => last.nextCursor ?? undefined,
+  });
+  const items = reviews.data?.pages.flatMap((page) => page.items) ?? [];
   return (
     <TdSection
       title="Penalties to review"
@@ -578,17 +584,24 @@ function OpsReviews({ onMatch }: { onMatch: (id: string) => void }) {
       }
     >
       <TdErrorPanel error={reviews.error} className="m-5" />
-      {reviews.data?.items.length === 0 && <TdEmptyState title="Nothing to review" />}
+      {reviews.isSuccess && items.length === 0 && <TdEmptyState title="Nothing to review" />}
       <ul className="divide-y divide-(--td-divider)">
-        {reviews.data?.items.map((review) => (
+        {items.map((review) => (
           <ReviewRow key={review.id} review={review} onMatch={onMatch} />
         ))}
       </ul>
+      {reviews.hasNextPage && (
+        <div className="border-t border-(--td-divider) px-5 py-3">
+          <Button variant="secondary" size="sm" className="rounded-lg" disabled={reviews.isFetchingNextPage} onClick={() => void reviews.fetchNextPage()}>
+            Load more
+          </Button>
+        </div>
+      )}
     </TdSection>
   );
 }
 
-function ReviewRow({ review, onMatch }: { review: NonNullable<Awaited<ReturnType<typeof tdAdmin.reviews.list>>>['items'][number]; onMatch: (id: string) => void }) {
+function ReviewRow({ review, onMatch }: { review: OpsReviewList['items'][number]; onMatch: (id: string) => void }) {
   const write = useTdWrite();
   const [note, setNote] = useState('');
   const [error, setError] = useState<unknown>(null);
