@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useInfiniteQuery, useQuery, useQueryClient, type QueryKey } from '@tanstack/react-query';
 import type { TdContentList, TdContentRow, TdContentType } from '@/lib/td/admin-api';
 import { tdAdmin, tdTokens } from '@/lib/td/client';
@@ -136,7 +136,21 @@ export function useTdUploadUrl(uploadId: string | null | undefined) {
     staleTime: Infinity,
     gcTime: 10 * 60_000,
   });
-  const url = useMemo(() => (file.data ? URL.createObjectURL(file.data) : null), [file.data]);
-  useEffect(() => () => (url ? URL.revokeObjectURL(url) : undefined), [url]);
+  // Made in an effect, so each URL made is the one revoked (a memo may run twice and leak, or hand out a revoked URL).
+  const [made, setMade] = useState<{ blob: Blob; url: string } | null>(null);
+  useEffect(() => {
+    if (!file.data) return;
+    const blob = file.data;
+    const objectUrl = URL.createObjectURL(blob);
+    // The URL is a browser resource this effect makes and revokes; state only carries it to the render.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setMade({ blob, url: objectUrl });
+    return () => {
+      URL.revokeObjectURL(objectUrl);
+      setMade((current) => (current?.url === objectUrl ? null : current));
+    };
+  }, [file.data]);
+  // Only the URL of the file shown now: none while there is no file.
+  const url = made && made.blob === file.data ? made.url : null;
   return { url, isLoading: file.isLoading, error: file.error };
 }
