@@ -25,6 +25,29 @@ export const TD_FIXED_FIELDS: Record<TdContentType, readonly string[]> = {
   'daily-settings': ['game'],
 };
 
+/**
+ * Data fields that only make sense together, merged as one unit when an edit
+ * conflicts (merge.ts): a question with its answer and options, an answer
+ * with its spellings and clues, an image with its size and rights, a round
+ * with the order its prompt asks for.
+ */
+export const TD_MERGE_UNITS: Record<TdContentType, readonly (readonly string[])[]> = {
+  'card-categories': [],
+  cards: [['display', 'aliases', 'lines', 'photo', 'imageKey']],
+  'whoami-subjects': [['display', 'aliases', 'clues']],
+  'box-categories': [],
+  'box-questions': [['q', 'display', 'aliases']],
+  'penalty-questions': [['q', 'display', 'aliases']],
+  'practice-questions': [['prompt', 'options', 'answer', 'explanation', 'imageKey']],
+  media: [['url', 'uploadId', 'width', 'height', 'author', 'license', 'source']],
+  clubs: [['label', 'value'], ['crest', 'crestImageKey']],
+  'football-logic': [['prompt', 'imageA', 'imageB', 'displayAnswer', 'acceptedAnswers']],
+  'put-in-order': [['prompt', 'items']],
+  'career-path': [['displayAnswer', 'acceptedAnswers', 'clubs']],
+  'daily-schedule': [],
+  'daily-settings': [['seconds', 'cycle']],
+};
+
 export function contentRuleIssues(type: TdContentType, data: Data): SchemaIssue[] {
   switch (type) {
     case 'practice-questions':

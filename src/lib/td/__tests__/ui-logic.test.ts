@@ -6,6 +6,7 @@ import { followAnswer } from '@/components/td/content/editors/library';
 import type { TdContentRow } from '../admin-api';
 import { daysFrom } from '../georgia';
 import { mergeDrafts, resolveConflicts } from '../merge';
+import { TD_FIXED_FIELDS, TD_MERGE_UNITS } from '../content-rules';
 import { contentActions } from '../workflow';
 import type { TdStaff } from '@/types/td';
 
@@ -95,6 +96,36 @@ describe('three-way merge of a stale edit', () => {
     expect(merged.position).toBe(3);
     expect(resolveConflicts(merged, conflicts, { 'data.aliases': 'theirs' }).data.aliases).toEqual(['a', 'c']);
     expect(resolveConflicts(merged, conflicts, {}).data.aliases).toEqual(['a', 'b']);
+  });
+});
+
+describe('merge units: fields that only make sense together merge as one', () => {
+  it('a reorder on one side and a new right answer on the other is a conflict, never a silently wrong answer', () => {
+    const units = TD_MERGE_UNITS['practice-questions'];
+    const q = (options: string[], answer: number) => ({ data: { key: 'q', prompt: 'Which?', options, answer, explanation: null, imageKey: null, category: 'C', difficulty: 'easy' }, position: 0, note: '' });
+    const base = q(['A', 'B', 'C'], 0);
+    const mine = q(['A', 'C', 'B'], 0);
+    const theirs = q(['A', 'B', 'C'], 1);
+    // Field by field this "merges cleanly" into [A, C, B] with answer 1 = C, an answer nobody chose.
+    expect(mergeDrafts(base, mine, theirs).conflicts).toEqual([]);
+    const { merged, conflicts } = mergeDrafts(base, mine, theirs, units);
+    expect(conflicts).toHaveLength(1);
+    expect(conflicts[0]).toMatchObject({ field: 'data.prompt+options+answer+explanation+imageKey', unit: ['prompt', 'options', 'answer', 'explanation', 'imageKey'] });
+    expect(merged.data).toMatchObject({ options: ['A', 'C', 'B'], answer: 0 });
+    expect(resolveConflicts(merged, conflicts, { [conflicts[0].field]: 'theirs' }).data).toMatchObject({ options: ['A', 'B', 'C'], answer: 1 });
+    // A change to a field outside the unit still merges.
+    const other = { ...theirs, data: { ...base.data, category: 'Clubs' } };
+    expect(mergeDrafts(base, mine, other, units)).toMatchObject({ conflicts: [], merged: { data: { options: ['A', 'C', 'B'], answer: 0, category: 'Clubs' } } });
+  });
+
+  it('an answer and its spellings, an image and its size and rights, a round and its order', () => {
+    const cards = TD_MERGE_UNITS.cards;
+    const card = (display: string, aliases: string[]) => ({ data: { display, aliases, lines: [], photo: null, imageKey: null }, position: 0, note: '' });
+    expect(mergeDrafts(card('Messi', ['messi']), card('Ronaldo', ['messi']), card('Messi', ['messi', 'leo']), cards).conflicts).toHaveLength(1);
+    const media = (uploadId: string, width: number, author: string) => ({ data: { url: null, uploadId, width, height: 9, author, license: 'x', source: 'y' }, position: 0, note: '' });
+    expect(mergeDrafts(media('u1', 16, 'A'), media('u2', 32, 'A'), media('u1', 16, 'B'), TD_MERGE_UNITS.media).conflicts).toHaveLength(1);
+    for (const type of Object.keys(TD_MERGE_UNITS) as (keyof typeof TD_MERGE_UNITS)[])
+      for (const unit of TD_MERGE_UNITS[type]) for (const field of unit) expect(TD_FIXED_FIELDS[type], `${type}.${field} is fixed`).not.toContain(field);
   });
 });
 

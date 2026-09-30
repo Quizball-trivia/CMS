@@ -133,23 +133,26 @@ describe('content editor', () => {
     expect((await admin.content('penalty-questions').list({ limit: 200 })).items).toHaveLength(before);
   });
 
-  it('merges a stale save field by field: their untouched changes kept, a clash chosen', async () => {
+  it('merges a stale save unit by unit: a question and its answer clash as one, my note is kept', async () => {
     const { admin } = await signIn('editor');
     const row = await admin.content('penalty-questions').create({ data: penalty('merge-me') });
     const other = await clientFor('publisher');
     renderTd(<TdContentEditorSheet target={{ type: 'penalty-questions', row }} onClose={() => {}} />);
     fireEvent.change(screen.getByLabelText('Question'), { target: { value: 'Mine?' } });
-    fireEvent.change(screen.getByLabelText('Answer (as shown)'), { target: { value: 'Mine' } });
+    fireEvent.change(screen.getByLabelText('Note'), { target: { value: 'checked with the rules' } });
     const theirs = await other.admin.content('penalty-questions').edit(row.id, { version: row.version, data: { ...row.data, display: 'Theirs', aliases: ['spain', 'españa'] } });
     fireEvent.click(screen.getByRole('button', { name: 'Save' }));
     expect(await screen.findByText('Someone changed this while you were editing')).toBeTruthy();
-    const clash = screen.getByText('display').closest('li')!;
+    // The question, its answer and its spellings are one unit: never my question with their answer.
+    const clash = screen.getByText('q + display + aliases').closest('li')!;
     fireEvent.click(within(clash).getByRole('radio', { name: /Theirs/ }));
     fireEvent.click(screen.getByRole('button', { name: 'Continue with the merge' }));
     expect(await screen.findByText('Merged onto the newer version. Review it, then save.')).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: 'Save' }));
     await waitFor(async () => expect((await admin.content('penalty-questions').get(row.id)).version).toBe(theirs.version + 1));
-    expect((await admin.content('penalty-questions').get(row.id)).data).toEqual({ key: 'merge-me', q: 'Mine?', display: 'Theirs', aliases: ['spain', 'españa'] });
+    const saved = await admin.content('penalty-questions').get(row.id);
+    expect(saved.data).toEqual({ key: 'merge-me', q: 'Who won Euro 2024?', display: 'Theirs', aliases: ['spain', 'españa'] });
+    expect(saved.note).toBe('checked with the rules');
   });
 
   it('approves a category with its ready cards in one step', async () => {

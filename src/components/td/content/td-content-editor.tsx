@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useMemo, useState, type ReactNode } from 'react';
+import { useCallback, useId, useMemo, useState, type ReactNode } from 'react';
 import { Archive, ArchiveRestore, Check, History, Loader2, RefreshCw, Save, Send, TriangleAlert } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
@@ -11,7 +11,7 @@ import { useTdContentRow, useTdCurrentRelease, useTdHistory, useTdWrite } from '
 import { TD_CONTENT_SCHEMA_NAMES, type TdContentData, type TdContentRow, type TdContentType } from '@/lib/td/admin-api';
 import { TdApiError } from '@/lib/td/api-client';
 import { tdAdmin } from '@/lib/td/client';
-import { contentWriteIssues } from '@/lib/td/content-rules';
+import { contentWriteIssues, TD_MERGE_UNITS } from '@/lib/td/content-rules';
 import type { SchemaIssue } from '@/lib/td/contract';
 import { describeTdError } from '@/lib/td/errors';
 import { formatGeorgiaTime } from '@/lib/td/georgia';
@@ -74,6 +74,7 @@ function EditorBody({ target, onSaved }: { target: TdEditorTarget; onSaved?: (ro
   const [busy, setBusy] = useState<string | null>(null);
   const [conflict, setConflict] = useState<Conflict | null>(null);
   const [tab, setTab] = useState<Tab>('edit');
+  const noteId = useId();
   const [approving, setApproving] = useState(false);
 
   const creating = row === null;
@@ -125,7 +126,7 @@ function EditorBody({ target, onSaved }: { target: TdEditorTarget; onSaved?: (ro
         setNotice(`It changed meanwhile (${theirs.updatedBy.name}, ${formatGeorgiaTime(theirs.updatedAt)}); this is the row as it is now. Check it and try again.`);
         return;
       }
-      const merge = theirs ? mergeDrafts(base, draft, draftOf(theirs)) : { merged: draft, conflicts: [] };
+      const merge = theirs ? mergeDrafts(base, draft, draftOf(theirs), TD_MERGE_UNITS[type]) : { merged: draft, conflicts: [] };
       setConflict({ theirs, conflicts: merge.conflicts, merged: merge.merged, choices: {} });
       return;
     }
@@ -272,8 +273,8 @@ function EditorBody({ target, onSaved }: { target: TdEditorTarget; onSaved?: (ro
                     className="max-w-40"
                   />
                 )}
-                <TdField label="Note" issues={issuesAt(issues, 'note')} hint="For the team: sources, checks, questions. Changing only the note keeps the row’s status.">
-                  <Textarea value={draft.note} onChange={(event) => setDraft({ ...draft, note: event.target.value })} className="min-h-16 rounded-lg border-border bg-(--td-input) text-sm" />
+                <TdField label="Note" htmlFor={noteId} issues={issuesAt(issues, 'note')} hint="For the team: sources, checks, questions. Changing only the note keeps the row’s status.">
+                  <Textarea id={noteId} value={draft.note} onChange={(event) => setDraft({ ...draft, note: event.target.value })} className="min-h-16 rounded-lg border-border bg-(--td-input) text-sm" />
                 </TdField>
               </fieldset>
             </TdUploadingContext.Provider>
@@ -377,7 +378,23 @@ export function showValue(value: unknown): string {
   return String(value);
 }
 
-const fieldName = (field: string) => field.replace(/^data\./, '');
+const fieldName = (field: string) => field.replace(/^data\./, '').split('+').join(' + ');
+
+/** A unit's value (an object of its fields) one field a line; any other value as showValue has it. */
+function UnitValue({ conflict, value }: { conflict: TdFieldConflict; value: unknown }) {
+  if (!conflict.unit) return <span className="break-words">{showValue(value)}</span>;
+  const fields = conflict.unit.filter((field) => showValue((conflict.mine as Record<string, unknown>)[field]) !== showValue((conflict.theirs as Record<string, unknown>)[field]));
+  return (
+    <span className="flex flex-col gap-0.5">
+      {(fields.length ? fields : conflict.unit).map((field) => (
+        <span key={field} className="break-words">
+          <span className="font-mono text-[10px] text-(--td-text-3)">{field}: </span>
+          {showValue((value as Record<string, unknown>)[field])}
+        </span>
+      ))}
+    </span>
+  );
+}
 
 function ConflictPanel({
   conflict,
@@ -421,7 +438,7 @@ function ConflictPanel({
                     <input type="radio" name={c.field} checked={(conflict.choices[c.field] ?? 'mine') === side} onChange={() => onChoose(c.field, side)} className="mt-1 accent-(--td-primary)" />
                     <span className="min-w-0">
                       <span className="block text-xs text-(--td-text-3)">{side === 'theirs' ? 'Theirs' : 'Yours'}</span>
-                      <span className="break-words">{showValue(side === 'theirs' ? c.theirs : c.mine)}</span>
+                      <UnitValue conflict={c} value={side === 'theirs' ? c.theirs : c.mine} />
                     </span>
                   </label>
                 ))}
