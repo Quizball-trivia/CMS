@@ -432,7 +432,9 @@ export function apiScenarios(h: () => Harness) {
   it('team: an invitation link is taken once and ends in a session; a reset link sets a new password', async () => {
     const email = `invitee-${run}@example.test`;
     const first = `first password ${run}`;
-    const second = `second password ${run}`;
+    // Passwords compare after NFKC: "é" as one code point when set, as "e" and a combining accent when signing in.
+    const second = `second pässword café ${run}`;
+    const secondDecomposed = second.normalize('NFD');
     expect(await h().call('editor', 'POST', '/admin/staff/invite', { body: { email, role: 'editor' } })).toMatchObject({ status: 403 });
     expect(await h().call('betsson_admin', 'POST', '/admin/staff/invite', { body: { email, role: 'ops' } })).toMatchObject({ status: 403 });
     const invited = await h().call('betsson_admin', 'POST', '/admin/staff/invite', { body: { email, role: 'editor', name: 'Invitee' } });
@@ -456,6 +458,7 @@ export function apiScenarios(h: () => Harness) {
     expect((await h().anon('POST', '/admin/auth/reset', { token: resetToken, password: second })).status).toBe(200);
     expect(await h().anon('POST', '/admin/auth/reset', { token: resetToken, password: second })).toMatchObject({ status: 400, body: { code: 'invalid_token' } });
     expect((await h().anon('POST', '/admin/auth/login', { email, password: first })).status).toBe(401);
-    expect((await h().anon('POST', '/admin/auth/login', { email, password: second })).status).toBe(200);
+    expect(secondDecomposed).not.toBe(second);
+    expect((await h().anon('POST', '/admin/auth/login', { email, password: secondDecomposed })).status).toBe(200);
   });
 }

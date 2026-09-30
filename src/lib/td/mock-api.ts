@@ -94,7 +94,17 @@ export interface MockTdApiOptions {
   blobs?: MockBlobStore;
   /** Serialises content requests across tabs (Web Locks in a browser). */
   lock?: MockAdminDeps['lock'];
+  /** Serialises the sign-in "server" (sessions, staff, one-time links) across tabs, as the API's row locks do. */
+  authLock?: MockAdminDeps['lock'];
 }
+
+function browserAuthLock(): MockAdminDeps['lock'] {
+  if (typeof navigator === 'undefined' || !navigator.locks) return undefined;
+  return (work) => navigator.locks.request('td-mock-auth', work) as ReturnType<typeof work>;
+}
+
+/** Passwords compare as the API's do: NFKC first, so two spellings of "é" are one password. */
+const normalized = (password: unknown) => String(password ?? '').normalize('NFKC');
 
 function json(status: number, body: unknown): Response {
   return new Response(body === undefined ? null : JSON.stringify(body), {
@@ -126,8 +136,16 @@ export function createMockTdApi({
   latencyMs = 120,
   blobs = defaultBlobStore(),
   lock = browserMockLock(),
+  authLock = browserAuthLock(),
 }: MockTdApiOptions): typeof fetch {
   const admin = createMockAdmin({ storage, blobs, now, lock });
+  // Requests of this page one at a time too (the lock only orders tabs): each reads, changes and writes the whole state.
+  let authQueue: Promise<unknown> = Promise.resolve();
+  const runAuth = <T,>(work: () => Promise<T>): Promise<T> => {
+    const next = authQueue.then(() => (authLock ? authLock(work) : work()));
+    authQueue = next.catch(() => undefined);
+    return next;
+  };
   const empty = (): MockServerState => ({ refreshTokens: {}, revokedFamilies: [] });
   let memoryState = empty();
 
@@ -179,14 +197,22 @@ export function createMockTdApi({
     }
   }
 
-  async function handle({ method, path, query, headers, body, raw }: MockRequest): Promise<Response> {
+  async function handle(request: MockRequest): Promise<Response> {
+    const outcome = await runAuth(() => handleAuth(request));
+    if (outcome instanceof Response) return outcome;
+    const { method, path, query, headers, body, raw } = request;
+    return admin({ method, path, query, headers, body, raw }, outcome);
+  }
+
+  /** Everything that reads or writes the sign-in state, under its lock; content routes are handed on to the admin mock. */
+  async function handleAuth({ method, path, headers, body }: MockRequest): Promise<Response | { id: string; name: string; role: TdRole }> {
     const route = `${method} ${path}`;
     const state = load();
 
     if (route === 'POST /admin/auth/login') {
       const email = String(body?.email ?? '').trim().toLowerCase();
       const staff = staffOf(state).find((s) => s.email === email && s.status === 'active');
-      if (!staff || body?.password !== (state.passwords?.[staff.id] ?? MOCK_PASSWORD)) {
+      if (!staff || normalized(body?.password) !== (state.passwords?.[staff.id] ?? MOCK_PASSWORD)) {
         return error(401, 'invalid_credentials', 'Email or password is incorrect');
       }
       const tokens = issue(state, staff.id, randomToken('fam'));
@@ -247,7 +273,7 @@ export function createMockTdApi({
       const usable = link && !link.used && link.expiresAt > now() && link.kind === (invite ? 'invite' : 'reset') && member?.status === (invite ? 'invited' : 'active');
       if (!link || !member || !usable) return error(400, 'invalid_token', 'This link is not valid any more; ask for a new one');
       link.used = true;
-      state.passwords = { ...(state.passwords ?? {}), [member.id]: String(body!.password) };
+      state.passwords = { ...(state.passwords ?? {}), [member.id]: normalized(body!.password) };
       if (invite) putMember(state, { ...member, name: String(body!.name), status: 'active', lastSignInAt: new Date(now()).toISOString() });
       else {
         // A reset ends every session the member had.
@@ -297,7 +323,7 @@ export function createMockTdApi({
       save(state);
       return json(201, link);
     }
-    return admin({ method, path, query, headers, body, raw }, { id: staff.id, name: staff.name, role: staff.role });
+    return { id: staff.id, name: staff.name, role: staff.role };
   }
 
   return async (input, init = {}) => {

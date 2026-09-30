@@ -144,6 +144,23 @@ describe('mock Table Derby API', () => {
     expect((await retry(tab, (await tab.login('ops@demo.tablederby.test')).accessToken)).status).toBe(404);
   });
 
+  it('redeems a link under the sign-in lock the browser’s tabs share; passwords compare as NFKC', async () => {
+    let locked = 0;
+    const storage = new MemoryStorage();
+    const fetchMock = createMockTdApi({ storage: () => storage, latencyMs: 0, authLock: async (work) => (locked++, work()) });
+    const call = async (path: string, body: unknown, token?: string) => {
+      const response = await fetchMock(`${BASE}${path}`, { method: 'POST', headers: token ? { Authorization: `Bearer ${token}` } : {}, body: JSON.stringify(body) });
+      return { status: response.status, body: await response.json() };
+    };
+    const admin = (await call('/admin/auth/login', { email: 'admin@demo.tablederby.test', password: MOCK_PASSWORD })).body.accessToken as string;
+    const invite = (await call('/admin/staff/invite', { email: 'nfkc@example.test', role: 'editor' }, admin)).body.token as string;
+    const before = locked;
+    // "é" as one code point here, as "e" and a combining accent below.
+    expect((await call('/admin/auth/accept-invite', { token: invite, password: 'Café password phrase', name: 'NFKC' })).status).toBe(200);
+    expect(locked).toBeGreaterThan(before);
+    expect((await call('/admin/auth/login', { email: 'nfkc@example.test', password: 'Cafe\u0301 password phrase' })).status).toBe(200);
+  });
+
   it('lists staff only for Betsson admins and ops', async () => {
     const { call, login } = mockApi();
     const editor = await login('editor@demo.tablederby.test');
