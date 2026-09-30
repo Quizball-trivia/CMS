@@ -6,8 +6,8 @@ import { contractProblems, createHarness, type Role } from './api-harness';
 import { apiScenarios } from './api-scenarios';
 import { MemoryStorage } from './helpers';
 
-/** Team management and password changes belong to the Team tab and sign-in, not to these tabs. */
-const NOT_MOCKED = new Set(['POST /admin/auth/password', 'POST /admin/staff/invite', 'PATCH /admin/staff/:id', 'POST /admin/staff/:id/reset-link']);
+/** Changing roles and one's own password are not in this CMS yet. */
+const NOT_MOCKED = new Set(['POST /admin/auth/password', 'PATCH /admin/staff/:id']);
 
 const storage = new MemoryStorage();
 // Noon in Georgia: far from the tickets-per-day midnight guard.

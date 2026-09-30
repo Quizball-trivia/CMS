@@ -89,6 +89,43 @@ try {
   );
   await page.keyboard.press('Escape');
 
+  // A new member: the admin makes an invitation link on the Team tab; opened signed out, it joins and signs in.
+  await page.goto(`${BASE}/td/team`);
+  await page.getByRole('button', { name: 'Invite member' }).click();
+  await page.getByLabel('Email').fill('smoke.member@example.test');
+  await page.getByRole('button', { name: 'Make the invitation link' }).click();
+  const invitation = await page.getByLabel('Invitation link').inputValue();
+  check('Betsson admin makes a one-time invitation link', invitation.startsWith(`${BASE}/td/accept-invite#token=tdi_`), invitation.replace(/#token=.*/, '#token=…'));
+  await page.getByRole('button', { name: 'Sign out' }).click();
+  await page.waitForURL(/\/td\/login/);
+  await page.goto(invitation);
+  await page.getByRole('heading', { name: 'Join the team' }).waitFor();
+  check('the invitation opens signed out, and its token leaves the address bar', !page.url().includes('#'));
+  // The App Router's own copy of the URL must not hold the token either: a router refresh would put it back.
+  await page.evaluate(() => window.next?.router?.refresh());
+  await page.waitForTimeout(1500);
+  check(
+    'a router refresh after hydration does not bring the token back',
+    !page.url().includes('#') && (await page.evaluate(() => window.__tdLinkToken === undefined)) && (await page.getByLabel('New password').count()) === 1,
+    page.url().replace(/#token=.*/, '#token=…'),
+  );
+  // The App Router's own navigation to a link (pushState, no hashchange): a fresh form, the token taken and cleared.
+  await page.getByLabel('Your name').fill('Typed Before');
+  await page.evaluate((to) => window.next?.router?.push(to), invitation.slice(new URL(invitation).origin.length));
+  await page.waitForTimeout(1000);
+  check(
+    'a link reached by App Router navigation starts a fresh form and leaves the address bar',
+    !page.url().includes('#') && (await page.getByLabel('Your name').inputValue()) === '',
+    page.url().replace(/#token=.*/, '#token=…'),
+  );
+  await page.getByLabel('Your name').fill('Smoke Member');
+  await page.getByLabel('New password').fill('smoke member passphrase');
+  await page.getByLabel('Repeat the password').fill('smoke member passphrase');
+  await page.getByRole('button', { name: 'Join' }).click();
+  await page.getByText('Smoke Member').first().waitFor();
+  const memberNav = await navLabels(page);
+  check('the new member is signed in as an editor', memberNav.length === 11 && !memberNav.includes('Team'), memberNav.join(', '));
+
   // Content workflow on the mock API: an editor drafts and marks ready, a publisher approves and publishes.
   await page.getByRole('button', { name: 'Sign out' }).click();
   await page.waitForURL(/\/td\/login/);

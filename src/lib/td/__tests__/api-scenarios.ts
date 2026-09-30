@@ -428,4 +428,37 @@ export function apiScenarios(h: () => Harness) {
     expect(counted + allowed).toBe(60);
     expect(await h().call('ops', 'POST', '/admin/integration/webhooks/no-such-event/retry', { body: {} })).toMatchObject({ status: 429 });
   });
+
+  it('team: an invitation link is taken once and ends in a session; a reset link sets a new password', async () => {
+    const email = `invitee-${run}@example.test`;
+    const first = `first password ${run}`;
+    // Passwords compare after NFKC: set with "ﬁ", a fullwidth "Ａ" and a composed "ä"; signed in with "fi", "A" and "a" + accent.
+    const second = `second ﬁnal Ａnswer pässword ${run}`;
+    const secondDecomposed = second.normalize('NFKD');
+    expect(await h().call('editor', 'POST', '/admin/staff/invite', { body: { email, role: 'editor' } })).toMatchObject({ status: 403 });
+    expect(await h().call('betsson_admin', 'POST', '/admin/staff/invite', { body: { email, role: 'ops' } })).toMatchObject({ status: 403 });
+    const invited = await h().call('betsson_admin', 'POST', '/admin/staff/invite', { body: { email, role: 'editor', name: 'Invitee' } });
+    expect(invited).toMatchObject({ status: 201, body: { member: { email, role: 'editor', status: 'invited' } } });
+    const { token, member } = invited.body as { token: string; member: { id: string } };
+    expect(await h().call('betsson_admin', 'POST', `/admin/staff/${member.id}/reset-link`)).toMatchObject({ status: 409, body: { code: 'conflict' } });
+
+    expect(await h().anon('POST', '/admin/auth/accept-invite', { token, password: 'too short', name: 'Invitee' })).toMatchObject({ status: 400, body: { code: 'weak_password' } });
+    expect(await h().anon('POST', '/admin/auth/accept-invite', { token: `x${token.slice(1)}`, password: first, name: 'Invitee' })).toMatchObject({ status: 400, body: { code: 'invalid_token' } });
+    const accepted = await h().anon('POST', '/admin/auth/accept-invite', { token, password: first, name: 'Invitee' });
+    expect(accepted.status).toBe(200);
+    expect((await h().as((accepted.body as { accessToken: string }).accessToken, 'GET', '/admin/me')).body).toMatchObject({ id: member.id, email, role: 'editor', name: 'Invitee' });
+    // Once only; and an active member cannot be invited again.
+    expect(await h().anon('POST', '/admin/auth/accept-invite', { token, password: first, name: 'Invitee' })).toMatchObject({ status: 400, body: { code: 'invalid_token' } });
+    expect(await h().call('betsson_admin', 'POST', '/admin/staff/invite', { body: { email, role: 'editor' } })).toMatchObject({ status: 409, body: { code: 'already_exists' } });
+
+    const reset = await h().call('betsson_admin', 'POST', `/admin/staff/${member.id}/reset-link`);
+    expect(reset.status).toBe(201);
+    const resetToken = (reset.body as { token: string }).token;
+    expect(await h().anon('POST', '/admin/auth/reset', { token: resetToken, password: 'short' })).toMatchObject({ status: 400, body: { code: 'weak_password' } });
+    expect((await h().anon('POST', '/admin/auth/reset', { token: resetToken, password: second })).status).toBe(200);
+    expect(await h().anon('POST', '/admin/auth/reset', { token: resetToken, password: second })).toMatchObject({ status: 400, body: { code: 'invalid_token' } });
+    expect((await h().anon('POST', '/admin/auth/login', { email, password: first })).status).toBe(401);
+    expect(secondDecomposed).not.toBe(second);
+    expect((await h().anon('POST', '/admin/auth/login', { email, password: secondDecomposed })).status).toBe(200);
+  });
 }

@@ -180,6 +180,10 @@ export function createTdAdminApi(api: TdApiClient) {
       retryWebhook: (eventId: string, retarget: boolean, options?: TdRequestOptions) =>
         api.post<C.WebhookEventDetail>(`/admin/integration/webhooks/${segment(eventId)}/retry`, retarget ? { retarget: true } : {}, options),
     },
+    staff: {
+      /** A one-time invitation link token (48 hours), to hand over: the API never emails it. */
+      invite: (body: C.StaffInviteRequest, options?: TdRequestOptions) => api.post<C.StaffInviteResponse>('/admin/staff/invite', body, options),
+    },
     settings: {
       get: (options?: TdRequestOptions) => api.get<C.Settings>('/admin/settings', options),
       ticketsPerDay: (version: number, value: number, options?: TdRequestOptions) =>
