@@ -12,7 +12,7 @@ import { TdEmptyState, TdSection } from '@/components/td/td-page';
 import { TdErrorPanel } from '@/components/td/td-error-panel';
 import { tdKeys, useTdWrite } from '@/hooks/use-td-content';
 import { SESSION_CHANGED, TdApiError } from '@/lib/td/api-client';
-import { tdAdmin } from '@/lib/td/client';
+import { tdAdmin, tdTokens } from '@/lib/td/client';
 import type { WebhookEvent, WebhookEventDetail, WebhookEventList } from '@/lib/td/contract';
 import { formatGeorgiaTime } from '@/lib/td/georgia';
 import { cn } from '@/lib/utils';
@@ -201,16 +201,23 @@ function Fact({ label, children, mono }: { label: string; children: ReactNode; m
   );
 }
 
-// Look again while an attempt is due or on its way, so a retry's outcome shows without a reload.
-const refreshWhileDue = (detail: WebhookEventDetail | undefined) =>
-  detail && (detail.event.sending || (detail.event.status === 'pending' && detail.event.nextAttemptAt !== null && Date.parse(detail.event.nextAttemptAt) - Date.now() < 60_000)) ? 3_000 : false;
+/**
+ * How soon to look again: every few seconds while an attempt is on its way or due, then no later
+ * than its next attempt (at most a minute apart) while it is pending; never once it is settled.
+ */
+export function pollInterval(detail: WebhookEventDetail | undefined, now: number = Date.now()): number | false {
+  if (!detail) return false;
+  if (detail.event.sending) return 3_000;
+  if (detail.event.status !== 'pending' || detail.event.nextAttemptAt === null) return false;
+  return Math.min(60_000, Math.max(3_000, Date.parse(detail.event.nextAttemptAt) - now));
+}
 
 function WebhookDetail({ eventId }: { eventId: string }) {
   const { user } = useTdAuth();
   const queryClient = useQueryClient();
   const write = useTdWrite();
   const key = [...tdKeys.integration, 'event', eventId];
-  const detail = useQuery({ queryKey: key, queryFn: ({ signal }) => tdAdmin.integration.webhook(eventId, { signal }), refetchInterval: (query) => refreshWhileDue(query.state.data) });
+  const detail = useQuery({ queryKey: key, queryFn: ({ signal }) => tdAdmin.integration.webhook(eventId, { signal }), refetchInterval: (query) => pollInterval(query.state.data) });
   const [busy, setBusy] = useState(false);
   const [refusal, setRefusal] = useState<string | null>(null);
   const [confirmRetarget, setConfirmRetarget] = useState(false);
@@ -218,11 +225,18 @@ function WebhookDetail({ eventId }: { eventId: string }) {
   const e = d?.event;
 
   const retry = async (retarget: boolean) => {
-    setBusy(true);
     setRefusal(null);
+    // Only under the member this page shows: a sign-in made meanwhile must not retry in their name.
+    if (!user || tdTokens.read()?.staffId !== user.id) {
+      setRefusal(retryRefusal(new TdApiError(0, SESSION_CHANGED, 'The session changed')));
+      return;
+    }
+    setBusy(true);
     try {
-      const next = await write((operation) => tdAdmin.integration.retryWebhook(eventId, retarget, operation), [tdKeys.integration]);
+      const next = await write((operation) => tdAdmin.integration.retryWebhook(eventId, retarget, operation), []);
+      // The answer first, then a fresh read: the dispatcher may already have moved the event on.
       queryClient.setQueryData(key, next);
+      void queryClient.invalidateQueries({ queryKey: tdKeys.integration });
       setConfirmRetarget(false);
       toast.success(retarget ? 'Moved to the current address and due now' : 'Due now: its 24 hours of retries start again');
     } catch (caught) {

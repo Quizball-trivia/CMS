@@ -148,9 +148,11 @@ try {
   await page.getByLabel('Search webhook events').fill('td-evt-0018');
   await page.keyboard.press('Enter');
   await page.getByText('td-evt-0018', { exact: true }).first().click();
-  await page.locator('[data-slot="sheet-content"]').getByRole('button', { name: 'Retry now' }).click();
-  await page.locator('[data-slot="sheet-content"]').getByText(/^(Retrying|Delivered)$/).first().waitFor();
-  check('ops retries a given-up webhook event', true);
+  const retried = page.locator('[data-slot="sheet-content"]');
+  await retried.getByRole('button', { name: 'Retry now' }).click();
+  // The mock partner answers the next attempt: delivered, with that attempt added.
+  await retried.getByText('Delivered: nothing to retry.').waitFor();
+  check('ops retries a given-up webhook event and sees it delivered', (await retried.getByText('HTTP 200').count()) === 1 && (await retried.locator('tbody tr').count()) === 32);
 
   check('no page errors or CSP violations', errors.length === 0, errors.join(' | '));
 } catch (error) {

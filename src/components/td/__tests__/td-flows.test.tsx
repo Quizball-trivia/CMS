@@ -397,7 +397,7 @@ describe('integration', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Load more' }));
     await waitFor(() => expect(rows()).toHaveLength(56));
     fireEvent.change(screen.getByLabelText('Delivery status'), { target: { value: 'dead' } });
-    await waitFor(() => expect(rows().map((r) => r.textContent)).toEqual(['td-evt-0018', 'td-evt-0010', 'td-evt-0004']));
+    await waitFor(() => expect(rows().map((r) => r.textContent)).toEqual(['td-evt-0018', 'td-evt-0010', 'td-evt-0004', 'td-evt-0001']));
     fireEvent.change(screen.getByLabelText('Delivery status'), { target: { value: '' } });
     await search('bet-40017');
     expect(rows().length).toBeGreaterThan(0);
@@ -422,7 +422,9 @@ describe('integration', () => {
     renderTd(<TdIntegrationTab />);
     let sheet = await open('td-evt-0018');
     fireEvent.click(await within(sheet).findByRole('button', { name: 'Retry now' }));
-    expect(await within(sheet).findByText('Retrying')).toBeTruthy();
+    // The retry's answer, then a fresh read: its next attempt (the partner answers again) shows at once, never the older answer.
+    expect(await within(sheet).findByText('Delivered: nothing to retry.')).toBeTruthy();
+    expect(within(sheet).getAllByText('HTTP 200')).toHaveLength(1);
     expect(within(sheet).queryByText('Retried by hand')!.nextElementSibling!.textContent).not.toBe('—');
     fireEvent.keyDown(sheet, { key: 'Escape' });
 
@@ -432,14 +434,26 @@ describe('integration', () => {
     fireEvent.click(within(sheet).getByRole('button', { name: 'Retry to the current address' }));
     fireEvent.click(within(sheet).getByRole('button', { name: 'Send to the current address' }));
     await waitFor(() => expect(within(sheet).queryByText('earlier address')).toBeNull());
-    expect(within(sheet).getByText('Retrying')).toBeTruthy();
+    expect(await within(sheet).findByText('Delivered: nothing to retry.')).toBeTruthy();
     fireEvent.keyDown(sheet, { key: 'Escape' });
 
-    sheet = await open('td-evt-0001');
+    sheet = await open('td-evt-0002');
     expect(await within(sheet).findByText('Delivered: nothing to retry.')).toBeTruthy();
     fireEvent.keyDown(sheet, { key: 'Escape' });
     sheet = await open('td-evt-0056');
     expect(await within(sheet).findByText('Being sent now; look again in a moment.')).toBeTruthy();
+  });
+
+  it('never retries in the name of someone who signed in meanwhile', async () => {
+    const ops = await signIn('ops');
+    renderTd(<TdIntegrationTab />);
+    const sheet = await open('td-evt-0004');
+    await within(sheet).findByRole('button', { name: 'Retry now' });
+    const next = await clientFor('ops');
+    await put(ops.tokens, { ...next.tokens.read()!, generation: 'gen-next', staffId: 'someone-else' });
+    fireEvent.click(within(sheet).getByRole('button', { name: 'Retry now' }));
+    expect(await within(sheet).findByText(/switched accounts; the retry was cancelled/)).toBeTruthy();
+    expect((await next.admin.integration.webhook('td-evt-0004')).event).toMatchObject({ status: 'dead', revivedAt: null });
   });
 
   it('says why a retry was refused: the API’s words for a conflict, and the hourly limit in plain words', async () => {

@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
+import type { WebhookEventDetail } from '@/lib/td/contract';
 import { reviewCategory } from '@/components/td/content/td-category-approval';
 import { planDays } from '@/components/td/tabs/dailies-tab';
 import { replaySteps } from '@/components/td/tabs/players-tab';
+import { pollInterval } from '@/components/td/tabs/integration-tab';
 import { followAnswer } from '@/components/td/content/editors/library';
 import type { TdContentRow } from '../admin-api';
 import { daysFrom } from '../georgia';
@@ -96,6 +98,21 @@ describe('three-way merge of a stale edit', () => {
     expect(merged.position).toBe(3);
     expect(resolveConflicts(merged, conflicts, { 'data.aliases': 'theirs' }).data.aliases).toEqual(['a', 'c']);
     expect(resolveConflicts(merged, conflicts, {}).data.aliases).toEqual(['a', 'b']);
+  });
+});
+
+describe('webhook detail polling', () => {
+  const at = Date.parse('2026-09-30T10:00:00Z');
+  const detail = (event: Partial<WebhookEventDetail['event']>) => ({ event: { status: 'pending', sending: false, nextAttemptAt: null, ...event }, payload: {}, attempts: [] }) as unknown as WebhookEventDetail;
+  it('looks again soon while an attempt is on its way or due, by its next attempt while pending, never once settled', () => {
+    expect(pollInterval(detail({ sending: true }), at)).toBe(3_000);
+    expect(pollInterval(detail({ nextAttemptAt: '2026-09-30T10:00:01Z' }), at)).toBe(3_000);
+    expect(pollInterval(detail({ nextAttemptAt: '2026-09-30T10:00:20Z' }), at)).toBe(20_000);
+    // Due in 15 minutes: still looked at within a minute, so the detail never goes stale.
+    expect(pollInterval(detail({ nextAttemptAt: '2026-09-30T10:15:00Z' }), at)).toBe(60_000);
+    expect(pollInterval(detail({ status: 'sent' }), at)).toBe(false);
+    expect(pollInterval(detail({ status: 'dead' }), at)).toBe(false);
+    expect(pollInterval(undefined, at)).toBe(false);
   });
 });
 
