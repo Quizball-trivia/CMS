@@ -4,7 +4,7 @@ import { useMemo, useState } from 'react';
 import { EyeOff, ImageIcon } from 'lucide-react';
 import { toast } from 'sonner';
 import { TdCellTitle, TdContentList } from '@/components/td/content/td-content-list';
-import { TdContentEditorSheet, type TdEditorTarget } from '@/components/td/content/td-content-editor';
+import { TdContentEditorDialog, type TdEditorTarget } from '@/components/td/content/td-content-editor';
 import { TdMediaThumb, TdUploadButton } from '@/components/td/media/td-media';
 import { useTdAllRows, useTdWrite } from '@/hooks/use-td-content';
 import { tdAdmin } from '@/lib/td/client';
@@ -12,47 +12,6 @@ import type { MediaUpload } from '@/lib/td/contract';
 import { tdErrorText } from '@/lib/td/errors';
 import { cn } from '@/lib/utils';
 import { useInitialSearch } from './use-initial-search';
-
-const DIFFICULTY_STYLES = {
-  easy: 'text-(--td-new)',
-  medium: 'text-amber-800',
-  hard: 'text-(--td-danger)',
-} as const;
-
-export function TdPracticeTab() {
-  const [target, setTarget] = useState<TdEditorTarget | null>(null);
-  const initial = useInitialSearch();
-  return (
-    <>
-      <TdContentList
-        type="practice-questions"
-        title="Question bank"
-        description="A run opens with 5 easy questions, then 10 medium, then hard ones."
-        initialSearch={initial}
-        onOpen={(row) => setTarget({ type: 'practice-questions', row })}
-        onCreate={() => setTarget({ type: 'practice-questions', row: null })}
-        createLabel="New question"
-        searchPlaceholder="Search questions, options, categories"
-        emptyTitle="No practice questions yet"
-        columns={[
-          { header: 'Question', cell: (row) => <TdCellTitle title={row.data.prompt} sub={row.data.key} /> },
-          { header: 'Difficulty', className: 'w-24', cell: (row) => <span className={cn('text-xs font-semibold capitalize', DIFFICULTY_STYLES[row.data.difficulty])}>{row.data.difficulty}</span> },
-          {
-            header: 'Category',
-            className: 'hidden md:table-cell',
-            cell: (row) => (
-              <span className="flex items-center gap-2 text-xs text-(--td-text-2)">
-                {row.data.category}
-                {row.data.imageKey && <ImageIcon className="size-3.5 text-(--td-text-3)" aria-label="Has an image" />}
-              </span>
-            ),
-          },
-        ]}
-      />
-      <TdContentEditorSheet target={target} onClose={() => setTarget(null)} />
-    </>
-  );
-}
 
 export function TdClubsTab() {
   const [target, setTarget] = useState<TdEditorTarget | null>(null);
@@ -92,7 +51,7 @@ export function TdClubsTab() {
           { header: 'Country', className: 'hidden md:table-cell', cell: (row) => <span className="text-xs text-(--td-text-2)">{[row.data.flag, row.data.country].filter(Boolean).join(' ')}</span> },
         ]}
       />
-      <TdContentEditorSheet target={target} onClose={() => setTarget(null)} />
+      <TdContentEditorDialog target={target} onClose={() => setTarget(null)} />
     </>
   );
 }
@@ -154,7 +113,7 @@ export function TdMediaTab() {
           },
         ]}
       />
-      <TdContentEditorSheet
+      <TdContentEditorDialog
         target={target}
         onClose={close}
         onSaved={(row) => {

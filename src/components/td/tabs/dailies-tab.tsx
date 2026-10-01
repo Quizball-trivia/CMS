@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { TdSection } from '@/components/td/td-page';
 import { TdErrorPanel } from '@/components/td/td-error-panel';
 import { TdCellTitle, TdContentList } from '@/components/td/content/td-content-list';
-import { TdContentEditorSheet, type TdEditorTarget } from '@/components/td/content/td-content-editor';
+import { TdContentEditorDialog, type TdEditorTarget } from '@/components/td/content/td-content-editor';
 import { TD_DAILY_GAMES, useTdPuzzles, type TdPuzzle } from '@/components/td/content/editors/dailies';
 import { TdStatusChip } from '@/components/td/content/td-status';
 import { useTdAllRows } from '@/hooks/use-td-content';
@@ -112,7 +112,7 @@ export function TdDailiesTab() {
           },
         ]}
       />
-      <TdContentEditorSheet target={target} onClose={() => setTarget(null)} />
+      <TdContentEditorDialog target={target} onClose={() => setTarget(null)} />
     </>
   );
 }

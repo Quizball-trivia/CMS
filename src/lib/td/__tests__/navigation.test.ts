@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { safeNextPath, tabForSegment, tabsForRole, TD_TABS } from '../navigation';
 
-const CONTENT = ['dashboard', 'round-1', 'round-2', 'round-3', 'penalties', 'dailies', 'practice', 'clubs', 'media', 'import', 'releases'];
+const CONTENT = ['dashboard', 'questions', 'categories', 'dailies', 'clubs', 'media', 'import', 'releases'];
 const keys = (role: Parameters<typeof tabsForRole>[0]) => tabsForRole(role).map((tab) => tab.key);
 
 describe('Table Derby navigation', () => {
-  it('has every tab from plan §13.1', () => {
-    expect(TD_TABS).toHaveLength(16);
+  it('has every page: the rounds are game modes of the one Questions page', () => {
+    expect(TD_TABS).toHaveLength(13);
   });
 
   it('shows editors and publishers only the content tabs', () => {
@@ -25,7 +25,8 @@ describe('Table Derby navigation', () => {
   it.each([
     [null, 'dashboard'],
     ['team', 'team'],
-    ['round-1', 'round-1'],
+    ['questions', 'questions'],
+    ['round-1', null],
     ['settings', 'settings'],
     ['round-10', null],
     ['login', null],

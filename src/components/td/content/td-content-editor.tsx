@@ -1,10 +1,10 @@
 'use client';
 
 import { useCallback, useId, useMemo, useState, type ReactNode } from 'react';
-import { Archive, ArchiveRestore, Check, History, Loader2, RefreshCw, Save, Send, TriangleAlert } from 'lucide-react';
+import { Archive, ArchiveRestore, Check, Eye, History, Loader2, RefreshCw, Save, Send, TriangleAlert } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
-import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
 import { TdErrorPanel } from '@/components/td/td-error-panel';
 import { useTdContentRow, useTdCurrentRelease, useTdHistory, useTdWrite } from '@/hooks/use-td-content';
@@ -23,6 +23,7 @@ import { TD_TYPE_CONFIG } from './content-types';
 import { TdCategoryApproval } from './td-category-approval';
 import { TdUploadingContext } from './td-uploading';
 import { issuesAt, TdField, TdInvalidInputContext, TdNumberField } from './td-form';
+import { hasPreview, TdPreview } from './td-preview';
 import { TdStatusChip, TD_STATUS_LABELS } from './td-status';
 
 export interface TdEditorTarget<T extends TdContentType = TdContentType> {
@@ -36,18 +37,18 @@ const draftOf = (row: TdContentRow): TdDraft => ({ data: row.data as Record<stri
 
 const CATEGORY_TYPES = new Set<TdContentType>(['card-categories', 'box-categories']);
 
-/** The editor of one row, in a sheet over its list. */
-export function TdContentEditorSheet({ target, onClose, onSaved }: { target: TdEditorTarget | null; onClose: () => void; onSaved?: (row: TdContentRow) => void }) {
+/** The editor of one row, in a dialog over its list (as the Quizball CMS edits a question). */
+export function TdContentEditorDialog({ target, onClose, onSaved }: { target: TdEditorTarget | null; onClose: () => void; onSaved?: (row: TdContentRow) => void }) {
   return (
-    <Sheet open={target !== null} onOpenChange={(open) => !open && onClose()}>
-      <SheetContent side="right" className="w-full gap-0 border-border bg-(--td-surface) p-0 sm:max-w-2xl">
+    <Dialog open={target !== null} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="flex h-[min(90vh,880px)] w-full flex-col gap-0 overflow-hidden rounded-[2rem] border-slate-200 bg-white p-0 sm:max-w-3xl">
         {target && <EditorBody key={`${target.type}:${target.row?.id ?? 'new'}`} target={target} onSaved={onSaved} />}
-      </SheetContent>
-    </Sheet>
+      </DialogContent>
+    </Dialog>
   );
 }
 
-type Tab = 'edit' | 'history' | 'approved';
+type Tab = 'edit' | 'preview' | 'history' | 'approved';
 
 interface Conflict {
   theirs: TdContentRow | null;
@@ -92,7 +93,7 @@ function EditorBody({ target, onSaved }: { target: TdEditorTarget; onSaved?: (ro
   const [approving, setApproving] = useState(false);
 
   const creating = row === null;
-  const otherTab = (tab === 'history' && row !== null) || (tab === 'approved' && Boolean(row?.approved));
+  const otherTab = tab === 'preview' || (tab === 'history' && row !== null) || (tab === 'approved' && Boolean(row?.approved));
   const dirty = creating || !sameDraft(draft, base);
   const history = useTdHistory(type, row?.id ?? null);
   const release = useTdCurrentRelease();
@@ -186,13 +187,13 @@ function EditorBody({ target, onSaved }: { target: TdEditorTarget; onSaved?: (ro
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <SheetHeader className="gap-2 border-b border-(--td-divider) px-6 pb-4 pt-5">
+      <DialogHeader className="gap-2 border-b border-(--td-divider) px-6 pb-4 pt-5">
         <div className="flex flex-wrap items-center gap-2 pr-8">
           {row && <TdStatusChip status={row.status} />}
           <span className="text-xs uppercase tracking-wide text-(--td-text-3)">{config.singular}</span>
         </div>
-        <SheetTitle className="line-clamp-2 text-lg">{title}</SheetTitle>
-        <SheetDescription asChild>
+        <DialogTitle className="line-clamp-2 text-lg">{title}</DialogTitle>
+        <DialogDescription asChild>
           <div className="flex flex-col gap-0.5 text-xs text-(--td-text-3)">
             {row ? (
               <>
@@ -210,24 +211,32 @@ function EditorBody({ target, onSaved }: { target: TdEditorTarget; onSaved?: (ro
               <span>Saved as a draft; mark it ready when it is done, then a publisher approves it.</span>
             )}
           </div>
-        </SheetDescription>
-        {row && (
+        </DialogDescription>
+        {(row || hasPreview(type)) && (
           <div className="flex gap-1 pt-1" role="tablist">
             <TabButton active={tab === 'edit'} onClick={() => setTab('edit')}>
               Content
             </TabButton>
-            <TabButton active={tab === 'history'} onClick={() => setTab('history')}>
-              <History className="size-3.5" />
-              History
-            </TabButton>
-            {row.approved && (
+            {hasPreview(type) && (
+              <TabButton active={tab === 'preview'} onClick={() => setTab('preview')}>
+                <Eye className="size-3.5" />
+                Preview
+              </TabButton>
+            )}
+            {row && (
+              <TabButton active={tab === 'history'} onClick={() => setTab('history')}>
+                <History className="size-3.5" />
+                History
+              </TabButton>
+            )}
+            {row?.approved && (
               <TabButton active={tab === 'approved'} onClick={() => setTab('approved')}>
                 Approved version
               </TabButton>
             )}
           </div>
         )}
-      </SheetHeader>
+      </DialogHeader>
 
       <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5">
         {conflict ? (
@@ -249,6 +258,7 @@ function EditorBody({ target, onSaved }: { target: TdEditorTarget; onSaved?: (ro
           />
         ) : (
           <>
+            {tab === 'preview' && <TdPreview type={type} data={draft.data} />}
             {tab === 'history' && row && <HistoryList type={type} id={row.id} />}
             {tab === 'approved' && row?.approved && (
               <ApprovedCompare approved={row.approved as Record<string, unknown>} current={row.data as Record<string, unknown>} approvedPosition={row.approvedPosition} position={row.position} />

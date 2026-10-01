@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { Activity, CalendarDays, ChevronRight, CircleGauge, FolderKanban, Layers, Settings2, type LucideIcon } from 'lucide-react';
+import { Activity, ChevronRight, CircleGauge, FolderKanban, Rocket, Settings2, type LucideIcon } from 'lucide-react';
 import { TD_TAB_GROUP_LABELS, tabsForRole, type TdTab, type TdTabGroup, type TdTabKey } from '@/lib/td/navigation';
 import { cn } from '@/lib/utils';
 import type { TdRole } from '@/types/td';
@@ -9,9 +9,8 @@ import { TD_TAB_ICONS } from './td-tab-icons';
 
 const GROUP_ICONS: Record<TdTabGroup, LucideIcon> = {
   overview: CircleGauge,
-  rounds: Layers,
-  modes: CalendarDays,
-  library: FolderKanban,
+  content: FolderKanban,
+  publish: Rocket,
   operations: Activity,
   admin: Settings2,
 };

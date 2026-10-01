@@ -584,8 +584,8 @@ export function OpsReviews({ onMatch }: { onMatch: (id: string) => void }) {
   const items = reviews.data?.pages.flatMap((page) => page.items) ?? [];
   return (
     <TdSection
-      title="Penalties to review"
-      description="An early forfeit penalised under an allowance a correction later lowered. Correct its match, or dismiss it with a note."
+      title="Early-quit penalties to re-check"
+      description="A player who quits matches early too often in one day is penalised. If one of that day's matches is voided later, the count drops and a penalty may no longer be deserved. Open the match to correct it, or dismiss the entry with a note."
       actions={
         <select aria-label="Which reviews" value={status} onChange={(event) => setStatus(event.target.value as 'open' | 'all')} className="h-9 rounded-full border border-border bg-(--td-input) px-3 text-sm">
           <option value="open">Open</option>

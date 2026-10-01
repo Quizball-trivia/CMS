@@ -78,11 +78,11 @@ try {
   await page.getByText('You do not have access to this section').waitFor();
   check('editor is denied Team', true);
   const editorNav = await navLabels(page);
-  check('editor sees the 11 content tabs only', editorNav.length === 11 && !editorNav.includes('Team') && !editorNav.includes('Settings') && !editorNav.includes('Integration'), editorNav.join(', '));
+  check('editor sees the 8 content pages only', editorNav.length === 8 && editorNav.includes('Questions') && !editorNav.includes('Team') && !editorNav.includes('Settings') && !editorNav.includes('Integration'), editorNav.join(', '));
   await page.goto(`${BASE}/td/integration`);
   await page.getByText('You do not have access to this section').waitFor();
   check('editor opening Integration directly is denied, and no webhook event is read', !(await page.getByText(/^td-evt-/).count()));
-  await page.locator('aside nav > div > a', { hasText: 'Library' }).click();
+  await page.locator('aside nav > div > a', { hasText: 'Content' }).click();
   await page.locator('aside nav ul a[aria-label="Clubs"]').click();
   await page.waitForURL(/\/td\/clubs$/);
   await page.getByRole('heading', { level: 1, name: 'Clubs' }).waitFor();
@@ -149,15 +149,15 @@ try {
   await page.getByRole('button', { name: 'Join' }).click();
   await page.getByText('Smoke Member').first().waitFor();
   const memberNav = await navLabels(page);
-  check('the new member is signed in as an editor', memberNav.length === 11 && !memberNav.includes('Team'), memberNav.join(', '));
+  check('the new member is signed in as an editor', memberNav.length === 8 && !memberNav.includes('Team'), memberNav.join(', '));
 
   // Content workflow on the mock API: an editor drafts and marks ready, a publisher approves and publishes.
   await signOut(page);
   await page.waitForURL(/\/td\/login/);
   await signIn(page, 'editor@demo.tablederby.test');
-  await page.goto(`${BASE}/td/penalties`);
-  await page.getByRole('button', { name: 'New question' }).click();
-  const sheet = page.locator('[data-slot="sheet-content"]');
+  await page.goto(`${BASE}/td/questions?mode=penalties`);
+  await page.getByRole('button', { name: 'New Question' }).click();
+  const sheet = page.locator('[data-slot="dialog-content"]');
   await sheet.getByRole('textbox', { name: 'Question', exact: true }).fill('Smoke test question?');
   await sheet.getByRole('textbox', { name: 'Answer (as shown)', exact: true }).fill('Smoke');
   await sheet.getByRole('textbox', { name: 'Accepted spellings', exact: true }).fill('smoke,');
@@ -181,10 +181,10 @@ try {
   await signOut(page);
   await page.waitForURL(/\/td\/login/);
   await signIn(page, 'publisher@demo.tablederby.test');
-  await page.goto(`${BASE}/td/penalties`);
+  await page.goto(`${BASE}/td/questions?mode=penalties`);
   await page.getByText('Smoke test question?').click();
   await page.getByRole('button', { name: 'Approve' }).click();
-  await page.locator('[data-slot="sheet-content"]').getByText('Approved', { exact: true }).waitFor();
+  await page.locator('[data-slot="dialog-content"]').getByText('Approved', { exact: true }).waitFor();
   check('publisher approves the ready question', true);
   await page.keyboard.press('Escape');
 

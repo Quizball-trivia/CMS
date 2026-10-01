@@ -3,12 +3,9 @@ import { isTableDerbyPath, TD_ROOT } from '@/lib/workspace-guard';
 
 export type TdTabKey =
   | 'dashboard'
-  | 'round-1'
-  | 'round-2'
-  | 'round-3'
-  | 'penalties'
+  | 'questions'
+  | 'categories'
   | 'dailies'
-  | 'practice'
   | 'clubs'
   | 'media'
   | 'import'
@@ -19,7 +16,7 @@ export type TdTabKey =
   | 'team'
   | 'settings';
 
-export type TdTabGroup = 'overview' | 'rounds' | 'modes' | 'library' | 'operations' | 'admin';
+export type TdTabGroup = 'overview' | 'content' | 'publish' | 'operations' | 'admin';
 
 export interface TdTab {
   key: TdTabKey;
@@ -40,9 +37,8 @@ const OPS: readonly TdRole[] = ['ops'];
 
 export const TD_TAB_GROUP_LABELS: Record<TdTabGroup, string> = {
   overview: 'Overview',
-  rounds: 'Match rounds',
-  modes: 'Modes',
-  library: 'Library',
+  content: 'Content',
+  publish: 'Publish',
   operations: 'Operations',
   admin: 'Admin',
 };
@@ -57,39 +53,19 @@ export const TD_TABS: readonly TdTab[] = [
     roles: ALL,
   },
   {
-    key: 'round-1',
-    href: `${TD_ROOT}/round-1`,
-    label: 'ბარათონი',
-    hint: 'Round I',
-    description: 'Categories and their cards: photo, value 1–3, clue lines, the answer and accepted spellings.',
-    group: 'rounds',
+    key: 'questions',
+    href: `${TD_ROOT}/questions`,
+    label: 'Questions',
+    description: 'The cards and questions of every game mode: search, edit, upload, approve.',
+    group: 'content',
     roles: ALL,
   },
   {
-    key: 'round-2',
-    href: `${TD_ROOT}/round-2`,
-    label: 'გამარჯობა',
-    hint: 'Round II',
-    // The full name, "გამარჯობა ჩემი სახელია", is too long for the sidebar.
-    description: 'Subjects with their ordered clues, the answer and accepted spellings.',
-    group: 'rounds',
-    roles: ALL,
-  },
-  {
-    key: 'round-3',
-    href: `${TD_ROOT}/round-3`,
-    label: 'პაპა კარლოს ყუთი',
-    hint: 'Round III',
-    description: 'Categories and their questions: text, an optional image, the answer and accepted spellings.',
-    group: 'rounds',
-    roles: ALL,
-  },
-  {
-    key: 'penalties',
-    href: `${TD_ROOT}/penalties`,
-    label: 'Penalties',
-    description: "The shoot-out's own pool of short questions.",
-    group: 'rounds',
+    key: 'categories',
+    href: `${TD_ROOT}/categories`,
+    label: 'Categories',
+    description: 'The categories of Round I (ბარათონი) and Round III (პაპა კარლოს ყუთი). A category is approved with its questions.',
+    group: 'content',
     roles: ALL,
   },
   {
@@ -97,16 +73,7 @@ export const TD_TABS: readonly TdTab[] = [
     href: `${TD_ROOT}/dailies`,
     label: 'Dailies',
     description: 'Football Logic, Put in Order and Career Path, each on a calendar with one puzzle per Georgia date.',
-    group: 'modes',
-    roles: ALL,
-  },
-  {
-    key: 'practice',
-    href: `${TD_ROOT}/practice`,
-    label: 'Practice',
-    hint: 'ივარჯიშე',
-    description: 'The practice question bank, with difficulty.',
-    group: 'modes',
+    group: 'content',
     roles: ALL,
   },
   {
@@ -114,7 +81,7 @@ export const TD_TABS: readonly TdTab[] = [
     href: `${TD_ROOT}/clubs`,
     label: 'Clubs',
     description: 'Clubs and crests used by Career Path, onboarding and cards.',
-    group: 'library',
+    group: 'content',
     roles: ALL,
   },
   {
@@ -122,15 +89,15 @@ export const TD_TABS: readonly TdTab[] = [
     href: `${TD_ROOT}/media`,
     label: 'Media',
     description: 'Upload and preview images, record their rights (licence, credit, source) and approve them.',
-    group: 'library',
+    group: 'content',
     roles: ALL,
   },
   {
     key: 'import',
     href: `${TD_ROOT}/import`,
-    label: 'Import',
-    description: 'Spreadsheet import: check, preview, import as drafts, and undo a batch.',
-    group: 'library',
+    label: 'Upload',
+    description: 'Upload questions in bulk from a spreadsheet file: check, preview, import as drafts, and undo a batch.',
+    group: 'publish',
     roles: ALL,
   },
   {
@@ -139,7 +106,7 @@ export const TD_TABS: readonly TdTab[] = [
     label: 'Releases',
     description:
       'Changes since the last release, the validation report (pool sizes, missing images, rights, 30 days of dailies), publish and roll back.',
-    group: 'library',
+    group: 'publish',
     // Editors see the validation report; publish and roll back stay publisher+ in the API.
     roles: ALL,
   },

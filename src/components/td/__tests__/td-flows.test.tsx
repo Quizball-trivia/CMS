@@ -36,7 +36,7 @@ const { createRefreshCoordinator } = await import('@/lib/td/refresh-coordinator'
 const { memoryBlobStore } = await import('@/lib/td/mock/blob-store');
 const { createMockTdApi, MOCK_PASSWORD, MOCK_STAFF } = await import('@/lib/td/mock-api');
 const { createOrigin, MemoryStorage, put } = await import('@/lib/td/__tests__/helpers');
-const { TdContentEditorSheet } = await import('../content/td-content-editor');
+const { TdContentEditorDialog } = await import('../content/td-content-editor');
 const { TdImportTab } = await import('../tabs/import-tab');
 const { TdReleasesTab } = await import('../tabs/releases-tab');
 const { useTdWrite } = await import('@/hooks/use-td-content');
@@ -99,7 +99,7 @@ afterEach(() => cleanup());
 describe('content editor', () => {
   it('an editor creates a draft and marks it ready; approval is a publisher’s, never the last editor’s', async () => {
     await signIn('editor');
-    renderTd(<TdContentEditorSheet target={{ type: 'penalty-questions', row: null }} onClose={() => {}} />);
+    renderTd(<TdContentEditorDialog target={{ type: 'penalty-questions', row: null }} onClose={() => {}} />);
     fireEvent.change(screen.getByLabelText('Question'), { target: { value: 'Capital of Georgia?' } });
     fireEvent.change(screen.getByLabelText('Answer (as shown)'), { target: { value: 'Tbilisi' } });
     const spellings = screen.getByLabelText('Accepted spellings');
@@ -115,7 +115,7 @@ describe('content editor', () => {
 
     await signIn('publisher');
     const [row] = (await h.admin.content('penalty-questions').list({ status: 'ready', q: 'Capital of Georgia' })).items;
-    renderTd(<TdContentEditorSheet target={{ type: 'penalty-questions', row }} onClose={() => {}} />);
+    renderTd(<TdContentEditorDialog target={{ type: 'penalty-questions', row }} onClose={() => {}} />);
     fireEvent.click(await screen.findByRole('button', { name: 'Approve' }));
     expect(await screen.findByText('Approved')).toBeTruthy();
 
@@ -123,7 +123,7 @@ describe('content editor', () => {
     const own = await h.admin.content('penalty-questions').create({ data: penalty('own-edit') });
     const ready = await h.admin.content('penalty-questions').ready(own.id, own.version);
     cleanup();
-    renderTd(<TdContentEditorSheet target={{ type: 'penalty-questions', row: ready }} onClose={() => {}} />);
+    renderTd(<TdContentEditorDialog target={{ type: 'penalty-questions', row: ready }} onClose={() => {}} />);
     expect(await screen.findByText('You made the last edit, so another publisher approves it.')).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Approve' })).toBeNull();
   });
@@ -131,7 +131,7 @@ describe('content editor', () => {
   it('shows what the API would refuse before sending, by field', async () => {
     const { admin } = await signIn('editor');
     const before = (await admin.content('penalty-questions').list({ limit: 200 })).items.length;
-    renderTd(<TdContentEditorSheet target={{ type: 'penalty-questions', row: null }} onClose={() => {}} />);
+    renderTd(<TdContentEditorDialog target={{ type: 'penalty-questions', row: null }} onClose={() => {}} />);
     fireEvent.change(screen.getByLabelText('Key'), { target: { value: 'Not A Key' } });
     fireEvent.click(screen.getByRole('button', { name: 'Create draft' }));
     expect(await screen.findByText(/^Lower-case letters/)).toBeTruthy();
@@ -144,7 +144,7 @@ describe('content editor', () => {
     const { admin } = await signIn('editor');
     const row = await admin.content('penalty-questions').create({ data: penalty('merge-me') });
     const other = await clientFor('publisher');
-    renderTd(<TdContentEditorSheet target={{ type: 'penalty-questions', row }} onClose={() => {}} />);
+    renderTd(<TdContentEditorDialog target={{ type: 'penalty-questions', row }} onClose={() => {}} />);
     fireEvent.change(screen.getByLabelText('Question'), { target: { value: 'Mine?' } });
     fireEvent.change(screen.getByLabelText('Note'), { target: { value: 'checked with the rules' } });
     const theirs = await other.admin.content('penalty-questions').edit(row.id, { version: row.version, data: { ...row.data, display: 'Theirs', aliases: ['spain', 'españa'] } });
@@ -165,7 +165,7 @@ describe('content editor', () => {
   it('holds Save while a number field shows text that is not a number, rather than saving the old number', async () => {
     const { admin } = await signIn('editor');
     const row = await admin.content('penalty-questions').create({ data: penalty('numbers') });
-    renderTd(<TdContentEditorSheet target={{ type: 'penalty-questions', row }} onClose={() => {}} />);
+    renderTd(<TdContentEditorDialog target={{ type: 'penalty-questions', row }} onClose={() => {}} />);
     fireEvent.change(screen.getByLabelText('Question'), { target: { value: 'Changed?' } });
     const save = screen.getByRole('button', { name: 'Save' });
     expect(save.hasAttribute('disabled')).toBe(false);
@@ -192,7 +192,7 @@ describe('content editor', () => {
 
   it('holds Save while an item’s sort value is not a number, instead of saving it as 0', async () => {
     await signIn('editor');
-    renderTd(<TdContentEditorSheet target={{ type: 'put-in-order', row: null }} onClose={() => {}} />);
+    renderTd(<TdContentEditorDialog target={{ type: 'put-in-order', row: null }} onClose={() => {}} />);
     const sort = await screen.findByLabelText('Item 1 sort value');
     fireEvent.change(sort, { target: { value: 'x' } });
     expect(screen.getByText('Not a number')).toBeTruthy();
@@ -211,7 +211,7 @@ describe('content editor', () => {
     }
     const ready = await editor.admin.content('card-categories').ready(category.id, category.version);
     const publisher = await signIn('publisher');
-    renderTd(<TdContentEditorSheet target={{ type: 'card-categories', row: ready }} onClose={() => {}} />);
+    renderTd(<TdContentEditorDialog target={{ type: 'card-categories', row: ready }} onClose={() => {}} />);
     fireEvent.click(await screen.findByRole('button', { name: 'Approve' }));
     const dialog = await screen.findByRole('dialog', { name: /Approve the category/ });
     expect(await within(dialog).findByText('2 ready to approve with it · 0 approved already')).toBeTruthy();
@@ -225,7 +225,7 @@ describe('content editor', () => {
 describe('media', () => {
   it('uploads a crest from the club editor and saves it as an image to pick', async () => {
     const { admin } = await signIn('editor');
-    renderTd(<TdContentEditorSheet target={{ type: 'clubs', row: null, preset: { key: 'torpedo' } }} onClose={() => {}} />);
+    renderTd(<TdContentEditorDialog target={{ type: 'clubs', row: null, preset: { key: 'torpedo' } }} onClose={() => {}} />);
     fireEvent.click(screen.getByRole('button', { name: 'Choose' }));
     const dialog = await screen.findByRole('dialog', { name: 'Choose an image' });
     const png = Uint8Array.from(atob('iVBORw0KGgoAAAANSUhEUgAAABAAAAAJCAIAAAC0SDtlAAAAFElEQVR42mP4GKVEEmIY1TAoNAAAV/DNUSF4ln8AAAAASUVORK5CYII='), (c) => c.charCodeAt(0));

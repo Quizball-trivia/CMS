@@ -21,6 +21,7 @@ import { browserPendingPublications, type HeldRequest, type PendingPublications,
 import { isTdPublisher } from '@/lib/td/workflow';
 import { cn } from '@/lib/utils';
 import { useTdAuth } from '@/providers/td-auth-provider';
+import { questionsHref } from './questions-tab';
 
 /**
  * Whether the API refused this very request (so nothing started and a new attempt takes a new key).
@@ -37,22 +38,16 @@ export function refusedOutright(error: unknown): boolean {
 const running = (p: Publication | undefined) => p?.status === 'running' || p?.status === 'failing';
 const settled = (p: Publication) => !running(p) && p.notify.state !== 'pending';
 
-const TAB_OF: Partial<Record<TdContentType, string>> = {
-  'card-categories': 'round-1',
-  cards: 'round-1',
-  'whoami-subjects': 'round-2',
-  'box-categories': 'round-3',
-  'box-questions': 'round-3',
-  'penalty-questions': 'penalties',
-  'practice-questions': 'practice',
-  media: 'media',
-  clubs: 'clubs',
-  'football-logic': 'dailies',
-  'put-in-order': 'dailies',
-  'career-path': 'dailies',
-  'daily-schedule': 'dailies',
-  'daily-settings': 'dailies',
-};
+/** Where a row named by the release report is edited. */
+function editHref(type: TdContentType, key: string): string | null {
+  const questions = questionsHref(type, key);
+  if (questions) return questions;
+  const q = `?q=${encodeURIComponent(key)}`;
+  if (type === 'card-categories' || type === 'box-categories') return `/td/categories${q}`;
+  if (type === 'media' || type === 'clubs') return `/td/${type}${q}`;
+  if (type === 'daily-schedule' || type === 'daily-settings') return `/td/dailies${q}`;
+  return null;
+}
 
 export function TdReleasesTab() {
   const { user } = useTdAuth();
@@ -271,8 +266,8 @@ function IssueList({ issues, tone }: { issues: ReleaseReport['errors']; tone: 'e
         <li key={i} className="flex flex-wrap items-baseline gap-x-2">
           <span className="font-mono text-xs opacity-80">{issue.code}</span>
           <span>{issue.message}</span>
-          {issue.ref && TAB_OF[issue.ref.type as TdContentType] && (
-            <Link href={`/td/${TAB_OF[issue.ref.type as TdContentType]}?q=${encodeURIComponent(issue.ref.key)}`} className="font-mono text-xs underline">
+          {issue.ref && editHref(issue.ref.type as TdContentType, issue.ref.key) && (
+            <Link href={editHref(issue.ref.type as TdContentType, issue.ref.key)!} className="font-mono text-xs underline">
               {issue.ref.key}
             </Link>
           )}
