@@ -169,7 +169,7 @@ function PlayerDetail({ id, onMatch }: { id: string; onMatch: (id: string) => vo
                     <span className="tabular-nums">{m.score ? `${m.score.mine} – ${m.score.theirs}` : '—'}</span>
                     <span className={cn('w-24 text-xs font-semibold', m.outcome ? OUTCOME_STYLES[m.outcome] : 'text-primary')}>{m.outcome ? OUTCOME_LABELS[m.outcome] : m.status}</span>
                     <span className="w-12 text-right text-xs tabular-nums">{signed(m.ratingDelta)}</span>
-                    {m.resultVersion > 1 && <span className="text-xs text-amber-300">corrected</span>}
+                    {m.resultVersion > 1 && <span className="text-xs text-amber-800">corrected</span>}
                   </button>
                 </li>
               ))}
@@ -420,7 +420,7 @@ function MatchRecord({ id }: { id: string }) {
                         <span className="font-semibold capitalize">{c.kind === 'void' ? 'Voided' : 'Winner set'}</span> by {c.staff.name} at {formatGeorgiaTime(c.createdAt)} (result v{c.resultVersion})
                       </p>
                       <p className="mt-1 text-(--td-text-2)">“{c.reason}”</p>
-                      {c.penaltiesToReview.length > 0 && <p className="mt-1 text-xs text-amber-300">{c.penaltiesToReview.length} later penalty(ies) to review</p>}
+                      {c.penaltiesToReview.length > 0 && <p className="mt-1 text-xs text-amber-800">{c.penaltiesToReview.length} later penalty(ies) to review</p>}
                     </li>
                   ))}
                 </ul>
@@ -516,7 +516,7 @@ export function CorrectionForm({ record }: { record: AdminMatchRecord }) {
       <h3 className="text-sm font-semibold">Correct the result (ops)</h3>
       <p className="text-xs text-(--td-text-3)">Both players’ ratings are recomputed from this match on; a void refunds both tickets. The players see the corrected result, and Betsson gets it.</p>
       {moved && (
-        <div role="alert" className="flex flex-wrap items-center gap-2 rounded-lg border border-amber-400/40 bg-amber-400/5 px-3 py-2 text-sm text-amber-200">
+        <div role="alert" className="flex flex-wrap items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-700">
           <span className="min-w-0 flex-1">
             The result changed while you were reviewing it: now result v{record.resultVersion}
             {latest ? ` (${latest.kind === 'void' ? 'voided' : 'winner set'} by ${latest.staff.name})` : ''}. Check the record above before correcting it again.

@@ -137,10 +137,10 @@ export function TdMediaPicker({
                 mediaUsable(chosen) ? (
                   <p className="text-xs text-(--td-new)">
                     Approved with its rights
-                    {replacementPending(chosen) && <span className="text-amber-300"> · a replacement waits for approval; releases show the one here</span>}
+                    {replacementPending(chosen) && <span className="text-amber-800"> · a replacement waits for approval; releases show the one here</span>}
                   </p>
                 ) : (
-                  <p className="text-xs text-amber-300">Not approved with its rights yet: approving this needs it</p>
+                  <p className="text-xs text-amber-800">Not approved with its rights yet: approving this needs it</p>
                 )
               ) : (
                 media.isSuccess && <p className="text-xs text-(--td-danger)">No image has this key</p>
@@ -232,7 +232,7 @@ function TdMediaPickerDialog({
                   <span className="block truncate text-xs text-(--td-text-3)">
                     {releasedImage(row).author ?? 'No credit'} · {releasedImage(row).license ?? 'No licence'}
                   </span>
-                  {replacementPending(row) && <span className="block text-xs text-amber-300">Replacement waits for approval</span>}
+                  {replacementPending(row) && <span className="block text-xs text-amber-800">Replacement waits for approval</span>}
                 </span>
                 <TdStatusChip status={row.status} />
               </button>

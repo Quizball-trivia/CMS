@@ -1,4 +1,4 @@
-import { FlaskConical } from 'lucide-react';
+import { AlertTriangle, FlaskConical, ShieldCheck, Wrench, type LucideIcon } from 'lucide-react';
 import { TD_CONFIG } from '@/lib/td/client';
 import type { TdDeployEnv } from '@/lib/td/env';
 import { cn } from '@/lib/utils';
@@ -22,12 +22,34 @@ export function TdEnvironmentBadge({ className }: { className?: string }) {
       {TD_CONFIG.mock && (
         <span
           title="Data comes from the in-browser mock API, not the Table Derby API"
-          className="inline-flex items-center gap-1 rounded-full border border-amber-400/40 bg-amber-400/10 px-2.5 py-0.5 text-xs font-semibold text-amber-300"
+          className="inline-flex items-center gap-1 rounded-full border border-amber-200 bg-amber-50 px-2.5 py-0.5 text-xs font-semibold text-amber-800"
         >
           <FlaskConical className="size-3" />
           Mock API
         </span>
       )}
+    </div>
+  );
+}
+
+const BANNERS: Record<TdDeployEnv, { label: string; className: string; Icon: LucideIcon }> = {
+  production: { label: 'PROD — live players', className: 'bg-red-600 text-white', Icon: AlertTriangle },
+  staging: { label: 'STAGING — safe sandbox', className: 'bg-emerald-600 text-white', Icon: ShieldCheck },
+  local: { label: 'LOCAL', className: 'bg-slate-700 text-white', Icon: Wrench },
+};
+
+/** The strip across the top, as in the Quizball CMS (layout/environment-banner.tsx); under
+ *  the editor sheet and dialogs, which open over the whole window here. */
+export function TdEnvironmentBanner() {
+  const { label, className, Icon } = BANNERS[TD_CONFIG.deployEnv];
+  return (
+    <div
+      role="status"
+      aria-live="polite"
+      className={cn('sticky top-0 z-40 flex items-center justify-center gap-2 px-4 py-1.5 text-xs font-semibold tracking-wide', className)}
+    >
+      <Icon className="h-3.5 w-3.5 shrink-0" />
+      <span>{TD_CONFIG.mock ? `${label} · mock API` : label}</span>
     </div>
   );
 }

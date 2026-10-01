@@ -22,7 +22,7 @@ type Status = WebhookEvent['status'];
 
 const STATUS: Record<Status, { label: string; className: string }> = {
   sent: { label: 'Delivered', className: 'bg-(--td-new)/15 text-(--td-new)' },
-  pending: { label: 'Retrying', className: 'bg-amber-400/15 text-amber-300' },
+  pending: { label: 'Retrying', className: 'bg-amber-100 text-amber-800' },
   dead: { label: 'Given up', className: 'bg-(--td-danger)/15 text-(--td-danger)' },
 };
 
@@ -291,7 +291,7 @@ function WebhookDetail({ eventId }: { eventId: string }) {
               </Fact>
               <Fact label="Address" mono>
                 {e.destination ?? 'not bound yet'}
-                {!e.destinationCurrent && <span className="ml-2 rounded-full bg-amber-400/15 px-2 py-0.5 font-sans text-[11px] font-semibold text-amber-300">earlier address</span>}
+                {!e.destinationCurrent && <span className="ml-2 rounded-full bg-amber-100 px-2 py-0.5 font-sans text-[11px] font-semibold text-amber-800">earlier address</span>}
               </Fact>
             </dl>
 
@@ -311,7 +311,7 @@ function WebhookDetail({ eventId }: { eventId: string }) {
                   </div>
                 ) : (
                   <div className="flex flex-col gap-2">
-                    <p className="text-sm text-amber-200">
+                    <p className="text-sm text-amber-700">
                       This event went to an earlier webhook address. A retry sends it to the address this deployment uses now, and it stays there.
                     </p>
                     {confirmRetarget ? (

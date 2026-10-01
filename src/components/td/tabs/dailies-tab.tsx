@@ -201,7 +201,7 @@ function TdCalendar({ game, onOpen }: { game: TdDailyGame; onOpen: (target: TdEd
                   day?.inWindow && <span className="text-[11px] text-(--td-danger)">No puzzle</span>
                 )}
                 {day?.planned && <span className="text-[10px] text-(--td-text-3)">{day.source === 'cycle' ? 'cycle' : 'own date'}</span>}
-                {day?.pending && <span className="truncate text-[10px] text-amber-300">→ {day.pending}</span>}
+                {day?.pending && <span className="truncate text-[10px] text-amber-800">→ {day.pending}</span>}
               </button>
             );
           })}

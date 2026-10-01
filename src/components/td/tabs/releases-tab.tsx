@@ -183,7 +183,7 @@ export function TdReleasesTab() {
       >
         <div className="p-5">
           {unanswered.map((request) => (
-            <div key={request.idemKey} className="mb-4 flex flex-wrap items-center gap-2 rounded-lg border border-amber-400/40 bg-amber-400/5 px-3 py-2 text-sm text-amber-200">
+            <div key={request.idemKey} className="mb-4 flex flex-wrap items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-700">
               <span className="min-w-0 flex-1">
                 {request.kind === 'publish' ? 'Your publish' : `Your roll back to ${request.releaseId}`}
                 {request.adopted ? ' (sent from a tab since closed)' : ''} got no answer, so it may have started. Ask again: the same request is answered, never run twice.
@@ -266,7 +266,7 @@ const GAME_LABELS = { footballLogic: 'Football Logic', putInOrder: 'Put in Order
 
 function IssueList({ issues, tone }: { issues: ReleaseReport['errors']; tone: 'error' | 'warning' }) {
   return (
-    <ul className={cn('flex flex-col gap-1 rounded-lg px-3 py-2 text-sm', tone === 'error' ? 'bg-(--td-danger)/10 text-(--td-danger)' : 'bg-amber-400/10 text-amber-200')}>
+    <ul className={cn('flex flex-col gap-1 rounded-lg px-3 py-2 text-sm', tone === 'error' ? 'bg-(--td-danger)/10 text-(--td-danger)' : 'bg-amber-50 text-amber-700')}>
       {issues.map((issue, i) => (
         <li key={i} className="flex flex-wrap items-baseline gap-x-2">
           <span className="font-mono text-xs opacity-80">{issue.code}</span>
@@ -342,7 +342,7 @@ function ChangeSummary({ report }: { report: ReleaseReport }) {
             <span className="capitalize">{TD_TYPE_CONFIG[c.type as TdContentType]?.plural ?? c.type}</span>
             <span className="text-xs tabular-nums">
               {c.added > 0 && <span className="text-(--td-new)">+{c.added} </span>}
-              {c.changed > 0 && <span className="text-amber-300">~{c.changed} </span>}
+              {c.changed > 0 && <span className="text-amber-800">~{c.changed} </span>}
               {c.removed > 0 && <span className="text-(--td-danger)">−{c.removed}</span>}
             </span>
           </li>
@@ -543,7 +543,7 @@ function ReleaseDetailView({ id }: { id: string }) {
             <p className="mb-2 text-(--td-text-3)">
               Against <span className="font-mono">{diff.against}</span>
               {!diff.complete && (
-                <span className="text-amber-300">
+                <span className="text-amber-800">
                   {' '}
                   <AlertTriangle className="inline size-3" /> incomplete: one of them has no recorded rows
                 </span>
@@ -558,7 +558,7 @@ function ReleaseDetailView({ id }: { id: string }) {
                     <p key={m.id} className="text-(--td-new)">+ {m.label}</p>
                   ))}
                   {t.changed.map((m) => (
-                    <p key={m.id} className="text-amber-300">
+                    <p key={m.id} className="text-amber-800">
                       ~ {m.label} (v{m.from} → v{m.to})
                     </p>
                   ))}

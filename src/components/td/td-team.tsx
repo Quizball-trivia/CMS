@@ -71,7 +71,7 @@ function OneTimeLink({ label, heading, intro, link, expiresAt, again, onDone }: 
           {copied ? 'Copied' : 'Copy link'}
         </Button>
       </div>
-      <p role="alert" className="rounded-lg bg-amber-400/10 px-3 py-2 text-xs text-amber-200">
+      <p role="alert" className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-700">
         Shown once: it cannot be seen again after you close this. It works once, until {formatGeorgiaTime(expiresAt)} (Georgia). {again}
       </p>
       <Button variant="ghost" className="w-fit rounded-lg" onClick={onDone}>
@@ -176,7 +176,7 @@ const signInFormat = new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Tbilisi'
 
 const STATUS_STYLES: Record<TdStaffMember['status'], string> = {
   active: 'bg-(--td-new)/15 text-(--td-new)',
-  invited: 'bg-amber-400/10 text-amber-300',
+  invited: 'bg-amber-50 text-amber-800',
   disabled: 'bg-secondary text-(--td-text-3)',
 };
 

@@ -26,7 +26,24 @@ async function signIn(page, email) {
   await page.waitForURL((url) => url.pathname.startsWith('/td') && !url.pathname.startsWith('/td/login'));
 }
 
-const navLabels = async (page) => (await page.locator('aside nav a').allInnerTexts()).map((text) => text.split('\n')[0].trim());
+// The sidebar lists a group's pages only while the group is open: every group is opened in turn.
+async function navLabels(page) {
+  const start = page.url();
+  const groups = page.locator('aside nav > div');
+  const labels = [];
+  for (let i = 0; i < (await groups.count()); i++) {
+    await groups.nth(i).locator('> a').click();
+    await groups.nth(i).locator('ul a').first().waitFor();
+    for (const link of await groups.nth(i).locator('ul a').all()) labels.push(await link.getAttribute('aria-label'));
+  }
+  await page.goto(start);
+  return labels;
+}
+
+async function signOut(page) {
+  await page.getByRole('button', { name: 'Account' }).click();
+  await page.getByRole('menuitem', { name: 'Log out' }).click();
+}
 
 const buildId = readFileSync('.next/BUILD_ID', 'utf8').trim();
 const root = await status('/');
@@ -65,12 +82,13 @@ try {
   await page.goto(`${BASE}/td/integration`);
   await page.getByText('You do not have access to this section').waitFor();
   check('editor opening Integration directly is denied, and no webhook event is read', !(await page.getByText(/^td-evt-/).count()));
-  await page.locator('aside nav a', { hasText: 'Clubs' }).click();
+  await page.locator('aside nav > div > a', { hasText: 'Library' }).click();
+  await page.locator('aside nav ul a[aria-label="Clubs"]').click();
   await page.waitForURL(/\/td\/clubs$/);
   await page.getByRole('heading', { level: 1, name: 'Clubs' }).waitFor();
   check('navigation opens a tab', true);
 
-  await page.getByRole('button', { name: 'Sign out' }).click();
+  await signOut(page);
   await page.waitForURL(/\/td\/login/);
   await signIn(page, 'admin@demo.tablederby.test');
   await page.goto(`${BASE}/td/team`);
@@ -103,7 +121,7 @@ try {
   await page.getByRole('button', { name: 'Make the invitation link' }).click();
   const invitation = await page.getByLabel('Invitation link', { exact: true }).inputValue();
   check('Betsson admin makes a one-time invitation link', invitation.startsWith(`${BASE}/td/accept-invite#token=tdi_`), invitation.replace(/#token=.*/, '#token=…'));
-  await page.getByRole('button', { name: 'Sign out' }).click();
+  await signOut(page);
   await page.waitForURL(/\/td\/login/);
   await page.goto(invitation);
   await page.getByRole('heading', { name: 'Join the team' }).waitFor();
@@ -134,7 +152,7 @@ try {
   check('the new member is signed in as an editor', memberNav.length === 11 && !memberNav.includes('Team'), memberNav.join(', '));
 
   // Content workflow on the mock API: an editor drafts and marks ready, a publisher approves and publishes.
-  await page.getByRole('button', { name: 'Sign out' }).click();
+  await signOut(page);
   await page.waitForURL(/\/td\/login/);
   await signIn(page, 'editor@demo.tablederby.test');
   await page.goto(`${BASE}/td/penalties`);
@@ -160,7 +178,7 @@ try {
   await page.getByText(/1 ready to import · 0 with problems/).waitFor();
   check('import reads pasted cells and the API previews them', true);
 
-  await page.getByRole('button', { name: 'Sign out' }).click();
+  await signOut(page);
   await page.waitForURL(/\/td\/login/);
   await signIn(page, 'publisher@demo.tablederby.test');
   await page.goto(`${BASE}/td/penalties`);
@@ -177,7 +195,7 @@ try {
   await page.getByText(/is current now\./).waitFor({ timeout: 20_000 });
   check('publisher publishes and sees every phase to current', true);
 
-  await page.getByRole('button', { name: 'Sign out' }).click();
+  await signOut(page);
   await page.waitForURL(/\/td\/login/);
   await signIn(page, 'ops@demo.tablederby.test');
   await page.goto(`${BASE}/td/players`);

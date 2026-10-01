@@ -256,7 +256,7 @@ function EditorBody({ target, onSaved }: { target: TdEditorTarget; onSaved?: (ro
             {/* Hidden, not unmounted, on the other tabs: its fields keep what was typed, and a field whose text is not valid keeps holding Save. */}
             <div className={cn('flex flex-col gap-4', otherTab && 'hidden')}>
               {approvedDiffers && (
-                <p className="flex items-start gap-2 rounded-lg bg-amber-400/10 px-3 py-2 text-xs text-amber-200">
+                <p className="flex items-start gap-2 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-700">
                   <TriangleAlert className="mt-0.5 size-3.5 shrink-0" />
                   <span>
                     This draft differs from the last approved version (v{row!.approvedVersion}). A release carries the approved version until this one is approved.{' '}
@@ -440,7 +440,7 @@ function ConflictPanel({
   const archived = theirs.status === 'archived';
   return (
     <div className="flex flex-col gap-4">
-      <div className="rounded-xl border border-amber-400/40 bg-amber-400/5 p-4">
+      <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
         <p className="font-semibold">Someone changed this while you were editing</p>
         <p className="mt-1 text-sm text-(--td-text-2)">
           {theirs.updatedBy.name} saved revision {theirs.version} ({TD_STATUS_LABELS[theirs.status].toLowerCase()}) at {formatGeorgiaTime(theirs.updatedAt)}.
@@ -545,7 +545,7 @@ function ApprovedCompare({ approved, current, approvedPosition, position }: { ap
             <tr key={r.field} className="border-t border-(--td-divider) align-top">
               <td className="py-2 pr-3 font-mono text-xs text-(--td-text-3)">{r.field}</td>
               <td className="py-2 pr-3 break-words">{showValue(r.approved)}</td>
-              <td className={cn('py-2 break-words', changed && 'text-amber-200')}>{showValue(r.current)}</td>
+              <td className={cn('py-2 break-words', changed && 'text-amber-700')}>{showValue(r.current)}</td>
             </tr>
           );
         })}

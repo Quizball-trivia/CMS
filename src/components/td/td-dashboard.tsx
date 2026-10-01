@@ -52,7 +52,7 @@ export function TdDashboard() {
         ))}
       </div>
       {data && data.penaltiesToReview > 0 && (
-        <p className="flex items-center gap-2 rounded-xl border border-amber-400/30 bg-amber-400/5 px-4 py-3 text-sm text-amber-200">
+        <p className="flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
           <TriangleAlert className="size-4" />
           {data.penaltiesToReview} penalt{data.penaltiesToReview === 1 ? 'y' : 'ies'} to review after a correction.
           {user?.role === 'ops' && (

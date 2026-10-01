@@ -148,8 +148,8 @@ export function TdLoginForm() {
         </form>
 
         {process.env.NEXT_PUBLIC_TD_API_MOCK === '1' && TD_CONFIG.mock && (
-          <div className="mt-4 rounded-xl border border-amber-400/30 bg-amber-400/5 p-4 text-xs text-(--td-text-2)">
-            <p className="font-semibold text-amber-300">Mock API: demo accounts (password “demo”)</p>
+          <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-4 text-xs text-(--td-text-2)">
+            <p className="font-semibold text-amber-800">Mock API: demo accounts (password “demo”)</p>
             <ul className="mt-2 flex flex-col gap-1">
               {MOCK_ACCOUNTS.map((account) => (
                 <li key={account.email}>

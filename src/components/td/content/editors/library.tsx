@@ -79,7 +79,7 @@ export function MediaEditor({ value, onChange, issues, creating }: TdEditorProps
           />
         </div>
       </TdField>
-      <p className={cn('rounded-lg px-3 py-2 text-xs', rights ? 'bg-amber-400/10 text-amber-300' : 'bg-(--td-new)/10 text-(--td-new)')}>
+      <p className={cn('rounded-lg px-3 py-2 text-xs', rights ? 'bg-amber-50 text-amber-800' : 'bg-(--td-new)/10 text-(--td-new)')}>
         {rights ? 'A publisher approves an image only with its licence, credit and source.' : 'Rights recorded: a publisher can approve it.'}
       </p>
       <TdOptionalTextField label="Credit (author)" value={value.author} onChange={(author) => onChange({ ...value, author })} issues={issuesAt(issues, 'data.author')} placeholder="Photographer or agency" />

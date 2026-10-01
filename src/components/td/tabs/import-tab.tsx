@@ -415,7 +415,7 @@ function BatchDetail({ id, staffId, canUndo }: { id: string; staffId: string; ca
             <span className="w-8 tabular-nums text-(--td-text-3)">{row.index + 1}</span>
             <span className="min-w-0 flex-1 truncate font-mono">{row.label}</span>
             <span className="text-(--td-text-3)">{row.type}</span>
-            <span className={cn(row.outcome === 'removed' ? 'text-(--td-text-3)' : row.outcome === 'kept' ? 'text-amber-300' : 'text-(--td-new)')}>
+            <span className={cn(row.outcome === 'removed' ? 'text-(--td-text-3)' : row.outcome === 'kept' ? 'text-amber-800' : 'text-(--td-new)')}>
               {row.outcome}
               {row.reason && ` (${KEEP_REASONS[row.reason] ?? row.reason})`}
             </span>

@@ -272,7 +272,7 @@ function LinkForm({ kind, token }: { kind: TdLinkKind; token: string | null }) {
         <p className="mt-1 text-center text-sm text-(--td-text-3)">{copy.lead}</p>
 
         {status === 'authenticated' && user && (
-          <p className="mt-6 rounded-lg bg-amber-400/10 px-3 py-2.5 text-sm text-amber-200">
+          <p className="mt-6 rounded-lg bg-amber-50 px-3 py-2.5 text-sm text-amber-700">
             You are signed in as {user.name}. Finishing here signs you in with this account instead.
           </p>
         )}

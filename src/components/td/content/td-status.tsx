@@ -9,10 +9,10 @@ export const TD_STATUS_LABELS: Record<TdContentStatus, string> = {
 };
 
 const STYLES: Record<TdContentStatus, string> = {
-  draft: 'bg-secondary text-(--td-text-2)',
-  ready: 'bg-amber-400/10 text-amber-300',
-  approved: 'bg-(--td-new)/15 text-(--td-new)',
-  archived: 'bg-transparent text-(--td-text-3) ring-1 ring-inset ring-border',
+  draft: 'bg-slate-100 text-slate-500',
+  ready: 'bg-amber-50 text-amber-700',
+  approved: 'bg-emerald-50 text-emerald-600',
+  archived: 'bg-transparent text-slate-400 ring-1 ring-inset ring-slate-200',
 };
 
 export function TdStatusChip({ status, className }: { status: TdContentStatus; className?: string }) {

@@ -286,7 +286,7 @@ export function TicketsSetting({ settings, onChanged, onConflict }: { settings: 
           )}
         </p>
         {moved && (
-          <div role="alert" className="flex flex-wrap items-center gap-2 rounded-lg border border-amber-400/40 bg-amber-400/5 px-3 py-2 text-sm text-amber-200">
+          <div role="alert" className="flex flex-wrap items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-700">
             <span className="min-w-0 flex-1">
               Changed meanwhile to {tickets.value} by {tickets.updatedBy?.name ?? 'someone else'}. Your {value} was not saved.
             </span>

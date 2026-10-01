@@ -36,7 +36,7 @@ export function TdProviders({ children }: { children: ReactNode }) {
     <QueryClientProvider client={queryClient}>
       <TdAuthProvider>
         {children}
-        <Toaster theme="dark" position="top-right" />
+        <Toaster />
       </TdAuthProvider>
     </QueryClientProvider>
   );

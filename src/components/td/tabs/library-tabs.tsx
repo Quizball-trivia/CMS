@@ -15,7 +15,7 @@ import { useInitialSearch } from './use-initial-search';
 
 const DIFFICULTY_STYLES = {
   easy: 'text-(--td-new)',
-  medium: 'text-amber-300',
+  medium: 'text-amber-800',
   hard: 'text-(--td-danger)',
 } as const;
 
@@ -144,7 +144,7 @@ export function TdMediaTab() {
             cell: (row) => {
               const missing = (['author', 'license', 'source'] as const).filter((field) => !row.data[field]?.trim());
               return missing.length ? (
-                <span className="text-xs text-amber-300">Missing {missing.map((f) => (f === 'author' ? 'credit' : f === 'license' ? 'licence' : f)).join(', ')}</span>
+                <span className="text-xs text-amber-800">Missing {missing.map((f) => (f === 'author' ? 'credit' : f === 'license' ? 'licence' : f)).join(', ')}</span>
               ) : (
                 <span className="line-clamp-1 text-xs text-(--td-text-2)">
                   {row.data.author} · {row.data.license}
