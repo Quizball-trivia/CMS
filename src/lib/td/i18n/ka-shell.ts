@@ -226,4 +226,11 @@ export const KA_SHELL: Record<string, string> = {
   'cards: none approved yet': 'ბარათები: ჯერ არცერთი არ არის დამტკიცებული',
   'box questions: none approved yet': 'ყუთის კითხვები: ჯერ არცერთი არ არის დამტკიცებული',
   // The statuses (draft, ready, approved, archived) and the types' own names are in ka-content.
+
+  // The dashboard's leaderboard card
+  'The top 10 by rating, of {total} ranked players.': 'საუკეთესო 10 რეიტინგით; სულ {total} მოთამაშეა რეიტინგში.',
+  'The top 10 by rating.': 'საუკეთესო 10 რეიტინგით.',
+  'The whole leaderboard': 'სრული ლიდერბორდი',
+  'Nobody has finished a ranked match yet.': 'რანკედი მატჩი ჯერ არავის დაუსრულებია.',
+  Wins: 'მოგება',
 };
