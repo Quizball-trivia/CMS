@@ -282,7 +282,7 @@ function NewImageForm({ upload, suggestedKey, onCancel, onSaved }: { upload: Med
         </p>
       </div>
       <div className="grid gap-2 sm:grid-cols-2">
-        <TdTextField label="Key" value={key} onChange={setKey} issues={issuesAt(issues, 'data.key')} />
+        <TdTextField label="ID" value={key} onChange={setKey} issues={issuesAt(issues, 'data.key')} />
         <TdTextField label="Credit (author)" value={rights.author} onChange={(author) => setRights({ ...rights, author })} />
         <TdTextField label="Licence" value={rights.license} onChange={(license) => setRights({ ...rights, license })} />
         <TdTextField label="Source" value={rights.source} onChange={(source) => setRights({ ...rights, source })} />

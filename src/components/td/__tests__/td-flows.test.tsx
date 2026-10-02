@@ -132,7 +132,7 @@ describe('content editor', () => {
     const { admin } = await signIn('editor');
     const before = (await admin.content('penalty-questions').list({ limit: 200 })).items.length;
     renderTd(<TdContentEditorDialog target={{ type: 'penalty-questions', row: null }} onClose={() => {}} />);
-    fireEvent.change(screen.getByLabelText('Key'), { target: { value: 'Not A Key' } });
+    fireEvent.change(screen.getByLabelText('ID'), { target: { value: 'Not A Key' } });
     fireEvent.click(screen.getByRole('button', { name: 'Create draft' }));
     expect(await screen.findByText(/^Lower-case letters/)).toBeTruthy();
     expect(screen.getAllByText('Required').length).toBeGreaterThanOrEqual(2);
@@ -231,7 +231,7 @@ describe('media', () => {
     const png = Uint8Array.from(atob('iVBORw0KGgoAAAANSUhEUgAAABAAAAAJCAIAAAC0SDtlAAAAFElEQVR42mP4GKVEEmIY1TAoNAAAV/DNUSF4ln8AAAAASUVORK5CYII='), (c) => c.charCodeAt(0));
     fireEvent.change(within(dialog).getByTestId('td-upload-input'), { target: { files: [new File([png], 'crest.png', { type: 'image/png' })] } });
     expect(await within(dialog).findByText(/Uploaded · 16 × 9 px/)).toBeTruthy();
-    expect((within(dialog).getByLabelText('Key') as HTMLInputElement).value).toBe('crest-torpedo');
+    expect((within(dialog).getByLabelText('ID') as HTMLInputElement).value).toBe('crest-torpedo');
     fireEvent.change(within(dialog).getByLabelText('Licence'), { target: { value: 'CC0' } });
     fireEvent.click(within(dialog).getByRole('button', { name: 'Save and use it' }));
     await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Choose an image' })).toBeNull());

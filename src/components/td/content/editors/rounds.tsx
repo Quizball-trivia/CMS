@@ -4,6 +4,7 @@ import { TdMediaPicker } from '@/components/td/media/td-media';
 import { useTdAllRows } from '@/hooks/use-td-content';
 import type { TdContentData, TdContentType } from '@/lib/td/admin-api';
 import type { SchemaIssue } from '@/lib/td/contract';
+import { t } from '@/lib/td/i18n';
 import { issuesAt, TdListField, TdNumberField, TdSelectField, TdSpellingsField, TdSwitchField, TdTextField } from '../td-form';
 
 export interface TdEditorProps<T extends TdContentType> {
@@ -15,16 +16,26 @@ export interface TdEditorProps<T extends TdContentType> {
   creating: boolean;
 }
 
-export function KeyField({ value, onChange, issues, creating, label = 'Key', path = 'data.key' }: { value: string; onChange: (key: string) => void; issues: SchemaIssue[]; creating: boolean; label?: string; path?: string }) {
+/** A row's ID: what uploaded files, releases and other rows call it. It is set
+ *  automatically, so it is folded away; it opens by itself when it is refused. */
+export function KeyField({ value, onChange, issues, creating, label = 'ID', path = 'data.key' }: { value: string; onChange: (key: string) => void; issues: SchemaIssue[]; creating: boolean; label?: string; path?: string }) {
+  const refused = issuesAt(issues, path);
   return (
-    <TdTextField
-      label={label}
-      value={value}
-      onChange={onChange}
-      issues={issuesAt(issues, path)}
-      locked={!creating}
-      hint={creating ? 'Lower-case letters, digits, - and _. It names the row in releases and cannot change once saved.' : undefined}
-    />
+    <details open={refused.length > 0 ? true : undefined} className="rounded-lg border border-dashed border-slate-200 px-3 py-2 text-xs text-(--td-text-3)">
+      <summary className="cursor-pointer select-none">
+        {t('ID')}: <span className="font-mono text-(--td-text-2)">{value || '—'}</span> · {creating ? t('set automatically') : t('cannot change')}
+      </summary>
+      <div className="pt-3">
+        <TdTextField
+          label={t(label)}
+          value={value}
+          onChange={onChange}
+          issues={refused}
+          locked={!creating}
+          hint={creating ? t('Uploaded files and releases refer to the row by this ID. Lower-case letters, digits, - and _. It cannot change once saved.') : undefined}
+        />
+      </div>
+    </details>
   );
 }
 
