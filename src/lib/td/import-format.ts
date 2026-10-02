@@ -11,6 +11,7 @@
  */
 import { t } from '@/lib/td/i18n';
 import type { TdContentType } from './admin-api';
+import { canonicalJson } from './hash';
 
 export const TD_IMPORT_MAX_ITEMS = 2000;
 /** The API's import body limit is 4 MiB; leave room for the envelope. */
@@ -257,8 +258,9 @@ export interface TdParsedImport {
 }
 
 /** Two FNV-1a passes over what a row says (its fields as read, in the type's own
- *  column order): the same row always gets the same made-up ID, however the
- *  file orders its columns, so reading it twice names its rows the same way. */
+ *  column order, nested fields by name): the same row always gets the same
+ *  made-up ID, however the file orders its columns or writes a JSON cell, so
+ *  reading it twice names its rows the same way. */
 function rowHash(text: string): string {
   let a = 0x811c9dc5;
   let b = 0x9e3779b9;
@@ -319,7 +321,7 @@ export function parseSheet(type: TdContentType, text: string, options: TdSheetOp
       }
     }
     if (ok && keyless) {
-      values.key = `row-${rowHash(JSON.stringify(TD_IMPORT_COLUMNS[type].map((column) => (column === KEY ? null : (values[column.name] ?? null)))))}`;
+      values.key = `row-${rowHash(canonicalJson(TD_IMPORT_COLUMNS[type].map((column) => (column === KEY ? null : (values[column.name] ?? null)))))}`;
       const first = made.get(values.key as string);
       if (first !== undefined) {
         ok = false;

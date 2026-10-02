@@ -293,6 +293,54 @@ describe('stepping through a list', () => {
     confirm.mockRestore();
   });
 
+  it('asks the same before the dialog closes, and closes at once when nothing was changed', async () => {
+    const { admin } = await signIn('editor');
+    const row = await admin.content('penalty-questions').create({ data: penalty('close-held') });
+    const onClose = vi.fn();
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
+    renderTd(<TdContentEditorDialog target={{ type: 'penalty-questions', row }} onClose={onClose} />);
+    fireEvent.keyDown(screen.getByRole('dialog'), { key: 'Escape' });
+    expect(confirm).not.toHaveBeenCalled();
+    expect(onClose).toHaveBeenCalledTimes(1);
+
+    fireEvent.change(screen.getByLabelText('Position'), { target: { value: '-' } });
+    fireEvent.keyDown(screen.getByRole('dialog'), { key: 'Escape' });
+    expect(confirm).toHaveBeenCalledTimes(1);
+    expect(onClose).toHaveBeenCalledTimes(1);
+    confirm.mockReturnValue(true);
+    fireEvent.keyDown(screen.getByRole('dialog'), { key: 'Escape' });
+    expect(onClose).toHaveBeenCalledTimes(2);
+    confirm.mockRestore();
+  });
+
+  it('a step from the approved version to a row never approved lands on Content, with the tabs still reachable', async () => {
+    const editor = await clientFor('editor');
+    const made = await editor.admin.content('penalty-questions').create({ data: penalty('tab-approved') });
+    const ready = await editor.admin.content('penalty-questions').ready(made.id, made.version);
+    const { admin } = await signIn('publisher');
+    const approved = await admin.content('penalty-questions').approve(ready.id, ready.version);
+    const draft = await editor.admin.content('penalty-questions').create({ data: penalty('tab-draft') });
+    const nav = { index: 0, total: 2, more: false, onGo: () => {} };
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const view = render(
+      <QueryClientProvider client={client}>
+        <TdContentEditorDialog target={{ type: 'penalty-questions', row: approved }} onClose={() => {}} nav={nav} />
+      </QueryClientProvider>,
+    );
+    fireEvent.click(screen.getByRole('tab', { name: 'Approved version' }));
+    expect(screen.getByRole('tab', { name: 'Approved version' }).getAttribute('aria-selected')).toBe('true');
+    view.rerender(
+      <QueryClientProvider client={client}>
+        <TdContentEditorDialog target={{ type: 'penalty-questions', row: draft }} onClose={() => {}} nav={{ ...nav, index: 1 }} />
+      </QueryClientProvider>,
+    );
+    expect(screen.queryByRole('tab', { name: 'Approved version' })).toBeNull();
+    const content = screen.getByRole('tab', { name: 'Content' });
+    expect(content.getAttribute('aria-selected')).toBe('true');
+    expect(content.tabIndex).toBe(0);
+    expect((screen.getByLabelText('Question') as HTMLInputElement).value).toBe('Who won Euro 2024?');
+  });
+
   it('locks the form while the next row’s page is on its way', async () => {
     const { admin } = await signIn('editor');
     const row = await admin.content('penalty-questions').create({ data: penalty('step-wait') });
@@ -338,6 +386,22 @@ describe('categories', () => {
     expect(within(mine).getByRole('button', { name: 'Delete the category' })).toBeTruthy();
     fireEvent.click(within(theirs).getByRole('button', { name: 'Edit the category' }));
     expect(await screen.findByRole('dialog')).toBeTruthy();
+    cleanup();
+
+    // A draft of the editor's own that a publisher touched (a note): the confirmation says why it cannot be deleted.
+    const touched = await admin.content('card-categories').create({ data: { key: 'touched', prompt: 'Touched by a publisher' } });
+    await publisher.admin.content('card-categories').edit(touched.id, { version: touched.version, data: touched.data, position: touched.position, note: 'Checked' });
+    renderTd(<TdCategoriesTab />);
+    fireEvent.click(within((await screen.findByText('Touched by a publisher')).closest('tr')!).getByRole('button', { name: 'Delete the category' }));
+    let asked = await screen.findByRole('dialog');
+    expect(await within(asked).findByText('Editors archive only their own drafts that nobody else has touched and that were never approved.')).toBeTruthy();
+    expect(within(asked).getByRole('button', { name: 'Delete' }).hasAttribute('disabled')).toBe(true);
+    fireEvent.click(within(asked).getByRole('button', { name: 'Cancel' }));
+    fireEvent.click(within(screen.getByText('Made by me').closest('tr')!).getByRole('button', { name: 'Delete the category' }));
+    asked = await screen.findByRole('dialog');
+    await waitFor(() => expect(within(asked).getByRole('button', { name: 'Delete' }).hasAttribute('disabled')).toBe(false));
+    fireEvent.click(within(asked).getByRole('button', { name: 'Delete' }));
+    await waitFor(async () => expect((await admin.content('card-categories').list({ q: 'mine', status: 'archived' })).items).toHaveLength(1));
     cleanup();
 
     renderTd(<TdCategoriesTab />);
@@ -766,6 +830,28 @@ describe('import', () => {
     fireEvent.click(await screen.findByRole('button', { name: /Import 2 as drafts/ }));
     expect(await screen.findByText(/Imported 2 drafts as batch/)).toBeTruthy();
     expect((await admin.content('penalty-questions').list({ q: 'imp-' })).items).toHaveLength(2);
+  });
+
+  it('of two files chosen one after the other, the later choice is the one shown, whichever is read first', async () => {
+    await signIn('editor');
+    renderTd(<TdImportTab />);
+    const file = (name: string, key: string) => {
+      const read = deferred<string>();
+      return { read, file: Object.assign(new File([''], name), { text: () => read.promise }), cells: `key,q,display,aliases\n${key},Which?,One,one` };
+    };
+    const older = file('older.csv', 'older-1');
+    const latest = file('latest.csv', 'latest-1');
+    const input = screen.getByTestId('td-import-file');
+    fireEvent.change(input, { target: { files: [older.file] } });
+    fireEvent.change(input, { target: { files: [latest.file] } });
+    await act(async () => {
+      older.read.resolve(older.cells);
+      await sleep(20);
+      latest.read.resolve(latest.cells);
+      await sleep(20);
+    });
+    expect(await screen.findByText('latest.csv')).toBeTruthy();
+    expect(screen.queryByText('older.csv')).toBeNull();
   });
 
   it('an import whose answer was lost is answered with its own batch when the same cells are read again', async () => {

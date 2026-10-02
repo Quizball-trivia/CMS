@@ -211,9 +211,13 @@ export function TdQuestionsTab() {
   };
 
   // Typing searches after a pause, as the Quizball question list does.
+  const searched = useRef(q);
   useEffect(() => {
     const timer = setTimeout(() => {
-      setQ(text.trim());
+      const next = text.trim();
+      if (next === searched.current) return;
+      searched.current = next;
+      setQ(next);
       setSelected(new Set());
       wait.current = null;
       setWaiting(false);

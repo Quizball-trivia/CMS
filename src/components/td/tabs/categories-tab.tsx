@@ -8,12 +8,12 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { TdCellTitle, TdContentList } from '@/components/td/content/td-content-list';
 import { TdContentEditorDialog, type TdEditorTarget } from '@/components/td/content/td-content-editor';
-import { useTdWrite } from '@/hooks/use-td-content';
+import { useTdHistory, useTdWrite } from '@/hooks/use-td-content';
 import type { TdContentRow } from '@/lib/td/admin-api';
 import { tdAdmin } from '@/lib/td/client';
 import { tdErrorText } from '@/lib/td/errors';
 import { t } from '@/lib/td/i18n';
-import { isTdPublisher } from '@/lib/td/workflow';
+import { contentActions, isTdPublisher } from '@/lib/td/workflow';
 import { useTdAuth } from '@/providers/td-auth-provider';
 
 type CategoryType = 'card-categories' | 'box-categories';
@@ -26,13 +26,17 @@ const nameOf = (row: CategoryRow) => ('prompt' in row.data ? row.data.prompt : r
 export function TdCategoriesTab() {
   const { user } = useTdAuth();
   const write = useTdWrite();
-  const publisher = user ? isTdPublisher(user.role) : false;
-  // An editor deletes only a draft of their own that was never approved (the API also checks nobody else touched it); a publisher restores.
-  const canDelete = (row: CategoryRow) => publisher || (row.approvedVersion === null && row.lastEditor.id === user?.id);
   const [target, setTarget] = useState<TdEditorTarget | null>(null);
   const [deleting, setDeleting] = useState<{ type: CategoryType; row: CategoryRow } | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [refused, setRefused] = useState<string | null>(null);
+  const publisher = user ? isTdPublisher(user.role) : false;
+  // An editor deletes only a draft of their own that was never approved and nobody else touched: the list knows the first two,
+  // the confirmation reads the row's history for the third. A publisher restores.
+  const canDelete = (row: CategoryRow) => publisher || (row.approvedVersion === null && row.lastEditor.id === user?.id);
+  const trail = useTdHistory(deleting?.type ?? 'card-categories', deleting && !publisher ? deleting.row.id : null);
+  const allowed = deleting && user ? contentActions(deleting.row, user, trail.isError ? null : (trail.data ?? null)).archive : null;
+  const checking = deleting !== null && !publisher && trail.isLoading;
 
   const act = async (action: 'archive' | 'restore', type: CategoryType, row: CategoryRow) => {
     setBusy(row.id);
@@ -128,12 +132,17 @@ export function TdCategoriesTab() {
               {refused}
             </p>
           )}
+          {!checking && allowed && !allowed.allowed && (
+            <p role="alert" className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+              {allowed.reason}
+            </p>
+          )}
           <DialogFooter>
             <Button variant="outline" disabled={busy !== null} onClick={() => setDeleting(null)}>
               {t('Cancel')}
             </Button>
-            <Button variant="destructive" disabled={busy !== null} onClick={() => deleting && void act('archive', deleting.type, deleting.row)}>
-              {busy !== null ? <Loader2 className="animate-spin" /> : <Trash2 />}
+            <Button variant="destructive" disabled={busy !== null || checking || !allowed?.allowed} onClick={() => deleting && void act('archive', deleting.type, deleting.row)}>
+              {busy !== null || checking ? <Loader2 className="animate-spin" /> : <Trash2 />}
               {t('Delete')}
             </Button>
           </DialogFooter>

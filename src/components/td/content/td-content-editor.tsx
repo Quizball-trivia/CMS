@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useId, useMemo, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react';
+import { useCallback, useEffect, useId, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type MutableRefObject, type ReactNode } from 'react';
 import { Archive, ArchiveRestore, Check, ChevronLeft, ChevronRight, Eye, History, Loader2, RefreshCw, Save, Send, TriangleAlert } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
@@ -73,13 +73,16 @@ export function TdContentEditorDialog({
   if ((target !== null) !== session.open) {
     setSession({ open: target !== null, tab: target?.row && startOn === 'preview' && hasPreview(target.type) ? 'preview' : 'edit' });
   }
+  // Asked before the dialog closes: the open form says whether it may be left.
+  const leave = useRef<() => boolean>(() => true);
   return (
-    <Dialog open={target !== null} onOpenChange={(open) => !open && onClose()}>
+    <Dialog open={target !== null} onOpenChange={(open) => !open && leave.current() && onClose()}>
       <DialogContent className="flex h-[min(90vh,880px)] w-full flex-col gap-0 overflow-hidden rounded-[2rem] border-slate-200 bg-white p-0 sm:max-w-3xl">
         {target && (
           <EditorBody
             key={`${target.type}:${target.row?.id ?? 'new'}`}
             target={target}
+            leave={leave}
             onSaved={onSaved}
             nav={target.row ? (nav ?? null) : null}
             tab={session.tab}
@@ -98,7 +101,21 @@ interface Conflict {
   choices: Record<string, 'mine' | 'theirs'>;
 }
 
-function EditorBody({ target, onSaved, nav, tab, setTab }: { target: TdEditorTarget; onSaved?: (row: TdContentRow) => void; nav: TdEditorNav | null; tab: Tab; setTab: (tab: Tab) => void }) {
+function EditorBody({
+  target,
+  leave,
+  onSaved,
+  nav,
+  tab: asked,
+  setTab,
+}: {
+  target: TdEditorTarget;
+  leave: MutableRefObject<() => boolean>;
+  onSaved?: (row: TdContentRow) => void;
+  nav: TdEditorNav | null;
+  tab: Tab;
+  setTab: (tab: Tab) => void;
+}) {
   const { type } = target;
   const config = TD_TYPE_CONFIG[type] as unknown as (typeof TD_TYPE_CONFIG)['penalty-questions'];
   const { user } = useTdAuth();
@@ -133,17 +150,26 @@ function EditorBody({ target, onSaved, nav, tab, setTab }: { target: TdEditorTar
   const [approving, setApproving] = useState(false);
 
   const creating = row === null;
-  const otherTab = tab === 'preview' || (tab === 'history' && row !== null) || (tab === 'approved' && Boolean(row?.approved));
+  // The tab asked for, or Content when this row has no such tab (a step from a row that had it).
+  const tab: Tab = (asked === 'preview' && !hasPreview(type)) || (asked === 'history' && row === null) || (asked === 'approved' && !row?.approved) ? 'edit' : asked;
+  const otherTab = tab !== 'edit';
   const dirty = creating || !sameDraft(draft, base);
+  // Something here would be lost by leaving: a change, text that is not a valid number (the draft does not have it yet), an upload still running.
+  const unsaved = held || !sameDraft(draft, base);
+  const mayLeave = useCallback(() => !unsaved || window.confirm(t('This one has changes that are not saved. Leave it without saving?')), [unsaved]);
+  useEffect(() => {
+    leave.current = mayLeave;
+    return () => {
+      leave.current = () => true;
+    };
+  }, [leave, mayLeave]);
 
   const go = useCallback(
     (index: number) => {
       if (!nav || nav.waiting || index < 0 || (index >= nav.total && !nav.more)) return;
-      // Text that is not a valid number, or an upload still running, is a change too: the draft does not have it yet.
-      if (!creating && (held || !sameDraft(draft, base)) && !window.confirm(t('This one has changes that are not saved. Leave it without saving?'))) return;
-      nav.onGo(index);
+      if (mayLeave()) nav.onGo(index);
     },
-    [nav, creating, held, draft, base],
+    [nav, mayLeave],
   );
   // ← and → step through the list, unless a field is being typed in, the tabs have the keys, or another dialog is on top.
   useEffect(() => {
@@ -165,7 +191,7 @@ function EditorBody({ target, onSaved, nav, tab, setTab }: { target: TdEditorTar
 
   // A fresher copy replaces the form only while nothing is typed in it.
   const fresh = useTdContentRow(type, row?.id ?? null);
-  if (fresh.data && row && fresh.data.version > row.version && !dirty && !conflict) {
+  if (fresh.data && row && fresh.data.version > row.version && !dirty && !held && !conflict) {
     setRow(fresh.data);
     setBase(draftOf(fresh.data));
     setDraft(draftOf(fresh.data));

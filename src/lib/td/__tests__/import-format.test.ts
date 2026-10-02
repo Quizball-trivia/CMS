@@ -78,6 +78,14 @@ describe('spreadsheet import', () => {
     const parsed = parseSheet('penalty-questions', 'q,display,aliases\nCapital of Georgia?,Tbilisi,tbilisi\nWho won in 2022?,Argentina,argentina\nCapital of Georgia?,Tbilisi,tbilisi');
     expect(parsed.items).toHaveLength(2);
     expect(parsed.problems).toEqual([{ line: 4, column: null, message: 'The same as line 2: remove one of them.' }]);
+
+    // A JSON cell that says the same with its fields in another order is the same row.
+    const rounds = parseSheet(
+      'put-in-order',
+      'puzzle\tprompt\titems\np1\tOrder\t[{"key":"a","label":"Italy","sortValue":2006},{"key":"b","label":"Spain","sortValue":2010}]\np1\tOrder\t[{"sortValue":2006,"label":"Italy","key":"a"},{"label":"Spain","key":"b","sortValue":2010}]',
+    );
+    expect(rounds.items).toHaveLength(1);
+    expect(rounds.problems).toEqual([expect.objectContaining({ line: 3, message: 'The same as line 2: remove one of them.' })]);
   });
 
   it('names the line and column of what it cannot read, and refuses unknown or missing columns', () => {

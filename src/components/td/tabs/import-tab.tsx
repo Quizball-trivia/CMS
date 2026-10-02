@@ -252,7 +252,8 @@ export function TdImportTab({ embedded = false, initialType, initialCategory }: 
                 const chosen = event.target.files?.[0];
                 event.target.value = '';
                 if (!chosen) return;
-                const mine = cleared.current;
+                // Counted as chosen, so of two files read at once the later choice is the one shown.
+                const mine = ++cleared.current;
                 const text = await chosen.text();
                 if (cleared.current === mine) await prepare(text, chosen.name, chosen.name.toLowerCase().endsWith('.json'));
               }}
