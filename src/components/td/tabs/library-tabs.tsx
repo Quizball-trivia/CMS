@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { EyeOff, ImageIcon } from 'lucide-react';
+import { EyeOff } from 'lucide-react';
 import { toast } from 'sonner';
 import { TdCellTitle, TdContentList } from '@/components/td/content/td-content-list';
 import { TdContentEditorDialog, type TdEditorTarget } from '@/components/td/content/td-content-editor';
@@ -11,7 +11,6 @@ import { tdAdmin } from '@/lib/td/client';
 import type { MediaUpload } from '@/lib/td/contract';
 import { tdErrorText } from '@/lib/td/errors';
 import { t } from '@/lib/td/i18n';
-import { cn } from '@/lib/utils';
 import { useInitialSearch } from './use-initial-search';
 
 /** The rights an image can lack, as the list names them. */

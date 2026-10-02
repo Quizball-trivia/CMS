@@ -17,7 +17,7 @@ import { TdApiError } from '@/lib/td/api-client';
 import { tdAdmin } from '@/lib/td/client';
 import { checkContract, type AdminLedgerList, type AdminMatchRecord, type AdminPlayerList, type AdminPlayerMatchList, type OpsReviewList, type SchemaIssue } from '@/lib/td/contract';
 import { formatDay, formatGeorgiaTime } from '@/lib/td/georgia';
-import { t, tc, TD_LANG, tr } from '@/lib/td/i18n';
+import { t, tc, tr } from '@/lib/td/i18n';
 import { cn } from '@/lib/utils';
 import { useTdAuth } from '@/providers/td-auth-provider';
 

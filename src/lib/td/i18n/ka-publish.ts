@@ -52,6 +52,7 @@ export const KA_PUBLISH: Record<string, string> = {
   'The sheet needs a header row and at least one item.': 'ცხრილში უნდა იყოს სათაურების სტრიქონი და მინიმუმ ერთი ჩანაწერი.',
   '“{name}” is not a column of this type': '„{name}“ ამ ტიპის სვეტი არ არის',
   'The column “{name}” is missing': 'აკლია სვეტი „{name}“',
+  'The same as line {line}: remove one of them.': 'იგივეა, რაც {line}-ე ხაზზე: ერთ-ერთი წაშალეთ.',
   'not valid JSON': 'JSON არასწორია',
   'The file is not valid JSON.': 'ფაილი სწორი JSON არ არის.',
   'Expected a list of items, or { "items": [...] }.': 'საჭიროა ჩანაწერების სია ან { "items": [...] }.',

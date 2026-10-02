@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { ArchiveRestore, Loader2, Trash2 } from 'lucide-react';
+import { ArchiveRestore, Loader2, Pencil, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -13,6 +13,8 @@ import type { TdContentRow } from '@/lib/td/admin-api';
 import { tdAdmin } from '@/lib/td/client';
 import { tdErrorText } from '@/lib/td/errors';
 import { t } from '@/lib/td/i18n';
+import { isTdPublisher } from '@/lib/td/workflow';
+import { useTdAuth } from '@/providers/td-auth-provider';
 
 type CategoryType = 'card-categories' | 'box-categories';
 type CategoryRow = TdContentRow<CategoryType>;
@@ -22,7 +24,11 @@ const nameOf = (row: CategoryRow) => ('prompt' in row.data ? row.data.prompt : r
 /** The categories of the two rounds that have them: add one, change it, delete
  *  it or bring it back. Their cards and questions are on the Questions page. */
 export function TdCategoriesTab() {
+  const { user } = useTdAuth();
   const write = useTdWrite();
+  const publisher = user ? isTdPublisher(user.role) : false;
+  // An editor deletes only a draft of their own that was never approved (the API also checks nobody else touched it); a publisher restores.
+  const canDelete = (row: CategoryRow) => publisher || (row.approvedVersion === null && row.lastEditor.id === user?.id);
   const [target, setTarget] = useState<TdEditorTarget | null>(null);
   const [deleting, setDeleting] = useState<{ type: CategoryType; row: CategoryRow } | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
@@ -48,11 +54,16 @@ export function TdCategoriesTab() {
       <Link href={href} className="mr-1 whitespace-nowrap text-xs font-bold text-blue-700 underline underline-offset-2">
         {label}
       </Link>
+      <Button variant="ghost" size="icon-sm" aria-label={t('Edit the category')} title={t('Edit the category')} onClick={() => setTarget({ type, row })} className="text-slate-400 hover:text-slate-900">
+        <Pencil />
+      </Button>
       {row.status === 'archived' ? (
-        <Button variant="ghost" size="icon-sm" aria-label={t('Restore the category')} title={t('Restore the category')} disabled={busy !== null} onClick={() => void act('restore', type, row)}>
-          {busy === row.id ? <Loader2 className="animate-spin" /> : <ArchiveRestore />}
-        </Button>
-      ) : (
+        publisher && (
+          <Button variant="ghost" size="icon-sm" aria-label={t('Restore the category')} title={t('Restore the category')} disabled={busy !== null} onClick={() => void act('restore', type, row)}>
+            {busy === row.id ? <Loader2 className="animate-spin" /> : <ArchiveRestore />}
+          </Button>
+        )
+      ) : canDelete(row) ? (
         <Button
           variant="ghost"
           size="icon-sm"
@@ -67,7 +78,7 @@ export function TdCategoriesTab() {
         >
           <Trash2 />
         </Button>
-      )}
+      ) : null}
     </span>
   );
 
@@ -85,7 +96,7 @@ export function TdCategoriesTab() {
           emptyTitle={t('No card categories yet')}
           columns={[
             { header: t('Category'), cell: (row) => <TdCellTitle title={row.data.prompt} sub={row.data.key} /> },
-            { header: '', className: 'w-40 text-right', cell: (row) => actions('card-categories', row, `/td/questions?mode=round-1&category=${encodeURIComponent(row.data.key)}`, t('Its cards')) },
+            { header: '', className: 'w-48 text-right', cell: (row) => actions('card-categories', row, `/td/questions?mode=round-1&category=${encodeURIComponent(row.data.key)}`, t('Its cards')) },
           ]}
         />
         <TdContentList
@@ -99,7 +110,7 @@ export function TdCategoriesTab() {
           emptyTitle={t('No box categories yet')}
           columns={[
             { header: t('Category'), cell: (row) => <TdCellTitle title={row.data.title} sub={row.data.key} /> },
-            { header: '', className: 'w-44 text-right', cell: (row) => actions('box-categories', row, `/td/questions?mode=round-3&category=${encodeURIComponent(row.data.key)}`, t('Its questions')) },
+            { header: '', className: 'w-52 text-right', cell: (row) => actions('box-categories', row, `/td/questions?mode=round-3&category=${encodeURIComponent(row.data.key)}`, t('Its questions')) },
           ]}
         />
       </div>

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { Archive, Check, FileText, ImageIcon, Layers, Loader2, MoreHorizontal, Pencil, Plus, Rocket, Search, Send, Upload, X } from 'lucide-react';
 import { toast } from 'sonner';
@@ -176,6 +176,7 @@ function show(type: TdContentType, row: TdContentRow): Shown {
 
 const keyOf = (row: TdContentRow) => String((row.data as Record<string, unknown>).key ?? row.id);
 
+/** Read in the browser only: the console draws its pages once the sign-in is known, never on the server. */
 function readParam(name: string): string {
   return typeof window === 'undefined' ? '' : (new URLSearchParams(window.location.search).get(name) ?? '');
 }
@@ -201,14 +202,21 @@ export function TdQuestionsTab() {
   const [refusals, setRefusals] = useState<Array<{ label: string; message: string }>>([]);
   const [target, setTarget] = useState<TdEditorTarget | null>(null);
   const [uploading, setUploading] = useState(false);
-  // A step past the last loaded row: opened once its page has arrived.
-  const [wanted, setWanted] = useState<number | null>(null);
+  // A step past the last loaded row waits for its page. Closing, another step or a new filter gives the wait up.
+  const wait = useRef<object | null>(null);
+  const [waiting, setWaiting] = useState(false);
+  const stopWaiting = () => {
+    wait.current = null;
+    setWaiting(false);
+  };
 
   // Typing searches after a pause, as the Quizball question list does.
   useEffect(() => {
     const timer = setTimeout(() => {
       setQ(text.trim());
       setSelected(new Set());
+      wait.current = null;
+      setWaiting(false);
     }, 350);
     return () => clearTimeout(timer);
   }, [text]);
@@ -228,17 +236,24 @@ export function TdQuestionsTab() {
   const rows = useMemo(() => (list.data?.pages.flatMap((page) => page.items) ?? []) as TdContentRow[], [list.data]);
 
   const openIndex = target?.row ? rows.findIndex((row) => row.id === target.row!.id) : -1;
-  if (wanted !== null && rows[wanted]) {
-    setWanted(null);
-    setTarget({ type: mode.type, row: rows[wanted]! });
-  }
+  const open = (next: TdEditorTarget | null) => {
+    stopWaiting();
+    setTarget(next);
+  };
   const goTo = (index: number) => {
     const row = rows[index];
-    if (row) setTarget({ type: mode.type, row });
-    else if (list.hasNextPage) {
-      setWanted(index);
-      void list.fetchNextPage();
-    }
+    if (row) return open({ type: mode.type, row });
+    if (!list.hasNextPage) return;
+    const { type } = mode;
+    const mine = {};
+    wait.current = mine;
+    setWaiting(true);
+    void list.fetchNextPage().then((result) => {
+      if (wait.current !== mine) return;
+      const arrived = result.data?.pages.flatMap((page) => page.items)[index] as TdContentRow | undefined;
+      if (arrived) open({ type, row: arrived });
+      else stopWaiting();
+    });
   };
 
   const publisher = user ? isTdPublisher(user.role) : false;
@@ -251,6 +266,7 @@ export function TdQuestionsTab() {
 
   const reset = (apply: () => void) => {
     apply();
+    stopWaiting();
     setSelected(new Set());
     setRefusals([]);
   };
@@ -309,7 +325,7 @@ export function TdQuestionsTab() {
             {t('Upload Questions')}
           </Button>
           <Button
-            onClick={() => setTarget({ type: mode.type, row: null, preset: mode.categoryType && category !== 'all' ? { categoryKey: category } : undefined })}
+            onClick={() => open({ type: mode.type, row: null, preset: mode.categoryType && category !== 'all' ? { categoryKey: category } : undefined })}
             className="h-11 rounded-xl bg-gray-900 px-6 text-sm font-bold text-white shadow-lg shadow-gray-200 hover:bg-gray-800 active:scale-95"
           >
             <Plus />
@@ -475,7 +491,7 @@ export function TdQuestionsTab() {
                   <li
                     key={row.id}
                     className="group relative flex cursor-pointer items-center justify-between border-b border-gray-50 px-6 py-5 transition-colors last:border-0 hover:bg-slate-50"
-                    onClick={() => setTarget({ type: mode.type, row })}
+                    onClick={() => open({ type: mode.type, row })}
                   >
                     <div className="flex min-w-0 flex-1 items-center gap-5">
                       <input
@@ -532,7 +548,7 @@ export function TdQuestionsTab() {
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end" className="w-52 rounded-[1.25rem] border-slate-100 bg-white p-2 shadow-2xl">
-                            <DropdownMenuItem onClick={() => setTarget({ type: mode.type, row })} className="gap-3 rounded-lg px-3 py-2.5 font-medium">
+                            <DropdownMenuItem onClick={() => open({ type: mode.type, row })} className="gap-3 rounded-lg px-3 py-2.5 font-medium">
                               <Pencil className="h-4 w-4 text-slate-400" /> {t('Open')}
                             </DropdownMenuItem>
                             <DropdownMenuItem disabled={!canReady(row) || running !== null} onClick={() => void run('ready', [row])} className="gap-3 rounded-lg px-3 py-2.5 font-medium">
@@ -541,7 +557,7 @@ export function TdQuestionsTab() {
                             <DropdownMenuItem disabled={!canApprove(row) || running !== null} onClick={() => void run('approve', [row])} className="gap-3 rounded-lg px-3 py-2.5 font-medium">
                               <Check className="h-4 w-4 text-emerald-500" /> {t('Approve')}
                             </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => setTarget({ type: mode.type, row })} className="gap-3 rounded-lg px-3 py-2.5 font-medium">
+                            <DropdownMenuItem onClick={() => open({ type: mode.type, row })} className="gap-3 rounded-lg px-3 py-2.5 font-medium">
                               <Archive className="h-4 w-4 text-slate-400" /> {t('Archive or restore…')}
                             </DropdownMenuItem>
                           </DropdownMenuContent>
@@ -586,9 +602,9 @@ export function TdQuestionsTab() {
 
       <TdContentEditorDialog
         target={target}
-        onClose={() => setTarget(null)}
+        onClose={() => open(null)}
         startOn="preview"
-        nav={openIndex >= 0 ? { index: openIndex, total: rows.length, more: Boolean(list.hasNextPage), onGo: goTo } : null}
+        nav={openIndex >= 0 ? { index: openIndex, total: rows.length, more: Boolean(list.hasNextPage), waiting, onGo: goTo } : null}
       />
     </div>
   );

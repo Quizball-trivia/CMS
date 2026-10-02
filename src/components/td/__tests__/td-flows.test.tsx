@@ -38,6 +38,8 @@ const { createMockTdApi, MOCK_PASSWORD, MOCK_STAFF } = await import('@/lib/td/mo
 const { createOrigin, MemoryStorage, put } = await import('@/lib/td/__tests__/helpers');
 const { TdContentEditorDialog } = await import('../content/td-content-editor');
 const { TdImportTab } = await import('../tabs/import-tab');
+const { TdQuestionsTab } = await import('../tabs/questions-tab');
+const { TdCategoriesTab } = await import('../tabs/categories-tab');
 const { TdReleasesTab } = await import('../tabs/releases-tab');
 const { useTdWrite } = await import('@/hooks/use-td-content');
 const { CorrectionForm, OpsReviews, Replay } = await import('../tabs/players-tab');
@@ -219,6 +221,100 @@ describe('content editor', () => {
     await waitFor(async () => expect((await publisher.admin.content('card-categories').get(category.id)).status).toBe('approved'));
     const cards = await publisher.admin.content('cards').list({ category: 'coaches' });
     expect(cards.items.map((c: TdContentRow<'cards'>) => c.status)).toEqual(['approved', 'approved']);
+  });
+});
+
+describe('stepping through a list', () => {
+  it('← and → step to the neighbours; on the tabs they move along the tabs instead', async () => {
+    const { admin } = await signIn('editor');
+    const row = await admin.content('penalty-questions').create({ data: penalty('step-keys') });
+    const onGo = vi.fn();
+    renderTd(<TdContentEditorDialog target={{ type: 'penalty-questions', row }} onClose={() => {}} nav={{ index: 1, total: 3, more: false, onGo }} />);
+    fireEvent.keyDown(document.body, { key: 'ArrowRight' });
+    fireEvent.keyDown(document.body, { key: 'ArrowLeft' });
+    expect(onGo.mock.calls).toEqual([[2], [0]]);
+
+    const content = screen.getByRole('tab', { name: 'Content' });
+    content.focus();
+    fireEvent.keyDown(content, { key: 'ArrowRight' });
+    expect(onGo).toHaveBeenCalledTimes(2);
+    expect(screen.getByRole('tab', { name: /Preview/ }).getAttribute('aria-selected')).toBe('true');
+    expect(document.activeElement).toBe(screen.getByRole('tab', { name: /Preview/ }));
+  });
+
+  it('asks before leaving text that is not a valid number, as it does for any unsaved change', async () => {
+    const { admin } = await signIn('editor');
+    const row = await admin.content('penalty-questions').create({ data: penalty('step-held') });
+    const onGo = vi.fn();
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
+    renderTd(<TdContentEditorDialog target={{ type: 'penalty-questions', row }} onClose={() => {}} nav={{ index: 0, total: 2, more: false, onGo }} />);
+    fireEvent.change(screen.getByLabelText('Position'), { target: { value: '-' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }));
+    expect(confirm).toHaveBeenCalledTimes(1);
+    expect(onGo).not.toHaveBeenCalled();
+    confirm.mockReturnValue(true);
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }));
+    expect(onGo).toHaveBeenCalledWith(1);
+    confirm.mockRestore();
+  });
+
+  it('locks the form while the next row’s page is on its way', async () => {
+    const { admin } = await signIn('editor');
+    const row = await admin.content('penalty-questions').create({ data: penalty('step-wait') });
+    const onGo = vi.fn();
+    renderTd(<TdContentEditorDialog target={{ type: 'penalty-questions', row }} onClose={() => {}} nav={{ index: 0, total: 1, more: true, waiting: true, onGo }} />);
+    expect((screen.getByLabelText('Question') as HTMLInputElement).matches(':disabled')).toBe(true);
+    expect(screen.getByRole('button', { name: 'Next' }).hasAttribute('disabled')).toBe(true);
+    fireEvent.keyDown(document.body, { key: 'ArrowRight' });
+    expect(onGo).not.toHaveBeenCalled();
+  });
+
+  it('a step past the last loaded question loads the next page and opens its first row', async () => {
+    const { admin } = await signIn('editor');
+    for (let i = 1; i <= 51; i++) await admin.content('penalty-questions').create({ data: { ...penalty(`page-${String(i).padStart(2, '0')}`), q: `Question ${String(i).padStart(2, '0')}?` } });
+    // The search leaves the mock's own questions out.
+    window.history.replaceState(null, '', '?mode=penalties&q=Question');
+    renderTd(<TdQuestionsTab />);
+    const rows = await screen.findAllByText(/^Question \d\d\?$/);
+    expect(rows).toHaveLength(50);
+    fireEvent.click(rows[49]);
+    const dialog = await screen.findByRole('dialog');
+    expect(within(dialog).getByRole('heading').textContent).toBe('Question 50?');
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Next' }));
+    await waitFor(() => expect(within(screen.getByRole('dialog')).getByRole('heading').textContent).toBe('Question 51?'));
+    expect(screen.getAllByText(/^Question \d\d\?$/).length).toBeGreaterThanOrEqual(51);
+    window.history.replaceState(null, '', window.location.pathname);
+  });
+});
+
+describe('categories', () => {
+  it('every category has an Edit button; an editor deletes only a draft of their own and restores nothing', async () => {
+    const publisher = await clientFor('publisher');
+    await publisher.admin.content('card-categories').create({ data: { key: 'theirs', prompt: 'Made by a publisher' } });
+    const gone = await publisher.admin.content('card-categories').create({ data: { key: 'gone', prompt: 'Deleted before' } });
+    await publisher.admin.content('card-categories').archive(gone.id, gone.version);
+    const { admin } = await signIn('editor');
+    await admin.content('card-categories').create({ data: { key: 'mine', prompt: 'Made by me' } });
+    renderTd(<TdCategoriesTab />);
+    const theirs = (await screen.findByText('Made by a publisher')).closest('tr')!;
+    const mine = screen.getByText('Made by me').closest('tr')!;
+    expect(within(theirs).getByRole('button', { name: 'Edit the category' })).toBeTruthy();
+    expect(within(theirs).queryByRole('button', { name: 'Delete the category' })).toBeNull();
+    expect(within(mine).getByRole('button', { name: 'Delete the category' })).toBeTruthy();
+    fireEvent.click(within(theirs).getByRole('button', { name: 'Edit the category' }));
+    expect(await screen.findByRole('dialog')).toBeTruthy();
+    cleanup();
+
+    renderTd(<TdCategoriesTab />);
+    fireEvent.click((await screen.findAllByRole('button', { name: 'archived' }))[0]);
+    const archived = (await screen.findByText('Deleted before')).closest('tr')!;
+    expect(within(archived).queryByRole('button', { name: 'Restore the category' })).toBeNull();
+    cleanup();
+
+    await signIn('publisher');
+    renderTd(<TdCategoriesTab />);
+    fireEvent.click((await screen.findAllByRole('button', { name: 'archived' }))[0]);
+    expect(within((await screen.findByText('Deleted before')).closest('tr')!).getByRole('button', { name: 'Restore the category' })).toBeTruthy();
   });
 });
 

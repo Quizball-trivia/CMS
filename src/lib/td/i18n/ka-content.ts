@@ -243,6 +243,7 @@ export const KA_CONTENT: Record<string, string> = {
   'Category restored': 'კატეგორია აღდგა',
   'Restore the category': 'კატეგორიის აღდგენა',
   'Delete the category': 'კატეგორიის წაშლა',
+  'Edit the category': 'კატეგორიის შეცვლა',
   'Delete this category?': 'წაიშალოს ეს კატეგორია?',
   '“{name}” leaves the game at the next publish. Nothing is lost: show the archived ones with the status filter and restore it whenever you want.':
     '„{name}“ თამაშიდან მომდევნო გამოქვეყნებისას ამოვა. არაფერი იკარგება: სტატუსის ფილტრით აჩვენეთ დაარქივებულები და ნებისმიერ დროს აღადგინეთ.',

@@ -116,6 +116,9 @@ function typeMessage(types: string[], value: unknown): string {
   return t('Expected {types}', { types: types.map((name) => TYPE_NAMES[name] ?? name).join(t(' or ')) });
 }
 
+/** Issues that say a const did not match: told by this mark, since their text is translated. */
+const CONST_MISSES = new WeakSet<SchemaIssue>();
+
 /** The branch of a failed anyOf/oneOf whose issues say most about `value`. */
 function closestBranch(branches: JsonSchema[], value: unknown, path: string): SchemaIssue[] {
   if (branches.every((branch) => branch.const !== undefined)) {
@@ -133,7 +136,7 @@ function closestBranch(branches: JsonSchema[], value: unknown, path: string): Sc
   const ranked = typed
     .map((branch) => {
       const issues = validateSchema(branch, value, path);
-      return { issues, missed: issues.some((issue) => issue.message.startsWith('Must be ')) };
+      return { issues, missed: issues.some((issue) => CONST_MISSES.has(issue)) };
     })
     .sort((a, b) => Number(a.missed) - Number(b.missed) || a.issues.length - b.issues.length);
   return ranked[0]?.issues ?? [{ path, message: t('Not a valid value') }];
@@ -148,7 +151,9 @@ export function validateSchema(schema: JsonSchema, value: unknown, path = ''): S
     if (!types.some((name) => hasType(value, name))) return [{ path, message: typeMessage(types, value) }];
   }
   if (schema.const !== undefined && !deepEqual(value, schema.const)) {
-    return [{ path, message: t('Must be {value}', { value: JSON.stringify(schema.const) }) }];
+    const issue = { path, message: t('Must be {value}', { value: JSON.stringify(schema.const) }) };
+    CONST_MISSES.add(issue);
+    return [issue];
   }
   if (Array.isArray(schema.enum) && !schema.enum.some((option) => deepEqual(option, value))) {
     return [{ path, message: t('One of: {options}', { options: schema.enum.map((option) => String(option)).join(', ') }) }];

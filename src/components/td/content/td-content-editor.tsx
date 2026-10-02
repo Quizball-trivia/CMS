@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useId, useMemo, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useId, useMemo, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react';
 import { Archive, ArchiveRestore, Check, ChevronLeft, ChevronRight, Eye, History, Loader2, RefreshCw, Save, Send, TriangleAlert } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
@@ -46,6 +46,8 @@ export interface TdEditorNav {
   total: number;
   /** The list has more rows than are loaded: the last one still has a next. */
   more: boolean;
+  /** The next row's page is on its way: the form is locked until it opens. */
+  waiting?: boolean;
   onGo: (index: number) => void;
 }
 
@@ -136,20 +138,21 @@ function EditorBody({ target, onSaved, nav, tab, setTab }: { target: TdEditorTar
 
   const go = useCallback(
     (index: number) => {
-      if (!nav || index < 0 || (index >= nav.total && !nav.more)) return;
-      if (!creating && !sameDraft(draft, base) && !window.confirm(t('This one has changes that are not saved. Leave it without saving?'))) return;
+      if (!nav || nav.waiting || index < 0 || (index >= nav.total && !nav.more)) return;
+      // Text that is not a valid number, or an upload still running, is a change too: the draft does not have it yet.
+      if (!creating && (held || !sameDraft(draft, base)) && !window.confirm(t('This one has changes that are not saved. Leave it without saving?'))) return;
       nav.onGo(index);
     },
-    [nav, creating, draft, base],
+    [nav, creating, held, draft, base],
   );
-  // ← and → step through the list, unless a field is being typed in or another dialog is on top.
+  // ← and → step through the list, unless a field is being typed in, the tabs have the keys, or another dialog is on top.
   useEffect(() => {
     if (!nav) return;
     const onKey = (event: KeyboardEvent) => {
       if (event.defaultPrevented || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
       if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
       const el = event.target as HTMLElement | null;
-      if (el && (el.isContentEditable || /^(?:INPUT|TEXTAREA|SELECT)$/.test(el.tagName))) return;
+      if (el && (el.isContentEditable || /^(?:INPUT|TEXTAREA|SELECT)$/.test(el.tagName) || el.closest('[role="tablist"]'))) return;
       if (document.querySelectorAll('[data-slot="dialog-content"]').length > 1) return;
       event.preventDefault();
       go(nav.index + (event.key === 'ArrowLeft' ? -1 : 1));
@@ -260,11 +263,11 @@ function EditorBody({ target, onSaved, nav, tab, setTab }: { target: TdEditorTar
                 {nav.more ? '+' : ''}
               </span>
               <div className="flex gap-1 rounded-xl border border-slate-100 bg-slate-50 p-1">
-                <Button variant="ghost" size="icon" aria-label={t('Previous')} title={t('Previous')} disabled={nav.index <= 0} onClick={() => go(nav.index - 1)} className="h-8 w-8 rounded-lg hover:bg-white hover:shadow-sm">
+                <Button variant="ghost" size="icon" aria-label={t('Previous')} title={t('Previous')} disabled={nav.waiting || nav.index <= 0} onClick={() => go(nav.index - 1)} className="h-8 w-8 rounded-lg hover:bg-white hover:shadow-sm">
                   <ChevronLeft className="h-4 w-4" />
                 </Button>
-                <Button variant="ghost" size="icon" aria-label={t('Next')} title={t('Next')} disabled={nav.index >= nav.total - 1 && !nav.more} onClick={() => go(nav.index + 1)} className="h-8 w-8 rounded-lg hover:bg-white hover:shadow-sm">
-                  <ChevronRight className="h-4 w-4" />
+                <Button variant="ghost" size="icon" aria-label={t('Next')} title={t('Next')} disabled={nav.waiting || (nav.index >= nav.total - 1 && !nav.more)} onClick={() => go(nav.index + 1)} className="h-8 w-8 rounded-lg hover:bg-white hover:shadow-sm">
+                  {nav.waiting ? <Loader2 className="h-4 w-4 animate-spin" /> : <ChevronRight className="h-4 w-4" />}
                 </Button>
               </div>
             </div>
@@ -292,7 +295,7 @@ function EditorBody({ target, onSaved, nav, tab, setTab }: { target: TdEditorTar
           </div>
         </DialogDescription>
         {(row || hasPreview(type)) && (
-          <div className="flex gap-1 pt-1" role="tablist">
+          <div className="flex gap-1 pt-1" role="tablist" onKeyDown={stepTabs}>
             <TabButton active={tab === 'edit'} onClick={() => setTab('edit')}>
               {t('Content')}
             </TabButton>
@@ -363,7 +366,7 @@ function EditorBody({ target, onSaved, nav, tab, setTab }: { target: TdEditorTar
               {/* Locked while a write and its refresh run: the answer replaces the form, so nothing typed meanwhile may be lost. */}
               <TdUploadingContext.Provider value={reportUploading}>
                 <TdInvalidInputContext.Provider value={reportInvalid}>
-                  <fieldset disabled={busy !== null} className="contents">
+                  <fieldset disabled={busy !== null || Boolean(nav?.waiting)} className="contents">
                     <Editor
                       value={draft.data as never}
                       onChange={(update: unknown) =>
@@ -406,7 +409,7 @@ function EditorBody({ target, onSaved, nav, tab, setTab }: { target: TdEditorTar
           {actions && (actions.approve.reason || actions.restore.reason) && <p className="text-xs text-(--td-text-3)">{actions.approve.reason ?? actions.restore.reason}</p>}
           <div className="flex flex-wrap items-center gap-2">
             {(creating || actions?.save.allowed) && (
-              <Button onClick={save} disabled={busy !== null || !dirty || held} className="rounded-lg">
+              <Button onClick={save} disabled={busy !== null || !dirty || held || Boolean(nav?.waiting)} className="rounded-lg">
                 {busy === 'save' ? <Loader2 className="animate-spin" /> : <Save />}
                 {creating ? t('Create draft') : t('Save')}
               </Button>
@@ -471,12 +474,24 @@ function revisionLine(row: TdContentRow): string {
   return t('Revision {revision} · content v{content} · approved v{approved} by {approver} · last edit by {editor}', { ...vars, approved: row.approvedVersion, approver: row.approvedBy.name });
 }
 
+/** ← and → move along the tabs and open the one they land on; Home and End go to the first and the last. */
+function stepTabs(event: ReactKeyboardEvent<HTMLDivElement>) {
+  const tabs = [...event.currentTarget.querySelectorAll<HTMLButtonElement>('[role="tab"]')];
+  const at = tabs.indexOf(document.activeElement as HTMLButtonElement);
+  const to = { ArrowRight: (at + 1) % tabs.length, ArrowLeft: (at - 1 + tabs.length) % tabs.length, Home: 0, End: tabs.length - 1 }[event.key];
+  if (at < 0 || to === undefined) return;
+  event.preventDefault();
+  tabs[to]?.focus();
+  tabs[to]?.click();
+}
+
 function TabButton({ active, onClick, children }: { active: boolean; onClick: () => void; children: ReactNode }) {
   return (
     <button
       type="button"
       role="tab"
       aria-selected={active}
+      tabIndex={active ? 0 : -1}
       onClick={onClick}
       className={cn('inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium', active ? 'bg-(--td-input) text-foreground' : 'text-(--td-text-3) hover:text-foreground')}
     >

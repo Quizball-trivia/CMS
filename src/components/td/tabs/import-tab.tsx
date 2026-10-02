@@ -110,9 +110,12 @@ export function TdImportTab({ embedded = false, initialType, initialCategory }: 
   const [error, setError] = useState<unknown>(null);
   const file = useRef<HTMLInputElement>(null);
   const shown = useRef<string | null>(null);
+  // Counts every clearing of what is shown: a file still being read for the type or category chosen before is dropped.
+  const cleared = useRef(0);
   const write = useTdWrite();
 
   const reset = () => {
+    cleared.current += 1;
     shown.current = null;
     setPrepared(null);
     setReport(null);
@@ -125,8 +128,10 @@ export function TdImportTab({ embedded = false, initialType, initialCategory }: 
     // Begun before reading, so a replay cannot go out under a sign-in made meanwhile.
     const operation = tdTokens.read()?.staffId === user.id ? beginOperation(tdTokens) : null;
     reset();
+    const mine = cleared.current;
     const parsed = json ? parseItemsJson(text) : parseSheet(type, text, { categoryKey: categoryType && category ? category : undefined });
     const hash = await sha256Hex(canonicalJson(parsed.items));
+    if (cleared.current !== mine) return;
     shown.current = hash;
     const saved = batchKeyFor(user.id, hash);
     const next = { ...parsed, source, hash, batchKey: saved.key };
@@ -246,7 +251,10 @@ export function TdImportTab({ embedded = false, initialType, initialCategory }: 
               onChange={async (event) => {
                 const chosen = event.target.files?.[0];
                 event.target.value = '';
-                if (chosen) await prepare(await chosen.text(), chosen.name, chosen.name.toLowerCase().endsWith('.json'));
+                if (!chosen) return;
+                const mine = cleared.current;
+                const text = await chosen.text();
+                if (cleared.current === mine) await prepare(text, chosen.name, chosen.name.toLowerCase().endsWith('.json'));
               }}
             />
             <Button className="rounded-lg" disabled={busy !== null} onClick={() => file.current?.click()}>

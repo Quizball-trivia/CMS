@@ -256,10 +256,10 @@ export interface TdParsedImport {
   problems: TdParseProblem[];
 }
 
-/** Two FNV-1a passes over a row's cells: the same row always gets the same
- *  made-up ID, so reading a file twice names its rows the same way both times. */
-function rowHash(cells: readonly string[]): string {
-  const text = cells.join('\u001f');
+/** Two FNV-1a passes over what a row says (its fields as read, in the type's own
+ *  column order): the same row always gets the same made-up ID, however the
+ *  file orders its columns, so reading it twice names its rows the same way. */
+function rowHash(text: string): string {
   let a = 0x811c9dc5;
   let b = 0x9e3779b9;
   for (let i = 0; i < text.length; i++) {
@@ -288,15 +288,18 @@ export function parseSheet(type: TdContentType, text: string, options: TdSheetOp
   if (problems.length) return { items: [], lines: [], problems };
   const items: unknown[] = [];
   const lines: number[] = [];
+  // The line each made-up ID was first given on: a row written twice is imported once.
+  const made = new Map<string, number>();
   rows.slice(1).forEach((cells, i) => {
     const line = at[i + 1];
     const values: Record<string, unknown> = {};
     let ok = true;
+    let keyless = false;
     for (const column of columns) {
       const at = index.get(column.name.toLowerCase());
       const blank = at === undefined || (cells[at] ?? '').trim() === '';
       if (column === KEY && blank) {
-        values.key = `row-${rowHash(cells)}`;
+        keyless = true;
         continue;
       }
       if (column.name === 'categoryKey' && blank && options.categoryKey) {
@@ -314,6 +317,14 @@ export function parseSheet(type: TdContentType, text: string, options: TdSheetOp
         ok = false;
         problems.push({ line, column: column.name, message: error instanceof CellError ? error.message : t('not valid JSON') });
       }
+    }
+    if (ok && keyless) {
+      values.key = `row-${rowHash(JSON.stringify(TD_IMPORT_COLUMNS[type].map((column) => (column === KEY ? null : (values[column.name] ?? null)))))}`;
+      const first = made.get(values.key as string);
+      if (first !== undefined) {
+        ok = false;
+        problems.push({ line, column: null, message: t('The same as line {line}: remove one of them.', { line: first }) });
+      } else made.set(values.key as string, line);
     }
     if (ok) {
       items.push(toItem(type, values));
