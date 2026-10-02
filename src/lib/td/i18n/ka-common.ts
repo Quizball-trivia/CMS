@@ -79,6 +79,24 @@ export const KA_COMMON: Record<string, string> = {
   Yesterday: 'გუშინ',
   'Changed (Georgia)': 'შეიცვალა (საქართველოს დროით)',
 
+  // The game's own names (apps/web copy/ka.ts): the workspace says what players see
+  Round: 'ტური',
+  'Round I': 'I ტური',
+  'Round II': 'II ტური',
+  'Round III': 'III ტური',
+  Penalties: 'პენალტები',
+  Practice: 'ივარჯიშე',
+  Dailies: 'ყოველდღიური თამაშები',
+  'Football Logic': 'საფეხბურთო ლოგიკა',
+  'Put in Order': 'დაალაგე სწორად',
+  'Career Path': 'კარიერის გზა',
+  Leaderboard: 'ლიდერბორდი',
+  Rating: 'რეიტინგი',
+  Ticket: 'ბილეთი',
+  Tickets: 'ბილეთები',
+  Points: 'ქულა',
+  'Game mode': 'თამაშის რეჟიმი',
+
   // A row's ID
   ID: 'ID',
   'set automatically': 'ივსება ავტომატურად',
