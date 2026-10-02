@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { TdApiError } from '@/lib/td/api-client';
 import { TD_CONFIG } from '@/lib/td/client';
+import { t } from '@/lib/td/i18n';
 import { safeNextPath } from '@/lib/td/navigation';
 import { useTdAuth } from '@/providers/td-auth-provider';
 import { TD_ROLE_LABELS } from '@/types/td';
@@ -24,18 +25,18 @@ const MOCK_ACCOUNTS = [
 
 function messageFor(error: unknown): string {
   if (error instanceof TdApiError) {
-    if (error.status === 401) return 'Email or password is incorrect.';
-    if (error.status === 403) return 'This account has no access to the Table Derby CMS.';
-    if (error.status === 429) return 'Too many attempts. Wait a minute and try again.';
+    if (error.status === 401) return t('Email or password is incorrect.');
+    if (error.status === 403) return t('This account has no access to the Table Derby CMS.');
+    if (error.status === 429) return t('Too many attempts. Wait a minute and try again.');
     return error.message;
   }
-  return 'Could not reach the Table Derby API. Try again.';
+  return t('Could not reach the Table Derby API. Try again.');
 }
 
 /** Notes a finished link leaves for the login page: fixed keys, so nothing from the URL is ever shown as text. */
 const DONE_NOTES: Record<string, string> = {
-  joined: 'You have joined the team. Sign in with your new password.',
-  'password-set': 'Your password is set. Sign in with it.',
+  joined: t('You have joined the team. Sign in with your new password.'),
+  'password-set': t('Your password is set. Sign in with it.'),
 };
 
 const inputClass = 'h-12 rounded-lg border-border bg-(--td-input) px-4 text-base text-foreground placeholder:text-(--td-text-3)';
@@ -82,8 +83,8 @@ export function TdLoginForm() {
         </div>
 
         <form onSubmit={onSubmit} className="rounded-xl border border-border bg-card p-6 sm:p-8" noValidate>
-          <h1 className="text-center text-2xl font-bold">Sign in</h1>
-          <p className="mt-1 text-center text-sm text-(--td-text-3)">Staff access is by invitation only.</p>
+          <h1 className="text-center text-2xl font-bold">{t('Sign in')}</h1>
+          <p className="mt-1 text-center text-sm text-(--td-text-3)">{t('Staff access is by invitation only.')}</p>
 
           {done && !shownError && (
             <p role="status" className="mt-6 rounded-lg bg-(--td-new)/10 px-3 py-2.5 text-sm text-(--td-new)">
@@ -100,7 +101,7 @@ export function TdLoginForm() {
 
           <div className="mt-6 flex flex-col gap-2">
             <Label htmlFor="td-email" className="text-xs font-medium text-(--td-text-3)">
-              Email
+              {t('Email')}
             </Label>
             <Input
               id="td-email"
@@ -115,7 +116,7 @@ export function TdLoginForm() {
 
           <div className="mt-4 flex flex-col gap-2">
             <Label htmlFor="td-password" className="text-xs font-medium text-(--td-text-3)">
-              Password
+              {t('Password')}
             </Label>
             <div className="relative">
               <Input
@@ -130,7 +131,7 @@ export function TdLoginForm() {
               <button
                 type="button"
                 onClick={() => setShowPassword((shown) => !shown)}
-                aria-label={showPassword ? 'Hide password' : 'Show password'}
+                aria-label={showPassword ? t('Hide password') : t('Show password')}
                 className="absolute inset-y-0 right-0 grid w-12 place-items-center text-(--td-text-3) hover:text-foreground"
               >
                 {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
@@ -143,13 +144,13 @@ export function TdLoginForm() {
             disabled={submitting || !email.trim() || !password}
             className="mt-6 h-12 w-full rounded-lg text-sm font-semibold disabled:bg-(--td-border) disabled:text-(--td-text-3) disabled:opacity-100"
           >
-            {submitting ? <Loader2 className="animate-spin" /> : 'Sign in'}
+            {submitting ? <Loader2 className="animate-spin" /> : t('Sign in')}
           </Button>
         </form>
 
         {process.env.NEXT_PUBLIC_TD_API_MOCK === '1' && TD_CONFIG.mock && (
           <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-4 text-xs text-(--td-text-2)">
-            <p className="font-semibold text-amber-800">Mock API: demo accounts (password “demo”)</p>
+            <p className="font-semibold text-amber-800">{t('Mock API: demo accounts (password “demo”)')}</p>
             <ul className="mt-2 flex flex-col gap-1">
               {MOCK_ACCOUNTS.map((account) => (
                 <li key={account.email}>

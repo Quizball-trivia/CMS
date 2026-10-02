@@ -15,39 +15,40 @@ import { SESSION_CHANGED, TdApiError } from '@/lib/td/api-client';
 import { tdAdmin, tdTokens } from '@/lib/td/client';
 import type { WebhookEvent, WebhookEventDetail, WebhookEventList } from '@/lib/td/contract';
 import { formatGeorgiaTime } from '@/lib/td/georgia';
+import { t } from '@/lib/td/i18n';
 import { cn } from '@/lib/utils';
 import { useTdAuth } from '@/providers/td-auth-provider';
 
 type Status = WebhookEvent['status'];
 
 const STATUS: Record<Status, { label: string; className: string }> = {
-  sent: { label: 'Delivered', className: 'bg-(--td-new)/15 text-(--td-new)' },
-  pending: { label: 'Retrying', className: 'bg-amber-100 text-amber-800' },
-  dead: { label: 'Given up', className: 'bg-(--td-danger)/15 text-(--td-danger)' },
+  sent: { label: t('Delivered'), className: 'bg-(--td-new)/15 text-(--td-new)' },
+  pending: { label: t('Retrying'), className: 'bg-amber-100 text-amber-800' },
+  dead: { label: t('Given up'), className: 'bg-(--td-danger)/15 text-(--td-danger)' },
 };
 
 const TYPE_LABELS: Record<WebhookEvent['type'], string> = {
-  score: 'Score',
-  'match.settled': 'Match settled',
-  'match.voided': 'Match voided',
-  'match.corrected': 'Match corrected',
-  'daily.completed': 'Daily completed',
-  'practice.completed': 'Practice completed',
+  score: t('Score'),
+  'match.settled': t('Match settled'),
+  'match.voided': t('Match voided'),
+  'match.corrected': t('Match corrected'),
+  'daily.completed': t('Daily completed'),
+  'practice.completed': t('Practice completed'),
 };
 
 // Partner contract v1: delivery reasons, and the refusal codes a session init or launch will carry.
 const REASON_CODES: Array<[code: string, meaning: string]> = [
-  ['webhook_timeout', 'Betsson did not answer within 10 s'],
-  ['webhook_http_<status>', 'Betsson answered with that non-2xx status'],
-  ['webhook_dead_lettered', 'Given up after 24 hours of retries'],
-  ['invalid_signature', 'HMAC signature does not match'],
-  ['unknown_key', 'X-Partner-Key-Id is not an active key'],
-  ['timestamp_skew', 'Timestamp outside ±300 s'],
-  ['nonce_replayed', 'Nonce already used in the last 10 min'],
-  ['ip_not_allowed', 'Source IP is not on the allowlist'],
-  ['request_conflict', 'Same requestId, different payload'],
-  ['player_blocked', 'Player is blocked or self-excluded'],
-  ['rate_limited', 'Too many requests'],
+  ['webhook_timeout', t('Betsson did not answer within 10 s')],
+  ['webhook_http_<status>', t('Betsson answered with that non-2xx status')],
+  ['webhook_dead_lettered', t('Given up after 24 hours of retries')],
+  ['invalid_signature', t('HMAC signature does not match')],
+  ['unknown_key', t('X-Partner-Key-Id is not an active key')],
+  ['timestamp_skew', t('Timestamp outside ±300 s')],
+  ['nonce_replayed', t('Nonce already used in the last 10 min')],
+  ['ip_not_allowed', t('Source IP is not on the allowlist')],
+  ['request_conflict', t('Same requestId, different payload')],
+  ['player_blocked', t('Player is blocked or self-excluded')],
+  ['rate_limited', t('Too many requests')],
 ];
 
 function StatusChip({ event }: { event: Pick<WebhookEvent, 'status' | 'sending'> }) {
@@ -55,7 +56,7 @@ function StatusChip({ event }: { event: Pick<WebhookEvent, 'status' | 'sending'>
   return (
     <span className={cn('inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold', status.className)}>
       {event.sending && <Loader2 className="size-3 animate-spin" />}
-      {event.sending ? 'Sending' : status.label}
+      {event.sending ? t('Sending') : status.label}
     </span>
   );
 }
@@ -75,8 +76,8 @@ export function TdIntegrationTab() {
   return (
     <>
       <TdSection
-        title="Webhook deliveries"
-        description="Signed result events to Betsson, newest first: retried with backoff for 24 hours, then given up. Search by an exact event id, session id, Betsson player id or player id."
+        title={t('Webhook deliveries')}
+        description={t('Signed result events to Betsson, newest first: retried with backoff for 24 hours, then given up. Search by an exact event id, session id, Betsson player id or player id.')}
         actions={
           <>
             <form
@@ -87,22 +88,22 @@ export function TdIntegrationTab() {
               }}
             >
               <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-(--td-text-3)" />
-              <Input value={text} onChange={(event) => setText(event.target.value)} placeholder="Event, session or player id" aria-label="Search webhook events" className="h-10 rounded-full bg-(--td-input) pl-9" />
+              <Input value={text} onChange={(event) => setText(event.target.value)} placeholder={t('Event, session or player id')} aria-label={t('Search webhook events')} className="h-10 rounded-full bg-(--td-input) pl-9" />
             </form>
-            <select aria-label="Delivery status" value={status} onChange={(event) => setStatus(event.target.value as Status | '')} className="h-10 rounded-full border border-border bg-(--td-input) px-3 text-sm">
-              <option value="">All</option>
-              <option value="pending">Retrying</option>
-              <option value="sent">Delivered</option>
-              <option value="dead">Given up</option>
+            <select aria-label={t('Delivery status')} value={status} onChange={(event) => setStatus(event.target.value as Status | '')} className="h-10 rounded-full border border-border bg-(--td-input) px-3 text-sm">
+              <option value="">{t('All')}</option>
+              <option value="pending">{t('Retrying')}</option>
+              <option value="sent">{t('Delivered')}</option>
+              <option value="dead">{t('Given up')}</option>
             </select>
           </>
         }
       >
         <TdErrorPanel error={events.error} className="m-5" />
-        {events.isLoading && <p className="px-5 py-4 text-sm text-(--td-text-3)">Loading…</p>}
+        {events.isLoading && <p className="px-5 py-4 text-sm text-(--td-text-3)">{t('Loading…')}</p>}
         {events.isSuccess && items.length === 0 && (
-          <TdEmptyState icon={Send} title={q ? 'No event matches' : 'No webhook events yet'}>
-            {q ? 'The search takes a whole id: an event id, a session id, a Betsson player id or a player id.' : undefined}
+          <TdEmptyState icon={Send} title={q ? t('No event matches') : t('No webhook events yet')}>
+            {q ? t('The search takes a whole id: an event id, a session id, a Betsson player id or a player id.') : undefined}
           </TdEmptyState>
         )}
         {items.length > 0 && (
@@ -110,7 +111,7 @@ export function TdIntegrationTab() {
             <Table>
               <TableHeader>
                 <TableRow className="border-(--td-divider) hover:bg-transparent">
-                  {['Occurred', 'Event', 'Betsson player', 'Status', 'Attempts', 'Last error', 'Next attempt'].map((h) => (
+                  {[t('Occurred'), t('Event'), t('Betsson player'), t('Status'), t('Attempts'), t('Last error'), t('Next attempt')].map((h) => (
                     <TableHead key={h} className="h-10 px-3 text-xs font-semibold uppercase tracking-wide text-(--td-text-3) first:pl-5">
                       {h}
                     </TableHead>
@@ -141,19 +142,19 @@ export function TdIntegrationTab() {
         {events.hasNextPage && (
           <div className="border-t border-(--td-divider) px-5 py-3">
             <Button variant="secondary" size="sm" className="rounded-lg" disabled={events.isFetchingNextPage} onClick={() => void events.fetchNextPage()}>
-              Load more
+              {t('Load more')}
             </Button>
           </div>
         )}
       </TdSection>
 
-      <TdSection title="Session inits and launches" description="POST /partner/v1/sessions/init from Betsson's servers, and the iframe's one-time token exchanges.">
-        <TdEmptyState icon={KeyRound} title="Coming with the next admin contract">
-          The admin API (contract v6) has no route for session inits or launches yet. They will show here, with their reason codes, once it does.
+      <TdSection title={t('Session inits and launches')} description={t("POST /partner/v1/sessions/init from Betsson's servers, and the iframe's one-time token exchanges.")}>
+        <TdEmptyState icon={KeyRound} title={t('Coming with the next admin contract')}>
+          {t('The admin API (contract v6) has no route for session inits or launches yet. They will show here, with their reason codes, once it does.')}
         </TdEmptyState>
       </TdSection>
 
-      <TdSection title="Reason codes">
+      <TdSection title={t('Reason codes')}>
         <dl className="grid gap-x-8 gap-y-3 p-5 sm:grid-cols-2">
           {REASON_CODES.map(([code, meaning]) => (
             <div key={code} className="flex flex-col gap-0.5">
@@ -175,18 +176,18 @@ export function TdIntegrationTab() {
 
 /** What a refused retry means here, in plain words (a conflict says why in the API's own message). */
 export function retryRefusal(error: unknown): string {
-  if (!(error instanceof TdApiError)) return 'The retry got no answer. Look at the event again before retrying.';
+  if (!(error instanceof TdApiError)) return t('The retry got no answer. Look at the event again before retrying.');
   switch (error.code) {
     case 'conflict':
       return error.message;
     case 'rate_limited':
-      return 'You have retried 60 events in the last hour, the most one member may. Try again later.';
+      return t('You have retried 60 events in the last hour, the most one member may. Try again later.');
     case 'not_found':
-      return 'This event no longer exists.';
+      return t('This event no longer exists.');
     case 'forbidden':
-      return 'Only Quizball ops can retry an event.';
+      return t('Only Quizball ops can retry an event.');
     case SESSION_CHANGED:
-      return 'You signed out or switched accounts; the retry was cancelled.';
+      return t('You signed out or switched accounts; the retry was cancelled.');
     default:
       return error.message;
   }
@@ -238,7 +239,7 @@ function WebhookDetail({ eventId }: { eventId: string }) {
       queryClient.setQueryData(key, next);
       void queryClient.invalidateQueries({ queryKey: tdKeys.integration });
       setConfirmRetarget(false);
-      toast.success(retarget ? 'Moved to the current address and due now' : 'Due now: its 24 hours of retries start again');
+      toast.success(retarget ? t('Moved to the current address and due now') : t('Due now: its 24 hours of retries start again'));
     } catch (caught) {
       setRefusal(retryRefusal(caught));
       // A conflict means the event moved on (delivered, being sent): show it as it is now.
@@ -253,13 +254,13 @@ function WebhookDetail({ eventId }: { eventId: string }) {
     <>
       <SheetHeader className="gap-1 border-b border-(--td-divider) px-6 pb-4 pt-5">
         <SheetTitle className="flex flex-wrap items-center gap-2">
-          {e ? TYPE_LABELS[e.type] : 'Webhook event'}
+          {e ? TYPE_LABELS[e.type] : t('Webhook event')}
           {e && <StatusChip event={e} />}
         </SheetTitle>
         <SheetDescription asChild>
           <div className="text-xs text-(--td-text-3)">
             <span className="font-mono">{eventId}</span>
-            {e && ` · occurred ${formatGeorgiaTime(e.occurredAt)} · ${e.partner} ${e.environment}`}
+            {e && ` · ${t('occurred {time}', { time: formatGeorgiaTime(e.occurredAt) })} · ${e.partner} ${e.environment}`}
           </div>
         </SheetDescription>
       </SheetHeader>
@@ -268,66 +269,66 @@ function WebhookDetail({ eventId }: { eventId: string }) {
         {d && e && (
           <>
             <dl className="grid gap-4 sm:grid-cols-2">
-              <Fact label="Session id" mono>
+              <Fact label={t('Session id')} mono>
                 {e.sessionId}
               </Fact>
-              <Fact label="Betsson player id" mono>
+              <Fact label={t('Betsson player id')} mono>
                 {e.playerId}
               </Fact>
-              <Fact label="Player id" mono>
+              <Fact label={t('Player id')} mono>
                 {e.userId}
               </Fact>
-              <Fact label="Match id" mono>
+              <Fact label={t('Match id')} mono>
                 {e.matchId ?? '—'}
               </Fact>
-              <Fact label="Enqueued">{formatGeorgiaTime(e.enqueuedAt)}</Fact>
-              <Fact label="Attempts">{e.attempts}</Fact>
-              <Fact label="Next attempt">{e.nextAttemptAt ? formatGeorgiaTime(e.nextAttemptAt) : '—'}</Fact>
-              <Fact label="Delivered at">{e.sentAt ? formatGeorgiaTime(e.sentAt) : '—'}</Fact>
-              <Fact label="Given up at">{e.deadAt ? formatGeorgiaTime(e.deadAt) : '—'}</Fact>
-              <Fact label="Retried by hand">{e.revivedAt ? formatGeorgiaTime(e.revivedAt) : '—'}</Fact>
-              <Fact label="Last error" mono>
+              <Fact label={t('Enqueued')}>{formatGeorgiaTime(e.enqueuedAt)}</Fact>
+              <Fact label={t('Attempts')}>{e.attempts}</Fact>
+              <Fact label={t('Next attempt')}>{e.nextAttemptAt ? formatGeorgiaTime(e.nextAttemptAt) : '—'}</Fact>
+              <Fact label={t('Delivered at')}>{e.sentAt ? formatGeorgiaTime(e.sentAt) : '—'}</Fact>
+              <Fact label={t('Given up at')}>{e.deadAt ? formatGeorgiaTime(e.deadAt) : '—'}</Fact>
+              <Fact label={t('Retried by hand')}>{e.revivedAt ? formatGeorgiaTime(e.revivedAt) : '—'}</Fact>
+              <Fact label={t('Last error')} mono>
                 {e.lastError ?? '—'}
               </Fact>
-              <Fact label="Address" mono>
-                {e.destination ?? 'not bound yet'}
-                {!e.destinationCurrent && <span className="ml-2 rounded-full bg-amber-100 px-2 py-0.5 font-sans text-[11px] font-semibold text-amber-800">earlier address</span>}
+              <Fact label={t('Address')} mono>
+                {e.destination ?? t('not bound yet')}
+                {!e.destinationCurrent && <span className="ml-2 rounded-full bg-amber-100 px-2 py-0.5 font-sans text-[11px] font-semibold text-amber-800">{t('earlier address')}</span>}
               </Fact>
             </dl>
 
             {ops && (
               <div className="flex flex-col gap-2 rounded-lg border border-border p-4">
                 {e.status === 'sent' ? (
-                  <p className="text-sm text-(--td-text-2)">Delivered: nothing to retry.</p>
+                  <p className="text-sm text-(--td-text-2)">{t('Delivered: nothing to retry.')}</p>
                 ) : e.sending ? (
-                  <p className="text-sm text-(--td-text-2)">Being sent now; look again in a moment.</p>
+                  <p className="text-sm text-(--td-text-2)">{t('Being sent now; look again in a moment.')}</p>
                 ) : e.destinationCurrent ? (
                   <div className="flex flex-wrap items-center gap-3">
                     <Button className="rounded-lg" disabled={busy} onClick={() => void retry(false)}>
                       {busy ? <Loader2 className="animate-spin" /> : <RefreshCw />}
-                      Retry now
+                      {t('Retry now')}
                     </Button>
-                    <p className="text-xs text-(--td-text-3)">Due at once, with 24 hours of retries from now. Recorded under your name.</p>
+                    <p className="text-xs text-(--td-text-3)">{t('Due at once, with 24 hours of retries from now. Recorded under your name.')}</p>
                   </div>
                 ) : (
                   <div className="flex flex-col gap-2">
                     <p className="text-sm text-amber-700">
-                      This event went to an earlier webhook address. A retry sends it to the address this deployment uses now, and it stays there.
+                      {t('This event went to an earlier webhook address. A retry sends it to the address this deployment uses now, and it stays there.')}
                     </p>
                     {confirmRetarget ? (
                       <div className="flex flex-wrap items-center gap-2">
                         <Button className="rounded-lg" disabled={busy} onClick={() => void retry(true)}>
                           {busy ? <Loader2 className="animate-spin" /> : <Send />}
-                          Send to the current address
+                          {t('Send to the current address')}
                         </Button>
                         <Button variant="ghost" className="rounded-lg" disabled={busy} onClick={() => setConfirmRetarget(false)}>
-                          Cancel
+                          {t('Cancel')}
                         </Button>
                       </div>
                     ) : (
                       <Button variant="secondary" className="w-fit rounded-lg" onClick={() => setConfirmRetarget(true)}>
                         <RefreshCw />
-                        Retry to the current address
+                        {t('Retry to the current address')}
                       </Button>
                     )}
                   </div>
@@ -341,22 +342,23 @@ function WebhookDetail({ eventId }: { eventId: string }) {
             )}
 
             <section className="flex flex-col gap-2">
-              <h3 className="text-sm font-semibold">Envelope sent</h3>
+              <h3 className="text-sm font-semibold">{t('Envelope sent')}</h3>
               <pre className="max-h-72 overflow-auto rounded-lg border border-border bg-(--td-input) p-3 font-mono text-xs leading-relaxed">{JSON.stringify(d.payload, null, 2)}</pre>
             </section>
 
             <section className="flex flex-col gap-2">
               <h3 className="text-sm font-semibold">
-                Attempts{e.attempts > d.attempts.length && <span className="font-normal text-(--td-text-3)"> (the latest {d.attempts.length} of {e.attempts})</span>}
+                {t('Attempts')}
+                {e.attempts > d.attempts.length && <span className="font-normal text-(--td-text-3)"> {t('(the latest {shown} of {total})', { shown: d.attempts.length, total: e.attempts })}</span>}
               </h3>
               {d.attempts.length === 0 ? (
-                <p className="text-sm text-(--td-text-3)">No attempt recorded yet.</p>
+                <p className="text-sm text-(--td-text-3)">{t('No attempt recorded yet.')}</p>
               ) : (
                 <div className="overflow-x-auto rounded-lg border border-border">
                   <Table>
                     <TableHeader>
                       <TableRow className="border-(--td-divider) hover:bg-transparent">
-                        {['#', 'Started', 'Latency', 'Result', 'Reason', 'Response'].map((h) => (
+                        {['#', t('Started'), t('Latency'), t('Result'), t('Reason'), t('Response')].map((h) => (
                           <TableHead key={h} className="h-9 px-3 text-xs text-(--td-text-3)">
                             {h}
                           </TableHead>

@@ -14,6 +14,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { t } from '@/lib/td/i18n';
 import type { TdTab } from '@/lib/td/navigation';
 import { TD_ROOT } from '@/lib/workspace-guard';
 import { useTdAuth } from '@/providers/td-auth-provider';
@@ -58,11 +59,11 @@ export function TdShell({ user, activeTab, children }: { user: TdStaff; activeTa
         <aside className="sticky top-0 z-30 flex h-screen w-20 shrink-0 flex-col border-r border-slate-200/80 bg-white lg:w-60">
           <Link
             href={TD_ROOT}
-            aria-label="Table Derby CMS home"
+            aria-label={t('Table Derby CMS home')}
             className="flex h-24 flex-col items-center justify-center gap-1.5 border-b border-slate-100 px-3 lg:items-start lg:px-6"
           >
             <Image src={betssonSport} alt="Betsson Sport" width={411} height={144} priority className="h-5 w-auto lg:h-10" />
-            <span className="hidden text-[10px] font-bold uppercase tracking-[0.14em] text-slate-400 lg:block">Table Derby CMS</span>
+            <span className="hidden text-[10px] font-bold uppercase tracking-[0.14em] text-slate-400 lg:block">{t('Table Derby CMS')}</span>
           </Link>
           <TdNav role={user.role} activeKey={activeTab?.key ?? null} />
         </aside>
@@ -71,7 +72,7 @@ export function TdShell({ user, activeTab, children }: { user: TdStaff; activeTa
           <header className="sticky top-0 z-10 flex h-16 items-center justify-end bg-background/40 px-6 backdrop-blur-xl">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" aria-label="Account" className="relative flex items-center gap-2 rounded-full px-2">
+                <Button variant="ghost" aria-label={t('Account')} className="relative flex items-center gap-2 rounded-full px-2">
                   <Avatar className="h-8 w-8 border border-slate-200">
                     <AvatarFallback className="bg-primary/10 text-xs font-bold text-primary">{initials(user)}</AvatarFallback>
                   </Avatar>
@@ -84,7 +85,7 @@ export function TdShell({ user, activeTab, children }: { user: TdStaff; activeTa
               <DropdownMenuContent align="end" className="w-64 p-2">
                 <DropdownMenuLabel className="font-normal">
                   <div className="flex flex-col space-y-1.5 rounded-lg border border-slate-100 bg-slate-50 p-2">
-                    <p className="text-sm font-bold leading-none">{user.name || 'Staff'}</p>
+                    <p className="text-sm font-bold leading-none">{user.name || t('Staff')}</p>
                     <p className="mt-1 font-mono text-[11px] leading-none text-muted-foreground">{user.email}</p>
                   </div>
                 </DropdownMenuLabel>
@@ -95,7 +96,7 @@ export function TdShell({ user, activeTab, children }: { user: TdStaff; activeTa
                   className="cursor-pointer gap-2 rounded-lg py-2.5 text-destructive transition-colors focus:bg-destructive/10 focus:text-destructive"
                 >
                   <LogOut className="h-4 w-4" />
-                  <span className="text-sm font-medium">Log out</span>
+                  <span className="text-sm font-medium">{t('Log out')}</span>
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>

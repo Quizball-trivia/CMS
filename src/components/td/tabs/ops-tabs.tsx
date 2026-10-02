@@ -16,6 +16,7 @@ import { tdAdmin } from '@/lib/td/client';
 import { checkContract, TD_ADMIN_CONTRACT_VERSION, type BoardPage, type SchemaIssue, type Settings, type SnapshotList, type SnapshotPage } from '@/lib/td/contract';
 import { downloadText } from '@/lib/td/download';
 import { formatDay, formatGeorgiaTime, georgiaToday } from '@/lib/td/georgia';
+import { t, tr } from '@/lib/td/i18n';
 import type { TdOperation } from '@/lib/td/operation';
 import { cn } from '@/lib/utils';
 
@@ -27,7 +28,7 @@ function BoardTable({ rows }: { rows: Row[] }) {
       <Table>
         <TableHeader>
           <TableRow className="border-(--td-divider) hover:bg-transparent">
-            {['Rank', 'Player', 'Betsson id', 'Rating', 'Games', 'W–L'].map((h) => (
+            {[t('Rank'), t('Player'), t('Betsson id'), t('Rating'), t('Games'), t('W–L')].map((h) => (
               <TableHead key={h} className="h-10 px-3 text-xs font-semibold uppercase tracking-wide text-(--td-text-3) first:pl-5">
                 {h}
               </TableHead>
@@ -61,7 +62,7 @@ function useExport() {
     try {
       downloadText(await write(fetchCsv, []), fileName);
     } catch (caught) {
-      toast.error(caught instanceof TdApiError ? caught.message : 'The export failed');
+      toast.error(caught instanceof TdApiError ? caught.message : t('The export failed'));
     } finally {
       setBusy(null);
     }
@@ -102,7 +103,7 @@ export function TdLeaderboardTab() {
     setSnapshotError(null);
     try {
       const snapshot = await write((operation) => tdAdmin.leaderboard.takeSnapshot(trimmed, operation), [tdKeys.ops]);
-      toast.success(`Snapshot “${snapshot.label}” taken: ${snapshot.players} players`);
+      toast.success(t('Snapshot “{label}” taken: {players} players', { label: snapshot.label, players: snapshot.players }));
       setLabel('');
       await queryClient.invalidateQueries({ queryKey: [...tdKeys.ops, 'snapshots'] });
     } catch (caught) {
@@ -115,41 +116,45 @@ export function TdLeaderboardTab() {
   return (
     <>
       <TdSection
-        title="Standings"
-        description={first ? `${first.total} ranked players, as of ${formatGeorgiaTime(first.asOf)}. Blocked players are left out.` : 'Active players with a finished ranked game, by rating.'}
+        title={t('Standings')}
+        description={
+          first
+            ? t('{total} ranked players, as of {time}. Blocked players are left out.', { total: first.total, time: formatGeorgiaTime(first.asOf) })
+            : t('Active players with a finished ranked game, by rating.')
+        }
         actions={
           <Button variant="secondary" className="rounded-lg" disabled={exporter.busy !== null} onClick={() => void exporter.run('board', (operation) => tdAdmin.leaderboard.exportCsv(operation), `table-derby-leaderboard-${georgiaToday()}.csv`)}>
             {exporter.busy === 'board' ? <Loader2 className="animate-spin" /> : <Download />}
-            Export CSV
+            {t('Export CSV')}
           </Button>
         }
       >
         <TdErrorPanel error={board.error} className="m-5" />
         {board.data && <BoardTable rows={board.data.pages.flatMap((page) => page.items)} />}
-        {first && first.items.length === 0 && <TdEmptyState icon={Trophy} title="No ranked players yet" />}
+        {first && first.items.length === 0 && <TdEmptyState icon={Trophy} title={t('No ranked players yet')} />}
         {board.hasNextPage && (
           <div className="border-t border-(--td-divider) px-5 py-3">
             <Button variant="secondary" size="sm" className="rounded-lg" disabled={board.isFetchingNextPage} onClick={() => void board.fetchNextPage()}>
-              Load more
+              {t('Load more')}
             </Button>
           </div>
         )}
       </TdSection>
 
-      <TdSection title="Frozen snapshots" description="A snapshot is the standings at the moment it is taken, kept unchanged: prizes are paid from snapshots, not from live standings.">
+      <TdSection title={t('Frozen snapshots')} description={t('A snapshot is the standings at the moment it is taken, kept unchanged: prizes are paid from snapshots, not from live standings.')}>
         <div className="flex flex-col gap-2 border-b border-(--td-divider) px-5 py-4">
           <div className="flex flex-wrap items-center gap-2">
-            <Input value={label} onChange={(event) => setLabel(event.target.value)} placeholder="Label, e.g. Week 40 prizes" aria-label="Snapshot label" className="h-10 max-w-sm rounded-lg bg-(--td-input)" />
+            <Input value={label} onChange={(event) => setLabel(event.target.value)} placeholder={t('Label, e.g. Week 40 prizes')} aria-label={t('Snapshot label')} className="h-10 max-w-sm rounded-lg bg-(--td-input)" />
             <Button className="rounded-lg" disabled={taking || !label.trim()} onClick={() => void take()}>
               {taking ? <Loader2 className="animate-spin" /> : <Camera />}
-              Take snapshot
+              {t('Take snapshot')}
             </Button>
           </div>
           <TdIssueText issues={labelIssues} />
           <TdErrorPanel error={snapshotError} />
         </div>
         <TdErrorPanel error={snapshots.error} className="m-5" />
-        {snapshots.isSuccess && snapshotItems.length === 0 && <TdEmptyState title="No snapshots yet" />}
+        {snapshots.isSuccess && snapshotItems.length === 0 && <TdEmptyState title={t('No snapshots yet')} />}
         <ul className="divide-y divide-(--td-divider)">
           {snapshotItems.map((snapshot) => (
             <li key={snapshot.id} className="px-5 py-3">
@@ -158,7 +163,7 @@ export function TdLeaderboardTab() {
                   {snapshot.label}
                 </button>
                 <span className="text-xs text-(--td-text-3)">
-                  {formatGeorgiaTime(snapshot.takenAt)} · {snapshot.takenBy?.name ?? 'System'} · {snapshot.players} players
+                  {t('{time} · {name} · {players} players', { time: formatGeorgiaTime(snapshot.takenAt), name: snapshot.takenBy?.name ?? t('System'), players: snapshot.players })}
                 </span>
                 <span className="flex-1" />
                 <Button
@@ -179,7 +184,7 @@ export function TdLeaderboardTab() {
         {snapshots.hasNextPage && (
           <div className="border-t border-(--td-divider) px-5 py-3">
             <Button variant="secondary" size="sm" className="rounded-lg" disabled={snapshots.isFetchingNextPage} onClick={() => void snapshots.fetchNextPage()}>
-              Load more
+              {t('Load more')}
             </Button>
           </div>
         )}
@@ -195,14 +200,14 @@ function SnapshotRows({ id }: { id: string }) {
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (last: SnapshotPage) => last.nextCursor ?? undefined,
   });
-  if (!page.data) return page.error ? <TdErrorPanel error={page.error} className="mt-2" /> : <p className="mt-2 text-xs text-(--td-text-3)">Loading…</p>;
+  if (!page.data) return page.error ? <TdErrorPanel error={page.error} className="mt-2" /> : <p className="mt-2 text-xs text-(--td-text-3)">{t('Loading…')}</p>;
   return (
     <div className="mt-3 rounded-lg border border-border">
       <BoardTable rows={page.data.pages.flatMap((p) => p.items)} />
       {page.hasNextPage && (
         <div className="px-5 py-2">
           <Button variant="secondary" size="sm" className="rounded-lg" onClick={() => void page.fetchNextPage()}>
-            Load more
+            {t('Load more')}
           </Button>
         </div>
       )}
@@ -217,18 +222,20 @@ export function TdSettingsTab() {
   const settings = useQuery({ queryKey: [...tdKeys.ops, 'settings'], queryFn: ({ signal }) => tdAdmin.settings.get({ signal }) });
   const onChanged = (next: Settings) => queryClient.setQueryData([...tdKeys.ops, 'settings'], next);
   const refresh = () => queryClient.invalidateQueries({ queryKey: [...tdKeys.ops, 'settings'] });
-  if (!settings.data) return settings.error ? <TdErrorPanel error={settings.error} /> : <p className="text-sm text-(--td-text-3)">Loading…</p>;
+  if (!settings.data) return settings.error ? <TdErrorPanel error={settings.error} /> : <p className="text-sm text-(--td-text-3)">{t('Loading…')}</p>;
   return (
     <>
       <TicketsSetting settings={settings.data} onChanged={onChanged} onConflict={refresh} />
       <MaintenanceSetting settings={settings.data} onChanged={onChanged} onConflict={refresh} />
-      <p className="text-xs text-(--td-text-3)">Bot fallback delay and bot difficulty are not in the admin contract (v{TD_ADMIN_CONTRACT_VERSION}); they stay server configuration for now.</p>
+      <p className="text-xs text-(--td-text-3)">
+        {t('Bot fallback delay and bot difficulty are not in the admin contract (v{version}); they stay server configuration for now.', { version: TD_ADMIN_CONTRACT_VERSION })}
+      </p>
     </>
   );
 }
 
 const changedBy = (s: { version: number; updatedAt: string | null; updatedBy: { name: string } | null }) =>
-  s.version === 0 ? 'Never changed.' : `Changed by ${s.updatedBy?.name ?? 'System'} at ${formatGeorgiaTime(s.updatedAt)} (version ${s.version}).`;
+  s.version === 0 ? t('Never changed.') : t('Changed by {name} at {time} (version {version}).', { name: s.updatedBy?.name ?? t('System'), time: formatGeorgiaTime(s.updatedAt), version: s.version });
 
 /**
  * Written at the version the operator reviewed. A refresh that changes the
@@ -265,7 +272,7 @@ export function TicketsSetting({ settings, onChanged, onConflict }: { settings: 
       const next = await write((operation) => tdAdmin.settings.ticketsPerDay(body.version, body.value, operation), []);
       load(next.ticketsPerDay);
       onChanged(next);
-      toast.success('Saved: it applies from tomorrow (Georgia)');
+      toast.success(t('Saved: it applies from tomorrow (Georgia)'));
     } catch (caught) {
       if (caught instanceof TdApiError && caught.code === 'revision_conflict') onConflict();
       setError(caught);
@@ -274,33 +281,39 @@ export function TicketsSetting({ settings, onChanged, onConflict }: { settings: 
     }
   };
   return (
-    <TdSection title="Tickets per day" description="Ranked tickets every player gets each Georgian day. A change applies from the next day, never within five minutes of midnight.">
+    <TdSection title={t('Tickets per day')} description={t('Ranked tickets every player gets each Georgian day. A change applies from the next day, never within five minutes of midnight.')}>
       <div className="flex flex-col gap-3 p-5">
         <p className="text-sm">
-          Today: <span className="font-semibold tabular-nums">{tickets.today}</span>
+          {tr('Today: {today}', {
+            today: (
+              <span key="today" className="font-semibold tabular-nums">
+                {tickets.today}
+              </span>
+            ),
+          })}
           {tickets.effectiveFrom && tickets.value !== tickets.today && (
             <span className="text-(--td-text-3)">
               {' '}
-              · {tickets.value} from {formatDay(tickets.effectiveFrom)}
+              · {t('{value} from {day}', { value: tickets.value, day: formatDay(tickets.effectiveFrom) })}
             </span>
           )}
         </p>
         {moved && (
           <div role="alert" className="flex flex-wrap items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-700">
             <span className="min-w-0 flex-1">
-              Changed meanwhile to {tickets.value} by {tickets.updatedBy?.name ?? 'someone else'}. Your {value} was not saved.
+              {t('Changed meanwhile to {value} by {name}. Your {mine} was not saved.', { value: tickets.value, name: tickets.updatedBy?.name ?? t('someone else'), mine: value })}
             </span>
             <Button size="sm" variant="secondary" className="rounded-lg" onClick={() => load(tickets)}>
-              Load the new value
+              {t('Load the new value')}
             </Button>
           </div>
         )}
         <div className="flex flex-wrap items-center gap-2">
           {/* Locked while saving: the answer replaces the value, which would drop anything typed meanwhile. */}
-          <Input inputMode="numeric" value={value} disabled={busy} onChange={(event) => setValue(event.target.value)} aria-label="Tickets per day" className="h-10 w-28 rounded-lg bg-(--td-input) tabular-nums" />
+          <Input inputMode="numeric" value={value} disabled={busy} onChange={(event) => setValue(event.target.value)} aria-label={t('Tickets per day')} className="h-10 w-28 rounded-lg bg-(--td-input) tabular-nums" />
           <Button className="rounded-lg" disabled={busy || moved || !dirty} onClick={() => void save()}>
             {busy && <Loader2 className="animate-spin" />}
-            Save
+            {t('Save')}
           </Button>
         </div>
         <TdIssueText issues={issues} />
@@ -325,7 +338,7 @@ export function MaintenanceSetting({ settings, onChanged, onConflict }: { settin
     setError(null);
     try {
       onChanged(await write((operation) => tdAdmin.settings.maintenance(asked.version, !asked.enabled, operation), []));
-      toast.success(asked.enabled ? 'Maintenance mode off' : 'Maintenance mode on');
+      toast.success(asked.enabled ? t('Maintenance mode off') : t('Maintenance mode on'));
     } catch (caught) {
       if (caught instanceof TdApiError && caught.code === 'revision_conflict') onConflict();
       setError(caught);
@@ -335,10 +348,10 @@ export function MaintenanceSetting({ settings, onChanged, onConflict }: { settin
     }
   };
   return (
-    <TdSection title="Maintenance mode" description="On: new ranked searches, matches, dailies and practice runs are refused with the Georgian maintenance screen; matches under way finish.">
+    <TdSection title={t('Maintenance mode')} description={t('On: new ranked searches, matches, dailies and practice runs are refused with the Georgian maintenance screen; matches under way finish.')}>
       <div className="flex flex-col gap-3 p-5">
         <TdSwitchField
-          label={maintenance.enabled ? 'On: the game is closed to new play' : 'Off: the game is open'}
+          label={maintenance.enabled ? t('On: the game is closed to new play') : t('Off: the game is open')}
           checked={maintenance.enabled}
           onChange={() => setAsked({ version: maintenance.version, enabled: maintenance.enabled })}
         />
@@ -346,19 +359,21 @@ export function MaintenanceSetting({ settings, onChanged, onConflict }: { settin
           <div role={moved ? 'alert' : undefined} className="flex flex-wrap items-center gap-2 rounded-lg bg-(--td-danger)/10 px-3 py-2 text-sm">
             <span>
               {moved
-                ? `It changed meanwhile: maintenance is ${maintenance.enabled ? 'on' : 'off'} now (${maintenance.updatedBy?.name ?? 'someone else'}). Look again.`
+                ? maintenance.enabled
+                  ? t('It changed meanwhile: maintenance is on now ({name}). Look again.', { name: maintenance.updatedBy?.name ?? t('someone else') })
+                  : t('It changed meanwhile: maintenance is off now ({name}). Look again.', { name: maintenance.updatedBy?.name ?? t('someone else') })
                 : asked.enabled
-                  ? 'Open the game to players again?'
-                  : 'Close the game to new play for every player?'}
+                  ? t('Open the game to players again?')
+                  : t('Close the game to new play for every player?')}
             </span>
             {!moved && (
               <Button size="sm" variant={asked.enabled ? 'default' : 'destructive'} className="rounded-lg" disabled={busy} onClick={() => void toggle()}>
                 {busy && <Loader2 className="animate-spin" />}
-                {asked.enabled ? 'Turn off' : 'Turn on'}
+                {asked.enabled ? t('Turn off') : t('Turn on')}
               </Button>
             )}
             <Button size="sm" variant="ghost" className="rounded-lg" onClick={() => setAsked(null)}>
-              {moved ? 'Close' : 'Cancel'}
+              {moved ? t('Close') : t('Cancel')}
             </Button>
           </div>
         )}

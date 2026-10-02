@@ -2,6 +2,7 @@
  * Georgian days (Asia/Tbilisi: UTC+4, no daylight saving), the contract's
  * unit for dates, the dashboard and the dailies calendar.
  */
+import { TD_LOCALE } from '@/lib/td/i18n';
 
 export const GEORGIA_TIME_ZONE = 'Asia/Tbilisi';
 const OFFSET_MS = 4 * 60 * 60 * 1000;
@@ -99,9 +100,9 @@ export function shiftMonth(month: string, by: number): string {
   return `${String(Math.floor(index / 12)).padStart(4, '0')}-${String((index % 12) + 1).padStart(2, '0')}`;
 }
 
-const dateFormat = new Intl.DateTimeFormat('en-GB', { timeZone: 'UTC', weekday: 'short', day: 'numeric', month: 'short' });
-const monthFormat = new Intl.DateTimeFormat('en-GB', { timeZone: 'UTC', month: 'long', year: 'numeric' });
-const timeFormat = new Intl.DateTimeFormat('en-GB', { timeZone: GEORGIA_TIME_ZONE, dateStyle: 'medium', timeStyle: 'short' });
+const dateFormat = new Intl.DateTimeFormat(TD_LOCALE, { timeZone: 'UTC', weekday: 'short', day: 'numeric', month: 'short' });
+const monthFormat = new Intl.DateTimeFormat(TD_LOCALE, { timeZone: 'UTC', month: 'long', year: 'numeric' });
+const timeFormat = new Intl.DateTimeFormat(TD_LOCALE, { timeZone: GEORGIA_TIME_ZONE, dateStyle: 'medium', timeStyle: 'short' });
 
 /** "Wed 1 Oct" for a Georgian date. */
 export const formatDay = (day: string) => dateFormat.format(new Date(`${day}T00:00:00Z`));

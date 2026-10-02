@@ -1,4 +1,5 @@
 import Image from 'next/image';
+import { t } from '@/lib/td/i18n';
 import { cn } from '@/lib/utils';
 // Bundled, not under /public: the workspace guard serves nothing outside /td.
 import betssonSport from './betsson-sport.png';
@@ -21,7 +22,7 @@ export function TdWordmark({ className, size = 'md' }: { className?: string; siz
           Table Derby
         </span>
         <span className={cn('mt-1 font-medium text-(--td-text-3)', size === 'lg' ? 'text-sm' : 'text-[11px]')}>
-          Content studio
+          {t('Content studio')}
         </span>
       </span>
     </div>

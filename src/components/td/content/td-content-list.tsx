@@ -14,11 +14,12 @@ import type { TdContentRow, TdContentStatus, TdContentType } from '@/lib/td/admi
 import { tdAdmin, tdTokens } from '@/lib/td/client';
 import { tdErrorText } from '@/lib/td/errors';
 import { formatGeorgiaTime } from '@/lib/td/georgia';
+import { t } from '@/lib/td/i18n';
 import { beginOperation, runEach } from '@/lib/td/operation';
 import { isTdPublisher } from '@/lib/td/workflow';
 import { cn } from '@/lib/utils';
 import { useTdAuth } from '@/providers/td-auth-provider';
-import { TdStatusChip } from './td-status';
+import { TdStatusChip, TD_STATUS_WORDS } from './td-status';
 
 export interface TdColumn<T extends TdContentType> {
   header: string;
@@ -28,9 +29,9 @@ export interface TdColumn<T extends TdContentType> {
 
 const STATUSES: TdContentStatus[] = ['draft', 'ready', 'approved', 'archived'];
 const SORTS = [
-  { value: 'natural', label: 'Order', dir: 'asc' },
-  { value: 'updated', label: 'Recently changed', dir: 'desc' },
-  { value: 'created', label: 'Recently created', dir: 'desc' },
+  { value: 'natural', label: t('Order'), dir: 'asc' },
+  { value: 'updated', label: t('Recently changed'), dir: 'desc' },
+  { value: 'created', label: t('Recently created'), dir: 'desc' },
 ] as const;
 
 const CATEGORY_TYPES = new Set<TdContentType>(['card-categories', 'box-categories']);
@@ -43,9 +44,9 @@ export function TdContentList<T extends TdContentType>({
   fixedQuery,
   onOpen,
   onCreate,
-  createLabel = 'New',
+  createLabel = t('New'),
   selectedId,
-  searchPlaceholder = 'Search the text',
+  searchPlaceholder = t('Search the text'),
   initialSearch = '',
   emptyTitle,
   emptyBody,
@@ -107,7 +108,7 @@ export function TdContentList<T extends TdContentType>({
     );
     const failed = results.filter((r) => !r.ok);
     const done = results.length - failed.length;
-    if (done) toast.success(`${done} ${action === 'ready' ? 'marked ready' : 'approved'}`);
+    if (done) toast.success(action === 'ready' ? t('{n} marked ready', { n: done }) : t('{n} approved', { n: done }));
     setRefusals(failed.map((r) => ({ label: labelOf(r.item), message: tdErrorText(!r.ok ? r.error : null) })));
     setRunning(null);
     resetSelection();
@@ -145,15 +146,15 @@ export function TdContentList<T extends TdContentType>({
         >
           <div className="relative min-w-48 flex-1">
             <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-(--td-text-3)" />
-            <Input value={text} onChange={(event) => setText(event.target.value)} placeholder={searchPlaceholder} aria-label={`Search ${title}`} className="h-9 rounded-full bg-(--td-input) pl-9 pr-9" />
+            <Input value={text} onChange={(event) => setText(event.target.value)} placeholder={searchPlaceholder} aria-label={t('Search {title}', { title })} className="h-9 rounded-full bg-(--td-input) pl-9 pr-9" />
             {q && (
-              <button type="button" aria-label="Clear search" className="absolute right-3 top-1/2 -translate-y-1/2 text-(--td-text-3) hover:text-foreground" onClick={() => setFilter(() => { setText(''); setQ(''); })}>
+              <button type="button" aria-label={t('Clear search')} className="absolute right-3 top-1/2 -translate-y-1/2 text-(--td-text-3) hover:text-foreground" onClick={() => setFilter(() => { setText(''); setQ(''); })}>
                 <X className="size-4" />
               </button>
             )}
           </div>
           <select
-            aria-label="Sort"
+            aria-label={t('Sort')}
             value={sort}
             onChange={(event) => setFilter(() => setSort(event.target.value as typeof sort))}
             className="h-9 rounded-full border border-border bg-(--td-input) px-3 text-sm"
@@ -165,7 +166,7 @@ export function TdContentList<T extends TdContentType>({
             ))}
           </select>
         </form>
-        <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="Status">
+        <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label={t('Status')}>
           {STATUSES.map((status) => {
             const on = statuses.includes(status);
             return (
@@ -176,35 +177,35 @@ export function TdContentList<T extends TdContentType>({
                 onClick={() => setFilter(() => setStatuses(on ? statuses.filter((s) => s !== status) : [...statuses, status]))}
                 className={cn('rounded-full border px-2.5 py-0.5 text-xs', on ? 'border-primary bg-primary/10 text-foreground' : 'border-border text-(--td-text-3) hover:text-foreground')}
               >
-                {status}
+                {TD_STATUS_WORDS[status]}
               </button>
             );
           })}
-          <span className="text-xs text-(--td-text-3)">{statuses.length ? '' : 'All but archived'}</span>
+          <span className="text-xs text-(--td-text-3)">{statuses.length ? '' : t('All but archived')}</span>
         </div>
         {bulk && chosen.length > 0 && (
           <div className="flex flex-wrap items-center gap-2 rounded-lg bg-(--td-input) px-3 py-2 text-sm">
-            <span className="text-(--td-text-2)">{chosen.length} selected</span>
+            <span className="text-(--td-text-2)">{t('{n} selected', { n: chosen.length })}</span>
             {readyable.length > 0 && (
               <Button size="sm" variant="secondary" disabled={running !== null} onClick={() => void runBulk('ready', readyable)} className="rounded-lg">
                 {running === 'ready' ? <Loader2 className="animate-spin" /> : <Send />}
-                Mark {readyable.length} ready
+                {t('Mark {n} ready', { n: readyable.length })}
               </Button>
             )}
             {approvable.length > 0 && (
               <Button size="sm" disabled={running !== null} onClick={() => void runBulk('approve', approvable)} className="rounded-lg">
                 {running === 'approve' ? <Loader2 className="animate-spin" /> : <Check />}
-                Approve {approvable.length}
+                {t('Approve {n}', { n: approvable.length })}
               </Button>
             )}
             <button type="button" className="text-xs text-(--td-text-3) hover:text-foreground" onClick={resetSelection}>
-              Clear
+              {t('Clear')}
             </button>
           </div>
         )}
         {refusals.length > 0 && (
           <div role="alert" className="rounded-lg bg-(--td-danger)/10 px-3 py-2 text-xs text-(--td-danger)">
-            <p className="font-medium">{refusals.length} refused</p>
+            <p className="font-medium">{t('{n} refused', { n: refusals.length })}</p>
             <ul className="mt-1 list-disc pl-4">
               {refusals.map((r, i) => (
                 <li key={i}>
@@ -226,7 +227,7 @@ export function TdContentList<T extends TdContentType>({
               <TableRow className="border-(--td-divider) hover:bg-transparent">
                 {bulk && (
                   <TableHead className="w-10 pl-5">
-                    <input type="checkbox" aria-label="Select all shown" checked={allShown} onChange={() => setSelected(allShown ? new Set() : new Set(rows.map((row) => row.id)))} className="accent-(--td-primary)" />
+                    <input type="checkbox" aria-label={t('Select all shown')} checked={allShown} onChange={() => setSelected(allShown ? new Set() : new Set(rows.map((row) => row.id)))} className="accent-(--td-primary)" />
                   </TableHead>
                 )}
                 {columns.map((column) => (
@@ -234,8 +235,8 @@ export function TdContentList<T extends TdContentType>({
                     {column.header}
                   </TableHead>
                 ))}
-                <TableHead className="h-10 px-3 text-xs font-semibold uppercase tracking-wide text-(--td-text-3)">Status</TableHead>
-                <TableHead className="hidden h-10 px-3 pr-5 text-xs font-semibold uppercase tracking-wide text-(--td-text-3) lg:table-cell">Changed (Georgia)</TableHead>
+                <TableHead className="h-10 px-3 text-xs font-semibold uppercase tracking-wide text-(--td-text-3)">{t('Status')}</TableHead>
+                <TableHead className="hidden h-10 px-3 pr-5 text-xs font-semibold uppercase tracking-wide text-(--td-text-3) lg:table-cell">{t('Changed (Georgia)')}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -258,7 +259,7 @@ export function TdContentList<T extends TdContentType>({
                     <TableCell className="pl-5" onClick={(event) => event.stopPropagation()}>
                       <input
                         type="checkbox"
-                        aria-label={`Select ${labelOf(row)}`}
+                        aria-label={t('Select {label}', { label: labelOf(row) })}
                         checked={selected.has(row.id)}
                         onChange={() => {
                           const next = new Set(selected);
@@ -287,7 +288,7 @@ export function TdContentList<T extends TdContentType>({
               {list.isSuccess && rows.length === 0 && (
                 <TableRow className="hover:bg-transparent">
                   <TableCell colSpan={columns.length + (bulk ? 3 : 2)} className="p-0">
-                    <TdEmptyState title={q || statuses.length ? 'Nothing matches' : emptyTitle}>{q || statuses.length ? 'Try another search or status.' : emptyBody}</TdEmptyState>
+                    <TdEmptyState title={q || statuses.length ? t('Nothing matches') : emptyTitle}>{q || statuses.length ? t('Try another search or status.') : emptyBody}</TdEmptyState>
                   </TableCell>
                 </TableRow>
               )}
@@ -299,7 +300,7 @@ export function TdContentList<T extends TdContentType>({
         <div className="border-t border-(--td-divider) px-5 py-3">
           <Button variant="secondary" size="sm" className="rounded-lg" disabled={list.isFetchingNextPage} onClick={() => void list.fetchNextPage()}>
             {list.isFetchingNextPage && <Loader2 className="animate-spin" />}
-            Load more
+            {t('Load more')}
           </Button>
         </div>
       )}

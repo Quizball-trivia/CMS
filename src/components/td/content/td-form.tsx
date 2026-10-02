@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import type { SchemaIssue } from '@/lib/td/contract';
+import { t } from '@/lib/td/i18n';
 import { cn } from '@/lib/utils';
 
 export const tdInputClass = 'h-10 rounded-lg border-border bg-(--td-input) text-sm text-foreground placeholder:text-(--td-text-3)';
@@ -48,9 +49,9 @@ export function TdField({
       <label htmlFor={htmlFor} className="flex items-center gap-1.5 text-xs font-medium text-(--td-text-3)">
         {label}
         {locked && (
-          <span title="Fixed once created" className="inline-flex items-center gap-1 text-[10px] uppercase tracking-wide">
+          <span title={t('Fixed once created')} className="inline-flex items-center gap-1 text-[10px] uppercase tracking-wide">
             <Lock className="size-3" />
-            fixed
+            {t('fixed')}
           </span>
         )}
       </label>
@@ -127,8 +128,8 @@ export const TdInvalidInputContext = createContext<((field: string, invalid: boo
 
 export function numberTextProblem(text: string, nullable: boolean): string | null {
   const trimmed = text.trim();
-  if (trimmed === '') return nullable ? null : 'Enter a number';
-  return Number.isFinite(Number(trimmed)) ? null : 'Not a number';
+  if (trimmed === '') return nullable ? null : t('Enter a number');
+  return Number.isFinite(Number(trimmed)) ? null : t('Not a number');
 }
 
 /** The text of a number input as typed ("-" or "1." on the way to a number); only a valid number reaches `onChange`. */
@@ -268,7 +269,7 @@ export function TdListField({
   hint,
   placeholder,
   max,
-  addLabel = 'Add',
+  addLabel = t('Add'),
   numbered,
   multiline,
   renderMarker,
@@ -327,17 +328,17 @@ export function TdListField({
                   />
                 )}
                 <div className="flex shrink-0 items-center">
-                  <Button type="button" variant="ghost" size="icon-sm" aria-label="Move up" disabled={index === 0} onClick={() => move(index, -1)}>
+                  <Button type="button" variant="ghost" size="icon-sm" aria-label={t('Move up')} disabled={index === 0} onClick={() => move(index, -1)}>
                     <ArrowUp />
                   </Button>
-                  <Button type="button" variant="ghost" size="icon-sm" aria-label="Move down" disabled={index === values.length - 1} onClick={() => move(index, 1)}>
+                  <Button type="button" variant="ghost" size="icon-sm" aria-label={t('Move down')} disabled={index === values.length - 1} onClick={() => move(index, 1)}>
                     <ArrowDown />
                   </Button>
                   <Button
                     type="button"
                     variant="ghost"
                     size="icon-sm"
-                    aria-label="Remove"
+                    aria-label={t('Remove')}
                     disabled={canRemove !== undefined && canRemove(index) !== true}
                     title={canRemove && canRemove(index) !== true ? String(canRemove(index)) : undefined}
                     onClick={() => onChange(values.filter((_, i) => i !== index), { kind: 'remove', index })}
@@ -361,12 +362,12 @@ export function TdListField({
 
 /** Accepted spellings: chips, added with Enter or a comma. */
 export function TdSpellingsField({
-  label = 'Accepted spellings',
+  label = t('Accepted spellings'),
   values,
   onChange,
   issues = [],
   path,
-  hint = 'Press Enter or type a comma after each spelling. Players’ answers are compared with these.',
+  hint = t('Press Enter or type a comma after each spelling. Players’ answers are compared with these.'),
   max = 40,
 }: {
   label?: string;
@@ -394,7 +395,7 @@ export function TdSpellingsField({
         {values.map((value, index) => (
           <span key={`${value}-${index}`} className="inline-flex items-center gap-1 rounded-md bg-card px-2 py-0.5 text-xs">
             {value}
-            <button type="button" aria-label={`Remove ${value}`} className="text-(--td-text-3) hover:text-foreground" onClick={() => onChange(values.filter((_, i) => i !== index))}>
+            <button type="button" aria-label={t('Remove {value}', { value })} className="text-(--td-text-3) hover:text-foreground" onClick={() => onChange(values.filter((_, i) => i !== index))}>
               <X className="size-3" />
             </button>
           </span>
@@ -402,7 +403,7 @@ export function TdSpellingsField({
         <input
           id={id}
           value={draft}
-          placeholder={values.length ? '' : 'e.g. messi, lionel messi'}
+          placeholder={values.length ? '' : t('e.g. messi, lionel messi')}
           onChange={(event) => (event.target.value.includes(',') ? commit(event.target.value) : setDraft(event.target.value))}
           onKeyDown={(event) => {
             if (event.key === 'Enter') {

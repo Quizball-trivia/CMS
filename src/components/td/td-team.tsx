@@ -12,6 +12,7 @@ import { tdAdmin } from '@/lib/td/client';
 import { describeTdError } from '@/lib/td/errors';
 import { checkContract, TD_CONTRACT, type StaffInviteRequest } from '@/lib/td/contract';
 import { formatGeorgiaTime } from '@/lib/td/georgia';
+import { t, tr, TD_LOCALE } from '@/lib/td/i18n';
 import { TD_LINK_PATHS } from '@/lib/td/link-fragment';
 import { cn } from '@/lib/utils';
 import { useTdAuth } from '@/providers/td-auth-provider';
@@ -42,10 +43,10 @@ export const resetLink = (origin: string, token: string) => `${origin}${TD_LINK_
 
 /** A reset link refused, in plain words. */
 export function resetLinkRefusal(error: unknown, email: string): string {
-  if (!(error instanceof TdApiError)) return 'No answer from the Table Derby API, so a link may have been made. Make another: an earlier one then stops working.';
-  if (error.code === 'not_found') return `${email} is no longer on the team.`;
+  if (!(error instanceof TdApiError)) return t('No answer from the Table Derby API, so a link may have been made. Make another: an earlier one then stops working.');
+  if (error.code === 'not_found') return t('{email} is no longer on the team.', { email });
   // The API says which rule refused it (your role, yourself, an ops member; not signed up, disabled) in plain words.
-  if (error.status === 403 || error.code === 'conflict') return `No reset link for ${email}: ${error.message.replace(/\.?$/, '.')}`;
+  if (error.status === 403 || error.code === 'conflict') return t('No reset link for {email}: {reason}', { email, reason: error.message.replace(/\.?$/, '.') });
   return describeTdError(error).title;
 }
 
@@ -57,7 +58,7 @@ function OneTimeLink({ label, heading, intro, link, expiresAt, again, onDone }: 
   useEffect(() => input.current?.focus(), [link]);
   return (
     <section aria-label={heading} className="flex flex-col gap-3 border-b border-(--td-divider) px-5 py-4">
-      <p className="text-sm">{intro} Send them this link yourself: the API does not email it.</p>
+      <p className="text-sm">{intro} {t('Send them this link yourself: the API does not email it.')}</p>
       <div className="flex flex-wrap items-center gap-2">
         <Input ref={input} readOnly value={link} aria-label={label} onFocus={(event) => event.target.select()} className="h-10 min-w-0 flex-1 rounded-lg bg-(--td-input) font-mono text-xs" />
         <Button
@@ -68,14 +69,14 @@ function OneTimeLink({ label, heading, intro, link, expiresAt, again, onDone }: 
           }}
         >
           {copied ? <Check /> : <Copy />}
-          {copied ? 'Copied' : 'Copy link'}
+          {copied ? t('Copied') : t('Copy link')}
         </Button>
       </div>
       <p role="alert" className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-700">
-        Shown once: it cannot be seen again after you close this. It works once, until {formatGeorgiaTime(expiresAt)} (Georgia). {again}
+        {t('Shown once: it cannot be seen again after you close this. It works once, until {time} (Georgia).', { time: formatGeorgiaTime(expiresAt) })} {again}
       </p>
       <Button variant="ghost" className="w-fit rounded-lg" onClick={onDone}>
-        Done
+        {t('Done')}
       </Button>
     </section>
   );
@@ -83,8 +84,8 @@ function OneTimeLink({ label, heading, intro, link, expiresAt, again, onDone }: 
 
 function inviteRefusal(error: unknown): unknown {
   if (!(error instanceof TdApiError)) return error;
-  if (error.code === 'already_exists') return new TdApiError(409, 'already_exists', 'This email already has an account: it cannot be invited again.');
-  if (error.status === 403) return new TdApiError(403, 'forbidden', 'Your role cannot invite this role.');
+  if (error.code === 'already_exists') return new TdApiError(409, 'already_exists', t('This email already has an account: it cannot be invited again.'));
+  if (error.status === 403) return new TdApiError(403, 'forbidden', t('Your role cannot invite this role.'));
   return error;
 }
 
@@ -101,7 +102,7 @@ function InviteMember({ onClose }: { onClose: () => void }) {
     event.preventDefault();
     const body: StaffInviteRequest = { email: email.trim(), role, ...(name.trim() ? { name: name.trim() } : {}) };
     if (checkContract('StaffInviteRequest', body).length) {
-      setError(new TdApiError(400, 'invalid_request', 'Enter a valid email address (and a name of at most 80 characters, or none).'));
+      setError(new TdApiError(400, 'invalid_request', t('Enter a valid email address (and a name of at most 80 characters, or none).')));
       return;
     }
     setBusy(true);
@@ -119,16 +120,18 @@ function InviteMember({ onClose }: { onClose: () => void }) {
   if (invited) {
     return (
       <OneTimeLink
-        label="Invitation link"
-        heading={`Invitation link for ${invited.email}`}
-        intro={
-          <>
-            Invitation for <span className="font-mono text-xs">{invited.email}</span>.
-          </>
-        }
+        label={t('Invitation link')}
+        heading={t('Invitation link for {email}', { email: invited.email })}
+        intro={tr('Invitation for {email}.', {
+          email: (
+            <span key="email" className="font-mono text-xs">
+              {invited.email}
+            </span>
+          ),
+        })}
         link={invited.link}
         expiresAt={invited.expiresAt}
-        again="Inviting the same email again makes a new link."
+        again={t('Inviting the same email again makes a new link.')}
         onDone={onClose}
       />
     );
@@ -138,15 +141,15 @@ function InviteMember({ onClose }: { onClose: () => void }) {
     <form onSubmit={onSubmit} className="flex flex-col gap-3 border-b border-(--td-divider) px-5 py-4" noValidate>
       <div className="grid gap-3 sm:grid-cols-[1fr_1fr_12rem]">
         <label className="flex flex-col gap-1.5 text-xs font-medium text-(--td-text-3)">
-          Email
+          {t('Email')}
           <Input type="email" autoComplete="off" value={email} onChange={(event) => setEmail(event.target.value)} className="h-10 rounded-lg bg-(--td-input) text-sm text-foreground" />
         </label>
         <label className="flex flex-col gap-1.5 text-xs font-medium text-(--td-text-3)">
-          Name (optional)
+          {t('Name (optional)')}
           <Input value={name} onChange={(event) => setName(event.target.value)} className="h-10 rounded-lg bg-(--td-input) text-sm text-foreground" />
         </label>
         <label className="flex flex-col gap-1.5 text-xs font-medium text-(--td-text-3)">
-          Role
+          {t('Role')}
           <select value={role} onChange={(event) => setRole(event.target.value as Exclude<TdRole, 'ops'>)} className="h-10 rounded-lg border border-border bg-(--td-input) px-3 text-sm text-foreground">
             {INVITABLE.map((r) => (
               <option key={r} value={r}>
@@ -160,19 +163,25 @@ function InviteMember({ onClose }: { onClose: () => void }) {
       <div className="flex gap-2">
         <Button type="submit" className="rounded-lg" disabled={busy || !email.trim()}>
           {busy ? <Loader2 className="animate-spin" /> : <UserPlus />}
-          Make the invitation link
+          {t('Make the invitation link')}
         </Button>
         <Button type="button" variant="ghost" className="rounded-lg" onClick={onClose} disabled={busy}>
-          Cancel
+          {t('Cancel')}
         </Button>
       </div>
     </form>
   );
 }
 
-const COLUMNS = ['Name', 'Email', 'Role', 'Status', 'Last sign-in (Georgia)'];
+const COLUMNS = [t('Name'), t('Email'), t('Role'), t('Status'), t('Last sign-in (Georgia)')];
 
-const signInFormat = new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Tbilisi', dateStyle: 'medium', timeStyle: 'short' });
+const signInFormat = new Intl.DateTimeFormat(TD_LOCALE, { timeZone: 'Asia/Tbilisi', dateStyle: 'medium', timeStyle: 'short' });
+
+const STATUS_LABELS: Record<TdStaffMember['status'], string> = {
+  active: t('active'),
+  invited: t('invited'),
+  disabled: t('disabled'),
+};
 
 const STATUS_STYLES: Record<TdStaffMember['status'], string> = {
   active: 'bg-(--td-new)/15 text-(--td-new)',
@@ -218,13 +227,13 @@ export function TdTeam() {
 
   return (
     <TdSection
-      title="Staff"
-      description="Roles are enforced by the API on every request. Nobody can grant or remove the ops role here."
+      title={t('Staff')}
+      description={t('Roles are enforced by the API on every request. Nobody can grant or remove the ops role here.')}
       actions={
         canInvite(user?.role) && !inviting ? (
           <Button ref={inviteButton} className="rounded-lg" onClick={() => setInviting(true)}>
             <UserPlus />
-            Invite member
+            {t('Invite member')}
           </Button>
         ) : undefined
       }
@@ -239,16 +248,18 @@ export function TdTeam() {
       )}
       {reset && (
         <OneTimeLink
-          label="Reset link"
-          heading={`Reset link for ${reset.email}`}
-          intro={
-            <>
-              Reset link for <span className="font-mono text-xs">{reset.email}</span>. Opening it sets a new password and signs them out everywhere else.
-            </>
-          }
+          label={t('Reset link')}
+          heading={t('Reset link for {who}', { who: reset.email })}
+          intro={tr('Reset link for {email}. Opening it sets a new password and signs them out everywhere else.', {
+            email: (
+              <span key="email" className="font-mono text-xs">
+                {reset.email}
+              </span>
+            ),
+          })}
           link={reset.link}
           expiresAt={reset.expiresAt}
-          again="Making another reset link for them stops this one."
+          again={t('Making another reset link for them stops this one.')}
           onDone={() => {
             setReset(null);
             returnFocus.current?.focus();
@@ -266,7 +277,7 @@ export function TdTeam() {
           <AlertCircle className="size-6 text-(--td-danger)" />
           <p className="text-sm">{error.message}</p>
           <Button variant="secondary" className="rounded-lg" onClick={() => void refetch()}>
-            Try again
+            {t('Try again')}
           </Button>
         </div>
       ) : (
@@ -298,7 +309,7 @@ export function TdTeam() {
                 <TableCell className="px-5 py-3">{TD_ROLE_LABELS[member.role]}</TableCell>
                 <TableCell className="px-5 py-3">
                   <span className={cn('rounded-full px-2 py-0.5 text-xs font-semibold capitalize', STATUS_STYLES[member.status])}>
-                    {member.status}
+                    {STATUS_LABELS[member.status] ?? member.status}
                   </span>
                 </TableCell>
                 <TableCell className="px-5 py-3 text-(--td-text-2) tabular-nums">
@@ -312,11 +323,11 @@ export function TdTeam() {
                         size="sm"
                         className="rounded-lg"
                         disabled={making !== null}
-                        aria-label={`Reset link for ${member.name || member.email}`}
+                        aria-label={t('Reset link for {who}', { who: member.name || member.email })}
                         onClick={(event) => void makeResetLink(member, event.currentTarget)}
                       >
                         {making === member.id ? <Loader2 className="animate-spin" /> : <KeyRound />}
-                        Reset link
+                        {t('Reset link')}
                       </Button>
                     )}
                   </TableCell>
@@ -326,7 +337,7 @@ export function TdTeam() {
             {data && data.items.length === 0 && (
               <TableRow className="hover:bg-transparent">
                 <TableCell colSpan={columns.length} className="p-0">
-                  <TdEmptyState icon={Users} title="No staff yet" />
+                  <TdEmptyState icon={Users} title={t('No staff yet')} />
                 </TableCell>
               </TableRow>
             )}

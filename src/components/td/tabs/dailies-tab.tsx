@@ -13,11 +13,14 @@ import { useTdAllRows } from '@/hooks/use-td-content';
 import type { TdContentRow, TdDailyGame } from '@/lib/td/admin-api';
 import { addDays, daysFrom, formatDay, formatMonth, monthGrid, scheduledSet, shiftMonth, type DailyCycle } from '@/lib/td/georgia';
 import { useGeorgiaToday } from '@/hooks/use-georgia-today';
+import { t, TD_LOCALE } from '@/lib/td/i18n';
 import { cn } from '@/lib/utils';
 
 const ALL = 'draft,ready,approved,archived';
 const COVERAGE_DAYS = 30;
-const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+const weekdayFormat = new Intl.DateTimeFormat(TD_LOCALE, { timeZone: 'UTC', weekday: 'short' });
+/** Monday first, as the month grid is (5 January 1970 was a Monday). */
+const WEEKDAYS = Array.from({ length: 7 }, (_, i) => weekdayFormat.format(new Date(Date.UTC(1970, 0, 5 + i))));
 
 type ScheduleRow = TdContentRow<'daily-schedule'>;
 type SettingsRow = TdContentRow<'daily-settings'>;
@@ -76,7 +79,7 @@ export function TdDailiesTab() {
   const info = TD_DAILY_GAMES.find((g) => g.game === game)!;
   return (
     <>
-      <div className="flex flex-wrap gap-1 rounded-xl border border-border bg-card p-1" role="tablist" aria-label="Daily game">
+      <div className="flex flex-wrap gap-1 rounded-xl border border-border bg-card p-1" role="tablist" aria-label={t('Daily game')}>
         {TD_DAILY_GAMES.map((g) => (
           <button
             key={g.game}
@@ -95,16 +98,16 @@ export function TdDailiesTab() {
       <TdContentList
         key={`list-${game}`}
         type={info.type}
-        title={`${info.label}: puzzles`}
-        description="Every question belongs to a puzzle (set); a date plays one puzzle."
+        title={t('{game}: puzzles', { game: info.label })}
+        description={t('Every question belongs to a puzzle (set); a date plays one puzzle.')}
         onOpen={(row) => setTarget({ type: info.type, row })}
         onCreate={() => setTarget({ type: info.type, row: null })}
-        createLabel="New question"
-        emptyTitle="No questions yet"
+        createLabel={t('New question')}
+        emptyTitle={t('No questions yet')}
         columns={[
-          { header: 'Puzzle', className: 'w-32', cell: (row) => <span className="font-mono text-xs">{String(row.data.puzzle)}</span> },
+          { header: t('Puzzle'), className: 'w-32', cell: (row) => <span className="font-mono text-xs">{String(row.data.puzzle)}</span> },
           {
-            header: 'Question',
+            header: t('Question'),
             cell: (row) => {
               const data = row.data as { key: string; displayAnswer?: string; prompt?: string };
               return <TdCellTitle title={data.displayAnswer ?? data.prompt} sub={data.key} />;
@@ -142,16 +145,16 @@ function TdCalendar({ game, onOpen }: { game: TdDailyGame; onOpen: (target: TdEd
 
   return (
     <TdSection
-      title="Calendar"
-      description="One puzzle per Georgia date: the date’s own entry, otherwise the cycle. It shows what a release published now would play; pending changes are marked."
+      title={t('Calendar')}
+      description={t('One puzzle per Georgia date: the date’s own entry, otherwise the cycle. It shows what a release published now would play; pending changes are marked.')}
       actions={
         shown && (
           <div className="flex items-center gap-1">
-            <Button variant="ghost" size="icon-sm" aria-label="Previous month" onClick={() => setMonth(shiftMonth(shown, -1))}>
+            <Button variant="ghost" size="icon-sm" aria-label={t('Previous month')} onClick={() => setMonth(shiftMonth(shown, -1))}>
               <ChevronLeft />
             </Button>
             <span className="w-36 text-center text-sm font-medium">{formatMonth(shown)}</span>
-            <Button variant="ghost" size="icon-sm" aria-label="Next month" onClick={() => setMonth(shiftMonth(shown, 1))}>
+            <Button variant="ghost" size="icon-sm" aria-label={t('Next month')} onClick={() => setMonth(shiftMonth(shown, 1))}>
               <ChevronRight />
             </Button>
           </div>
@@ -163,8 +166,8 @@ function TdCalendar({ game, onOpen }: { game: TdDailyGame; onOpen: (target: TdEd
         {today && rows.isSuccess && (
           <p className={cn('rounded-lg px-3 py-2 text-sm', missing.length ? 'bg-(--td-danger)/10 text-(--td-danger)' : 'bg-(--td-new)/10 text-(--td-new)')}>
             {missing.length
-              ? `${missing.length} of the next ${COVERAGE_DAYS} days have no playable puzzle (from ${formatDay(missing[0].date)}). A release needs all ${COVERAGE_DAYS}.`
-              : `The next ${COVERAGE_DAYS} days all have a playable puzzle.`}
+              ? t('{missing} of the next {days} days have no playable puzzle (from {date}). A release needs all {days}.', { missing: missing.length, days: COVERAGE_DAYS, date: formatDay(missing[0].date) })
+              : t('The next {days} days all have a playable puzzle.', { days: COVERAGE_DAYS })}
           </p>
         )}
         <div className="grid grid-cols-7 gap-1 text-xs">
@@ -181,7 +184,7 @@ function TdCalendar({ game, onOpen }: { game: TdDailyGame; onOpen: (target: TdEd
                 key={date}
                 type="button"
                 onClick={() => day && open(day)}
-                aria-label={`${formatDay(date)}: ${day?.planned ?? 'no puzzle'}`}
+                aria-label={day?.planned != null ? `${formatDay(date)}: ${day.planned}` : t('{date}: no puzzle', { date: formatDay(date) })}
                 className={cn(
                   'flex min-h-20 flex-col gap-1 rounded-lg border p-1.5 text-left transition-colors hover:bg-secondary/60',
                   day?.inWindow ? 'border-border bg-(--td-input)/40' : 'border-transparent bg-(--td-input)/15',
@@ -194,19 +197,19 @@ function TdCalendar({ game, onOpen }: { game: TdDailyGame; onOpen: (target: TdEd
                   {day?.row && <TdStatusChip status={day.row.status} className="px-1.5 py-0 text-[10px]" />}
                 </span>
                 {day?.planned ? (
-                  <span className={cn('truncate font-mono text-[11px]', day.playable ? 'text-foreground' : 'text-(--td-danger)')} title={day.playable ? undefined : 'No approved question in this puzzle'}>
+                  <span className={cn('truncate font-mono text-[11px]', day.playable ? 'text-foreground' : 'text-(--td-danger)')} title={day.playable ? undefined : t('No approved question in this puzzle')}>
                     {day.planned}
                   </span>
                 ) : (
-                  day?.inWindow && <span className="text-[11px] text-(--td-danger)">No puzzle</span>
+                  day?.inWindow && <span className="text-[11px] text-(--td-danger)">{t('No puzzle')}</span>
                 )}
-                {day?.planned && <span className="text-[10px] text-(--td-text-3)">{day.source === 'cycle' ? 'cycle' : 'own date'}</span>}
+                {day?.planned && <span className="text-[10px] text-(--td-text-3)">{day.source === 'cycle' ? t('cycle') : t('own date')}</span>}
                 {day?.pending && <span className="truncate text-[10px] text-amber-800">→ {day.pending}</span>}
               </button>
             );
           })}
         </div>
-        <p className="text-xs text-(--td-text-3)">Click a date to schedule it or open its entry. An archived entry still holds its date: a publisher restores it rather than making a new one.</p>
+        <p className="text-xs text-(--td-text-3)">{t('Click a date to schedule it or open its entry. An archived entry still holds its date: a publisher restores it rather than making a new one.')}</p>
       </div>
     </TdSection>
   );
@@ -218,37 +221,37 @@ function TdGameSettings({ game, onOpen }: { game: TdDailyGame; onOpen: (target: 
   const data = row?.data;
   return (
     <TdSection
-      title="Timing and cycle"
-      description="Seconds per question or round, and the puzzles played in turn on dates without their own."
+      title={t('Timing and cycle')}
+      description={t('Seconds per question or round, and the puzzles played in turn on dates without their own.')}
       actions={
         row ? (
           <Button variant="secondary" className="rounded-lg" onClick={() => onOpen({ type: 'daily-settings', row })}>
             <Pencil />
-            Edit
+            {t('Edit')}
           </Button>
         ) : (
           settings.isSuccess && (
             <Button className="rounded-lg" onClick={() => onOpen({ type: 'daily-settings', row: null, preset: { game, seconds: game === 'careerPath' ? null : 30, cycle: null } })}>
               <Plus />
-              Create settings
+              {t('Create settings')}
             </Button>
           )
         )
       }
     >
       <div className="flex flex-wrap items-center gap-x-8 gap-y-2 px-5 py-4 text-sm">
-        {settings.isLoading && <span className="text-(--td-text-3)">Loading…</span>}
-        {settings.isSuccess && !row && <span className="text-(--td-text-3)">No settings yet: a release needs them.</span>}
+        {settings.isLoading && <span className="text-(--td-text-3)">{t('Loading…')}</span>}
+        {settings.isSuccess && !row && <span className="text-(--td-text-3)">{t('No settings yet: a release needs them.')}</span>}
         {row && data && (
           <>
             <TdStatusChip status={row.status} />
             <span>
-              <span className="text-(--td-text-3)">Seconds </span>
+              <span className="text-(--td-text-3)">{t('Seconds')} </span>
               {data.seconds ?? '—'}
             </span>
             <span>
-              <span className="text-(--td-text-3)">Cycle </span>
-              {data.cycle ? `${data.cycle.sets.join(' → ')} from ${formatDay(data.cycle.anchor)}` : 'none'}
+              <span className="text-(--td-text-3)">{t('Cycle')} </span>
+              {data.cycle ? t('{puzzles} from {date}', { puzzles: data.cycle.sets.join(' → '), date: formatDay(data.cycle.anchor) }) : t('none')}
             </span>
           </>
         )}

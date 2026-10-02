@@ -5,6 +5,7 @@
  */
 import type { TdContentType } from './admin-api';
 import { checkContract, type SchemaIssue } from './contract';
+import { t } from './i18n';
 
 type Data = Record<string, unknown>;
 
@@ -53,19 +54,19 @@ export function contentRuleIssues(type: TdContentType, data: Data): SchemaIssue[
     case 'practice-questions':
       return Array.isArray(data.options) && Number(data.answer) < data.options.length
         ? []
-        : [{ path: 'data.answer', message: 'the answer is not one of the options' }];
+        : [{ path: 'data.answer', message: t('the answer is not one of the options') }];
     case 'media':
       return (data.url === null) !== (data.uploadId === null)
         ? []
-        : [{ path: 'data.uploadId', message: 'an image is an upload (or, kept from before, a URL): exactly one' }];
+        : [{ path: 'data.uploadId', message: t('an image is an upload (or, kept from before, a URL): exactly one') }];
     case 'put-in-order': {
       const keys = Array.isArray(data.items) ? (data.items as Data[]).map((item) => item.key) : [];
-      return new Set(keys).size === keys.length ? [] : [{ path: 'data.items', message: 'item keys repeat' }];
+      return new Set(keys).size === keys.length ? [] : [{ path: 'data.items', message: t('item keys repeat') }];
     }
     case 'daily-settings':
       return (data.game === 'careerPath') === (data.seconds === null)
         ? []
-        : [{ path: 'data.seconds', message: 'Football Logic and Put in Order have seconds; Career Path has none' }];
+        : [{ path: 'data.seconds', message: t('Football Logic and Put in Order have seconds; Career Path has none') }];
     default:
       return [];
   }

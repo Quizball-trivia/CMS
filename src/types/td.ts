@@ -1,11 +1,13 @@
+import { t } from '@/lib/td/i18n';
+
 export const TD_ROLES = ['editor', 'publisher', 'betsson_admin', 'ops'] as const;
 export type TdRole = (typeof TD_ROLES)[number];
 
 export const TD_ROLE_LABELS: Record<TdRole, string> = {
-  editor: 'Editor',
-  publisher: 'Publisher',
-  betsson_admin: 'Betsson admin',
-  ops: 'Ops (Quizball)',
+  editor: t('Editor'),
+  publisher: t('Publisher'),
+  betsson_admin: t('Betsson admin'),
+  ops: t('Ops (Quizball)'),
 };
 
 /** `GET /admin/me` */

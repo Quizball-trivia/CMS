@@ -17,6 +17,7 @@ import { tdAdmin, tdTokens } from '@/lib/td/client';
 import type { ContentImportBatch, ContentImportBatchList, ContentImportReport } from '@/lib/td/contract';
 import { downloadText } from '@/lib/td/download';
 import { formatGeorgiaTime } from '@/lib/td/georgia';
+import { t, tn } from '@/lib/td/i18n';
 import { beginOperation, type TdOperation } from '@/lib/td/operation';
 import { canonicalJson, sha256Hex } from '@/lib/td/hash';
 import { parseItemsJson, parseSheet, sheetTemplate, TD_IMPORT_COLUMNS, TD_IMPORTABLE_TYPES, type TdParsedImport } from '@/lib/td/import-format';
@@ -147,11 +148,11 @@ export function TdImportTab() {
           if (shown.current === target.hash) setPrepared({ ...target, batchKey: batchKeyFor(user.id, target.hash).key });
           return;
         }
-        setError(new TdApiError(409, 'conflict', 'These items were imported before and that import was undone. Read the file again to import them anew.'));
+        setError(new TdApiError(409, 'conflict', t('These items were imported before and that import was undone. Read the file again to import them anew.')));
         return;
       }
       setResult(out);
-      toast.success(out.created ? `${out.batch.rows.length} drafts imported` : 'These items were imported already; nothing was added');
+      toast.success(out.created ? t('{n} drafts imported', { n: out.batch.rows.length }) : t('These items were imported already; nothing was added'));
     } catch (caught) {
       // Refused, so nothing was imported under this key.
       if (caught instanceof TdApiError && (caught.code === 'validation' || caught.code === 'conflict')) markSent(user.id, target.hash, false);
@@ -171,11 +172,11 @@ export function TdImportTab() {
 
   return (
     <>
-      <TdSection title="Import a spreadsheet" description="Every row becomes a draft, all at once or none. Then they go through ready and approval like any other content.">
+      <TdSection title={t('Import a spreadsheet')} description={t('Every row becomes a draft, all at once or none. Then they go through ready and approval like any other content.')}>
         <div className="flex flex-col gap-5 p-5">
           <div className="flex flex-wrap items-end gap-3">
             <label className="flex flex-col gap-1.5 text-xs font-medium text-(--td-text-3)">
-              Content type
+              {t('Content type')}
               <select
                 value={type}
                 disabled={busy !== null}
@@ -185,16 +186,16 @@ export function TdImportTab() {
                 }}
                 className="h-10 min-w-56 rounded-lg border border-border bg-(--td-input) px-3 text-sm text-foreground"
               >
-                {TD_IMPORTABLE_TYPES.map((t) => (
-                  <option key={t} value={t}>
-                    {TD_TYPE_CONFIG[t].plural}
+                {TD_IMPORTABLE_TYPES.map((option) => (
+                  <option key={option} value={option}>
+                    {TD_TYPE_CONFIG[option].plural}
                   </option>
                 ))}
               </select>
             </label>
             <Button variant="secondary" className="rounded-lg" onClick={() => downloadText(sheetTemplate(type), `table-derby-${type}-template.csv`)}>
               <Download />
-              Template
+              {t('Template')}
             </Button>
             <input
               ref={file}
@@ -210,18 +211,18 @@ export function TdImportTab() {
             />
             <Button className="rounded-lg" disabled={busy !== null} onClick={() => file.current?.click()}>
               <FileUp />
-              Choose a file
+              {t('Choose a file')}
             </Button>
           </div>
 
           <details className="group rounded-lg border border-border">
             <summary className="flex cursor-pointer list-none items-center justify-between px-4 py-2.5 text-sm font-medium">
-              Columns for {TD_TYPE_CONFIG[type].plural}
+              {t('Columns for {type}', { type: TD_TYPE_CONFIG[type].plural })}
               <ChevronDown className="size-4 transition-transform group-open:rotate-180" />
             </summary>
             <div className="border-t border-(--td-divider) px-4 py-3 text-xs">
               <ul className="grid gap-1.5 sm:grid-cols-2">
-                {[...columns, { name: 'position', help: 'Order in a release (optional)', required: false }, { name: 'note', help: 'A note for the team (optional)', required: false }].map((c) => (
+                {[...columns, { name: 'position', help: t('Order in a release (optional)'), required: false }, { name: 'note', help: t('A note for the team (optional)'), required: false }].map((c) => (
                   <li key={c.name}>
                     <span className="font-mono text-primary">{c.name}</span>
                     {c.required && <span className="text-(--td-text-3)"> *</span>} <span className="text-(--td-text-2)">{c.help}</span>
@@ -229,32 +230,32 @@ export function TdImportTab() {
                 ))}
               </ul>
               <p className="mt-3 text-(--td-text-3)">
-                CSV or TSV with a header row, or cells pasted from a spreadsheet. Lists are separated by | (write \| for a bar). Rows are imported in order: a row may refer to one above it. A JSON file of items may mix types.
+                {t('CSV or TSV with a header row, or cells pasted from a spreadsheet. Lists are separated by | (write \\| for a bar). Rows are imported in order: a row may refer to one above it. A JSON file of items may mix types.')}
               </p>
             </div>
           </details>
 
           <div className="flex flex-col gap-2">
             <label htmlFor="td-import-paste" className="text-xs font-medium text-(--td-text-3)">
-              Or paste the cells here (with the header row)
+              {t('Or paste the cells here (with the header row)')}
             </label>
             <Textarea id="td-import-paste" value={pasted} onChange={(event) => setPasted(event.target.value)} className="min-h-28 rounded-lg border-border bg-(--td-input) font-mono text-xs" />
-            <Button variant="secondary" className="w-fit rounded-lg" disabled={!pasted.trim() || busy !== null} onClick={() => void prepare(pasted, 'pasted cells', false)}>
-              Read the pasted cells
+            <Button variant="secondary" className="w-fit rounded-lg" disabled={!pasted.trim() || busy !== null} onClick={() => void prepare(pasted, t('pasted cells'), false)}>
+              {t('Read the pasted cells')}
             </Button>
           </div>
 
           {prepared && (
             <div className="flex flex-col gap-3 rounded-lg border border-border p-4">
               <p className="text-sm">
-                <span className="font-medium">{prepared.source}</span>: {prepared.items.length} item{prepared.items.length === 1 ? '' : 's'} read
-                {prepared.problems.length > 0 && <span className="text-(--td-danger)"> · {prepared.problems.length} could not be read</span>}
+                <span className="font-medium">{prepared.source}</span>: {tn(prepared.items.length, '{count} item read', '{count} items read')}
+                {prepared.problems.length > 0 && <span className="text-(--td-danger)"> · {t('{n} could not be read', { n: prepared.problems.length })}</span>}
               </p>
               {prepared.problems.length > 0 && (
                 <ul className="list-disc pl-5 text-xs text-(--td-danger)">
                   {prepared.problems.slice(0, 50).map((p, i) => (
                     <li key={i}>
-                      {p.line > 0 && `Line ${p.line}`}
+                      {p.line > 0 && t('Line {line}', { line: p.line })}
                       {p.column && ` · ${p.column}`}
                       {p.line > 0 || p.column ? ': ' : ''}
                       {p.message}
@@ -265,11 +266,11 @@ export function TdImportTab() {
               <div className="flex flex-wrap gap-2">
                 <Button variant="secondary" className="rounded-lg" disabled={busy !== null || prepared.items.length === 0 || prepared.problems.length > 0 || Boolean(result)} onClick={() => void check()}>
                   {busy === 'check' ? <Loader2 className="animate-spin" /> : <SearchCheck />}
-                  Check
+                  {t('Check')}
                 </Button>
                 <Button className="rounded-lg" disabled={busy !== null || !canApply} onClick={() => void apply(prepared)}>
                   {busy === 'apply' ? <Loader2 className="animate-spin" /> : <Upload />}
-                  Import {current ? current.counts.create : ''} as drafts
+                  {current ? t('Import {n} as drafts', { n: current.counts.create }) : t('Import  as drafts')}
                 </Button>
               </div>
               <TdErrorPanel error={error} hideIssues />
@@ -277,7 +278,10 @@ export function TdImportTab() {
               {result && (
                 <p className="flex items-center gap-2 rounded-lg bg-(--td-new)/10 px-3 py-2 text-sm text-(--td-new)">
                   <CheckCircle2 className="size-4" />
-                  {result.created ? `Imported ${result.batch.rows.length} drafts as batch ${result.batch.batchKey}.` : `Already imported as batch ${result.batch.batchKey}; nothing was added.`} It can be undone below while its rows are untouched.
+                  {result.created
+                    ? t('Imported {n} drafts as batch {batch}.', { n: result.batch.rows.length, batch: result.batch.batchKey })
+                    : t('Already imported as batch {batch}; nothing was added.', { batch: result.batch.batchKey })}{' '}
+                  {t('It can be undone below while its rows are untouched.')}
                 </p>
               )}
             </div>
@@ -294,15 +298,17 @@ function ImportReport({ report, lines }: { report: ContentImportReport; lines: n
   return (
     <div className="flex flex-col gap-2">
       <p className={cn('text-sm', errors.length ? 'text-(--td-danger)' : 'text-(--td-new)')}>
-        {report.counts.create} ready to import · {report.counts.error} with problems{errors.length ? ': fix them in the sheet and read it again.' : '.'}
+        {errors.length
+          ? t('{ready} ready to import · {problems} with problems: fix them in the sheet and read it again.', { ready: report.counts.create, problems: report.counts.error })
+          : t('{ready} ready to import · {problems} with problems.', { ready: report.counts.create, problems: report.counts.error })}
       </p>
       <div className="max-h-80 overflow-y-auto rounded-lg border border-border">
         <Table>
           <TableHeader>
             <TableRow className="border-(--td-divider) hover:bg-transparent">
-              <TableHead className="h-9 w-16 px-3 text-xs text-(--td-text-3)">Line</TableHead>
-              <TableHead className="h-9 px-3 text-xs text-(--td-text-3)">Item</TableHead>
-              <TableHead className="h-9 px-3 text-xs text-(--td-text-3)">Result</TableHead>
+              <TableHead className="h-9 w-16 px-3 text-xs text-(--td-text-3)">{t('Line')}</TableHead>
+              <TableHead className="h-9 px-3 text-xs text-(--td-text-3)">{t('Item')}</TableHead>
+              <TableHead className="h-9 px-3 text-xs text-(--td-text-3)">{t('Result')}</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -315,7 +321,7 @@ function ImportReport({ report, lines }: { report: ContentImportReport; lines: n
                 </TableCell>
                 <TableCell className="px-3 py-2 text-xs">
                   {row.action === 'create' ? (
-                    <span className="text-(--td-new)">Creates a draft</span>
+                    <span className="text-(--td-new)">{t('Creates a draft')}</span>
                   ) : (
                     <ul className="flex flex-col gap-0.5 text-(--td-danger)">
                       {row.issues.map((issue, i) => (
@@ -336,8 +342,21 @@ function ImportReport({ report, lines }: { report: ContentImportReport; lines: n
   );
 }
 
-const BATCH_STATUS: Record<ContentImportBatch['status'], string> = { applied: 'Imported', partly_undone: 'Partly undone', undone: 'Undone' };
-const KEEP_REASONS: Record<string, string> = { edited: 'changed since', approved: 'approved', referenced: 'still referred to', published: 'in a release' };
+const BATCH_STATUS: Record<ContentImportBatch['status'], string> = { applied: t('Imported'), partly_undone: t('Partly undone'), undone: t('Undone') };
+const ROW_OUTCOMES: Record<string, string> = { created: t('created'), removed: t('removed'), kept: t('kept') };
+const KEPT_BECAUSE: Record<string, string> = {
+  edited: t('kept (changed since)'),
+  approved: t('kept (approved)'),
+  referenced: t('kept (still referred to)'),
+  published: t('kept (in a release)'),
+};
+
+/** What became of a batch's row, with why it was kept. */
+function rowOutcome(outcome: string, reason: string | null): string {
+  const label = ROW_OUTCOMES[outcome] ?? outcome;
+  if (!reason) return label;
+  return (outcome === 'kept' ? KEPT_BECAUSE[reason] : undefined) ?? `${label} (${reason})`;
+}
 
 function ImportBatches() {
   const { user } = useTdAuth();
@@ -350,21 +369,21 @@ function ImportBatches() {
   });
   const items = batches.data?.pages.flatMap((page) => page.items) ?? [];
   return (
-    <TdSection title="Imports" description="Undo removes the rows of a batch nobody has touched since (not even a note or a ready) and keeps the others, saying why.">
+    <TdSection title={t('Imports')} description={t('Undo removes the rows of a batch nobody has touched since (not even a note or a ready) and keeps the others, saying why.')}>
       <TdErrorPanel error={batches.error} className="m-5" />
-      {batches.isSuccess && items.length === 0 && <TdEmptyState title="No imports yet" />}
+      {batches.isSuccess && items.length === 0 && <TdEmptyState title={t('No imports yet')} />}
       <ul className="divide-y divide-(--td-divider)">
         {items.map((batch) => (
           <li key={batch.id} className="px-5 py-3">
             <button type="button" className="flex w-full flex-wrap items-center gap-x-4 gap-y-1 text-left" onClick={() => setOpen(open === batch.id ? null : batch.id)}>
               <span className="font-mono text-xs">{batch.batchKey}</span>
               <span className="text-xs text-(--td-text-3)">
-                {batch.itemCount} items · by {batch.createdBy.name} · {formatGeorgiaTime(batch.createdAt)}
+                {t('{n} items · by {name} · {time}', { n: batch.itemCount, name: batch.createdBy.name, time: formatGeorgiaTime(batch.createdAt) })}
               </span>
               <span className={cn('rounded-full px-2 py-0.5 text-xs font-semibold', batch.status === 'applied' ? 'bg-(--td-new)/15 text-(--td-new)' : 'bg-secondary text-(--td-text-2)')}>{BATCH_STATUS[batch.status]}</span>
               {batch.status !== 'applied' && (
                 <span className="text-xs text-(--td-text-3)">
-                  {batch.counts.removed} removed · {batch.counts.kept} kept
+                  {t('{removed} removed · {kept} kept', { removed: batch.counts.removed, kept: batch.counts.kept })}
                 </span>
               )}
             </button>
@@ -375,7 +394,7 @@ function ImportBatches() {
       {batches.hasNextPage && (
         <div className="border-t border-(--td-divider) px-5 py-3">
           <Button variant="secondary" size="sm" className="rounded-lg" disabled={batches.isFetchingNextPage} onClick={() => void batches.fetchNextPage()}>
-            Load more
+            {t('Load more')}
           </Button>
         </div>
       )}
@@ -398,14 +417,14 @@ function BatchDetail({ id, staffId, canUndo }: { id: string; staffId: string; ca
       retireBatchKey(staffId, out.batchKey);
       queryClient.setQueryData([...tdKeys.imports, 'batch', id], out);
       await Promise.all([tdKeys.content, tdKeys.releases, tdKeys.imports].map((queryKey) => queryClient.invalidateQueries({ queryKey })));
-      toast.success(`${out.counts.removed} removed, ${out.counts.kept} kept`);
+      toast.success(t('{removed} removed, {kept} kept', { removed: out.counts.removed, kept: out.counts.kept }));
     } catch (caught) {
       setError(caught);
     } finally {
       setBusy(false);
     }
   };
-  if (batch.isLoading) return <p className="mt-2 text-xs text-(--td-text-3)">Loading…</p>;
+  if (batch.isLoading) return <p className="mt-2 text-xs text-(--td-text-3)">{t('Loading…')}</p>;
   if (!batch.data) return <TdErrorPanel error={batch.error} className="mt-2" />;
   return (
     <div className="mt-3 flex flex-col gap-2">
@@ -416,8 +435,7 @@ function BatchDetail({ id, staffId, canUndo }: { id: string; staffId: string; ca
             <span className="min-w-0 flex-1 truncate font-mono">{row.label}</span>
             <span className="text-(--td-text-3)">{row.type}</span>
             <span className={cn(row.outcome === 'removed' ? 'text-(--td-text-3)' : row.outcome === 'kept' ? 'text-amber-800' : 'text-(--td-new)')}>
-              {row.outcome}
-              {row.reason && ` (${KEEP_REASONS[row.reason] ?? row.reason})`}
+              {rowOutcome(row.outcome, row.reason)}
             </span>
           </li>
         ))}
@@ -425,7 +443,7 @@ function BatchDetail({ id, staffId, canUndo }: { id: string; staffId: string; ca
       {canUndo && batch.data.status === 'applied' && (
         <Button variant="secondary" size="sm" className="w-fit rounded-lg" disabled={busy} onClick={() => void undo()}>
           {busy ? <Loader2 className="animate-spin" /> : <Undo2 />}
-          Undo this import
+          {t('Undo this import')}
         </Button>
       )}
       <TdErrorPanel error={error} />

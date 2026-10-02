@@ -11,10 +11,12 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { TdContentEditorDialog, type TdEditorTarget } from '@/components/td/content/td-content-editor';
 import { TdErrorPanel } from '@/components/td/td-error-panel';
+import { TD_STATUS_LABELS, TD_STATUS_WORDS } from '@/components/td/content/td-status';
 import { tdKeys, useTdAllRows, useTdContentList, type TdListQuery } from '@/hooks/use-td-content';
 import type { TdContentRow, TdContentStatus, TdContentType } from '@/lib/td/admin-api';
 import { tdAdmin, tdTokens } from '@/lib/td/client';
 import { tdErrorText } from '@/lib/td/errors';
+import { t, tn } from '@/lib/td/i18n';
 import { beginOperation, runEach } from '@/lib/td/operation';
 import { isTdPublisher } from '@/lib/td/workflow';
 import { cn } from '@/lib/utils';
@@ -22,27 +24,58 @@ import { useTdAuth } from '@/providers/td-auth-provider';
 
 type CategoryType = 'card-categories' | 'box-categories';
 
+/** What one row of a mode is: a card, a subject, a question, a round. */
+type Noun = 'card' | 'subject' | 'question' | 'round';
+
 interface Mode {
   key: string;
   label: string;
   type: TdContentType;
-  /** What one row is called on the buttons. */
-  noun: string;
+  noun: Noun;
   categoryType?: CategoryType;
 }
 
 /** The game modes a question belongs to: the list shows one at a time, as the
  *  Quizball CMS's question list shows one category. */
 export const TD_QUESTION_MODES: readonly Mode[] = [
-  { key: 'round-1', label: 'Round I · ბარათონი', type: 'cards', noun: 'card', categoryType: 'card-categories' },
-  { key: 'round-2', label: 'Round II · გამარჯობა', type: 'whoami-subjects', noun: 'subject' },
-  { key: 'round-3', label: 'Round III · პაპა კარლოს ყუთი', type: 'box-questions', noun: 'question', categoryType: 'box-categories' },
-  { key: 'penalties', label: 'Penalties', type: 'penalty-questions', noun: 'question' },
-  { key: 'practice', label: 'Practice · ივარჯიშე', type: 'practice-questions', noun: 'question' },
-  { key: 'football-logic', label: 'Daily · Football Logic', type: 'football-logic', noun: 'question' },
-  { key: 'put-in-order', label: 'Daily · Put in Order', type: 'put-in-order', noun: 'round' },
-  { key: 'career-path', label: 'Daily · Career Path', type: 'career-path', noun: 'question' },
+  { key: 'round-1', label: t('Round I · ბარათონი'), type: 'cards', noun: 'card', categoryType: 'card-categories' },
+  { key: 'round-2', label: t('Round II · გამარჯობა'), type: 'whoami-subjects', noun: 'subject' },
+  { key: 'round-3', label: t('Round III · პაპა კარლოს ყუთი'), type: 'box-questions', noun: 'question', categoryType: 'box-categories' },
+  { key: 'penalties', label: t('Penalties'), type: 'penalty-questions', noun: 'question' },
+  { key: 'practice', label: t('Practice · ივარჯიშე'), type: 'practice-questions', noun: 'question' },
+  { key: 'football-logic', label: t('Daily · Football Logic'), type: 'football-logic', noun: 'question' },
+  { key: 'put-in-order', label: t('Daily · Put in Order'), type: 'put-in-order', noun: 'round' },
+  { key: 'career-path', label: t('Daily · Career Path'), type: 'career-path', noun: 'question' },
 ];
+
+/** The texts that name a mode's rows: the button, the empty list, and the count under the list
+ *  (whose `{n}` stays in the text: the list puts the number's own element there). */
+const NOUN_TEXTS: Record<Noun, { create: string; none: string; first: string; showing: (count: number, more: boolean) => string }> = {
+  card: {
+    create: t('New Card'),
+    none: t('No cards yet'),
+    first: t('Create the first card, or upload a file.'),
+    showing: (count, more) => (more ? tn(count, 'Showing {n} card so far', 'Showing {n} cards so far') : tn(count, 'Showing {n} card', 'Showing {n} cards')),
+  },
+  subject: {
+    create: t('New Subject'),
+    none: t('No subjects yet'),
+    first: t('Create the first subject, or upload a file.'),
+    showing: (count, more) => (more ? tn(count, 'Showing {n} subject so far', 'Showing {n} subjects so far') : tn(count, 'Showing {n} subject', 'Showing {n} subjects')),
+  },
+  question: {
+    create: t('New Question'),
+    none: t('No questions yet'),
+    first: t('Create the first question, or upload a file.'),
+    showing: (count, more) => (more ? tn(count, 'Showing {n} question so far', 'Showing {n} questions so far') : tn(count, 'Showing {n} question', 'Showing {n} questions')),
+  },
+  round: {
+    create: t('New Round'),
+    none: t('No rounds yet'),
+    first: t('Create the first round, or upload a file.'),
+    showing: (count, more) => (more ? tn(count, 'Showing {n} round so far', 'Showing {n} rounds so far') : tn(count, 'Showing {n} round', 'Showing {n} rounds')),
+  },
+};
 
 /** The page of the question list that holds rows of this type (links from the release report). */
 export function questionsHref(type: TdContentType, q?: string): string | null {
@@ -51,17 +84,12 @@ export function questionsHref(type: TdContentType, q?: string): string | null {
   return `/td/questions?mode=${mode.key}${q ? `&q=${encodeURIComponent(q)}` : ''}`;
 }
 
-const STATUS_OPTIONS: Array<{ value: TdContentStatus; label: string }> = [
-  { value: 'draft', label: 'Draft' },
-  { value: 'ready', label: 'Ready for review' },
-  { value: 'approved', label: 'Approved' },
-  { value: 'archived', label: 'Archived' },
-];
+const STATUS_OPTIONS: TdContentStatus[] = ['draft', 'ready', 'approved', 'archived'];
 
 const SORTS = [
-  { value: 'natural', label: 'In game order', dir: 'asc' },
-  { value: 'updated', label: 'Recently changed', dir: 'desc' },
-  { value: 'created', label: 'Recently created', dir: 'desc' },
+  { value: 'natural', label: t('In game order'), dir: 'asc' },
+  { value: 'updated', label: t('Recently changed'), dir: 'desc' },
+  { value: 'created', label: t('Recently created'), dir: 'desc' },
 ] as const;
 
 const STATUS_PILL: Record<TdContentStatus, string> = {
@@ -80,6 +108,7 @@ const STATUS_DOT: Record<TdContentStatus, string> = {
 
 const DIFFICULTY_TEXT: Record<string, string> = { easy: 'text-emerald-600', medium: 'text-amber-600', hard: 'text-rose-600' };
 const DIFFICULTY_DOTS: Record<string, number> = { easy: 1, medium: 2, hard: 3 };
+const DIFFICULTY_WORDS: Record<string, string> = { easy: t('easy'), medium: t('medium'), hard: t('hard') };
 
 interface Shown {
   title: string;
@@ -91,8 +120,6 @@ interface Shown {
   level?: { dots: number; label: string; className: string };
 }
 
-const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
-
 function show(type: TdContentType, row: TdContentRow): Shown {
   const data = row.data as Record<string, unknown>;
   switch (type) {
@@ -101,44 +128,44 @@ function show(type: TdContentType, row: TdContentRow): Shown {
       return {
         title: d.display,
         place: d.categoryKey,
-        detail: plural(d.lines.length, 'clue line'),
+        detail: tn(d.lines.length, '{count} clue line', '{count} clue lines'),
         image: Boolean(d.imageKey || d.photo),
-        level: { dots: d.value, label: plural(d.value, 'point'), className: 'text-slate-600' },
+        level: { dots: d.value, label: tn(d.value, '{count} point', '{count} points'), className: 'text-slate-600' },
       };
     }
     case 'whoami-subjects': {
       const d = (row as TdContentRow<'whoami-subjects'>).data;
-      return { title: d.display, place: null, detail: plural(d.clues.length, 'clue'), image: false };
+      return { title: d.display, place: null, detail: tn(d.clues.length, '{count} clue', '{count} clues'), image: false };
     }
     case 'box-questions': {
       const d = (row as TdContentRow<'box-questions'>).data;
-      return { title: d.q, place: d.categoryKey, detail: `Answer: ${d.display}`, image: false };
+      return { title: d.q, place: d.categoryKey, detail: t('Answer: {answer}', { answer: d.display }), image: false };
     }
     case 'penalty-questions': {
       const d = (row as TdContentRow<'penalty-questions'>).data;
-      return { title: d.q, place: null, detail: `Answer: ${d.display}`, image: false };
+      return { title: d.q, place: null, detail: t('Answer: {answer}', { answer: d.display }), image: false };
     }
     case 'practice-questions': {
       const d = (row as TdContentRow<'practice-questions'>).data;
       return {
         title: d.prompt,
         place: d.category || null,
-        detail: plural(d.options.length, 'option'),
+        detail: tn(d.options.length, '{count} option', '{count} options'),
         image: Boolean(d.imageKey),
-        level: { dots: DIFFICULTY_DOTS[d.difficulty] ?? 1, label: d.difficulty, className: DIFFICULTY_TEXT[d.difficulty] ?? 'text-slate-600' },
+        level: { dots: DIFFICULTY_DOTS[d.difficulty] ?? 1, label: DIFFICULTY_WORDS[d.difficulty] ?? d.difficulty, className: DIFFICULTY_TEXT[d.difficulty] ?? 'text-slate-600' },
       };
     }
     case 'football-logic': {
       const d = (row as TdContentRow<'football-logic'>).data;
-      return { title: d.prompt || d.displayAnswer, place: d.puzzle || null, detail: `Answer: ${d.displayAnswer}`, image: Boolean(d.imageA || d.imageB) };
+      return { title: d.prompt || d.displayAnswer, place: d.puzzle || null, detail: t('Answer: {answer}', { answer: d.displayAnswer }), image: Boolean(d.imageA || d.imageB) };
     }
     case 'put-in-order': {
       const d = (row as TdContentRow<'put-in-order'>).data;
-      return { title: d.prompt, place: d.puzzle || null, detail: plural(d.items.length, 'item'), image: false };
+      return { title: d.prompt, place: d.puzzle || null, detail: tn(d.items.length, '{count} item', '{count} items'), image: false };
     }
     case 'career-path': {
       const d = (row as TdContentRow<'career-path'>).data;
-      return { title: d.displayAnswer, place: d.puzzle || null, detail: plural(d.clubs.length, 'club'), image: false };
+      return { title: d.displayAnswer, place: d.puzzle || null, detail: tn(d.clubs.length, '{count} club', '{count} clubs'), image: false };
     }
     default:
       return { title: String(data.key ?? row.id), place: null, detail: '', image: false };
@@ -226,7 +253,7 @@ export function TdQuestionsTab() {
     );
     const failed = results.filter((r) => !r.ok);
     const done = results.length - failed.length;
-    if (done) toast.success(`${done} ${action === 'ready' ? 'marked ready' : 'approved'}`);
+    if (done) toast.success(action === 'ready' ? t('{n} marked ready', { n: done }) : t('{n} approved', { n: done }));
     setRefusals(failed.map((r) => ({ label: keyOf(r.item), message: tdErrorText(!r.ok ? r.error : null) })));
     setRunning(null);
     setSelected(new Set());
@@ -242,25 +269,26 @@ export function TdQuestionsTab() {
   };
 
   const filtered = Boolean(q) || status !== 'all' || category !== 'all';
+  const showing = NOUN_TEXTS[mode.noun].showing(rows.length, Boolean(list.hasNextPage)).split('{n}');
 
   return (
     <div className="mx-auto flex w-full max-w-[1280px] flex-col gap-8 py-4">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <header className="space-y-1">
-          <h1 className="text-4xl font-black tracking-tight text-gray-900">Questions</h1>
-          <p className="text-base font-medium text-gray-500">The cards and questions of every game mode.</p>
+          <h1 className="text-4xl font-black tracking-tight text-gray-900">{t('Questions')}</h1>
+          <p className="text-base font-medium text-gray-500">{t('The cards and questions of every game mode.')}</p>
         </header>
         <div className="flex shrink-0 flex-wrap items-center gap-2">
           <Button asChild variant="outline" className="h-11 rounded-xl border-gray-200 bg-white px-4 text-sm font-semibold shadow-sm">
             <Link href="/td/releases">
               <Rocket />
-              Publish
+              {t('Publish')}
             </Link>
           </Button>
           <Button asChild variant="outline" className="h-11 rounded-xl border-gray-200 bg-white px-4 text-sm font-semibold shadow-sm">
             <Link href="/td/import">
               <Upload />
-              Upload Questions
+              {t('Upload Questions')}
             </Link>
           </Button>
           <Button
@@ -268,7 +296,7 @@ export function TdQuestionsTab() {
             className="h-11 rounded-xl bg-gray-900 px-6 text-sm font-bold text-white shadow-lg shadow-gray-200 hover:bg-gray-800 active:scale-95"
           >
             <Plus />
-            New {mode.noun === 'question' ? 'Question' : mode.noun.charAt(0).toUpperCase() + mode.noun.slice(1)}
+            {NOUN_TEXTS[mode.noun].create}
           </Button>
         </div>
       </div>
@@ -279,12 +307,12 @@ export function TdQuestionsTab() {
           <Input
             value={text}
             onChange={(event) => setText(event.target.value)}
-            placeholder="Search questions, answers and accepted spellings..."
-            aria-label="Search questions"
+            placeholder={t('Search questions, answers and accepted spellings...')}
+            aria-label={t('Search questions')}
             className="h-10 rounded-xl border-transparent bg-gray-200/30 pl-10 pr-10 text-sm font-medium transition-all focus:border-gray-200 focus:bg-white focus-visible:ring-2 focus-visible:ring-gray-900/5"
           />
           {text && (
-            <button type="button" aria-label="Clear search" className="absolute right-3.5 top-3 text-gray-400 hover:text-gray-900" onClick={() => setText('')}>
+            <button type="button" aria-label={t('Clear search')} className="absolute right-3.5 top-3 text-gray-400 hover:text-gray-900" onClick={() => setText('')}>
               <X className="h-4 w-4" />
             </button>
           )}
@@ -292,8 +320,8 @@ export function TdQuestionsTab() {
 
         <div className="flex flex-wrap items-center gap-3">
           <Select value={modeKey} onValueChange={changeMode}>
-            <SelectTrigger aria-label="Game mode" className={cn(TRIGGER, 'w-[250px]')}>
-              <SelectValue placeholder="Game mode" />
+            <SelectTrigger aria-label={t('Game mode')} className={cn(TRIGGER, 'w-[250px]')}>
+              <SelectValue placeholder={t('Game mode')} />
             </SelectTrigger>
             <SelectContent className="rounded-xl border-gray-200 bg-white shadow-xl">
               {TD_QUESTION_MODES.map((m) => (
@@ -306,12 +334,12 @@ export function TdQuestionsTab() {
 
           {mode.categoryType && (
             <Select value={category} onValueChange={(value) => reset(() => setCategory(value))}>
-              <SelectTrigger aria-label="Category" className={cn(TRIGGER, 'w-[220px]')}>
-                <SelectValue placeholder="Categories" />
+              <SelectTrigger aria-label={t('Category')} className={cn(TRIGGER, 'w-[220px]')}>
+                <SelectValue placeholder={t('Categories')} />
               </SelectTrigger>
               <SelectContent className="rounded-xl border-gray-200 bg-white shadow-xl">
                 <SelectItem value="all" className={ITEM}>
-                  Categories
+                  {t('Categories')}
                 </SelectItem>
                 {categories.data?.rows.map((row) => {
                   const key = (row.data as { key: string }).key;
@@ -326,24 +354,24 @@ export function TdQuestionsTab() {
           )}
 
           <Select value={status} onValueChange={(value) => reset(() => setStatus(value as typeof status))}>
-            <SelectTrigger aria-label="Status" className={cn(TRIGGER, 'w-[170px]')}>
-              <SelectValue placeholder="Status" />
+            <SelectTrigger aria-label={t('Status')} className={cn(TRIGGER, 'w-[170px]')}>
+              <SelectValue placeholder={t('Status')} />
             </SelectTrigger>
             <SelectContent className="rounded-xl border-gray-200 bg-white shadow-xl">
               <SelectItem value="all" className={ITEM}>
-                Status
+                {t('Status')}
               </SelectItem>
               {STATUS_OPTIONS.map((option) => (
-                <SelectItem key={option.value} value={option.value} className={ITEM}>
-                  {option.label}
+                <SelectItem key={option} value={option} className={ITEM}>
+                  {TD_STATUS_LABELS[option]}
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
 
           <Select value={sort} onValueChange={(value) => reset(() => setSort(value as typeof sort))}>
-            <SelectTrigger aria-label="Order" className={cn(TRIGGER, 'w-[180px]')}>
-              <SelectValue placeholder="Order" />
+            <SelectTrigger aria-label={t('Order')} className={cn(TRIGGER, 'w-[180px]')}>
+              <SelectValue placeholder={t('Order')} />
             </SelectTrigger>
             <SelectContent className="rounded-xl border-gray-200 bg-white shadow-xl">
               {SORTS.map((s) => (
@@ -356,35 +384,35 @@ export function TdQuestionsTab() {
 
           {mode.categoryType && (
             <Link href="/td/categories" className="text-xs font-bold text-slate-500 underline underline-offset-2 hover:text-slate-900">
-              Manage categories
+              {t('Manage categories')}
             </Link>
           )}
         </div>
 
         {chosen.length > 0 && (
           <div className="flex flex-wrap items-center gap-2 rounded-xl border border-gray-200/70 bg-white px-3 py-2 shadow-sm">
-            <span className="text-xs font-bold text-gray-600">{chosen.length} selected</span>
+            <span className="text-xs font-bold text-gray-600">{t('{n} selected', { n: chosen.length })}</span>
             {readyable.length > 0 && (
               <Button size="sm" variant="outline" disabled={running !== null} onClick={() => void run('ready', readyable)} className="h-8 rounded-lg text-xs font-bold">
                 {running === 'ready' ? <Loader2 className="animate-spin" /> : <Send />}
-                Mark {readyable.length} ready
+                {t('Mark {n} ready', { n: readyable.length })}
               </Button>
             )}
             {approvable.length > 0 && (
               <Button size="sm" disabled={running !== null} onClick={() => void run('approve', approvable)} className="h-8 rounded-lg bg-gray-900 text-xs font-bold text-white hover:bg-gray-800">
                 {running === 'approve' ? <Loader2 className="animate-spin" /> : <Check />}
-                Approve {approvable.length}
+                {t('Approve {n}', { n: approvable.length })}
               </Button>
             )}
             <button type="button" className="text-xs font-medium text-gray-400 hover:text-gray-900" onClick={() => setSelected(new Set())}>
-              Clear
+              {t('Clear')}
             </button>
           </div>
         )}
 
         {refusals.length > 0 && (
           <div role="alert" className="rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-xs text-red-700">
-            <p className="font-bold">{refusals.length} refused</p>
+            <p className="font-bold">{t('{n} refused', { n: refusals.length })}</p>
             <ul className="mt-1 list-disc pl-4">
               {refusals.map((r, i) => (
                 <li key={i}>
@@ -408,20 +436,20 @@ export function TdQuestionsTab() {
         ) : rows.length === 0 ? (
           <div className="flex flex-col items-center gap-2 rounded-[2rem] border border-dashed border-slate-200 bg-white/60 px-6 py-16 text-center">
             <FileText className="size-8 text-slate-300" />
-            <p className="text-base font-semibold text-slate-900">{filtered ? 'Nothing matches' : `No ${mode.noun}s yet`}</p>
-            <p className="text-sm text-slate-500">{filtered ? 'Try another search, category or status.' : `Create the first ${mode.noun}, or upload a file.`}</p>
+            <p className="text-base font-semibold text-slate-900">{filtered ? t('Nothing matches') : NOUN_TEXTS[mode.noun].none}</p>
+            <p className="text-sm text-slate-500">{filtered ? t('Try another search, category or status.') : NOUN_TEXTS[mode.noun].first}</p>
           </div>
         ) : (
           <div className="overflow-hidden rounded-[2.5rem] bg-white shadow-sm">
             <div className="flex items-center gap-3 border-b border-gray-50 bg-white px-6 py-4">
               <input
                 type="checkbox"
-                aria-label="Select all shown"
+                aria-label={t('Select all shown')}
                 className="h-4 w-4 rounded-md border-gray-200 text-slate-900 focus:ring-slate-900"
                 checked={allShown}
                 onChange={() => setSelected(allShown ? new Set() : new Set(rows.map((row) => row.id)))}
               />
-              <span className="text-xs font-bold uppercase tracking-widest text-slate-400">Select all</span>
+              <span className="text-xs font-bold uppercase tracking-widest text-slate-400">{t('Select all')}</span>
             </div>
             <ul>
               {rows.map((row) => {
@@ -435,7 +463,7 @@ export function TdQuestionsTab() {
                     <div className="flex min-w-0 flex-1 items-center gap-5">
                       <input
                         type="checkbox"
-                        aria-label={`Select ${keyOf(row)}`}
+                        aria-label={t('Select {label}', { label: keyOf(row) })}
                         className="h-4 w-4 rounded-md border-gray-200 text-slate-900 focus:ring-slate-900"
                         checked={selected.has(row.id)}
                         onClick={(event) => event.stopPropagation()}
@@ -476,28 +504,28 @@ export function TdQuestionsTab() {
 
                     <div className="ml-4 flex shrink-0 items-center gap-6">
                       <div className="flex flex-col items-end gap-1 px-4">
-                        <span className="text-[10px] font-black uppercase tracking-tighter text-slate-300">Status</span>
-                        <span className={cn('rounded-md px-2 py-0.5 text-[10px] font-black uppercase tracking-widest', STATUS_PILL[row.status])}>{row.status}</span>
+                        <span className="text-[10px] font-black uppercase tracking-tighter text-slate-300">{t('Status')}</span>
+                        <span className={cn('rounded-md px-2 py-0.5 text-[10px] font-black uppercase tracking-widest', STATUS_PILL[row.status])}>{TD_STATUS_WORDS[row.status]}</span>
                       </div>
                       <div className="opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100" onClick={(event) => event.stopPropagation()}>
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon" aria-label={`Actions for ${keyOf(row)}`} className="h-9 w-9 rounded-xl text-slate-400 hover:bg-white hover:text-slate-900 hover:shadow-md">
+                            <Button variant="ghost" size="icon" aria-label={t('Actions for {label}', { label: keyOf(row) })} className="h-9 w-9 rounded-xl text-slate-400 hover:bg-white hover:text-slate-900 hover:shadow-md">
                               <MoreHorizontal className="h-4 w-4" />
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end" className="w-52 rounded-[1.25rem] border-slate-100 bg-white p-2 shadow-2xl">
                             <DropdownMenuItem onClick={() => setTarget({ type: mode.type, row })} className="gap-3 rounded-lg px-3 py-2.5 font-medium">
-                              <Pencil className="h-4 w-4 text-slate-400" /> Open
+                              <Pencil className="h-4 w-4 text-slate-400" /> {t('Open')}
                             </DropdownMenuItem>
                             <DropdownMenuItem disabled={!canReady(row) || running !== null} onClick={() => void run('ready', [row])} className="gap-3 rounded-lg px-3 py-2.5 font-medium">
-                              <Send className="h-4 w-4 text-amber-500" /> Mark ready
+                              <Send className="h-4 w-4 text-amber-500" /> {t('Mark ready')}
                             </DropdownMenuItem>
                             <DropdownMenuItem disabled={!canApprove(row) || running !== null} onClick={() => void run('approve', [row])} className="gap-3 rounded-lg px-3 py-2.5 font-medium">
-                              <Check className="h-4 w-4 text-emerald-500" /> Approve
+                              <Check className="h-4 w-4 text-emerald-500" /> {t('Approve')}
                             </DropdownMenuItem>
                             <DropdownMenuItem onClick={() => setTarget({ type: mode.type, row })} className="gap-3 rounded-lg px-3 py-2.5 font-medium">
-                              <Archive className="h-4 w-4 text-slate-400" /> Archive or restore…
+                              <Archive className="h-4 w-4 text-slate-400" /> {t('Archive or restore…')}
                             </DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
@@ -514,14 +542,14 @@ export function TdQuestionsTab() {
       {rows.length > 0 && (
         <div className="flex items-center justify-between px-2">
           <p className="text-xs font-medium text-muted-foreground">
-            Showing <span className="text-foreground">{rows.length}</span> {mode.noun}
-            {rows.length === 1 ? '' : 's'}
-            {list.hasNextPage ? ' so far' : ''}
+            {showing[0]}
+            <span className="text-foreground">{rows.length}</span>
+            {showing[1]}
           </p>
           {list.hasNextPage && (
             <Button variant="outline" size="sm" className="h-8 rounded-lg text-xs font-bold" disabled={list.isFetchingNextPage} onClick={() => void list.fetchNextPage()}>
               {list.isFetchingNextPage && <Loader2 className="animate-spin" />}
-              Load more
+              {t('Load more')}
             </Button>
           )}
         </div>

@@ -9,6 +9,7 @@
  * and yes/no are read strictly. Nested fields have their own columns or a
  * short form (see TD_IMPORT_COLUMNS).
  */
+import { t } from '@/lib/td/i18n';
 import type { TdContentType } from './admin-api';
 
 export const TD_IMPORT_MAX_ITEMS = 2000;
@@ -27,75 +28,75 @@ export interface TdImportColumn {
 
 const col = (name: string, kind: Kind | 'custom', help: string, example: string, required = kind !== 'optional' && kind !== 'optionalNumber'): TdImportColumn => ({ name, kind, required, help, example });
 
-const KEY = col('key', 'text', 'The row’s key: lower-case letters, digits, - and _', 'messi');
-const ALIASES = (name = 'aliases') => col(name, 'list', 'Accepted spellings, separated by |', 'messi|lionel messi');
-const POSITION = col('position', 'optionalNumber', 'Order in a release (optional)', '');
-const NOTE = col('note', 'optional', 'A note for the team (optional)', '');
+const KEY = col('key', 'text', t('The row’s key: lower-case letters, digits, - and _'), 'messi');
+const ALIASES = (name = 'aliases') => col(name, 'list', t('Accepted spellings, separated by |'), 'messi|lionel messi');
+const POSITION = col('position', 'optionalNumber', t('Order in a release (optional)'), '');
+const NOTE = col('note', 'optional', t('A note for the team (optional)'), '');
 
 export const TD_IMPORT_COLUMNS: Record<TdContentType, TdImportColumn[]> = {
-  'card-categories': [KEY, col('prompt', 'text', 'The category’s prompt', 'Legends of the game')],
+  'card-categories': [KEY, col('prompt', 'text', t('The category’s prompt'), 'Legends of the game')],
   cards: [
-    col('categoryKey', 'text', 'The card category’s key', 'legends'),
+    col('categoryKey', 'text', t('The card category’s key'), 'legends'),
     KEY,
-    col('value', 'number', '1, 2 or 3', '2'),
-    col('display', 'text', 'The answer as shown', 'Lionel Messi'),
+    col('value', 'number', t('1, 2 or 3'), '2'),
+    col('display', 'text', t('The answer as shown'), 'Lionel Messi'),
     ALIASES(),
-    col('lines', 'list', 'Clue lines, separated by | (up to 8)', 'Argentina|Barcelona'),
-    col('photoId', 'optionalNumber', 'SoFIFA player id (optional)', ''),
-    col('photoVer', 'optional', 'SoFIFA version, with photoId', ''),
-    col('imageKey', 'optional', 'An uploaded photo’s image key (optional)', ''),
+    col('lines', 'list', t('Clue lines, separated by | (up to 8)'), 'Argentina|Barcelona'),
+    col('photoId', 'optionalNumber', t('SoFIFA player id (optional)'), ''),
+    col('photoVer', 'optional', t('SoFIFA version, with photoId'), ''),
+    col('imageKey', 'optional', t('An uploaded photo’s image key (optional)'), ''),
   ],
-  'whoami-subjects': [KEY, col('display', 'text', 'The answer as shown', 'Kakha Kaladze'), ALIASES(), col('clues', 'list', 'Clues in reading order, separated by |', 'A defender|Milan|Two Champions Leagues')],
-  'box-categories': [KEY, col('title', 'text', 'The category’s title', 'World Cups')],
-  'box-questions': [col('categoryKey', 'text', 'The box category’s key', 'world-cups'), KEY, col('q', 'text', 'The question', 'Who won in 2022?'), col('display', 'text', 'The answer as shown', 'Argentina'), ALIASES()],
-  'penalty-questions': [KEY, col('q', 'text', 'The question', 'Capital of Georgia?'), col('display', 'text', 'The answer as shown', 'Tbilisi'), ALIASES()],
+  'whoami-subjects': [KEY, col('display', 'text', t('The answer as shown'), 'Kakha Kaladze'), ALIASES(), col('clues', 'list', t('Clues in reading order, separated by |'), 'A defender|Milan|Two Champions Leagues')],
+  'box-categories': [KEY, col('title', 'text', t('The category’s title'), 'World Cups')],
+  'box-questions': [col('categoryKey', 'text', t('The box category’s key'), 'world-cups'), KEY, col('q', 'text', t('The question'), 'Who won in 2022?'), col('display', 'text', t('The answer as shown'), 'Argentina'), ALIASES()],
+  'penalty-questions': [KEY, col('q', 'text', t('The question'), 'Capital of Georgia?'), col('display', 'text', t('The answer as shown'), 'Tbilisi'), ALIASES()],
   'practice-questions': [
     KEY,
-    col('difficulty', 'text', 'easy, medium or hard', 'easy'),
-    col('category', 'text', 'The category label', 'Clubs'),
-    col('prompt', 'text', 'The question', 'Which club plays at Anfield?'),
-    col('options', 'list', 'The options, separated by | (2 to 8)', 'Liverpool|Everton|Chelsea'),
-    col('answer', 'number', 'The right option’s number, counting from 1', '1'),
-    col('explanation', 'optional', 'Shown after answering (optional)', ''),
-    col('imageKey', 'optional', 'An image key (optional)', ''),
+    col('difficulty', 'text', t('easy, medium or hard'), 'easy'),
+    col('category', 'text', t('The category label'), 'Clubs'),
+    col('prompt', 'text', t('The question'), 'Which club plays at Anfield?'),
+    col('options', 'list', t('The options, separated by | (2 to 8)'), 'Liverpool|Everton|Chelsea'),
+    col('answer', 'number', t('The right option’s number, counting from 1'), '1'),
+    col('explanation', 'optional', t('Shown after answering (optional)'), ''),
+    col('imageKey', 'optional', t('An image key (optional)'), ''),
   ],
   media: [],
   clubs: [
     KEY,
-    col('label', 'text', 'The name as shown', 'Dinamo Tbilisi'),
-    col('value', 'text', 'What a pick stores', 'Dinamo Tbilisi'),
-    col('country', 'text', 'Country', 'Georgia'),
-    col('countryKa', 'optional', 'Country in Georgian (optional)', 'საქართველო'),
-    col('flag', 'optional', 'Flag emoji (optional)', '🇬🇪'),
-    col('crest', 'text', 'Crest file under /assets/clubs', 'dinamo-tbilisi.webp'),
-    col('crestImageKey', 'optional', 'An uploaded crest’s image key (optional)', ''),
-    col('hidden', 'boolean', 'yes to hide from the club picker', 'no'),
+    col('label', 'text', t('The name as shown'), 'Dinamo Tbilisi'),
+    col('value', 'text', t('What a pick stores'), 'Dinamo Tbilisi'),
+    col('country', 'text', t('Country'), 'Georgia'),
+    col('countryKa', 'optional', t('Country in Georgian (optional)'), 'საქართველო'),
+    col('flag', 'optional', t('Flag emoji (optional)'), '🇬🇪'),
+    col('crest', 'text', t('Crest file under /assets/clubs'), 'dinamo-tbilisi.webp'),
+    col('crestImageKey', 'optional', t('An uploaded crest’s image key (optional)'), ''),
+    col('hidden', 'boolean', t('yes to hide from the club picker'), 'no'),
   ],
   'football-logic': [
     KEY,
-    col('puzzle', 'text', 'The puzzle (set) key', 'fl-3'),
-    col('category', 'text', 'Category', 'Clubs'),
-    col('prompt', 'custom', 'Prompt (may be empty)', 'What links these?', false),
-    col('imageA', 'optional', 'Image A: /path or https:// URL (optional)', ''),
-    col('imageB', 'optional', 'Image B (optional)', ''),
-    col('displayAnswer', 'text', 'The answer as shown', 'Napoli'),
+    col('puzzle', 'text', t('The puzzle (set) key'), 'fl-3'),
+    col('category', 'text', t('Category'), 'Clubs'),
+    col('prompt', 'custom', t('Prompt (may be empty)'), 'What links these?', false),
+    col('imageA', 'optional', t('Image A: /path or https:// URL (optional)'), ''),
+    col('imageB', 'optional', t('Image B (optional)'), ''),
+    col('displayAnswer', 'text', t('The answer as shown'), 'Napoli'),
     ALIASES('acceptedAnswers'),
   ],
   'put-in-order': [
     KEY,
-    col('puzzle', 'text', 'The puzzle (set) key', 'pio-3'),
-    col('prompt', 'text', 'The prompt', 'Earliest to latest'),
-    col('items', 'custom', 'Items in the order shown: label=sortValue, separated by | (or a JSON array of {key,label,sortValue})', 'Italy=2006|Spain=2010|Germany=2014'),
+    col('puzzle', 'text', t('The puzzle (set) key'), 'pio-3'),
+    col('prompt', 'text', t('The prompt'), 'Earliest to latest'),
+    col('items', 'custom', t('Items in the order shown: label=sortValue, separated by | (or a JSON array of {key,label,sortValue})'), 'Italy=2006|Spain=2010|Germany=2014'),
   ],
   'career-path': [
     KEY,
-    col('puzzle', 'text', 'The puzzle (set) key', 'cp-3'),
-    col('prompt', 'text', 'The prompt', 'Whose career is this?'),
-    col('displayAnswer', 'text', 'The answer as shown', 'Khvicha Kvaratskhelia'),
+    col('puzzle', 'text', t('The puzzle (set) key'), 'cp-3'),
+    col('prompt', 'text', t('The prompt'), 'Whose career is this?'),
+    col('displayAnswer', 'text', t('The answer as shown'), 'Khvicha Kvaratskhelia'),
     ALIASES('acceptedAnswers'),
-    col('clubs', 'custom', 'The career in order: Name or Name=clubKey, separated by |', 'Dinamo Tbilisi=dinamo-tbilisi|Rubin Kazan|Napoli=napoli'),
+    col('clubs', 'custom', t('The career in order: Name or Name=clubKey, separated by |'), 'Dinamo Tbilisi=dinamo-tbilisi|Rubin Kazan|Napoli=napoli'),
   ],
-  'daily-schedule': [col('game', 'text', 'footballLogic, putInOrder or careerPath', 'footballLogic'), col('date', 'text', 'The Georgia date (YYYY-MM-DD)', '2026-11-01'), col('puzzle', 'text', 'The puzzle key', 'fl-3')],
+  'daily-schedule': [col('game', 'text', t('footballLogic, putInOrder or careerPath'), 'footballLogic'), col('date', 'text', t('The Georgia date (YYYY-MM-DD)'), '2026-11-01'), col('puzzle', 'text', t('The puzzle key'), 'fl-3')],
   'daily-settings': [],
 };
 
@@ -168,7 +169,7 @@ function list(cell: string): string[] {
   if (trimmed === '') return [];
   if (trimmed.startsWith('[')) {
     const parsed = JSON.parse(trimmed) as unknown;
-    if (!Array.isArray(parsed)) throw new CellError('not a JSON array');
+    if (!Array.isArray(parsed)) throw new CellError(t('not a JSON array'));
     return parsed.map(String);
   }
   return trimmed
@@ -179,7 +180,7 @@ function list(cell: string): string[] {
 
 function number(cell: string): number {
   const trimmed = cell.trim();
-  if (!/^-?\d+(\.\d+)?$/.test(trimmed)) throw new CellError(`“${cell}” is not a number`);
+  if (!/^-?\d+(\.\d+)?$/.test(trimmed)) throw new CellError(t('“{cell}” is not a number', { cell }));
   return Number(trimmed);
 }
 
@@ -187,7 +188,7 @@ function yesNo(cell: string): boolean {
   const value = cell.trim().toLowerCase();
   if (['', 'no', 'false', '0', 'n'].includes(value)) return false;
   if (['yes', 'true', '1', 'y'].includes(value)) return true;
-  throw new CellError(`“${cell}” is not yes or no`);
+  throw new CellError(t('“{cell}” is not yes or no', { cell }));
 }
 
 function items(cell: string) {
@@ -195,7 +196,7 @@ function items(cell: string) {
   if (trimmed.startsWith('[')) return JSON.parse(trimmed) as unknown;
   return list(cell).map((part, i) => {
     const at = part.lastIndexOf('=');
-    if (at < 0) throw new CellError(`“${part}” needs =sortValue`);
+    if (at < 0) throw new CellError(t('“{part}” needs =sortValue', { part }));
     return { key: `item-${i + 1}`, label: part.slice(0, at).trim(), sortValue: number(part.slice(at + 1)) };
   });
 }
@@ -259,11 +260,11 @@ export function parseSheet(type: TdContentType, text: string): TdParsedImport {
   const columns = [...TD_IMPORT_COLUMNS[type], POSITION, NOTE];
   const { rows, lines: at } = parseDelimited(text);
   const problems: TdParseProblem[] = [];
-  if (rows.length < 2) return { items: [], lines: [], problems: [{ line: 0, column: null, message: 'The sheet needs a header row and at least one item.' }] };
+  if (rows.length < 2) return { items: [], lines: [], problems: [{ line: 0, column: null, message: t('The sheet needs a header row and at least one item.') }] };
   const header = rows[0].map((cell) => cell.trim());
   const index = new Map(header.map((name, i) => [name.toLowerCase(), i]));
-  for (const name of header) if (name && !columns.some((c) => c.name.toLowerCase() === name.toLowerCase())) problems.push({ line: at[0], column: name, message: `“${name}” is not a column of this type` });
-  for (const column of columns) if (column.required && !index.has(column.name.toLowerCase())) problems.push({ line: at[0], column: column.name, message: `The column “${column.name}” is missing` });
+  for (const name of header) if (name && !columns.some((c) => c.name.toLowerCase() === name.toLowerCase())) problems.push({ line: at[0], column: name, message: t('“{name}” is not a column of this type', { name }) });
+  for (const column of columns) if (column.required && !index.has(column.name.toLowerCase())) problems.push({ line: at[0], column: column.name, message: t('The column “{name}” is missing', { name: column.name }) });
   if (problems.length) return { items: [], lines: [], problems };
   const items: unknown[] = [];
   const lines: number[] = [];
@@ -282,7 +283,7 @@ export function parseSheet(type: TdContentType, text: string): TdParsedImport {
         values[column.name] = read(column, cells[at] ?? '');
       } catch (error) {
         ok = false;
-        problems.push({ line, column: column.name, message: error instanceof CellError ? error.message : 'not valid JSON' });
+        problems.push({ line, column: column.name, message: error instanceof CellError ? error.message : t('not valid JSON') });
       }
     }
     if (ok) {
@@ -299,16 +300,16 @@ export function parseItemsJson(text: string): TdParsedImport {
   try {
     parsed = JSON.parse(text.replace(/^﻿/, ''));
   } catch {
-    return { items: [], lines: [], problems: [{ line: 0, column: null, message: 'The file is not valid JSON.' }] };
+    return { items: [], lines: [], problems: [{ line: 0, column: null, message: t('The file is not valid JSON.') }] };
   }
   const items = Array.isArray(parsed) ? parsed : parsed && typeof parsed === 'object' && Array.isArray((parsed as { items?: unknown }).items) ? (parsed as { items: unknown[] }).items : null;
-  if (!items) return { items: [], lines: [], problems: [{ line: 0, column: null, message: 'Expected a list of items, or { "items": [...] }.' }] };
+  if (!items) return { items: [], lines: [], problems: [{ line: 0, column: null, message: t('Expected a list of items, or { "items": [...] }.') }] };
   return { items, lines: items.map((_, i) => i + 1), problems: limits(items) };
 }
 
 function limits(items: unknown[]): TdParseProblem[] {
-  if (items.length > TD_IMPORT_MAX_ITEMS) return [{ line: 0, column: null, message: `At most ${TD_IMPORT_MAX_ITEMS} items per import; this has ${items.length}. Split the file.` }];
-  if (new TextEncoder().encode(JSON.stringify({ items })).length > TD_IMPORT_MAX_BYTES) return [{ line: 0, column: null, message: 'The import is larger than the API accepts (4 MB). Split the file.' }];
+  if (items.length > TD_IMPORT_MAX_ITEMS) return [{ line: 0, column: null, message: t('At most {max} items per import; this has {n}. Split the file.', { max: TD_IMPORT_MAX_ITEMS, n: items.length }) }];
+  if (new TextEncoder().encode(JSON.stringify({ items })).length > TD_IMPORT_MAX_BYTES) return [{ line: 0, column: null, message: t('The import is larger than the API accepts (4 MB). Split the file.') }];
   return [];
 }
 

@@ -7,6 +7,7 @@ import { tdKeys } from '@/hooks/use-td-content';
 import { tdAdmin } from '@/lib/td/client';
 import type { Dashboard } from '@/lib/td/contract';
 import { formatDay, formatGeorgiaTime } from '@/lib/td/georgia';
+import { t, tn } from '@/lib/td/i18n';
 import { useTdAuth } from '@/providers/td-auth-provider';
 import { TdErrorPanel } from './td-error-panel';
 
@@ -15,10 +16,10 @@ type Day = Dashboard['today'];
 const dailiesPlayed = (day: Day) => day.dailies.footballLogic.attempts + day.dailies.putInOrder.attempts + day.dailies.careerPath.attempts;
 
 const METRICS: Array<{ key: string; label: string; icon: typeof Users; value: (day: Day) => number; sub: (day: Day) => string }> = [
-  { key: 'players', label: 'Players', icon: Users, value: (d) => d.players.active, sub: (d) => `${d.players.new} new` },
-  { key: 'matches', label: 'Matches', icon: Gamepad2, value: (d) => d.matches.settled, sub: (d) => `${d.matches.created} started · ${d.matches.voided} voided` },
-  { key: 'dailies', label: 'Dailies played', icon: CalendarDays, value: dailiesPlayed, sub: (d) => `${d.dailies.footballLogic.completed + d.dailies.putInOrder.completed + d.dailies.careerPath.completed} completed` },
-  { key: 'practice', label: 'Practice runs', icon: Dumbbell, value: (d) => d.practice.runs, sub: () => '' },
+  { key: 'players', label: t('Players'), icon: Users, value: (d) => d.players.active, sub: (d) => t('{n} new', { n: d.players.new }) },
+  { key: 'matches', label: t('Matches'), icon: Gamepad2, value: (d) => d.matches.settled, sub: (d) => t('{started} started · {voided} voided', { started: d.matches.created, voided: d.matches.voided }) },
+  { key: 'dailies', label: t('Dailies played'), icon: CalendarDays, value: dailiesPlayed, sub: (d) => t('{n} completed', { n: d.dailies.footballLogic.completed + d.dailies.putInOrder.completed + d.dailies.careerPath.completed }) },
+  { key: 'practice', label: t('Practice runs'), icon: Dumbbell, value: (d) => d.practice.runs, sub: () => '' },
 ];
 
 export function TdDashboard() {
@@ -37,8 +38,8 @@ export function TdDashboard() {
             </div>
             {/* One short label per column, so the two figures sit on one line; the dates are named once, under the cards. */}
             <dl className="mt-4 grid grid-cols-2 gap-x-4">
-              <dt className="text-xs font-medium text-slate-500">Today</dt>
-              <dt className="text-xs font-medium text-slate-500">Yesterday</dt>
+              <dt className="text-xs font-medium text-slate-500">{t('Today')}</dt>
+              <dt className="text-xs font-medium text-slate-500">{t('Yesterday')}</dt>
               <dd className="mt-1 text-3xl font-bold tabular-nums text-slate-900">{data ? value(data.today) : '—'}</dd>
               <dd className="mt-1 text-3xl font-bold tabular-nums text-slate-400">{data ? value(data.yesterday) : '—'}</dd>
               <dd className="mt-1 text-xs text-slate-500">{data ? sub(data.today) : ''}</dd>
@@ -51,21 +52,27 @@ export function TdDashboard() {
         <p className="flex items-center gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
           <TriangleAlert className="size-4 shrink-0" />
           <span>
-            {data.penaltiesToReview} early-quit penalt{data.penaltiesToReview === 1 ? 'y needs' : 'ies need'} a second look: a match was voided afterwards, so the player may not have deserved{' '}
-            {data.penaltiesToReview === 1 ? 'it' : 'them'}.
+            {tn(
+              data.penaltiesToReview,
+              '{count} early-quit penalty needs a second look: a match was voided afterwards, so the player may not have deserved it.',
+              '{count} early-quit penalties need a second look: a match was voided afterwards, so the player may not have deserved them.',
+            )}
           </span>
           {user?.role === 'ops' && (
             <Link href="/td/players" className="shrink-0 font-semibold underline">
-              Review
+              {t('Review')}
             </Link>
           )}
         </p>
       )}
       {data && (
         <p className="text-xs text-slate-500">
-          Today is {formatDay(data.today.date)} and yesterday {formatDay(data.yesterday.date)}, counted midnight to midnight in Georgian time. Test accounts are left out.{' '}
-          {data.today.matches.corrected > 0 && `${data.today.matches.corrected} match${data.today.matches.corrected === 1 ? '' : 'es'} corrected today. `}
-          Updated {formatGeorgiaTime(data.generatedAt)}.
+          {t('Today is {today} and yesterday {yesterday}, counted midnight to midnight in Georgian time. Test accounts are left out.', {
+            today: formatDay(data.today.date),
+            yesterday: formatDay(data.yesterday.date),
+          })}{' '}
+          {data.today.matches.corrected > 0 && `${tn(data.today.matches.corrected, '{count} match corrected today.', '{count} matches corrected today.')} `}
+          {t('Updated {time}.', { time: formatGeorgiaTime(data.generatedAt) })}
         </p>
       )}
     </>

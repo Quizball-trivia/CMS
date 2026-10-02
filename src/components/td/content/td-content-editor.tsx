@@ -15,6 +15,7 @@ import { contentWriteIssues, TD_MERGE_UNITS } from '@/lib/td/content-rules';
 import type { SchemaIssue } from '@/lib/td/contract';
 import { describeTdError } from '@/lib/td/errors';
 import { formatGeorgiaTime } from '@/lib/td/georgia';
+import { t, tr, TD_LANG } from '@/lib/td/i18n';
 import { mergeDrafts, resolveConflicts, sameDraft, type TdDraft, type TdFieldConflict } from '@/lib/td/merge';
 import { contentActions } from '@/lib/td/workflow';
 import { cn } from '@/lib/utils';
@@ -24,7 +25,7 @@ import { TdCategoryApproval } from './td-category-approval';
 import { TdUploadingContext } from './td-uploading';
 import { issuesAt, TdField, TdInvalidInputContext, TdNumberField } from './td-form';
 import { hasPreview, TdPreview } from './td-preview';
-import { TdStatusChip, TD_STATUS_LABELS } from './td-status';
+import { TdStatusChip, TD_STATUS_LABELS, TD_STATUS_WORDS } from './td-status';
 
 export interface TdEditorTarget<T extends TdContentType = TdContentType> {
   type: T;
@@ -139,7 +140,7 @@ function EditorBody({ target, onSaved }: { target: TdEditorTarget; onSaved?: (ro
       const theirs = (view.current ?? null) as TdContentRow | null;
       if (!dirty && theirs) {
         adopt(theirs);
-        setNotice(`It changed meanwhile (${theirs.updatedBy.name}, ${formatGeorgiaTime(theirs.updatedAt)}); this is the row as it is now. Check it and try again.`);
+        setNotice(t('It changed meanwhile ({name}, {time}); this is the row as it is now. Check it and try again.', { name: theirs.updatedBy.name, time: formatGeorgiaTime(theirs.updatedAt) }));
         return;
       }
       const merge = theirs ? mergeDrafts(base, draft, draftOf(theirs), TD_MERGE_UNITS[type]) : { merged: draft, conflicts: [] };
@@ -164,7 +165,7 @@ function EditorBody({ target, onSaved }: { target: TdEditorTarget; onSaved?: (ro
     void run(
       'save',
       () => write((operation) => (creating ? api.create(body as never, operation) : api.edit(row.id, body as never, operation))),
-      creating ? `${capitalise(config.singular)} created as a draft` : 'Saved',
+      creating ? t('{type} created as a draft', { type: capitalise(config.singular) }) : t('Saved'),
     );
   };
 
@@ -181,7 +182,7 @@ function EditorBody({ target, onSaved }: { target: TdEditorTarget; onSaved?: (ro
   // A trail whose last refresh failed may be stale: it does not count.
   const actions = row && user ? contentActions(row, user, history.isError ? null : (history.data ?? null)) : null;
   const Editor = config.Editor;
-  const title = creating ? `New ${config.singular}` : config.title(draft.data as never) || config.singular;
+  const title = creating ? t('New {type}', { type: config.singular }) : config.title(draft.data as never) || config.singular;
   const approvedDiffers = Boolean(row?.approved && (!sameDraft({ data: row.approved as Record<string, unknown>, position: row.approvedPosition ?? 0, note: '' }, { data: row.data as Record<string, unknown>, position: row.position, note: '' })));
   const inRelease = row ? release.members.get(row.id) : undefined;
 
@@ -197,41 +198,42 @@ function EditorBody({ target, onSaved }: { target: TdEditorTarget; onSaved?: (ro
           <div className="flex flex-col gap-0.5 text-xs text-(--td-text-3)">
             {row ? (
               <>
-                <span>
-                  Revision {row.version} · content v{row.contentVersion}
-                  {row.approvedVersion !== null && ` · approved v${row.approvedVersion}${row.approvedBy ? ` by ${row.approvedBy.name}` : ''}`} · last edit by {row.lastEditor.name}
-                </span>
+                <span>{revisionLine(row)}</span>
                 {release.loaded && (
                   <span>
-                    {inRelease === undefined ? 'Not in the current release.' : `In the current release at content v${inRelease}${inRelease === row.contentVersion ? '' : ' (an older version)'}.`}
+                    {inRelease === undefined
+                      ? t('Not in the current release.')
+                      : inRelease === row.contentVersion
+                        ? t('In the current release at content v{version}.', { version: inRelease })
+                        : t('In the current release at content v{version} (an older version).', { version: inRelease })}
                   </span>
                 )}
               </>
             ) : (
-              <span>Saved as a draft; mark it ready when it is done, then a publisher approves it.</span>
+              <span>{t('Saved as a draft; mark it ready when it is done, then a publisher approves it.')}</span>
             )}
           </div>
         </DialogDescription>
         {(row || hasPreview(type)) && (
           <div className="flex gap-1 pt-1" role="tablist">
             <TabButton active={tab === 'edit'} onClick={() => setTab('edit')}>
-              Content
+              {t('Content')}
             </TabButton>
             {hasPreview(type) && (
               <TabButton active={tab === 'preview'} onClick={() => setTab('preview')}>
                 <Eye className="size-3.5" />
-                Preview
+                {t('Preview')}
               </TabButton>
             )}
             {row && (
               <TabButton active={tab === 'history'} onClick={() => setTab('history')}>
                 <History className="size-3.5" />
-                History
+                {t('History')}
               </TabButton>
             )}
             {row?.approved && (
               <TabButton active={tab === 'approved'} onClick={() => setTab('approved')}>
-                Approved version
+                {t('Approved version')}
               </TabButton>
             )}
           </div>
@@ -249,7 +251,7 @@ function EditorBody({ target, onSaved }: { target: TdEditorTarget; onSaved?: (ro
               setBase(draftOf(conflict.theirs));
               setDraft(resolveConflicts(conflict.merged, conflict.conflicts, conflict.choices));
               setConflict(null);
-              setNotice('Merged onto the newer version. Review it, then save.');
+              setNotice(t('Merged onto the newer version. Review it, then save.'));
             }}
             onDiscard={() => {
               if (conflict.theirs) adopt(conflict.theirs);
@@ -269,10 +271,14 @@ function EditorBody({ target, onSaved }: { target: TdEditorTarget; onSaved?: (ro
                 <p className="flex items-start gap-2 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-700">
                   <TriangleAlert className="mt-0.5 size-3.5 shrink-0" />
                   <span>
-                    This draft differs from the last approved version (v{row!.approvedVersion}). A release carries the approved version until this one is approved.{' '}
-                    <button type="button" className="underline" onClick={() => setTab('approved')}>
-                      Compare
-                    </button>
+                    {tr('This draft differs from the last approved version (v{version}). A release carries the approved version until this one is approved. {compare}', {
+                      version: row!.approvedVersion,
+                      compare: (
+                        <button key="compare" type="button" className="underline" onClick={() => setTab('approved')}>
+                          {t('Compare')}
+                        </button>
+                      ),
+                    })}
                   </span>
                 </p>
               )}
@@ -294,15 +300,15 @@ function EditorBody({ target, onSaved }: { target: TdEditorTarget; onSaved?: (ro
                     />
                     {!creating && (
                       <TdNumberField
-                        label="Position"
+                        label={t('Position')}
                         value={draft.position}
                         onChange={(position) => setDraft({ ...draft, position: position ?? 0 })}
                         issues={issuesAt(issues, 'position')}
-                        hint="The order in a release. Changing it is a change to the content."
+                        hint={t('The order in a release. Changing it is a change to the content.')}
                         className="max-w-40"
                       />
                     )}
-                    <TdField label="Note" htmlFor={noteId} issues={issuesAt(issues, 'note')} hint="For the team: sources, checks, questions. Changing only the note keeps the row’s status.">
+                    <TdField label={t('Note')} htmlFor={noteId} issues={issuesAt(issues, 'note')} hint={t('For the team: sources, checks, questions. Changing only the note keeps the row’s status.')}>
                       <Textarea id={noteId} value={draft.note} onChange={(event) => setDraft({ ...draft, note: event.target.value })} className="min-h-16 rounded-lg border-border bg-(--td-input) text-sm" />
                     </TdField>
                   </fieldset>
@@ -319,18 +325,18 @@ function EditorBody({ target, onSaved }: { target: TdEditorTarget; onSaved?: (ro
       {!conflict && (
         <footer className="flex flex-col gap-2 border-t border-(--td-divider) px-6 py-4">
           <TdErrorPanel error={error} hideIssues={issues.length > 0} />
-          {invalid.size > 0 && <p className="text-xs text-(--td-danger)">A number in the form is not valid: fix it to save.</p>}
+          {invalid.size > 0 && <p className="text-xs text-(--td-danger)">{t('A number in the form is not valid: fix it to save.')}</p>}
           {actions && (actions.approve.reason || actions.restore.reason) && <p className="text-xs text-(--td-text-3)">{actions.approve.reason ?? actions.restore.reason}</p>}
           <div className="flex flex-wrap items-center gap-2">
             {(creating || actions?.save.allowed) && (
               <Button onClick={save} disabled={busy !== null || !dirty || held} className="rounded-lg">
                 {busy === 'save' ? <Loader2 className="animate-spin" /> : <Save />}
-                {creating ? 'Create draft' : 'Save'}
+                {creating ? t('Create draft') : t('Save')}
               </Button>
             )}
             {actions?.ready.allowed && (
-              <ActionButton busy={busy} name="ready" dirty={dirty || held} onClick={() => transition('ready', 'Marked ready for review')} icon={<Send />}>
-                Mark ready
+              <ActionButton busy={busy} name="ready" dirty={dirty || held} onClick={() => transition('ready', t('Marked ready for review'))} icon={<Send />}>
+                {t('Mark ready')}
               </ActionButton>
             )}
             {actions?.approve.allowed && (
@@ -338,27 +344,27 @@ function EditorBody({ target, onSaved }: { target: TdEditorTarget; onSaved?: (ro
                 busy={busy}
                 name="approve"
                 dirty={dirty || held}
-                onClick={() => (CATEGORY_TYPES.has(type) ? setApproving(true) : transition('approve', 'Approved'))}
+                onClick={() => (CATEGORY_TYPES.has(type) ? setApproving(true) : transition('approve', t('Approved')))}
                 icon={<Check />}
               >
-                Approve
+                {t('Approve')}
               </ActionButton>
             )}
             {actions?.restore.allowed && (
-              <ActionButton busy={busy} name="restore" dirty={dirty || held} onClick={() => transition('restore', 'Restored')} icon={<ArchiveRestore />}>
-                Restore
+              <ActionButton busy={busy} name="restore" dirty={dirty || held} onClick={() => transition('restore', t('Restored'))} icon={<ArchiveRestore />}>
+                {t('Restore')}
               </ActionButton>
             )}
             <span className="flex-1" />
             {actions?.archive.allowed && (
-              <Button variant="ghost" disabled={busy !== null || dirty || held} onClick={() => transition('archive', 'Archived')} className="rounded-lg text-(--td-text-2) hover:text-(--td-danger)">
+              <Button variant="ghost" disabled={busy !== null || dirty || held} onClick={() => transition('archive', t('Archived'))} className="rounded-lg text-(--td-text-2) hover:text-(--td-danger)">
                 {busy === 'archive' ? <Loader2 className="animate-spin" /> : <Archive />}
-                Archive
+                {t('Archive')}
               </Button>
             )}
           </div>
-          {uploads > 0 && <p className="text-xs text-(--td-text-3)">Waiting for the upload to finish.</p>}
-          {dirty && !creating && row && <p className="text-xs text-(--td-text-3)">Unsaved changes. Save before changing the status.</p>}
+          {uploads > 0 && <p className="text-xs text-(--td-text-3)">{t('Waiting for the upload to finish.')}</p>}
+          {dirty && !creating && row && <p className="text-xs text-(--td-text-3)">{t('Unsaved changes. Save before changing the status.')}</p>}
         </footer>
       )}
       {approving && row && CATEGORY_TYPES.has(type) && (
@@ -377,7 +383,16 @@ function EditorBody({ target, onSaved }: { target: TdEditorTarget; onSaved?: (ro
   );
 }
 
-const capitalise = (text: string) => text.charAt(0).toUpperCase() + text.slice(1);
+/** English starts a sentence with a capital; Georgian has none (and its letters' upper case is another script). */
+const capitalise = (text: string) => (TD_LANG === 'en' ? text.charAt(0).toUpperCase() + text.slice(1) : text);
+
+/** The header line of a saved row: its revision, its content version, who approved and who last edited it. */
+function revisionLine(row: TdContentRow): string {
+  const vars = { revision: row.version, content: row.contentVersion, editor: row.lastEditor.name };
+  if (row.approvedVersion === null) return t('Revision {revision} · content v{content} · last edit by {editor}', vars);
+  if (!row.approvedBy) return t('Revision {revision} · content v{content} · approved v{approved} · last edit by {editor}', { ...vars, approved: row.approvedVersion });
+  return t('Revision {revision} · content v{content} · approved v{approved} by {approver} · last edit by {editor}', { ...vars, approved: row.approvedVersion, approver: row.approvedBy.name });
+}
 
 function TabButton({ active, onClick, children }: { active: boolean; onClick: () => void; children: ReactNode }) {
   return (
@@ -443,20 +458,25 @@ function ConflictPanel({
   if (!theirs)
     return (
       <div className="flex flex-col gap-3 rounded-xl border border-(--td-danger)/40 p-4">
-        <p className="font-semibold">This row no longer exists</p>
-        <p className="text-sm text-(--td-text-2)">It was removed while you were editing (an import undo removes rows nobody changed). Copy anything you need, then close.</p>
+        <p className="font-semibold">{t('This row no longer exists')}</p>
+        <p className="text-sm text-(--td-text-2)">{t('It was removed while you were editing (an import undo removes rows nobody changed). Copy anything you need, then close.')}</p>
       </div>
     );
   const archived = theirs.status === 'archived';
   return (
     <div className="flex flex-col gap-4">
       <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
-        <p className="font-semibold">Someone changed this while you were editing</p>
+        <p className="font-semibold">{t('Someone changed this while you were editing')}</p>
         <p className="mt-1 text-sm text-(--td-text-2)">
-          {theirs.updatedBy.name} saved revision {theirs.version} ({TD_STATUS_LABELS[theirs.status].toLowerCase()}) at {formatGeorgiaTime(theirs.updatedAt)}.
+          {t('{name} saved revision {revision} ({status}) at {time}.', {
+            name: theirs.updatedBy.name,
+            revision: theirs.version,
+            status: TD_STATUS_LABELS[theirs.status].toLowerCase(),
+            time: formatGeorgiaTime(theirs.updatedAt),
+          })}{' '}
           {archived
-            ? ' It is archived now: a publisher restores it before anyone edits it.'
-            : ' Their changes to fields you did not touch are kept; where you both changed a field, choose which to keep.'}
+            ? t('It is archived now: a publisher restores it before anyone edits it.')
+            : t('Their changes to fields you did not touch are kept; where you both changed a field, choose which to keep.')}
         </p>
       </div>
       {!archived && conflict.conflicts.length > 0 && (
@@ -469,7 +489,7 @@ function ConflictPanel({
                   <label key={side} className={cn('flex cursor-pointer gap-2 rounded-lg border p-2 text-sm', (conflict.choices[c.field] ?? 'mine') === side ? 'border-primary bg-primary/5' : 'border-border')}>
                     <input type="radio" name={c.field} checked={(conflict.choices[c.field] ?? 'mine') === side} onChange={() => onChoose(c.field, side)} className="mt-1 accent-(--td-primary)" />
                     <span className="min-w-0">
-                      <span className="block text-xs text-(--td-text-3)">{side === 'theirs' ? 'Theirs' : 'Yours'}</span>
+                      <span className="block text-xs text-(--td-text-3)">{side === 'theirs' ? t('Theirs') : t('Yours')}</span>
                       <UnitValue conflict={c} value={side === 'theirs' ? c.theirs : c.mine} />
                     </span>
                   </label>
@@ -479,16 +499,16 @@ function ConflictPanel({
           ))}
         </ul>
       )}
-      {!archived && conflict.conflicts.length === 0 && <p className="text-sm text-(--td-text-2)">Your changes and theirs touch different fields, so they merge cleanly.</p>}
+      {!archived && conflict.conflicts.length === 0 && <p className="text-sm text-(--td-text-2)">{t('Your changes and theirs touch different fields, so they merge cleanly.')}</p>}
       <div className="flex flex-wrap gap-2">
         {!archived && (
           <Button onClick={onUseMerged} className="rounded-lg">
-            Continue with the merge
+            {t('Continue with the merge')}
           </Button>
         )}
         <Button variant="secondary" onClick={onDiscard} className="rounded-lg">
           <RefreshCw />
-          Discard mine, load theirs
+          {t('Discard mine, load theirs')}
         </Button>
       </div>
     </div>
@@ -496,20 +516,20 @@ function ConflictPanel({
 }
 
 const ACTION_LABELS: Record<string, string> = {
-  create: 'Created',
-  edit: 'Edited',
-  'edit.note': 'Note changed',
-  ready: 'Marked ready',
-  approve: 'Approved',
-  archive: 'Archived',
-  restore: 'Restored',
-  delete: 'Removed (import undo)',
-  seed: 'Seeded',
+  create: t('Created'),
+  edit: t('Edited'),
+  'edit.note': t('Note changed'),
+  ready: t('Marked ready'),
+  approve: t('Approved'),
+  archive: t('Archived'),
+  restore: t('Restored'),
+  delete: t('Removed (import undo)'),
+  seed: t('Seeded'),
 };
 
 function HistoryList({ type, id }: { type: TdContentType; id: string }) {
   const history = useTdHistory(type, id);
-  if (history.isLoading) return <p className="text-sm text-(--td-text-3)">Loading…</p>;
+  if (history.isLoading) return <p className="text-sm text-(--td-text-3)">{t('Loading…')}</p>;
   if (history.error) return <TdErrorPanel error={history.error} />;
   return (
     <ol className="flex flex-col">
@@ -517,19 +537,26 @@ function HistoryList({ type, id }: { type: TdContentType; id: string }) {
         <li key={entry.id} className="flex gap-3 border-b border-(--td-divider) py-2.5 text-sm last:border-0">
           <span className="w-32 shrink-0 text-xs tabular-nums text-(--td-text-3)">{formatGeorgiaTime(entry.at)}</span>
           <span className="min-w-0 flex-1">
-            <span className="font-medium">{ACTION_LABELS[entry.action] ?? entry.action}</span> by {entry.actor.name}
+            {tr('{action} by {name}', {
+              action: (
+                <span key="action" className="font-medium">
+                  {ACTION_LABELS[entry.action] ?? entry.action}
+                </span>
+              ),
+              name: entry.actor.name,
+            })}
             {entry.fromStatus && entry.toStatus && entry.fromStatus !== entry.toStatus && (
               <span className="text-(--td-text-3)">
                 {' '}
-                · {entry.fromStatus} → {entry.toStatus}
+                · {TD_STATUS_WORDS[entry.fromStatus]} → {TD_STATUS_WORDS[entry.toStatus]}
               </span>
             )}
-            {entry.batchId && <span className="text-(--td-text-3)"> · import</span>}
+            {entry.batchId && <span className="text-(--td-text-3)"> · {t('import')}</span>}
           </span>
           <span className="shrink-0 text-xs tabular-nums text-(--td-text-3)">{entry.contentVersion !== null && `v${entry.contentVersion}`}</span>
         </li>
       ))}
-      {history.data && !history.data.complete && <li className="pt-2 text-xs text-(--td-text-3)">Older changes are not shown.</li>}
+      {history.data && !history.data.complete && <li className="pt-2 text-xs text-(--td-text-3)">{t('Older changes are not shown.')}</li>}
     </ol>
   );
 }
@@ -543,9 +570,9 @@ function ApprovedCompare({ approved, current, approvedPosition, position }: { ap
     <table className="w-full text-sm">
       <thead>
         <tr className="text-left text-xs text-(--td-text-3)">
-          <th className="w-32 py-1.5 pr-3 font-medium">Field</th>
-          <th className="py-1.5 pr-3 font-medium">Approved</th>
-          <th className="py-1.5 font-medium">Now</th>
+          <th className="w-32 py-1.5 pr-3 font-medium">{t('Field')}</th>
+          <th className="py-1.5 pr-3 font-medium">{t('Approved')}</th>
+          <th className="py-1.5 font-medium">{t('Now')}</th>
         </tr>
       </thead>
       <tbody>

@@ -4,7 +4,7 @@ import { TdMediaPicker } from '@/components/td/media/td-media';
 import { useTdAllRows } from '@/hooks/use-td-content';
 import type { TdContentData, TdContentType } from '@/lib/td/admin-api';
 import type { SchemaIssue } from '@/lib/td/contract';
-import { t } from '@/lib/td/i18n';
+import { t, tn } from '@/lib/td/i18n';
 import { issuesAt, TdListField, TdNumberField, TdSelectField, TdSpellingsField, TdSwitchField, TdTextField } from '../td-form';
 
 export interface TdEditorProps<T extends TdContentType> {
@@ -42,17 +42,17 @@ export function KeyField({ value, onChange, issues, creating, label = 'ID', path
 /** The category a card or box question belongs to; chosen from the live categories before the first save. */
 function CategoryField({ type, value, onChange, issues, creating }: { type: 'card-categories' | 'box-categories'; value: string; onChange: (key: string) => void; issues: SchemaIssue[]; creating: boolean }) {
   const categories = useTdAllRows(type, { status: 'draft,ready,approved' }, creating);
-  if (!creating) return <TdTextField label="Category" value={value} onChange={onChange} locked issues={issuesAt(issues, 'data.categoryKey')} />;
+  if (!creating) return <TdTextField label={t('Category')} value={value} onChange={onChange} locked issues={issuesAt(issues, 'data.categoryKey')} />;
   const options = (categories.data?.rows ?? []).map((row) => ({
     value: row.data.key,
     label: `${row.data.key} · ${'prompt' in row.data ? row.data.prompt : row.data.title}`,
   }));
   return (
     <TdSelectField
-      label="Category"
+      label={t('Category')}
       value={value}
       onChange={onChange}
-      options={[{ value: '', label: categories.isLoading ? 'Loading…' : 'Choose a category' }, ...options]}
+      options={[{ value: '', label: categories.isLoading ? t('Loading…') : t('Choose a category') }, ...options]}
       issues={issuesAt(issues, 'data.categoryKey')}
     />
   );
@@ -62,7 +62,7 @@ export function CardCategoryEditor({ value, onChange, issues, creating }: TdEdit
   return (
     <>
       <KeyField value={value.key} onChange={(key) => onChange({ ...value, key })} issues={issues} creating={creating} />
-      <TdTextField label="Prompt" multiline value={value.prompt} onChange={(prompt) => onChange({ ...value, prompt })} issues={issuesAt(issues, 'data.prompt')} hint="Shown above the category’s cards, up to 300 characters." />
+      <TdTextField label={t('Prompt')} multiline value={value.prompt} onChange={(prompt) => onChange({ ...value, prompt })} issues={issuesAt(issues, 'data.prompt')} hint={t('Shown above the category’s cards, up to 300 characters.')} />
     </>
   );
 }
@@ -73,32 +73,32 @@ export function CardEditor({ value, onChange, issues, creating }: TdEditorProps<
       <CategoryField type="card-categories" value={value.categoryKey} onChange={(categoryKey) => onChange({ ...value, categoryKey })} issues={issues} creating={creating} />
       <KeyField value={value.key} onChange={(key) => onChange({ ...value, key })} issues={issues} creating={creating} />
       <TdSelectField
-        label="Value"
+        label={t('Value')}
         value={String(value.value) as '1' | '2' | '3'}
         onChange={(next) => onChange({ ...value, value: Number(next) as 1 | 2 | 3 })}
         options={[
-          { value: '1', label: '1 point' },
-          { value: '2', label: '2 points' },
-          { value: '3', label: '3 points' },
+          { value: '1', label: tn(1, '{count} point', '{count} points') },
+          { value: '2', label: tn(2, '{count} point', '{count} points') },
+          { value: '3', label: tn(3, '{count} point', '{count} points') },
         ]}
         issues={issuesAt(issues, 'data.value')}
       />
-      <TdTextField label="Answer (as shown)" value={value.display} onChange={(display) => onChange({ ...value, display })} issues={issuesAt(issues, 'data.display')} />
+      <TdTextField label={t('Answer (as shown)')} value={value.display} onChange={(display) => onChange({ ...value, display })} issues={issuesAt(issues, 'data.display')} />
       <TdSpellingsField values={value.aliases} onChange={(aliases) => onChange({ ...value, aliases })} issues={issues} path="data.aliases" />
-      <TdListField label="Clue lines" values={value.lines} onChange={(lines) => onChange({ ...value, lines })} issues={issues} path="data.lines" max={8} addLabel="Add a line" numbered hint="Up to 8 lines, in the order the card shows them." />
+      <TdListField label={t('Clue lines')} values={value.lines} onChange={(lines) => onChange({ ...value, lines })} issues={issues} path="data.lines" max={8} addLabel={t('Add a line')} numbered hint={t('Up to 8 lines, in the order the card shows them.')} />
       <TdSwitchField
-        label="SoFIFA face"
+        label={t('SoFIFA face')}
         checked={value.photo !== null}
         onChange={(on) => onChange({ ...value, photo: on ? { id: 1, ver: '' } : null })}
-        hint="The player’s face from SoFIFA. An uploaded photo, when chosen, is shown instead."
+        hint={t('The player’s face from SoFIFA. An uploaded photo, when chosen, is shown instead.')}
       />
       {value.photo && (
         <div className="grid gap-3 sm:grid-cols-2">
-          <TdNumberField label="SoFIFA player id" value={value.photo.id} onChange={(id) => onChange({ ...value, photo: { ...value.photo!, id: id ?? 1 } })} issues={issuesAt(issues, 'data.photo.id')} />
-          <TdTextField label="SoFIFA version" value={value.photo.ver} onChange={(ver) => onChange({ ...value, photo: { ...value.photo!, ver } })} issues={issuesAt(issues, 'data.photo.ver')} placeholder="e.g. 25_1" />
+          <TdNumberField label={t('SoFIFA player id')} value={value.photo.id} onChange={(id) => onChange({ ...value, photo: { ...value.photo!, id: id ?? 1 } })} issues={issuesAt(issues, 'data.photo.id')} />
+          <TdTextField label={t('SoFIFA version')} value={value.photo.ver} onChange={(ver) => onChange({ ...value, photo: { ...value.photo!, ver } })} issues={issuesAt(issues, 'data.photo.ver')} placeholder={t('e.g. 25_1')} />
         </div>
       )}
-      <TdMediaPicker label="Uploaded photo" value={value.imageKey} onChange={(imageKey) => onChange((current) => ({ ...current, imageKey }))} />
+      <TdMediaPicker label={t('Uploaded photo')} value={value.imageKey} onChange={(imageKey) => onChange((current) => ({ ...current, imageKey }))} />
     </>
   );
 }
@@ -107,19 +107,19 @@ export function WhoamiEditor({ value, onChange, issues, creating }: TdEditorProp
   return (
     <>
       <KeyField value={value.key} onChange={(key) => onChange({ ...value, key })} issues={issues} creating={creating} />
-      <TdTextField label="Answer (as shown)" value={value.display} onChange={(display) => onChange({ ...value, display })} issues={issuesAt(issues, 'data.display')} />
+      <TdTextField label={t('Answer (as shown)')} value={value.display} onChange={(display) => onChange({ ...value, display })} issues={issuesAt(issues, 'data.display')} />
       <TdSpellingsField values={value.aliases} onChange={(aliases) => onChange({ ...value, aliases })} issues={issues} path="data.aliases" />
       <TdListField
-        label="Clues, in the order they are read"
+        label={t('Clues, in the order they are read')}
         values={value.clues}
         onChange={(clues) => onChange({ ...value, clues })}
         issues={issues}
         path="data.clues"
         max={20}
-        addLabel="Add a clue"
+        addLabel={t('Add a clue')}
         numbered
         multiline
-        hint="1 to 20 clues, hardest first; a match reads 5."
+        hint={t('1 to 20 clues, hardest first; a match reads 5.')}
       />
     </>
   );
@@ -129,7 +129,7 @@ export function BoxCategoryEditor({ value, onChange, issues, creating }: TdEdito
   return (
     <>
       <KeyField value={value.key} onChange={(key) => onChange({ ...value, key })} issues={issues} creating={creating} />
-      <TdTextField label="Title" value={value.title} onChange={(title) => onChange({ ...value, title })} issues={issuesAt(issues, 'data.title')} />
+      <TdTextField label={t('Title')} value={value.title} onChange={(title) => onChange({ ...value, title })} issues={issuesAt(issues, 'data.title')} />
     </>
   );
 }
@@ -139,8 +139,8 @@ export function BoxQuestionEditor({ value, onChange, issues, creating }: TdEdito
     <>
       <CategoryField type="box-categories" value={value.categoryKey} onChange={(categoryKey) => onChange({ ...value, categoryKey })} issues={issues} creating={creating} />
       <KeyField value={value.key} onChange={(key) => onChange({ ...value, key })} issues={issues} creating={creating} />
-      <TdTextField label="Question" multiline value={value.q} onChange={(q) => onChange({ ...value, q })} issues={issuesAt(issues, 'data.q')} />
-      <TdTextField label="Answer (as shown)" value={value.display} onChange={(display) => onChange({ ...value, display })} issues={issuesAt(issues, 'data.display')} />
+      <TdTextField label={t('Question')} multiline value={value.q} onChange={(q) => onChange({ ...value, q })} issues={issuesAt(issues, 'data.q')} />
+      <TdTextField label={t('Answer (as shown)')} value={value.display} onChange={(display) => onChange({ ...value, display })} issues={issuesAt(issues, 'data.display')} />
       <TdSpellingsField values={value.aliases} onChange={(aliases) => onChange({ ...value, aliases })} issues={issues} path="data.aliases" />
     </>
   );
@@ -150,8 +150,8 @@ export function PenaltyEditor({ value, onChange, issues, creating }: TdEditorPro
   return (
     <>
       <KeyField value={value.key} onChange={(key) => onChange({ ...value, key })} issues={issues} creating={creating} />
-      <TdTextField label="Question" multiline value={value.q} onChange={(q) => onChange({ ...value, q })} issues={issuesAt(issues, 'data.q')} hint="Keep it short: the shoot-out gives a few seconds per question." />
-      <TdTextField label="Answer (as shown)" value={value.display} onChange={(display) => onChange({ ...value, display })} issues={issuesAt(issues, 'data.display')} />
+      <TdTextField label={t('Question')} multiline value={value.q} onChange={(q) => onChange({ ...value, q })} issues={issuesAt(issues, 'data.q')} hint={t('Keep it short: the shoot-out gives a few seconds per question.')} />
+      <TdTextField label={t('Answer (as shown)')} value={value.display} onChange={(display) => onChange({ ...value, display })} issues={issuesAt(issues, 'data.display')} />
       <TdSpellingsField values={value.aliases} onChange={(aliases) => onChange({ ...value, aliases })} issues={issues} path="data.aliases" />
     </>
   );

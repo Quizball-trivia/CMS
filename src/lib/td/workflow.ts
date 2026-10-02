@@ -5,6 +5,7 @@
  */
 import type { TdContentRow } from './admin-api';
 import type { ContentHistory } from './contract';
+import { t } from './i18n';
 import type { TdRole, TdStaff } from '@/types/td';
 
 export type TdContentAction = 'save' | 'ready' | 'approve' | 'archive' | 'restore';
@@ -32,8 +33,8 @@ export function contentActions(row: Row, me: TdStaff, trail?: { items: ContentHi
 
   let approve: TdActionState = { allowed: false };
   if (row.status === 'ready') {
-    if (!publisher) approve = { allowed: false, reason: 'Ready for a publisher to approve.' };
-    else if (ownLastEdit) approve = { allowed: false, reason: 'You made the last edit, so another publisher approves it.' };
+    if (!publisher) approve = { allowed: false, reason: t('Ready for a publisher to approve.') };
+    else if (ownLastEdit) approve = { allowed: false, reason: t('You made the last edit, so another publisher approves it.') };
     else approve = { allowed: true };
   }
 
@@ -45,14 +46,14 @@ export function contentActions(row: Row, me: TdStaff, trail?: { items: ContentHi
     archive =
       row.approvedVersion === null && untouched
         ? { allowed: true }
-        : { allowed: false, reason: 'Editors archive only their own drafts that nobody else has touched and that were never approved.' };
+        : { allowed: false, reason: t('Editors archive only their own drafts that nobody else has touched and that were never approved.') };
   }
 
   return {
-    save: archived ? { allowed: false, reason: 'Restore it before editing.' } : { allowed: true },
+    save: archived ? { allowed: false, reason: t('Restore it before editing.') } : { allowed: true },
     ready: { allowed: row.status === 'draft' },
     approve,
     archive,
-    restore: archived ? (publisher ? { allowed: true } : { allowed: false, reason: 'A publisher restores archived content.' }) : { allowed: false },
+    restore: archived ? (publisher ? { allowed: true } : { allowed: false, reason: t('A publisher restores archived content.') }) : { allowed: false },
   };
 }

@@ -10,6 +10,7 @@ import { tdKeys, useTdAllRows, useTdWrite } from '@/hooks/use-td-content';
 import type { TdContentRow } from '@/lib/td/admin-api';
 import { TdApiError } from '@/lib/td/api-client';
 import { tdAdmin } from '@/lib/td/client';
+import { t } from '@/lib/td/i18n';
 import { useTdAuth } from '@/providers/td-auth-provider';
 import { TdStatusChip } from './td-status';
 
@@ -40,13 +41,13 @@ export function reviewCategory(children: Child[], meId: string): TdCategoryRevie
   const blockers: TdCategoryReview['blockers'] = [];
   for (const row of children) {
     if (row.status === 'approved') approved.push(row);
-    else if (row.status === 'draft') blockers.push({ row, reason: 'Still a draft: mark it ready (or archive it) first.' });
-    else if (row.status === 'ready' && row.lastEditor.id === meId) blockers.push({ row, reason: 'You made its last edit: another publisher approves it.' });
+    else if (row.status === 'draft') blockers.push({ row, reason: t('Still a draft: mark it ready (or archive it) first.') });
+    else if (row.status === 'ready' && row.lastEditor.id === meId) blockers.push({ row, reason: t('You made its last edit: another publisher approves it.') });
     else if (row.status === 'ready') withIt.push(row);
   }
   let problem: string | null = null;
-  if (withIt.length > MAX_CHILDREN) problem = `At most ${MAX_CHILDREN} can be approved with the category in one step; approve some of them on their own first.`;
-  else if (withIt.length + approved.length === 0) problem = 'A category needs at least one approved row.';
+  if (withIt.length > MAX_CHILDREN) problem = t('At most {max} can be approved with the category in one step; approve some of them on their own first.', { max: MAX_CHILDREN });
+  else if (withIt.length + approved.length === 0) problem = t('A category needs at least one approved row.');
   return { withIt, approved, blockers, canApprove: blockers.length === 0 && problem === null, problem };
 }
 
@@ -70,7 +71,7 @@ export function TdCategoryApproval({
   const [error, setError] = useState<unknown>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const review = user && children.data ? reviewCategory(children.data.rows as Child[], user.id) : null;
-  const noun = childType === 'cards' ? 'card' : 'question';
+  const cards = childType === 'cards';
 
   const approve = async () => {
     if (!review) return;
@@ -85,7 +86,13 @@ export function TdCategoryApproval({
       if (caught instanceof TdApiError && caught.code === 'revision_conflict') {
         const child = (caught.details as { child?: { id: string } } | undefined)?.child;
         await queryClient.invalidateQueries({ queryKey: tdKeys.content });
-        setNotice(child ? `A ${noun} changed meanwhile. The list is refreshed: check it and approve again.` : 'The category changed meanwhile. Close this and look at it again.');
+        setNotice(
+          child
+            ? cards
+              ? t('A card changed meanwhile. The list is refreshed: check it and approve again.')
+              : t('A question changed meanwhile. The list is refreshed: check it and approve again.')
+            : t('The category changed meanwhile. Close this and look at it again.'),
+        );
       } else {
         setError(caught);
       }
@@ -98,19 +105,22 @@ export function TdCategoryApproval({
     <Dialog open onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="max-h-[85vh] overflow-y-auto bg-(--td-surface-2) sm:max-w-xl">
         <DialogHeader>
-          <DialogTitle>Approve the category with its {noun}s</DialogTitle>
+          <DialogTitle>{cards ? t('Approve the category with its cards') : t('Approve the category with its questions')}</DialogTitle>
           <DialogDescription>
-            Every live {noun} of “{category.data.key}” is approved already or approved now, in one step. A release then carries them together.
+            {cards
+              ? t('Every live card of “{key}” is approved already or approved now, in one step. A release then carries them together.', { key: category.data.key })
+              : t('Every live question of “{key}” is approved already or approved now, in one step. A release then carries them together.', { key: category.data.key })}
           </DialogDescription>
         </DialogHeader>
-        {children.isLoading && <p className="text-sm text-(--td-text-3)">Loading its {noun}s…</p>}
+        {children.isLoading && <p className="text-sm text-(--td-text-3)">{cards ? t('Loading its cards…') : t('Loading its questions…')}</p>}
         <TdErrorPanel error={children.error ?? error} />
-        {children.data && !children.data.complete && <p className="text-sm text-(--td-danger)">This category has more rows than the CMS loads at once; approve some on their own first.</p>}
+        {children.data && !children.data.complete && <p className="text-sm text-(--td-danger)">{t('This category has more rows than the CMS loads at once; approve some on their own first.')}</p>}
         {review && (
           <div className="flex flex-col gap-3 text-sm">
             <p className="text-(--td-text-2)">
-              {review.withIt.length} ready to approve with it · {review.approved.length} approved already
-              {review.blockers.length > 0 && ` · ${review.blockers.length} holding it up`}
+              {review.blockers.length > 0
+                ? t('{ready} ready to approve with it · {approved} approved already · {held} holding it up', { ready: review.withIt.length, approved: review.approved.length, held: review.blockers.length })
+                : t('{ready} ready to approve with it · {approved} approved already', { ready: review.withIt.length, approved: review.approved.length })}
             </p>
             {review.blockers.length > 0 && (
               <ul className="flex flex-col gap-1.5 rounded-lg border border-(--td-danger)/40 p-3">
@@ -142,11 +152,11 @@ export function TdCategoryApproval({
         {notice && <p className="rounded-lg bg-(--td-input) px-3 py-2 text-xs text-(--td-text-2)">{notice}</p>}
         <DialogFooter>
           <Button variant="secondary" onClick={onClose} className="rounded-lg">
-            Cancel
+            {t('Cancel')}
           </Button>
           <Button onClick={() => void approve()} disabled={busy || !review?.canApprove || !children.data?.complete} className="rounded-lg">
             {busy ? <Loader2 className="animate-spin" /> : <Check />}
-            Approve
+            {t('Approve')}
           </Button>
         </DialogFooter>
       </DialogContent>

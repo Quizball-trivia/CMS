@@ -10,8 +10,12 @@ import { useTdAllRows, useTdWrite } from '@/hooks/use-td-content';
 import { tdAdmin } from '@/lib/td/client';
 import type { MediaUpload } from '@/lib/td/contract';
 import { tdErrorText } from '@/lib/td/errors';
+import { t } from '@/lib/td/i18n';
 import { cn } from '@/lib/utils';
 import { useInitialSearch } from './use-initial-search';
+
+/** The rights an image can lack, as the list names them. */
+const RIGHTS = { author: t('credit'), license: t('licence'), source: t('source') } as const;
 
 export function TdClubsTab() {
   const [target, setTarget] = useState<TdEditorTarget | null>(null);
@@ -22,17 +26,17 @@ export function TdClubsTab() {
     <>
       <TdContentList
         type="clubs"
-        title="Clubs"
-        description="Used by Career Path, onboarding and cards. A crest is a file of the web app or an uploaded image."
+        title={t('Clubs')}
+        description={t('Used by Career Path, onboarding and cards. A crest is a file of the web app or an uploaded image.')}
         initialSearch={initial}
         onOpen={(row) => setTarget({ type: 'clubs', row })}
         onCreate={() => setTarget({ type: 'clubs', row: null })}
-        createLabel="New club"
-        searchPlaceholder="Search names and countries"
-        emptyTitle="No clubs yet"
+        createLabel={t('New club')}
+        searchPlaceholder={t('Search names and countries')}
+        emptyTitle={t('No clubs yet')}
         columns={[
           {
-            header: 'Crest',
+            header: t('Crest'),
             className: 'w-16',
             cell: (row) => {
               const crest = row.data.crestImageKey ? byKey.get(row.data.crestImageKey) : undefined;
@@ -40,15 +44,15 @@ export function TdClubsTab() {
             },
           },
           {
-            header: 'Club',
+            header: t('Club'),
             cell: (row) => (
               <span className="flex items-center gap-2">
                 <TdCellTitle title={row.data.label} sub={row.data.key} />
-                {row.data.hidden && <EyeOff className="size-3.5 shrink-0 text-(--td-text-3)" aria-label="Hidden from the picker" />}
+                {row.data.hidden && <EyeOff className="size-3.5 shrink-0 text-(--td-text-3)" aria-label={t('Hidden from the picker')} />}
               </span>
             ),
           },
-          { header: 'Country', className: 'hidden md:table-cell', cell: (row) => <span className="text-xs text-(--td-text-2)">{[row.data.flag, row.data.country].filter(Boolean).join(' ')}</span> },
+          { header: t('Country'), className: 'hidden md:table-cell', cell: (row) => <span className="text-xs text-(--td-text-2)">{[row.data.flag, row.data.country].filter(Boolean).join(' ')}</span> },
         ]}
       />
       <TdContentEditorDialog target={target} onClose={() => setTarget(null)} />
@@ -69,8 +73,8 @@ export function TdMediaTab() {
       const upload = pending;
       setPending(null);
       void write((operation) => tdAdmin.media.remove(upload.id, operation), []).then(
-        () => toast.message('The upload was not saved as an image, so it was removed.'),
-        (error: unknown) => toast.error(`The unused upload stays: ${tdErrorText(error)}`),
+        () => toast.message(t('The upload was not saved as an image, so it was removed.')),
+        (error: unknown) => toast.error(t('The unused upload stays: {error}', { error: tdErrorText(error) })),
       );
     }
   };
@@ -79,13 +83,13 @@ export function TdMediaTab() {
     <>
       <TdContentList
         type="media"
-        title="Images"
-        description="Uploads stay private until a release uses them. A publisher approves an image with its licence, credit and source."
+        title={t('Images')}
+        description={t('Uploads stay private until a release uses them. A publisher approves an image with its licence, credit and source.')}
         initialSearch={initial}
         onOpen={(row) => setTarget({ type: 'media', row })}
-        searchPlaceholder="Search keys, credits, sources"
-        emptyTitle="No images yet"
-        emptyBody="Upload one: JPEG, PNG or WebP, at most 2 MB."
+        searchPlaceholder={t('Search keys, credits, sources')}
+        emptyTitle={t('No images yet')}
+        emptyBody={t('Upload one: JPEG, PNG or WebP, at most 2 MB.')}
         actions={
           <TdUploadButton
             onUploaded={(upload) => {
@@ -95,15 +99,18 @@ export function TdMediaTab() {
           />
         }
         columns={[
-          { header: 'Image', className: 'w-20', cell: (row) => <TdMediaThumb uploadId={row.data.uploadId} url={row.data.url} alt={row.data.key} className="h-12 w-16" /> },
-          { header: 'Key', cell: (row) => <TdCellTitle title={row.data.key} sub={`${row.data.width} × ${row.data.height}${row.data.url ? ' · by URL' : ''}`} /> },
+          { header: t('Image'), className: 'w-20', cell: (row) => <TdMediaThumb uploadId={row.data.uploadId} url={row.data.url} alt={row.data.key} className="h-12 w-16" /> },
           {
-            header: 'Rights',
+            header: t('Key'),
+            cell: (row) => <TdCellTitle title={row.data.key} sub={row.data.url ? t('{width} × {height} · by URL', { width: row.data.width, height: row.data.height }) : `${row.data.width} × ${row.data.height}`} />,
+          },
+          {
+            header: t('Rights'),
             className: 'hidden md:table-cell',
             cell: (row) => {
               const missing = (['author', 'license', 'source'] as const).filter((field) => !row.data[field]?.trim());
               return missing.length ? (
-                <span className="text-xs text-amber-800">Missing {missing.map((f) => (f === 'author' ? 'credit' : f === 'license' ? 'licence' : f)).join(', ')}</span>
+                <span className="text-xs text-amber-800">{t('Missing {rights}', { rights: missing.map((field) => RIGHTS[field]).join(', ') })}</span>
               ) : (
                 <span className="line-clamp-1 text-xs text-(--td-text-2)">
                   {row.data.author} · {row.data.license}

@@ -1,11 +1,20 @@
 import type { TdContentStatus } from '@/lib/td/admin-api';
+import { t } from '@/lib/td/i18n';
 import { cn } from '@/lib/utils';
 
 export const TD_STATUS_LABELS: Record<TdContentStatus, string> = {
-  draft: 'Draft',
-  ready: 'Ready for review',
-  approved: 'Approved',
-  archived: 'Archived',
+  draft: t('Draft'),
+  ready: t('Ready for review'),
+  approved: t('Approved'),
+  archived: t('Archived'),
+};
+
+/** The status as one short word, where a filter pill or a history line names it. */
+export const TD_STATUS_WORDS: Record<TdContentStatus, string> = {
+  draft: t('draft'),
+  ready: t('ready'),
+  approved: t('approved'),
+  archived: t('archived'),
 };
 
 const STYLES: Record<TdContentStatus, string> = {

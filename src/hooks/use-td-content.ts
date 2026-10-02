@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useInfiniteQuery, useQuery, useQueryClient, type QueryKey } from '@tanstack/react-query';
 import type { TdContentList, TdContentRow, TdContentType } from '@/lib/td/admin-api';
 import { tdAdmin, tdTokens } from '@/lib/td/client';
+import { t } from '@/lib/td/i18n';
 import type { ContentHistory, ContentListQuery } from '@/lib/td/contract';
 import { SESSION_CHANGED, TdApiError } from '@/lib/td/api-client';
 import { beginOperation, operationIsCurrent, retryConflicts, type TdOperation } from '@/lib/td/operation';
@@ -81,7 +82,7 @@ export function useTdHistory(type: TdContentType, id: string | null) {
   });
 }
 
-const sessionChanged = () => new TdApiError(0, SESSION_CHANGED, 'The session changed; the request was cancelled');
+const sessionChanged = () => new TdApiError(0, SESSION_CHANGED, t('The session changed; the request was cancelled'));
 
 /**
  * Runs one user action under the sign-in it started with (retrying only

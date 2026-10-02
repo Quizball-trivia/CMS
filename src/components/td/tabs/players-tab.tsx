@@ -17,11 +17,28 @@ import { TdApiError } from '@/lib/td/api-client';
 import { tdAdmin } from '@/lib/td/client';
 import { checkContract, type AdminLedgerList, type AdminMatchRecord, type AdminPlayerList, type AdminPlayerMatchList, type OpsReviewList, type SchemaIssue } from '@/lib/td/contract';
 import { formatDay, formatGeorgiaTime } from '@/lib/td/georgia';
+import { t, tr, TD_LANG } from '@/lib/td/i18n';
 import { cn } from '@/lib/utils';
 import { useTdAuth } from '@/providers/td-auth-provider';
 
 const OUTCOME_STYLES = { win: 'text-(--td-new)', loss: 'text-(--td-danger)', noContest: 'text-(--td-text-3)' } as const;
-const OUTCOME_LABELS = { win: 'Win', loss: 'Loss', noContest: 'No contest' } as const;
+const OUTCOME_LABELS = { win: t('Win'), loss: t('Loss'), noContest: t('No contest') } as const;
+
+// The API's words for a state or a reason, named for the reader.
+const PLAYER_STATUS = { active: t('active'), blocked: t('blocked'), 'self excluded': t('self excluded'), deleted: t('deleted') };
+const MATCH_STATUS = { live: t('live'), settled: t('settled'), void: t('void'), cancelled: t('cancelled') };
+// How a match was decided is the engine's word; the contract leaves it open.
+const DECIDED_BY = { play: t('play'), penalties: t('penalties'), forfeit: t('forfeit'), abandoned: t('abandoned'), cancelled: t('cancelled'), void: t('void'), corrected: t('corrected') };
+const TICKET_REASONS = { refill: t('refill'), spend: t('spend'), refund: t('refund'), reward: t('reward'), admin: t('admin') };
+const EARLY_FORFEIT = { counted: t('counted'), overturned: t('overturned') };
+const REVIEW_STATUS = { open: t('open'), corrected: t('corrected'), dismissed: t('dismissed') };
+const PLAYER_TABS = { matches: t('matches'), tickets: t('tickets') } as const;
+
+/** A word of the API by its name here; one this build does not know is shown as it came. */
+const named = (names: Record<string, string>, word: string) => (Object.hasOwn(names, word) ? names[word] : word);
+
+/** "A vs B" for a match's players. */
+const versus = (names: string[]) => names.slice(1).reduce((all, name) => t('{a} vs {b}', { a: all, b: name }), names[0] ?? '');
 
 const signed = (n: number | null | undefined) => (n === null || n === undefined ? '—' : n > 0 ? `+${n}` : String(n));
 
@@ -42,8 +59,8 @@ export function TdPlayersTab() {
   return (
     <>
       <TdSection
-        title="Find a player"
-        description="By nickname (its start, any case), Betsson player id or player id."
+        title={t('Find a player')}
+        description={t('By nickname (its start, any case), Betsson player id or player id.')}
         actions={
           <form
             className="relative w-full sm:w-80"
@@ -54,20 +71,20 @@ export function TdPlayersTab() {
             }}
           >
             <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-(--td-text-3)" />
-            <Input value={text} onChange={(event) => setText(event.target.value)} placeholder="Nickname or Betsson id" aria-label="Search players" className="h-10 rounded-full bg-(--td-input) pl-9" />
+            <Input value={text} onChange={(event) => setText(event.target.value)} placeholder={t('Nickname or Betsson id')} aria-label={t('Search players')} className="h-10 rounded-full bg-(--td-input) pl-9" />
           </form>
         }
       >
         <TdErrorPanel error={results.error} className="m-5" />
-        {!q && <TdEmptyState icon={Users} title="Search to see players" />}
-        {results.isLoading && <p className="px-5 py-4 text-sm text-(--td-text-3)">Searching…</p>}
-        {results.data && found.length === 0 && <TdEmptyState title="No player matches" />}
+        {!q && <TdEmptyState icon={Users} title={t('Search to see players')} />}
+        {results.isLoading && <p className="px-5 py-4 text-sm text-(--td-text-3)">{t('Searching…')}</p>}
+        {results.data && found.length === 0 && <TdEmptyState title={t('No player matches')} />}
         {found.length > 0 && (
           <div className="overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow className="border-(--td-divider) hover:bg-transparent">
-                  {['Nickname', 'Betsson id', 'Rating', 'Games', 'Status', 'Joined'].map((h) => (
+                  {[t('Nickname'), t('Betsson id'), t('Rating'), t('Games'), t('Status'), t('Joined')].map((h) => (
                     <TableHead key={h} className="h-10 px-3 text-xs font-semibold uppercase tracking-wide text-(--td-text-3) first:pl-5">
                       {h}
                     </TableHead>
@@ -81,7 +98,7 @@ export function TdPlayersTab() {
                     <TableCell className="px-3 py-2.5 font-mono text-xs text-(--td-text-2)">{p.partnerPlayerId ?? `${p.provider}`}</TableCell>
                     <TableCell className="px-3 py-2.5 tabular-nums">{p.rating}</TableCell>
                     <TableCell className="px-3 py-2.5 tabular-nums">{p.games}</TableCell>
-                    <TableCell className="px-3 py-2.5 text-xs capitalize">{p.status.replace('_', ' ')}</TableCell>
+                    <TableCell className="px-3 py-2.5 text-xs capitalize">{named(PLAYER_STATUS, p.status.replace('_', ' '))}</TableCell>
                     <TableCell className="px-3 py-2.5 text-xs text-(--td-text-3)">{formatGeorgiaTime(p.createdAt)}</TableCell>
                   </TableRow>
                 ))}
@@ -92,7 +109,7 @@ export function TdPlayersTab() {
         {results.hasNextPage && (
           <div className="border-t border-(--td-divider) px-5 py-3">
             <Button variant="secondary" size="sm" className="rounded-lg" disabled={results.isFetchingNextPage} onClick={() => void results.fetchNextPage()}>
-              Load more
+              {t('Load more')}
             </Button>
           </div>
         )}
@@ -136,24 +153,32 @@ function PlayerDetail({ id, onMatch }: { id: string; onMatch: (id: string) => vo
   });
   const p = profile.data;
   if (!p) return <TdErrorPanel error={profile.error} />;
+  const facts = { provider: p.provider, status: named(PLAYER_STATUS, p.status.replace('_', ' ')), joined: formatGeorgiaTime(p.createdAt), seen: formatGeorgiaTime(p.lastSeenAt) };
   return (
-    <TdSection title={p.displayName} description={`${p.partnerPlayerId ? `Betsson id ${p.partnerPlayerId} · ` : ''}${p.provider} · ${p.status.replace('_', ' ')} · joined ${formatGeorgiaTime(p.createdAt)} · last seen ${formatGeorgiaTime(p.lastSeenAt)}`}>
+    <TdSection
+      title={p.displayName}
+      description={
+        p.partnerPlayerId
+          ? t('Betsson id {id} · {provider} · {status} · joined {joined} · last seen {seen}', { id: p.partnerPlayerId, ...facts })
+          : t('{provider} · {status} · joined {joined} · last seen {seen}', facts)
+      }
+    >
       <div className="flex flex-col gap-4 p-5">
         {p.liveMatchId && (
           <button type="button" onClick={() => onMatch(p.liveMatchId!)} className="w-fit rounded-lg bg-primary/10 px-3 py-1.5 text-sm text-primary">
-            In a match now: open it
+            {t('In a match now: open it')}
           </button>
         )}
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <Stat label="Rating" value={p.rating.rating} sub={`${p.rating.wins} W · ${p.rating.losses} L · ${p.rating.noContests} no contest`} />
-          <Stat label="Streak" value={p.rating.streak} sub={`best ${p.rating.bestStreak}`} />
-          <Stat label="Tickets today" value={`${p.tickets.balance} / ${p.tickets.perDay}`} sub={p.tickets.refilledOn ? `topped up ${formatDay(p.tickets.refilledOn)}` : 'never used'} />
-          <Stat label="Dailies · practice" value={`${p.dailies.completed}/${p.dailies.attempts}`} sub={`${p.practice.runs} practice runs, best streak ${p.practice.bestStreak}`} />
+          <Stat label={t('Rating')} value={p.rating.rating} sub={t('{wins} W · {losses} L · {noContests} no contest', { wins: p.rating.wins, losses: p.rating.losses, noContests: p.rating.noContests })} />
+          <Stat label={t('Streak')} value={p.rating.streak} sub={t('best {best}', { best: p.rating.bestStreak })} />
+          <Stat label={t('Tickets today')} value={`${p.tickets.balance} / ${p.tickets.perDay}`} sub={p.tickets.refilledOn ? t('topped up {day}', { day: formatDay(p.tickets.refilledOn) }) : t('never used')} />
+          <Stat label={t('Dailies · practice')} value={`${p.dailies.completed}/${p.dailies.attempts}`} sub={t('{runs} practice runs, best streak {best}', { runs: p.practice.runs, best: p.practice.bestStreak })} />
         </div>
         <div className="flex gap-1" role="tablist">
-          {(['matches', 'tickets'] as const).map((t) => (
-            <button key={t} type="button" role="tab" aria-selected={tab === t} onClick={() => setTab(t)} className={cn('rounded-md px-3 py-1 text-sm capitalize', tab === t ? 'bg-(--td-input) text-foreground' : 'text-(--td-text-3)')}>
-              {t}
+          {(['matches', 'tickets'] as const).map((name) => (
+            <button key={name} type="button" role="tab" aria-selected={tab === name} onClick={() => setTab(name)} className={cn('rounded-md px-3 py-1 text-sm capitalize', tab === name ? 'bg-(--td-input) text-foreground' : 'text-(--td-text-3)')}>
+              {PLAYER_TABS[name]}
             </button>
           ))}
         </div>
@@ -165,19 +190,19 @@ function PlayerDetail({ id, onMatch }: { id: string; onMatch: (id: string) => vo
                 <li key={m.matchId}>
                   <button type="button" onClick={() => onMatch(m.matchId)} className="flex w-full flex-wrap items-center gap-x-4 gap-y-1 px-3 py-2.5 text-left text-sm hover:bg-secondary/40">
                     <span className="w-32 text-xs tabular-nums text-(--td-text-3)">{formatGeorgiaTime(m.createdAt)}</span>
-                    <span className="min-w-32 flex-1">vs {m.opponent.displayName}</span>
+                    <span className="min-w-32 flex-1">{t('vs {name}', { name: m.opponent.displayName })}</span>
                     <span className="tabular-nums">{m.score ? `${m.score.mine} – ${m.score.theirs}` : '—'}</span>
-                    <span className={cn('w-24 text-xs font-semibold', m.outcome ? OUTCOME_STYLES[m.outcome] : 'text-primary')}>{m.outcome ? OUTCOME_LABELS[m.outcome] : m.status}</span>
+                    <span className={cn('w-24 text-xs font-semibold', m.outcome ? OUTCOME_STYLES[m.outcome] : 'text-primary')}>{m.outcome ? OUTCOME_LABELS[m.outcome] : named(MATCH_STATUS, m.status)}</span>
                     <span className="w-12 text-right text-xs tabular-nums">{signed(m.ratingDelta)}</span>
-                    {m.resultVersion > 1 && <span className="text-xs text-amber-800">corrected</span>}
+                    {m.resultVersion > 1 && <span className="text-xs text-amber-800">{t('corrected')}</span>}
                   </button>
                 </li>
               ))}
             </ul>
-            {matches.data?.pages[0]?.items.length === 0 && <p className="text-sm text-(--td-text-3)">No matches yet.</p>}
+            {matches.data?.pages[0]?.items.length === 0 && <p className="text-sm text-(--td-text-3)">{t('No matches yet.')}</p>}
             {matches.hasNextPage && (
               <Button variant="secondary" size="sm" className="w-fit rounded-lg" onClick={() => void matches.fetchNextPage()}>
-                Load more
+                {t('Load more')}
               </Button>
             )}
           </>
@@ -189,15 +214,15 @@ function PlayerDetail({ id, onMatch }: { id: string; onMatch: (id: string) => vo
                 <li key={entry.id} className="flex flex-wrap gap-x-4 px-3 py-2">
                   <span className="w-32 text-xs tabular-nums text-(--td-text-3)">{formatGeorgiaTime(entry.createdAt)}</span>
                   <span className={cn('w-10 tabular-nums', entry.delta > 0 ? 'text-(--td-new)' : 'text-(--td-danger)')}>{signed(entry.delta)}</span>
-                  <span className="w-16 capitalize">{entry.reason}</span>
+                  <span className="w-16 capitalize">{named(TICKET_REASONS, entry.reason)}</span>
                   <span className="min-w-0 flex-1 truncate font-mono text-xs text-(--td-text-3)">{entry.ref}</span>
-                  <span className="text-xs tabular-nums">balance {entry.balanceAfter}</span>
+                  <span className="text-xs tabular-nums">{t('balance {balance}', { balance: entry.balanceAfter })}</span>
                 </li>
               ))}
             </ul>
             {tickets.hasNextPage && (
               <Button variant="secondary" size="sm" className="w-fit rounded-lg" onClick={() => void tickets.fetchNextPage()}>
-                Load more
+                {t('Load more')}
               </Button>
             )}
           </>
@@ -272,11 +297,11 @@ export function replaySteps(entries: unknown[]): TdReplayStep[] {
 const clock = (ms: number | null) => (ms === null ? '—' : `${Math.floor(ms / 60_000)}:${String(Math.floor((ms % 60_000) / 1000)).padStart(2, '0')}.${String(Math.floor((ms % 1000) / 100))}`);
 
 const MISSING: Record<NonNullable<AdminMatchRecord['inputs']['missing']>, string> = {
-  redis_lost: 'Its inputs were lost with the live state (a Redis restart), so it was voided.',
-  never_started: 'It was voided before it started.',
-  not_recorded: 'Its inputs were not kept.',
-  archived: 'Its inputs are in the archive, which cannot be read just now. Try again in a moment.',
-  expired: 'Its inputs were deleted from the archive, 730 days after the match.',
+  redis_lost: t('Its inputs were lost with the live state (a Redis restart), so it was voided.'),
+  never_started: t('It was voided before it started.'),
+  not_recorded: t('Its inputs were not kept.'),
+  archived: t('Its inputs are in the archive, which cannot be read just now. Try again in a moment.'),
+  expired: t('Its inputs were deleted from the archive, 730 days after the match.'),
 };
 
 export function Replay({ record }: { record: AdminMatchRecord }) {
@@ -294,12 +319,12 @@ export function Replay({ record }: { record: AdminMatchRecord }) {
   }, [running, index, steps, speed]);
   const names = new Map(record.players.map((p) => [p.seat, p.displayName]));
 
-  const archivedAt = record.inputs.archivedAt ? <p className="text-xs text-(--td-text-3)">Archived {formatGeorgiaTime(record.inputs.archivedAt)}</p> : null;
+  const archivedAt = record.inputs.archivedAt ? <p className="text-xs text-(--td-text-3)">{t('Archived {time}', { time: formatGeorgiaTime(record.inputs.archivedAt) })}</p> : null;
 
   if (!record.inputs.kept) {
     return (
       <div className="flex flex-col gap-1">
-        <p className="text-sm text-(--td-text-3)">{record.inputs.missing ? MISSING[record.inputs.missing] : record.status === 'live' ? 'The match is live: its inputs are kept when it settles.' : 'No inputs were kept.'}</p>
+        <p className="text-sm text-(--td-text-3)">{record.inputs.missing ? MISSING[record.inputs.missing] : record.status === 'live' ? t('The match is live: its inputs are kept when it settles.') : t('No inputs were kept.')}</p>
         {archivedAt}
       </div>
     );
@@ -308,12 +333,12 @@ export function Replay({ record }: { record: AdminMatchRecord }) {
     <div className="flex flex-col gap-3">
       {archivedAt}
       <div className="flex items-center gap-2">
-        <Button variant="secondary" size="icon-sm" aria-label="First step" onClick={() => setIndex(0)}>
+        <Button variant="secondary" size="icon-sm" aria-label={t('First step')} onClick={() => setIndex(0)}>
           <SkipBack />
         </Button>
         <Button
           size="icon-sm"
-          aria-label={running ? 'Pause' : 'Play'}
+          aria-label={running ? t('Pause') : t('Play')}
           onClick={() => {
             if (atEnd) setIndex(0);
             setPlaying(!running);
@@ -321,10 +346,10 @@ export function Replay({ record }: { record: AdminMatchRecord }) {
         >
           {running ? <Pause /> : <Play />}
         </Button>
-        <Button variant="secondary" size="icon-sm" aria-label="Next step" disabled={index >= steps.length - 1} onClick={() => setIndex(index + 1)}>
+        <Button variant="secondary" size="icon-sm" aria-label={t('Next step')} disabled={index >= steps.length - 1} onClick={() => setIndex(index + 1)}>
           <SkipForward />
         </Button>
-        <select aria-label="Speed" value={speed} onChange={(event) => setSpeed(Number(event.target.value))} className="h-8 rounded-lg border border-border bg-(--td-input) px-2 text-xs">
+        <select aria-label={t('Speed')} value={speed} onChange={(event) => setSpeed(Number(event.target.value))} className="h-8 rounded-lg border border-border bg-(--td-input) px-2 text-xs">
           {[1, 4, 16].map((s) => (
             <option key={s} value={s}>
               ×{s}
@@ -358,16 +383,23 @@ function MatchRecord({ id }: { id: string }) {
   return (
     <>
       <SheetHeader className="gap-1 border-b border-(--td-divider) px-6 pb-4 pt-5">
-        <SheetTitle>{r ? r.players.map((p) => p.displayName).join(' vs ') : 'Match'}</SheetTitle>
+        <SheetTitle>{r ? versus(r.players.map((p) => p.displayName)) : t('Match')}</SheetTitle>
         <SheetDescription asChild>
           <div className="text-xs text-(--td-text-3)">
             {r ? (
               <>
-                <span className="capitalize">{r.status}</span>
-                {r.decidedBy && ` · ${r.decidedBy}`}
-                {r.score && ` · ${r.score.me} – ${r.score.op}`} · started {formatGeorgiaTime(r.createdAt)}
-                {r.settledAt && ` · decided ${formatGeorgiaTime(r.settledAt)}`} · result v{r.resultVersion}
-                {r.correctedAt && ` · corrected ${formatGeorgiaTime(r.correctedAt)}`} · release <span className="font-mono">{r.releaseId}</span>
+                <span className="capitalize">{named(MATCH_STATUS, r.status)}</span>
+                {r.decidedBy && ` · ${named(DECIDED_BY, r.decidedBy)}`}
+                {r.score && ` · ${r.score.me} – ${r.score.op}`} · {t('started {time}', { time: formatGeorgiaTime(r.createdAt) })}
+                {r.settledAt && ` · ${t('decided {time}', { time: formatGeorgiaTime(r.settledAt) })}`} · {t('result v{version}', { version: r.resultVersion })}
+                {r.correctedAt && ` · ${t('corrected {time}', { time: formatGeorgiaTime(r.correctedAt) })}`} ·{' '}
+                {tr('release {id}', {
+                  id: (
+                    <span key="id" className="font-mono">
+                      {r.releaseId}
+                    </span>
+                  ),
+                })}
               </>
             ) : (
               <span className="font-mono">{id}</span>
@@ -383,7 +415,7 @@ function MatchRecord({ id }: { id: string }) {
               <Table>
                 <TableHeader>
                   <TableRow className="border-(--td-divider) hover:bg-transparent">
-                    {['Player', 'Outcome', 'Rating', 'Ticket', 'Early forfeit'].map((h) => (
+                    {[t('Player'), t('Outcome'), t('Rating'), t('Ticket'), t('Early forfeit')].map((h) => (
                       <TableHead key={h} className="h-9 px-3 text-xs text-(--td-text-3)">
                         {h}
                       </TableHead>
@@ -395,57 +427,72 @@ function MatchRecord({ id }: { id: string }) {
                     <TableRow key={p.playerId} className="border-(--td-divider) hover:bg-transparent">
                       <TableCell className="px-3 py-2">
                         {p.displayName}
-                        <span className="block font-mono text-xs text-(--td-text-3)">{p.partnerPlayerId ?? 'no Betsson id'}</span>
+                        <span className="block font-mono text-xs text-(--td-text-3)">{p.partnerPlayerId ?? t('no Betsson id')}</span>
                       </TableCell>
                       <TableCell className={cn('px-3 py-2 text-sm font-semibold', p.outcome && OUTCOME_STYLES[p.outcome])}>{p.outcome ? OUTCOME_LABELS[p.outcome] : '—'}</TableCell>
                       <TableCell className="px-3 py-2 tabular-nums">{signed(p.ratingDelta)}</TableCell>
-                      <TableCell className="px-3 py-2 text-xs">{p.ticketRefunded === null ? '—' : p.ticketRefunded ? 'Refunded' : 'Spent'}</TableCell>
-                      <TableCell className="px-3 py-2 text-xs">{p.earlyForfeit ?? '—'}</TableCell>
+                      <TableCell className="px-3 py-2 text-xs">{p.ticketRefunded === null ? '—' : p.ticketRefunded ? t('Refunded') : t('Spent')}</TableCell>
+                      <TableCell className="px-3 py-2 text-xs">{p.earlyForfeit ? named(EARLY_FORFEIT, p.earlyForfeit) : '—'}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
               </Table>
             </div>
             <section className="flex flex-col gap-2">
-              <h3 className="text-sm font-semibold">Replay</h3>
+              <h3 className="text-sm font-semibold">{t('Replay')}</h3>
               <Replay record={r} />
             </section>
             {r.corrections.length > 0 && (
               <section className="flex flex-col gap-2">
-                <h3 className="text-sm font-semibold">Corrections</h3>
+                <h3 className="text-sm font-semibold">{t('Corrections')}</h3>
                 <ul className="flex flex-col gap-2 text-sm">
                   {r.corrections.map((c) => (
                     <li key={c.id} className="rounded-lg border border-border p-3">
                       <p>
-                        <span className="font-semibold capitalize">{c.kind === 'void' ? 'Voided' : 'Winner set'}</span> by {c.staff.name} at {formatGeorgiaTime(c.createdAt)} (result v{c.resultVersion})
+                        {tr('{what} by {name} at {time} (result v{version})', {
+                          what: (
+                            <span key="what" className="font-semibold capitalize">
+                              {c.kind === 'void' ? t('Voided') : t('Winner set')}
+                            </span>
+                          ),
+                          name: c.staff.name,
+                          time: formatGeorgiaTime(c.createdAt),
+                          version: c.resultVersion,
+                        })}
                       </p>
-                      <p className="mt-1 text-(--td-text-2)">“{c.reason}”</p>
-                      {c.penaltiesToReview.length > 0 && <p className="mt-1 text-xs text-amber-800">{c.penaltiesToReview.length} later penalty(ies) to review</p>}
+                      <p className="mt-1 text-(--td-text-2)">{t('“{reason}”', { reason: c.reason })}</p>
+                      {c.penaltiesToReview.length > 0 && <p className="mt-1 text-xs text-amber-800">{t('{count} later penalty(ies) to review', { count: c.penaltiesToReview.length })}</p>}
                     </li>
                   ))}
                 </ul>
               </section>
             )}
             <details className="rounded-lg border border-border">
-              <summary className="cursor-pointer px-3 py-2 text-sm font-medium">Rating events, tickets and result deliveries</summary>
+              <summary className="cursor-pointer px-3 py-2 text-sm font-medium">{t('Rating events, tickets and result deliveries')}</summary>
               <div className="flex flex-col gap-3 border-t border-(--td-divider) p-3 text-xs">
                 {r.players.map((p) => (
                   <div key={p.playerId}>
                     <p className="font-semibold">{p.displayName}</p>
-                    {p.ratingEvents.map((e) => (
-                      <p key={e.seq} className="tabular-nums text-(--td-text-2)">
-                        #{e.seq} rule {signed(e.deltaRule)} applied {signed(e.appliedDelta)} → {e.ratingAfter}
-                        {e.correctionId && ' (correction)'} · {formatGeorgiaTime(e.at)}
-                      </p>
-                    ))}
-                    {p.tickets.map((t) => (
-                      <p key={t.id} className="text-(--td-text-2)">
-                        ticket {signed(t.delta)} {t.reason} · balance {t.balanceAfter}
+                    {p.ratingEvents.map((e) => {
+                      const event = { seq: e.seq, rule: signed(e.deltaRule), applied: signed(e.appliedDelta), after: e.ratingAfter, time: formatGeorgiaTime(e.at) };
+                      return (
+                        <p key={e.seq} className="tabular-nums text-(--td-text-2)">
+                          {e.correctionId ? t('#{seq} rule {rule} applied {applied} → {after} (correction) · {time}', event) : t('#{seq} rule {rule} applied {applied} → {after} · {time}', event)}
+                        </p>
+                      );
+                    })}
+                    {p.tickets.map((entry) => (
+                      <p key={entry.id} className="text-(--td-text-2)">
+                        {t('ticket {delta} {reason} · balance {balance}', { delta: signed(entry.delta), reason: named(TICKET_REASONS, entry.reason), balance: entry.balanceAfter })}
                       </p>
                     ))}
                     {p.deliveries.map((d) => (
                       <p key={d.resultVersion} className="text-(--td-text-3)">
-                        result v{d.resultVersion}: {d.ackedAt ? `seen ${formatGeorgiaTime(d.ackedAt)}` : d.supersededAt ? 'replaced before it was seen' : `not seen yet (${d.attempts} attempts)`}
+                        {d.ackedAt
+                          ? t('result v{version}: seen {time}', { version: d.resultVersion, time: formatGeorgiaTime(d.ackedAt) })
+                          : d.supersededAt
+                            ? t('result v{version}: replaced before it was seen', { version: d.resultVersion })
+                            : t('result v{version}: not seen yet ({attempts} attempts)', { version: d.resultVersion, attempts: d.attempts })}
                       </p>
                     ))}
                   </div>
@@ -477,7 +524,7 @@ export function CorrectionForm({ record }: { record: AdminMatchRecord }) {
   const [error, setError] = useState<unknown>(null);
   const [busy, setBusy] = useState(false);
   const [confirming, setConfirming] = useState(false);
-  if (record.status !== 'settled' && record.status !== 'void') return <p className="text-xs text-(--td-text-3)">A correction is possible once the match is decided.</p>;
+  if (record.status !== 'settled' && record.status !== 'void') return <p className="text-xs text-(--td-text-3)">{t('A correction is possible once the match is decided.')}</p>;
   const moved = record.resultVersion !== reviewed;
   const latest = record.corrections.at(-1);
   const body = { version: reviewed, outcome: kind === 'void' ? { kind: 'void' as const } : { kind: 'win' as const, winner }, reason: reason.trim() };
@@ -501,7 +548,7 @@ export function CorrectionForm({ record }: { record: AdminMatchRecord }) {
       const next = await write((operation) => tdAdmin.matches.correct(record.id, body, operation), [tdKeys.ops]);
       setReviewed(next.resultVersion);
       queryClient.setQueryData([...tdKeys.ops, 'match', record.id], next);
-      toast.success(kind === 'void' ? 'Voided: both tickets refunded' : 'Winner set');
+      toast.success(kind === 'void' ? t('Voided: both tickets refunded') : t('Winner set'));
       setReason('');
     } catch (caught) {
       if (caught instanceof TdApiError && caught.code === 'revision_conflict') await queryClient.invalidateQueries({ queryKey: [...tdKeys.ops, 'match', record.id] });
@@ -513,13 +560,16 @@ export function CorrectionForm({ record }: { record: AdminMatchRecord }) {
   };
   return (
     <section className="flex flex-col gap-3 rounded-xl border border-(--td-danger)/30 p-4">
-      <h3 className="text-sm font-semibold">Correct the result (ops)</h3>
-      <p className="text-xs text-(--td-text-3)">Both players’ ratings are recomputed from this match on; a void refunds both tickets. The players see the corrected result, and Betsson gets it.</p>
+      <h3 className="text-sm font-semibold">{t('Correct the result (ops)')}</h3>
+      <p className="text-xs text-(--td-text-3)">{t('Both players’ ratings are recomputed from this match on; a void refunds both tickets. The players see the corrected result, and Betsson gets it.')}</p>
       {moved && (
         <div role="alert" className="flex flex-wrap items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-700">
           <span className="min-w-0 flex-1">
-            The result changed while you were reviewing it: now result v{record.resultVersion}
-            {latest ? ` (${latest.kind === 'void' ? 'voided' : 'winner set'} by ${latest.staff.name})` : ''}. Check the record above before correcting it again.
+            {!latest
+              ? t('The result changed while you were reviewing it: now result v{version}. Check the record above before correcting it again.', { version: record.resultVersion })
+              : latest.kind === 'void'
+                ? t('The result changed while you were reviewing it: now result v{version} (voided by {name}). Check the record above before correcting it again.', { version: record.resultVersion, name: latest.staff.name })
+                : t('The result changed while you were reviewing it: now result v{version} (winner set by {name}). Check the record above before correcting it again.', { version: record.resultVersion, name: latest.staff.name })}
           </span>
           <Button
             size="sm"
@@ -531,7 +581,7 @@ export function CorrectionForm({ record }: { record: AdminMatchRecord }) {
               setError(null);
             }}
           >
-            Review the new result
+            {t('Review the new result')}
           </Button>
         </div>
       )}
@@ -539,12 +589,12 @@ export function CorrectionForm({ record }: { record: AdminMatchRecord }) {
         {(['void', 'win'] as const).map((k) => (
           <label key={k} className="flex items-center gap-2">
             <input type="radio" name="correction-kind" checked={kind === k} onChange={() => edit(() => setKind(k))} className="accent-(--td-primary)" />
-            {k === 'void' ? 'Void (no contest, refund both)' : 'Set the winner'}
+            {k === 'void' ? t('Void (no contest, refund both)') : t('Set the winner')}
           </label>
         ))}
       </div>
       {kind === 'win' && (
-        <select aria-label="Winner" value={winner} onChange={(event) => edit(() => setWinner(event.target.value))} className="h-10 w-fit rounded-lg border border-border bg-(--td-input) px-3 text-sm">
+        <select aria-label={t('Winner')} value={winner} onChange={(event) => edit(() => setWinner(event.target.value))} className="h-10 w-fit rounded-lg border border-border bg-(--td-input) px-3 text-sm">
           {record.players.map((p) => (
             <option key={p.playerId} value={p.playerId}>
               {p.displayName}
@@ -553,7 +603,7 @@ export function CorrectionForm({ record }: { record: AdminMatchRecord }) {
         </select>
       )}
       <label className="flex flex-col gap-1.5 text-xs font-medium text-(--td-text-3)">
-        Reason (kept with the correction; up to 500 characters)
+        {t('Reason (kept with the correction; up to 500 characters)')}
         <Textarea value={reason} onChange={(event) => edit(() => setReason(event.target.value))} className="min-h-16 rounded-lg border-border bg-(--td-input) text-sm text-foreground" />
       </label>
       <TdIssueText issues={issues} />
@@ -561,11 +611,11 @@ export function CorrectionForm({ record }: { record: AdminMatchRecord }) {
       <div className="flex gap-2">
         <Button variant={confirming ? 'destructive' : 'secondary'} className="w-fit rounded-lg" disabled={busy || moved} onClick={() => void submit()}>
           {busy && <Loader2 className="animate-spin" />}
-          {confirming ? `Confirm: ${kind === 'void' ? 'void this match' : 'set the winner'} (result v${reviewed})` : 'Correct the result'}
+          {!confirming ? t('Correct the result') : kind === 'void' ? t('Confirm: void this match (result v{version})', { version: reviewed }) : t('Confirm: set the winner (result v{version})', { version: reviewed })}
         </Button>
         {confirming && (
           <Button variant="ghost" className="rounded-lg" onClick={() => setConfirming(false)}>
-            Cancel
+            {t('Cancel')}
           </Button>
         )}
       </div>
@@ -584,17 +634,20 @@ export function OpsReviews({ onMatch }: { onMatch: (id: string) => void }) {
   const items = reviews.data?.pages.flatMap((page) => page.items) ?? [];
   return (
     <TdSection
-      title="Early-quit penalties to re-check"
-      description="A player who quits matches early too often in one day is penalised. If one of that day's matches is voided later, the count drops and a penalty may no longer be deserved. Open the match to correct it, or dismiss the entry with a note."
+      title={t('Early-quit penalties to re-check')}
+      description={t(
+        "A player who quits matches early too often in one day is penalised. If one of that day's matches is voided later, the count drops and a penalty may no longer be deserved. Open the match to correct it, or dismiss the entry with a note.",
+      )}
       actions={
-        <select aria-label="Which reviews" value={status} onChange={(event) => setStatus(event.target.value as 'open' | 'all')} className="h-9 rounded-full border border-border bg-(--td-input) px-3 text-sm">
-          <option value="open">Open</option>
-          <option value="all">All</option>
+        <select aria-label={t('Which reviews')} value={status} onChange={(event) => setStatus(event.target.value as 'open' | 'all')} className="h-9 rounded-full border border-border bg-(--td-input) px-3 text-sm">
+          {/* The shared word “Open” is the action (to open something); here it is the reviews still open. */}
+          <option value="open">{TD_LANG === 'ka' ? t('Open reviews') : 'Open'}</option>
+          <option value="all">{t('All')}</option>
         </select>
       }
     >
       <TdErrorPanel error={reviews.error} className="m-5" />
-      {reviews.isSuccess && items.length === 0 && <TdEmptyState title="Nothing to review" />}
+      {reviews.isSuccess && items.length === 0 && <TdEmptyState title={t('Nothing to review')} />}
       <ul className="divide-y divide-(--td-divider)">
         {items.map((review) => (
           <ReviewRow key={review.id} review={review} onMatch={onMatch} />
@@ -603,7 +656,7 @@ export function OpsReviews({ onMatch }: { onMatch: (id: string) => void }) {
       {reviews.hasNextPage && (
         <div className="border-t border-(--td-divider) px-5 py-3">
           <Button variant="secondary" size="sm" className="rounded-lg" disabled={reviews.isFetchingNextPage} onClick={() => void reviews.fetchNextPage()}>
-            Load more
+            {t('Load more')}
           </Button>
         </div>
       )}
@@ -621,34 +674,33 @@ function ReviewRow({ review, onMatch }: { review: OpsReviewList['items'][number]
     setError(null);
     try {
       await write((operation) => tdAdmin.reviews.dismiss(review.id, note.trim(), operation), [tdKeys.ops]);
-      toast.success('Dismissed');
+      toast.success(t('Dismissed'));
     } catch (caught) {
       setError(caught);
     } finally {
       setBusy(false);
     }
   };
+  const counts = { then: review.countedThen ?? '?', now: review.countedNow };
   return (
     <li className="flex flex-col gap-2 px-5 py-3 text-sm">
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
         <span className="tabular-nums text-(--td-text-3)">{formatDay(review.georgiaDate)}</span>
-        <span>
-          Counted {review.countedThen ?? '?'} then, {review.countedNow} now · raised by a {review.source}
-        </span>
+        <span>{review.source === 'correction' ? t('Counted {then} then, {now} now · raised by a correction', counts) : t('Counted {then} then, {now} now · raised by a settlement', counts)}</span>
         <button type="button" className="text-primary underline" onClick={() => onMatch(review.matchId)}>
-          Open the match
+          {t('Open the match')}
         </button>
-        <span className="text-xs capitalize text-(--td-text-3)">{review.status}</span>
+        <span className="text-xs capitalize text-(--td-text-3)">{named(REVIEW_STATUS, review.status)}</span>
       </div>
       {review.status === 'open' ? (
         <div className="flex flex-wrap items-center gap-2">
-          <Input value={note} onChange={(event) => setNote(event.target.value)} placeholder="Why nothing needs correcting" aria-label="Dismissal note" className="h-9 max-w-md rounded-lg bg-(--td-input)" />
+          <Input value={note} onChange={(event) => setNote(event.target.value)} placeholder={t('Why nothing needs correcting')} aria-label={t('Dismissal note')} className="h-9 max-w-md rounded-lg bg-(--td-input)" />
           <Button variant="secondary" size="sm" className="rounded-lg" disabled={busy || !note.trim()} onClick={() => void dismiss()}>
-            Dismiss
+            {t('Dismiss')}
           </Button>
         </div>
       ) : (
-        review.note && <p className="text-xs text-(--td-text-3)">“{review.note}” · {review.closedBy?.name}</p>
+        review.note && <p className="text-xs text-(--td-text-3)">{t('“{note}” · {name}', { note: review.note, name: review.closedBy?.name ?? '' })}</p>
       )}
       <TdErrorPanel error={error} />
     </li>
