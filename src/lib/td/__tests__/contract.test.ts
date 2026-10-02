@@ -17,9 +17,11 @@ describe('pinned admin contract', () => {
     expect(TD_CONTRACT.contract).toBe('table-derby-admin');
   });
 
-  it('is v6: match inputs can be archived or expired, with the date they went to the archive', () => {
-    expect(TD_ADMIN_CONTRACT_VERSION).toBe(6);
-    expect(TD_CONTRACT.version).toBe(6);
+  it('is v7: the dashboard has the last 7 and 30 days and a point per day; match inputs can be archived or expired', () => {
+    expect(TD_ADMIN_CONTRACT_VERSION).toBe(7);
+    expect(TD_CONTRACT.version).toBe(7);
+    const board = TD_CONTRACT.schemas.Dashboard as { required: string[] };
+    expect(board.required).toEqual(expect.arrayContaining(['today', 'yesterday', 'last7Days', 'last30Days', 'days']));
     const record = TD_CONTRACT.schemas.AdminMatchRecord as { properties: { inputs: { properties: Record<string, { anyOf?: { enum?: string[] }[] }> } } };
     const inputs = record.properties.inputs;
     expect(inputs.properties.missing.anyOf?.[0].enum).toEqual(['redis_lost', 'never_started', 'not_recorded', 'archived', 'expired']);

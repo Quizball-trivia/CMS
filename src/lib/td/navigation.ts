@@ -49,7 +49,7 @@ export const TD_TABS: readonly TdTab[] = [
     key: 'dashboard',
     href: TD_ROOT,
     label: t('Dashboard'),
-    description: t('Players, matches and dailies played, today and yesterday in Georgia time.'),
+    description: t('Players, matches and dailies played: today, yesterday, the last 7 and the last 30 days.'),
     group: 'overview',
     roles: ALL,
   },

@@ -84,7 +84,7 @@ export function TdCategoriesTab() {
 
   return (
     <>
-      <div className="grid items-start gap-6 xl:grid-cols-2">
+      <div className="flex flex-col gap-6">
         <TdContentList
           type="card-categories"
           title={t('Round I · ბარათონი')}

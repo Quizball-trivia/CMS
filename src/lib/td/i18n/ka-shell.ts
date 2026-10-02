@@ -32,7 +32,7 @@ export const KA_SHELL: Record<string, string> = {
   Integration: 'ინტეგრაცია',
   Team: 'გუნდი',
   Settings: 'პარამეტრები',
-  'Players, matches and dailies played, today and yesterday in Georgia time.': 'მოთამაშეები, მატჩები და ნათამაშები ყოველდღიური თამაშები — დღეს და გუშინ, საქართველოს დროით.',
+  'Players, matches and dailies played: today, yesterday, the last 7 and the last 30 days.': 'მოთამაშეები, მატჩები და ყოველდღიური თამაშები: დღეს, გუშინ, ბოლო 7 და ბოლო 30 დღეში.',
   'The cards and questions of every game mode: search, edit, upload, approve.': 'თამაშის ყველა რეჟიმის ბარათები და კითხვები: ძებნა, რედაქტირება, ატვირთვა, დამტკიცება.',
   'The categories of Round I (ბარათონი) and Round III (პაპა კარლოს ყუთი). A category is approved with its questions.':
     'I ტურის (ბარათონი) და III ტურის (პაპა კარლოს ყუთი) კატეგორიები. კატეგორია თავის კითხვებთან ერთად მტკიცდება.',
@@ -130,12 +130,22 @@ export const KA_SHELL: Record<string, string> = {
   'Practice runs': 'ვარჯიშები',
   '{n} new': '{n} ახალი',
   '{started} started · {voided} voided': '{started} დაწყებული · {voided} ანულირებული',
+  '{n} started': '{n} დაწყებული',
   '{n} completed': '{n} დასრულებული',
   '{count} early-quit penalties need a second look: a match was voided afterwards, so the player may not have deserved them.':
     '{count} ჯარიმა ადრე დათმობისთვის გადასამოწმებელია: მატჩი მოგვიანებით ანულირდა, ამიტომ შესაძლოა, მოთამაშეს ის არ ეკუთვნოდა.',
   Review: 'გადამოწმება',
-  'Today is {today} and yesterday {yesterday}, counted midnight to midnight in Georgian time. Test accounts are left out.':
-    'დღეს: {today}; გუშინ: {yesterday}. დღე ითვლება შუაღამიდან შუაღამემდე, საქართველოს დროით. სატესტო ანგარიშები არ ითვლება.',
+  'Last 7 days': 'ბოლო 7 დღე',
+  'Last 30 days': 'ბოლო 30 დღე',
+  'New players': 'ახალი მოთამაშეები',
+  'Dailies completed': 'დასრულებული ყოველდღიურები',
+  'Day by day': 'დღეების მიხედვით',
+  'The last 30 days, a bar a day. The most in one day: {n}.': 'ბოლო 30 დღე, თითო სვეტი — ერთი დღე. ერთი დღის მაქსიმუმი: {n}.',
+  'What the chart shows': 'რას აჩვენებს დიაგრამა',
+  '{day}: no figure yet': '{day}: მონაცემი ჯერ არ არის',
+  'The figures of the last 7 and 30 days are still being counted; they appear within the hour.': 'ბოლო 7 და 30 დღის მონაცემები ჯერ ითვლება; ერთ საათში გამოჩნდება.',
+  'A day runs from midnight to midnight in Georgian time, and the last 7 and 30 days include today. A player who played on several days counts once. Test accounts are left out, and bots are not counted as players.':
+    'დღე ითვლება შუაღამიდან შუაღამემდე, საქართველოს დროით; ბოლო 7 და 30 დღეში დღევანდელი დღეც შედის. რამდენიმე დღეს ნათამაშები მოთამაშე ერთხელ ითვლება. სატესტო ანგარიშები არ ითვლება, ბოტები კი მოთამაშეებად არ ითვლებიან.',
   '{count} matches corrected today.': 'დღეს შესწორდა {count} მატჩი.',
   'Updated {time}.': 'განახლდა: {time}.',
 

@@ -109,6 +109,7 @@ const KA_MONTHS_SHORT = ['იან', 'თებ', 'მარ', 'აპრ', '�
 const KA_WEEKDAYS_SHORT = ['კვი', 'ორშ', 'სამ', 'ოთხ', 'ხუთ', 'პარ', 'შაბ'];
 
 const dateFormat = new Intl.DateTimeFormat('en-GB', { timeZone: 'UTC', weekday: 'short', day: 'numeric', month: 'short' });
+const shortDateFormat = new Intl.DateTimeFormat('en-GB', { timeZone: 'UTC', day: 'numeric', month: 'short' });
 const monthFormat = new Intl.DateTimeFormat('en-GB', { timeZone: 'UTC', month: 'long', year: 'numeric' });
 const weekdayFormat = new Intl.DateTimeFormat('en-GB', { timeZone: 'UTC', weekday: 'short' });
 const timeFormat = new Intl.DateTimeFormat('en-GB', { timeZone: GEORGIA_TIME_ZONE, dateStyle: 'medium', timeStyle: 'short' });
@@ -118,6 +119,11 @@ const timeParts = new Intl.DateTimeFormat('en-GB', { timeZone: GEORGIA_TIME_ZONE
 export const formatDay = (day: string) => {
   const date = new Date(`${day}T00:00:00Z`);
   return TD_LANG === 'ka' ? `${KA_WEEKDAYS_SHORT[date.getUTCDay()]}, ${date.getUTCDate()} ${KA_MONTHS_SHORT[date.getUTCMonth()]}` : dateFormat.format(date);
+};
+/** "1 Oct" for a Georgian date. */
+export const formatDate = (day: string) => {
+  const date = new Date(`${day}T00:00:00Z`);
+  return TD_LANG === 'ka' ? `${date.getUTCDate()} ${KA_MONTHS_SHORT[date.getUTCMonth()]}` : shortDateFormat.format(date);
 };
 /** "October 2026" for YYYY-MM. */
 export const formatMonth = (month: string) => {
