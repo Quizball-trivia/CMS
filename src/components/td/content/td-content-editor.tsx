@@ -74,15 +74,15 @@ export function TdContentEditorDialog({
     setSession({ open: target !== null, tab: target?.row && startOn === 'preview' && hasPreview(target.type) ? 'preview' : 'edit' });
   }
   // Asked before the dialog closes: the open form says whether it may be left.
-  const leave = useRef<() => boolean>(() => true);
+  const leaveRef = useRef<() => boolean>(() => true);
   return (
-    <Dialog open={target !== null} onOpenChange={(open) => !open && leave.current() && onClose()}>
+    <Dialog open={target !== null} onOpenChange={(open) => !open && leaveRef.current() && onClose()}>
       <DialogContent className="flex h-[min(90vh,880px)] w-full flex-col gap-0 overflow-hidden rounded-[2rem] border-slate-200 bg-white p-0 sm:max-w-3xl">
         {target && (
           <EditorBody
             key={`${target.type}:${target.row?.id ?? 'new'}`}
             target={target}
-            leave={leave}
+            leaveRef={leaveRef}
             onSaved={onSaved}
             nav={target.row ? (nav ?? null) : null}
             tab={session.tab}
@@ -103,14 +103,14 @@ interface Conflict {
 
 function EditorBody({
   target,
-  leave,
+  leaveRef,
   onSaved,
   nav,
   tab: asked,
   setTab,
 }: {
   target: TdEditorTarget;
-  leave: MutableRefObject<() => boolean>;
+  leaveRef: MutableRefObject<() => boolean>;
   onSaved?: (row: TdContentRow) => void;
   nav: TdEditorNav | null;
   tab: Tab;
@@ -171,11 +171,11 @@ function EditorBody({
   const unsaved = held || typing.size > 0 || !sameDraft(draft, base);
   const mayLeave = useCallback(() => !unsaved || window.confirm(t('This one has changes that are not saved. Leave it without saving?')), [unsaved]);
   useEffect(() => {
-    leave.current = mayLeave;
+    leaveRef.current = mayLeave;
     return () => {
-      leave.current = () => true;
+      leaveRef.current = () => true;
     };
-  }, [leave, mayLeave]);
+  }, [leaveRef, mayLeave]);
 
   const go = useCallback(
     (index: number) => {
