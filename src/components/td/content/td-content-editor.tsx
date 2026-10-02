@@ -23,7 +23,7 @@ import { useTdAuth } from '@/providers/td-auth-provider';
 import { TD_TYPE_CONFIG } from './content-types';
 import { TdCategoryApproval } from './td-category-approval';
 import { TdUploadingContext } from './td-uploading';
-import { issuesAt, TdField, TdInvalidInputContext, TdNumberField } from './td-form';
+import { issuesAt, TdField, TdInvalidInputContext, TdNumberField, TdPendingInputContext } from './td-form';
 import { hasPreview, TdPreview } from './td-preview';
 import { TdStatusChip, TD_STATUS_LABELS, TD_STATUS_WORDS } from './td-status';
 
@@ -141,6 +141,19 @@ function EditorBody({
     [],
   );
   const held = uploads > 0 || invalid.size > 0;
+  // Fields holding text that is not in the draft yet: nothing is held for it, but leaving asks first.
+  const [typing, setTyping] = useState<ReadonlySet<string>>(() => new Set());
+  const reportPending = useCallback(
+    (field: string, pending: boolean) =>
+      setTyping((current) => {
+        if (current.has(field) === pending) return current;
+        const next = new Set(current);
+        if (pending) next.add(field);
+        else next.delete(field);
+        return next;
+      }),
+    [],
+  );
   const [issues, setIssues] = useState<SchemaIssue[]>([]);
   const [error, setError] = useState<unknown>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -154,8 +167,8 @@ function EditorBody({
   const tab: Tab = (asked === 'preview' && !hasPreview(type)) || (asked === 'history' && row === null) || (asked === 'approved' && !row?.approved) ? 'edit' : asked;
   const otherTab = tab !== 'edit';
   const dirty = creating || !sameDraft(draft, base);
-  // Something here would be lost by leaving: a change, text that is not a valid number (the draft does not have it yet), an upload still running.
-  const unsaved = held || !sameDraft(draft, base);
+  // Something here would be lost by leaving: a change, text the draft does not have yet (not a valid number, a spelling not entered), an upload still running.
+  const unsaved = held || typing.size > 0 || !sameDraft(draft, base);
   const mayLeave = useCallback(() => !unsaved || window.confirm(t('This one has changes that are not saved. Leave it without saving?')), [unsaved]);
   useEffect(() => {
     leave.current = mayLeave;
@@ -392,32 +405,34 @@ function EditorBody({
               {/* Locked while a write and its refresh run: the answer replaces the form, so nothing typed meanwhile may be lost. */}
               <TdUploadingContext.Provider value={reportUploading}>
                 <TdInvalidInputContext.Provider value={reportInvalid}>
-                  <fieldset disabled={busy !== null || Boolean(nav?.waiting)} className="contents">
-                    <Editor
-                      value={draft.data as never}
-                      onChange={(update: unknown) =>
-                        setDraft((current) => ({
-                          ...current,
-                          data: (typeof update === 'function' ? (update as (d: Record<string, unknown>) => Record<string, unknown>)(current.data) : update) as Record<string, unknown>,
-                        }))
-                      }
-                      issues={issues}
-                      creating={creating}
-                    />
-                    {!creating && (
-                      <TdNumberField
-                        label={t('Position')}
-                        value={draft.position}
-                        onChange={(position) => setDraft({ ...draft, position: position ?? 0 })}
-                        issues={issuesAt(issues, 'position')}
-                        hint={t('The order in a release. Changing it is a change to the content.')}
-                        className="max-w-40"
+                  <TdPendingInputContext.Provider value={reportPending}>
+                    <fieldset disabled={busy !== null || Boolean(nav?.waiting)} className="contents">
+                      <Editor
+                        value={draft.data as never}
+                        onChange={(update: unknown) =>
+                          setDraft((current) => ({
+                            ...current,
+                            data: (typeof update === 'function' ? (update as (d: Record<string, unknown>) => Record<string, unknown>)(current.data) : update) as Record<string, unknown>,
+                          }))
+                        }
+                        issues={issues}
+                        creating={creating}
                       />
-                    )}
-                    <TdField label={t('Note')} htmlFor={noteId} issues={issuesAt(issues, 'note')} hint={t('For the team: sources, checks, questions. Changing only the note keeps the row’s status.')}>
-                      <Textarea id={noteId} value={draft.note} onChange={(event) => setDraft({ ...draft, note: event.target.value })} className="min-h-16 rounded-lg border-border bg-(--td-input) text-sm" />
-                    </TdField>
-                  </fieldset>
+                      {!creating && (
+                        <TdNumberField
+                          label={t('Position')}
+                          value={draft.position}
+                          onChange={(position) => setDraft({ ...draft, position: position ?? 0 })}
+                          issues={issuesAt(issues, 'position')}
+                          hint={t('The order in a release. Changing it is a change to the content.')}
+                          className="max-w-40"
+                        />
+                      )}
+                      <TdField label={t('Note')} htmlFor={noteId} issues={issuesAt(issues, 'note')} hint={t('For the team: sources, checks, questions. Changing only the note keeps the row’s status.')}>
+                        <Textarea id={noteId} value={draft.note} onChange={(event) => setDraft({ ...draft, note: event.target.value })} className="min-h-16 rounded-lg border-border bg-(--td-input) text-sm" />
+                      </TdField>
+                    </fieldset>
+                  </TdPendingInputContext.Provider>
                 </TdInvalidInputContext.Provider>
               </TdUploadingContext.Provider>
               {issues.some((issue) => !issue.path.startsWith('data.') && issue.path !== 'note' && issue.path !== 'position') && (

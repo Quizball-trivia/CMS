@@ -242,6 +242,13 @@ describe('dashboard', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Practice runs' }));
     const runs = within(screen.getByRole('list', { name: 'Practice runs' })).getAllByRole('listitem');
     expect(runs[29].getAttribute('aria-label')).toMatch(new RegExp(`: ${data.today.practice.runs}$`));
+
+    // The same figures as numbers, today first.
+    const numbers = screen.getByText('The figures of each day').closest('details')!;
+    const [, first] = within(numbers).getAllByRole('row');
+    const point = data.days[data.days.length - 1];
+    expect(within(first).getAllByRole('cell').map((cell) => cell.textContent)).toEqual([point.activePlayers, point.newPlayers, point.matchesSettled, point.dailiesCompleted, point.practiceRuns].map(String));
+    expect(within(numbers).getAllByRole('row')).toHaveLength(31);
   });
 
   it('leaves the longer periods empty, and says so, until the API has counted them; a day with no figure has an empty bar', async () => {
@@ -309,6 +316,15 @@ describe('stepping through a list', () => {
     expect(onClose).toHaveBeenCalledTimes(1);
     confirm.mockReturnValue(true);
     fireEvent.keyDown(screen.getByRole('dialog'), { key: 'Escape' });
+    expect(onClose).toHaveBeenCalledTimes(2);
+
+    // A spelling typed but not entered yet is not in the draft: closing would lose it, so it asks too.
+    fireEvent.change(screen.getByLabelText('Position'), { target: { value: String(row.position) } });
+    fireEvent.change(screen.getByLabelText('Accepted spellings'), { target: { value: 'espana' } });
+    confirm.mockClear();
+    confirm.mockReturnValue(false);
+    fireEvent.keyDown(screen.getByRole('dialog'), { key: 'Escape' });
+    expect(confirm).toHaveBeenCalledTimes(1);
     expect(onClose).toHaveBeenCalledTimes(2);
     confirm.mockRestore();
   });

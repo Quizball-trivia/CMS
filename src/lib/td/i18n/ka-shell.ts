@@ -140,6 +140,8 @@ export const KA_SHELL: Record<string, string> = {
   'New players': 'ახალი მოთამაშეები',
   'Dailies completed': 'დასრულებული ყოველდღიურები',
   'Day by day': 'დღეების მიხედვით',
+  'The figures of each day': 'თითოეული დღის ციფრები',
+  Day: 'დღე',
   'The last 30 days, a bar a day. The most in one day: {n}.': 'ბოლო 30 დღე, თითო სვეტი — ერთი დღე. ერთი დღის მაქსიმუმი: {n}.',
   'What the chart shows': 'რას აჩვენებს დიაგრამა',
   '{day}: no figure yet': '{day}: მონაცემი ჯერ არ არის',

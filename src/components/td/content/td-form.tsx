@@ -126,6 +126,13 @@ export function TdOptionalTextField({ value, onChange, ...rest }: Omit<Parameter
  */
 export const TdInvalidInputContext = createContext<((field: string, invalid: boolean) => void) | null>(null);
 
+/**
+ * Lets a field say it holds text that is not in its value yet (an accepted
+ * spelling before Enter): the editor asks before leaving, since closing would
+ * lose it. Save is not held: leaving the field puts the text in the value.
+ */
+export const TdPendingInputContext = createContext<((field: string, pending: boolean) => void) | null>(null);
+
 export function numberTextProblem(text: string, nullable: boolean): string | null {
   const trimmed = text.trim();
   if (trimmed === '') return nullable ? null : t('Enter a number');
@@ -380,6 +387,12 @@ export function TdSpellingsField({
 }) {
   const id = useId();
   const [draft, setDraft] = useState('');
+  const reportPending = useContext(TdPendingInputContext);
+  const pending = draft.trim() !== '';
+  useEffect(() => {
+    reportPending?.(id, pending);
+    return () => reportPending?.(id, false);
+  }, [reportPending, id, pending]);
   const commit = (raw: string) => {
     const parts = raw
       .split(',')

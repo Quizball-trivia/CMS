@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { BarChart3, CalendarDays, Dumbbell, Gamepad2, TriangleAlert, Trophy, Users } from 'lucide-react';
+import { BarChart3, CalendarDays, ChevronDown, Dumbbell, Gamepad2, TriangleAlert, Trophy, Users } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { tdKeys } from '@/hooks/use-td-content';
 import { tdAdmin } from '@/lib/td/client';
@@ -43,6 +43,7 @@ const CHART_DAYS = 30;
 /** The last 30 days, a bar a day, of the figure chosen above it. */
 function DayByDay({ days, today }: { days: Point[]; today: string }) {
   const [chosen, setChosen] = useState(SERIES[0]!.key);
+  const [pointed, setPointed] = useState<string | null>(null);
   const series = SERIES.find((s) => s.key === chosen)!;
   const byDate = new Map(days.map((point) => [point.date, point]));
   // Every day of the 30 has its place; one the API has no figure for yet stays empty.
@@ -56,7 +57,7 @@ function DayByDay({ days, today }: { days: Point[]; today: string }) {
             <BarChart3 className="size-4 text-slate-400" />
             {t('Day by day')}
           </h2>
-          <p className="mt-0.5 text-xs text-slate-500">{t('The last 30 days, a bar a day. The most in one day: {n}.', { n: Math.max(0, ...days.map(series.value)) })}</p>
+          <p className="mt-0.5 text-xs text-slate-500">{pointed ?? t('The last 30 days, a bar a day. The most in one day: {n}.', { n: Math.max(0, ...days.map(series.value)) })}</p>
         </div>
         <div className="flex flex-wrap gap-1 rounded-xl border border-slate-100 bg-slate-50 p-1" role="group" aria-label={t('What the chart shows')}>
           {SERIES.map((s) => (
@@ -78,7 +79,7 @@ function DayByDay({ days, today }: { days: Point[]; today: string }) {
           const value = point ? series.value(point) : null;
           const label = value === null ? t('{day}: no figure yet', { day: formatDay(date) }) : `${formatDay(date)}: ${value}`;
           return (
-            <li key={date} title={label} aria-label={label} className="group flex h-full min-w-0 flex-1 items-end">
+            <li key={date} title={label} aria-label={label} onMouseEnter={() => setPointed(label)} onMouseLeave={() => setPointed(null)} className="group flex h-full min-w-0 flex-1 items-end">
               <span
                 className={cn('w-full rounded-t-[3px] transition-colors', value === null ? 'border border-b-0 border-dashed border-slate-200' : date === today ? 'bg-blue-600' : 'bg-slate-300 group-hover:bg-slate-500')}
                 style={{ height: value === null ? '8%' : `${Math.max(value > 0 ? 3 : 1, (value / most) * 100)}%` }}
@@ -92,6 +93,44 @@ function DayByDay({ days, today }: { days: Point[]; today: string }) {
         <span>{formatDate(dates[Math.floor(CHART_DAYS / 2)]!)}</span>
         <span className="text-blue-700">{t('Today')}</span>
       </div>
+      {/* The same figures as numbers: a bar says its own only under a pointer. */}
+      <details className="group mt-4 rounded-xl border border-slate-100">
+        <summary className="flex cursor-pointer list-none items-center justify-between px-4 py-2.5 text-xs font-bold text-slate-600">
+          {t('The figures of each day')}
+          <ChevronDown className="size-4 text-slate-400 transition-transform group-open:rotate-180" />
+        </summary>
+        <div className="max-h-80 overflow-auto border-t border-slate-100">
+          <table className="w-full text-sm">
+            <thead className="sticky top-0 bg-white">
+              <tr className="text-right text-xs font-semibold text-slate-400">
+                <th className="py-2 pl-4 text-left font-semibold">{t('Day')}</th>
+                {SERIES.map((s) => (
+                  <th key={s.key} className="px-3 py-2 font-semibold last:pr-4">
+                    {s.label}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {[...dates].reverse().map((date) => {
+                const point = byDate.get(date);
+                return (
+                  <tr key={date} className="border-t border-slate-100 text-right tabular-nums text-slate-700">
+                    <th scope="row" className="whitespace-nowrap py-2 pl-4 text-left font-medium text-slate-900">
+                      {formatDay(date)}
+                    </th>
+                    {SERIES.map((s) => (
+                      <td key={s.key} className="px-3 py-2 last:pr-4">
+                        {point ? s.value(point) : '—'}
+                      </td>
+                    ))}
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </details>
     </section>
   );
 }
