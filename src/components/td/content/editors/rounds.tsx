@@ -4,7 +4,7 @@ import { TdMediaPicker } from '@/components/td/media/td-media';
 import { useTdAllRows } from '@/hooks/use-td-content';
 import type { TdContentData, TdContentType } from '@/lib/td/admin-api';
 import type { SchemaIssue } from '@/lib/td/contract';
-import { t, tn } from '@/lib/td/i18n';
+import { t, tc, tn } from '@/lib/td/i18n';
 import { issuesAt, TdListField, TdNumberField, TdSelectField, TdSpellingsField, TdSwitchField, TdTextField } from '../td-form';
 
 export interface TdEditorProps<T extends TdContentType> {
@@ -73,7 +73,7 @@ export function CardEditor({ value, onChange, issues, creating }: TdEditorProps<
       <CategoryField type="card-categories" value={value.categoryKey} onChange={(categoryKey) => onChange({ ...value, categoryKey })} issues={issues} creating={creating} />
       <KeyField value={value.key} onChange={(key) => onChange({ ...value, key })} issues={issues} creating={creating} />
       <TdSelectField
-        label={t('Value')}
+        label={tc('Value', 'points of a card')}
         value={String(value.value) as '1' | '2' | '3'}
         onChange={(next) => onChange({ ...value, value: Number(next) as 1 | 2 | 3 })}
         options={[

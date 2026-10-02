@@ -100,7 +100,7 @@ export const TD_TYPE_CONFIG: { [T in TdContentType]: TdTypeConfig<T> } = {
     singular: t('Career Path question'),
     plural: t('Career Path questions'),
     title: (d) => d.displayAnswer,
-    empty: (p) => ({ key: newKey('cp'), puzzle: '', prompt: 'Whose career is this?', displayAnswer: '', acceptedAnswers: [], clubs: [{ name: '', clubKey: null }], ...p }),
+    empty: (p) => ({ key: newKey('cp'), puzzle: '', prompt: t('Whose career is this?'), displayAnswer: '', acceptedAnswers: [], clubs: [{ name: '', clubKey: null }], ...p }),
     Editor: CareerPathEditor,
   },
   'daily-schedule': {

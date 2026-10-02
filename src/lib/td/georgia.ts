@@ -2,9 +2,9 @@
  * Georgian days (Asia/Tbilisi: UTC+4, no daylight saving), the contract's
  * unit for dates, the dashboard and the dailies calendar.
  */
-import { TD_LOCALE } from '@/lib/td/i18n';
+import { TD_LANG } from "@/lib/td/i18n";
 
-export const GEORGIA_TIME_ZONE = 'Asia/Tbilisi';
+export const GEORGIA_TIME_ZONE = "Asia/Tbilisi";
 const OFFSET_MS = 4 * 60 * 60 * 1000;
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -33,15 +33,15 @@ export function subscribeGeorgiaDay(onChange: () => void): () => void {
     }, msToNextGeorgiaDay() + 250);
   };
   const onVisible = () => {
-    if (document.visibilityState !== 'visible') return;
+    if (document.visibilityState !== "visible") return;
     onChange();
     arm();
   };
   arm();
-  document.addEventListener('visibilitychange', onVisible);
+  document.addEventListener("visibilitychange", onVisible);
   return () => {
     clearTimeout(timer);
-    document.removeEventListener('visibilitychange', onVisible);
+    document.removeEventListener("visibilitychange", onVisible);
   };
 }
 
@@ -49,7 +49,9 @@ export function subscribeGeorgiaDay(onChange: () => void): () => void {
 export function dayNumber(day: string): number | null {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) return null;
   const t = Date.parse(`${day}T00:00:00Z`);
-  return Number.isNaN(t) || new Date(t).toISOString().slice(0, 10) !== day ? null : t / DAY_MS;
+  return Number.isNaN(t) || new Date(t).toISOString().slice(0, 10) !== day
+    ? null
+    : t / DAY_MS;
 }
 
 export function addDays(day: string, days: number): string {
@@ -73,11 +75,16 @@ export interface DailyCycle {
  * otherwise the cycle's set counted in whole days from its anchor (backwards
  * too), as the game's release reader does (packages/content `scheduledSet`).
  */
-export function scheduledSet(own: string | undefined, cycle: DailyCycle | null, day: string): string | null {
+export function scheduledSet(
+  own: string | undefined,
+  cycle: DailyCycle | null,
+  day: string,
+): string | null {
   if (own !== undefined) return own;
   const n = dayNumber(day);
   const anchor = cycle ? dayNumber(cycle.anchor) : null;
-  if (n === null || !cycle || anchor === null || cycle.sets.length === 0) return null;
+  if (n === null || !cycle || anchor === null || cycle.sets.length === 0)
+    return null;
   const count = cycle.sets.length;
   return cycle.sets[(((n - anchor) % count) + count) % count] ?? null;
 }
@@ -89,24 +96,111 @@ export function monthGrid(day: string): (string | null)[][] {
   // 1970-01-01 was a Thursday: Monday-first weekday of `start`.
   const weekday = (((start + 3) % 7) + 7) % 7;
   const cells: (string | null)[] = Array.from({ length: weekday }, () => null);
-  for (let d = first; d.slice(0, 7) === first.slice(0, 7); d = addDays(d, 1)) cells.push(d);
+  for (let d = first; d.slice(0, 7) === first.slice(0, 7); d = addDays(d, 1))
+    cells.push(d);
   while (cells.length % 7 !== 0) cells.push(null);
-  return Array.from({ length: cells.length / 7 }, (_, i) => cells.slice(i * 7, i * 7 + 7));
+  return Array.from({ length: cells.length / 7 }, (_, i) =>
+    cells.slice(i * 7, i * 7 + 7),
+  );
 }
 
 export function shiftMonth(month: string, by: number): string {
-  const [year, m] = month.split('-').map(Number);
+  const [year, m] = month.split("-").map(Number);
   const index = year * 12 + (m - 1) + by;
-  return `${String(Math.floor(index / 12)).padStart(4, '0')}-${String((index % 12) + 1).padStart(2, '0')}`;
+  return `${String(Math.floor(index / 12)).padStart(4, "0")}-${String((index % 12) + 1).padStart(2, "0")}`;
 }
 
-const dateFormat = new Intl.DateTimeFormat(TD_LOCALE, { timeZone: 'UTC', weekday: 'short', day: 'numeric', month: 'short' });
-const monthFormat = new Intl.DateTimeFormat(TD_LOCALE, { timeZone: 'UTC', month: 'long', year: 'numeric' });
-const timeFormat = new Intl.DateTimeFormat(TD_LOCALE, { timeZone: GEORGIA_TIME_ZONE, dateStyle: 'medium', timeStyle: 'short' });
+// Georgian month and weekday names are spelled out here, not taken from the
+// browser: one without Georgian locale data would print English, and differ
+// from what the server rendered.
+const KA_MONTHS = [
+  "იანვარი",
+  "თებერვალი",
+  "მარტი",
+  "აპრილი",
+  "მაისი",
+  "ივნისი",
+  "ივლისი",
+  "აგვისტო",
+  "სექტემბერი",
+  "ოქტომბერი",
+  "ნოემბერი",
+  "დეკემბერი",
+];
+const KA_MONTHS_SHORT = [
+  "იან",
+  "თებ",
+  "მარ",
+  "აპრ",
+  "მაი",
+  "ივნ",
+  "ივლ",
+  "აგვ",
+  "სექ",
+  "ოქტ",
+  "ნოე",
+  "დეკ",
+];
+/** From Sunday, as `getUTCDay` counts. */
+const KA_WEEKDAYS_SHORT = ["კვი", "ორშ", "სამ", "ოთხ", "ხუთ", "პარ", "შაბ"];
+
+const dateFormat = new Intl.DateTimeFormat("en-GB", {
+  timeZone: "UTC",
+  weekday: "short",
+  day: "numeric",
+  month: "short",
+});
+const monthFormat = new Intl.DateTimeFormat("en-GB", {
+  timeZone: "UTC",
+  month: "long",
+  year: "numeric",
+});
+const weekdayFormat = new Intl.DateTimeFormat("en-GB", {
+  timeZone: "UTC",
+  weekday: "short",
+});
+const timeFormat = new Intl.DateTimeFormat("en-GB", {
+  timeZone: GEORGIA_TIME_ZONE,
+  dateStyle: "medium",
+  timeStyle: "short",
+});
+const timeParts = new Intl.DateTimeFormat("en-GB", {
+  timeZone: GEORGIA_TIME_ZONE,
+  year: "numeric",
+  month: "numeric",
+  day: "numeric",
+  hour: "2-digit",
+  minute: "2-digit",
+  hourCycle: "h23",
+});
 
 /** "Wed 1 Oct" for a Georgian date. */
-export const formatDay = (day: string) => dateFormat.format(new Date(`${day}T00:00:00Z`));
+export const formatDay = (day: string) => {
+  const date = new Date(`${day}T00:00:00Z`);
+  return TD_LANG === "ka"
+    ? `${KA_WEEKDAYS_SHORT[date.getUTCDay()]}, ${date.getUTCDate()} ${KA_MONTHS_SHORT[date.getUTCMonth()]}`
+    : dateFormat.format(date);
+};
 /** "October 2026" for YYYY-MM. */
-export const formatMonth = (month: string) => monthFormat.format(new Date(`${month}-01T00:00:00Z`));
+export const formatMonth = (month: string) => {
+  const date = new Date(`${month}-01T00:00:00Z`);
+  return TD_LANG === "ka"
+    ? `${KA_MONTHS[date.getUTCMonth()]} ${date.getUTCFullYear()}`
+    : monthFormat.format(date);
+};
 /** A timestamp in Georgia time. */
-export const formatGeorgiaTime = (iso: string | null | undefined) => (iso ? timeFormat.format(new Date(iso)) : '—');
+export const formatGeorgiaTime = (iso: string | null | undefined) => {
+  if (!iso) return "—";
+  if (TD_LANG !== "ka") return timeFormat.format(new Date(iso));
+  const part = Object.fromEntries(
+    timeParts.formatToParts(new Date(iso)).map((p) => [p.type, p.value]),
+  );
+  return `${Number(part.day)} ${KA_MONTHS_SHORT[Number(part.month) - 1]} ${part.year}, ${part.hour}:${part.minute}`;
+};
+/** The weekdays' short names, Monday first, as a month grid is (5 January 1970 was a Monday). */
+export const WEEKDAYS_SHORT: readonly string[] =
+  TD_LANG === "ka"
+    ? [...KA_WEEKDAYS_SHORT.slice(1), KA_WEEKDAYS_SHORT[0]!]
+    : Array.from({ length: 7 }, (_, i) =>
+        weekdayFormat.format(new Date(Date.UTC(1970, 0, 5 + i))),
+      );

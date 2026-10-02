@@ -15,7 +15,7 @@ import { contentWriteIssues, TD_MERGE_UNITS } from '@/lib/td/content-rules';
 import type { SchemaIssue } from '@/lib/td/contract';
 import { describeTdError } from '@/lib/td/errors';
 import { formatGeorgiaTime } from '@/lib/td/georgia';
-import { t, tr, TD_LANG } from '@/lib/td/i18n';
+import { t, tc, TD_LANG, tr } from '@/lib/td/i18n';
 import { mergeDrafts, resolveConflicts, sameDraft, type TdDraft, type TdFieldConflict } from '@/lib/td/merge';
 import { contentActions } from '@/lib/td/workflow';
 import { cn } from '@/lib/utils';
@@ -344,7 +344,7 @@ function EditorBody({ target, onSaved }: { target: TdEditorTarget; onSaved?: (ro
                 busy={busy}
                 name="approve"
                 dirty={dirty || held}
-                onClick={() => (CATEGORY_TYPES.has(type) ? setApproving(true) : transition('approve', t('Approved')))}
+                onClick={() => (CATEGORY_TYPES.has(type) ? setApproving(true) : transition('approve', tc('Approved', 'it happened')))}
                 icon={<Check />}
               >
                 {t('Approve')}
@@ -357,7 +357,7 @@ function EditorBody({ target, onSaved }: { target: TdEditorTarget; onSaved?: (ro
             )}
             <span className="flex-1" />
             {actions?.archive.allowed && (
-              <Button variant="ghost" disabled={busy !== null || dirty || held} onClick={() => transition('archive', t('Archived'))} className="rounded-lg text-(--td-text-2) hover:text-(--td-danger)">
+              <Button variant="ghost" disabled={busy !== null || dirty || held} onClick={() => transition('archive', tc('Archived', 'it happened'))} className="rounded-lg text-(--td-text-2) hover:text-(--td-danger)">
                 {busy === 'archive' ? <Loader2 className="animate-spin" /> : <Archive />}
                 {t('Archive')}
               </Button>
@@ -520,8 +520,8 @@ const ACTION_LABELS: Record<string, string> = {
   edit: t('Edited'),
   'edit.note': t('Note changed'),
   ready: t('Marked ready'),
-  approve: t('Approved'),
-  archive: t('Archived'),
+  approve: tc('Approved', 'it happened'),
+  archive: tc('Archived', 'it happened'),
   restore: t('Restored'),
   delete: t('Removed (import undo)'),
   seed: t('Seeded'),

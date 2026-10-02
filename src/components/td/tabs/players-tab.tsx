@@ -17,7 +17,7 @@ import { TdApiError } from '@/lib/td/api-client';
 import { tdAdmin } from '@/lib/td/client';
 import { checkContract, type AdminLedgerList, type AdminMatchRecord, type AdminPlayerList, type AdminPlayerMatchList, type OpsReviewList, type SchemaIssue } from '@/lib/td/contract';
 import { formatDay, formatGeorgiaTime } from '@/lib/td/georgia';
-import { t, tr, TD_LANG } from '@/lib/td/i18n';
+import { t, tc, TD_LANG, tr } from '@/lib/td/i18n';
 import { cn } from '@/lib/utils';
 import { useTdAuth } from '@/providers/td-auth-provider';
 
@@ -641,7 +641,7 @@ export function OpsReviews({ onMatch }: { onMatch: (id: string) => void }) {
       actions={
         <select aria-label={t('Which reviews')} value={status} onChange={(event) => setStatus(event.target.value as 'open' | 'all')} className="h-9 rounded-full border border-border bg-(--td-input) px-3 text-sm">
           {/* The shared word “Open” is the action (to open something); here it is the reviews still open. */}
-          <option value="open">{TD_LANG === 'ka' ? t('Open reviews') : 'Open'}</option>
+          <option value="open">{tc('Open', 'not closed yet')}</option>
           <option value="all">{t('All')}</option>
         </select>
       }
