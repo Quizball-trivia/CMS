@@ -6,6 +6,7 @@ import { Archive, Check, FileText, ImageIcon, Layers, Loader2, MoreHorizontal, P
 import { toast } from 'sonner';
 import { useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -21,6 +22,7 @@ import { beginOperation, runEach } from '@/lib/td/operation';
 import { isTdPublisher } from '@/lib/td/workflow';
 import { cn } from '@/lib/utils';
 import { useTdAuth } from '@/providers/td-auth-provider';
+import { TdImportTab } from './import-tab';
 
 type CategoryType = 'card-categories' | 'box-categories';
 
@@ -198,6 +200,9 @@ export function TdQuestionsTab() {
   const [running, setRunning] = useState<string | null>(null);
   const [refusals, setRefusals] = useState<Array<{ label: string; message: string }>>([]);
   const [target, setTarget] = useState<TdEditorTarget | null>(null);
+  const [uploading, setUploading] = useState(false);
+  // A step past the last loaded row: opened once its page has arrived.
+  const [wanted, setWanted] = useState<number | null>(null);
 
   // Typing searches after a pause, as the Quizball question list does.
   useEffect(() => {
@@ -221,6 +226,20 @@ export function TdQuestionsTab() {
   const list = useTdContentList(mode.type, query);
   const categories = useTdAllRows(mode.categoryType ?? 'card-categories', {}, mode.categoryType !== undefined);
   const rows = useMemo(() => (list.data?.pages.flatMap((page) => page.items) ?? []) as TdContentRow[], [list.data]);
+
+  const openIndex = target?.row ? rows.findIndex((row) => row.id === target.row!.id) : -1;
+  if (wanted !== null && rows[wanted]) {
+    setWanted(null);
+    setTarget({ type: mode.type, row: rows[wanted]! });
+  }
+  const goTo = (index: number) => {
+    const row = rows[index];
+    if (row) setTarget({ type: mode.type, row });
+    else if (list.hasNextPage) {
+      setWanted(index);
+      void list.fetchNextPage();
+    }
+  };
 
   const publisher = user ? isTdPublisher(user.role) : false;
   const canReady = (row: TdContentRow) => row.status === 'draft';
@@ -285,11 +304,9 @@ export function TdQuestionsTab() {
               {t('Publish')}
             </Link>
           </Button>
-          <Button asChild variant="outline" className="h-11 rounded-xl border-gray-200 bg-white px-4 text-sm font-semibold shadow-sm">
-            <Link href="/td/import">
-              <Upload />
-              {t('Upload Questions')}
-            </Link>
+          <Button variant="outline" onClick={() => setUploading(true)} className="h-11 rounded-xl border-gray-200 bg-white px-4 text-sm font-semibold shadow-sm">
+            <Upload />
+            {t('Upload Questions')}
           </Button>
           <Button
             onClick={() => setTarget({ type: mode.type, row: null, preset: mode.categoryType && category !== 'all' ? { categoryKey: category } : undefined })}
@@ -555,7 +572,24 @@ export function TdQuestionsTab() {
         </div>
       )}
 
-      <TdContentEditorDialog target={target} onClose={() => setTarget(null)} />
+      <Dialog open={uploading} onOpenChange={setUploading}>
+        <DialogContent className="flex max-h-[90vh] w-full flex-col gap-0 overflow-hidden rounded-[2rem] border-slate-200 bg-white p-0 sm:max-w-4xl">
+          <DialogHeader className="border-b border-slate-100 px-6 pb-4 pt-5">
+            <DialogTitle className="text-2xl font-black tracking-tight text-slate-900">{t('Upload questions')}</DialogTitle>
+            <DialogDescription>{t('Choose the game mode and the category, check the file format below, then choose the file. Every row becomes a draft.')}</DialogDescription>
+          </DialogHeader>
+          <div className="min-h-0 flex-1 overflow-y-auto">
+            {uploading && <TdImportTab embedded initialType={mode.type} initialCategory={mode.categoryType && category !== 'all' ? category : null} />}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <TdContentEditorDialog
+        target={target}
+        onClose={() => setTarget(null)}
+        startOn="preview"
+        nav={openIndex >= 0 ? { index: openIndex, total: rows.length, more: Boolean(list.hasNextPage), onGo: goTo } : null}
+      />
     </div>
   );
 }

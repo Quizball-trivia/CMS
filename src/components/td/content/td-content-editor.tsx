@@ -1,7 +1,7 @@
 'use client';
 
-import { useCallback, useId, useMemo, useState, type ReactNode } from 'react';
-import { Archive, ArchiveRestore, Check, Eye, History, Loader2, RefreshCw, Save, Send, TriangleAlert } from 'lucide-react';
+import { useCallback, useEffect, useId, useMemo, useState, type ReactNode } from 'react';
+import { Archive, ArchiveRestore, Check, ChevronLeft, ChevronRight, Eye, History, Loader2, RefreshCw, Save, Send, TriangleAlert } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -38,18 +38,56 @@ const draftOf = (row: TdContentRow): TdDraft => ({ data: row.data as Record<stri
 
 const CATEGORY_TYPES = new Set<TdContentType>(['card-categories', 'box-categories']);
 
-/** The editor of one row, in a dialog over its list (as the Quizball CMS edits a question). */
-export function TdContentEditorDialog({ target, onClose, onSaved }: { target: TdEditorTarget | null; onClose: () => void; onSaved?: (row: TdContentRow) => void }) {
+type Tab = 'edit' | 'preview' | 'history' | 'approved';
+
+/** Where the open row stands in its list, and how to step to its neighbours. */
+export interface TdEditorNav {
+  index: number;
+  total: number;
+  /** The list has more rows than are loaded: the last one still has a next. */
+  more: boolean;
+  onGo: (index: number) => void;
+}
+
+/** The editor of one row, in a dialog over its list (as the Quizball CMS reviews
+ *  and edits a question). With `nav`, the arrows and the ← → keys step through
+ *  the list, staying on the tab that is open; `startOn="preview"` opens an
+ *  existing row on what a player sees. */
+export function TdContentEditorDialog({
+  target,
+  onClose,
+  onSaved,
+  nav,
+  startOn = 'edit',
+}: {
+  target: TdEditorTarget | null;
+  onClose: () => void;
+  onSaved?: (row: TdContentRow) => void;
+  nav?: TdEditorNav | null;
+  startOn?: 'edit' | 'preview';
+}) {
+  // The tab is chosen when the dialog opens and kept while stepping through rows.
+  const [session, setSession] = useState<{ open: boolean; tab: Tab }>({ open: false, tab: 'edit' });
+  if ((target !== null) !== session.open) {
+    setSession({ open: target !== null, tab: target?.row && startOn === 'preview' && hasPreview(target.type) ? 'preview' : 'edit' });
+  }
   return (
     <Dialog open={target !== null} onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="flex h-[min(90vh,880px)] w-full flex-col gap-0 overflow-hidden rounded-[2rem] border-slate-200 bg-white p-0 sm:max-w-3xl">
-        {target && <EditorBody key={`${target.type}:${target.row?.id ?? 'new'}`} target={target} onSaved={onSaved} />}
+        {target && (
+          <EditorBody
+            key={`${target.type}:${target.row?.id ?? 'new'}`}
+            target={target}
+            onSaved={onSaved}
+            nav={target.row ? (nav ?? null) : null}
+            tab={session.tab}
+            setTab={(tab) => setSession((current) => ({ ...current, tab }))}
+          />
+        )}
       </DialogContent>
     </Dialog>
   );
 }
-
-type Tab = 'edit' | 'preview' | 'history' | 'approved';
 
 interface Conflict {
   theirs: TdContentRow | null;
@@ -58,7 +96,7 @@ interface Conflict {
   choices: Record<string, 'mine' | 'theirs'>;
 }
 
-function EditorBody({ target, onSaved }: { target: TdEditorTarget; onSaved?: (row: TdContentRow) => void }) {
+function EditorBody({ target, onSaved, nav, tab, setTab }: { target: TdEditorTarget; onSaved?: (row: TdContentRow) => void; nav: TdEditorNav | null; tab: Tab; setTab: (tab: Tab) => void }) {
   const { type } = target;
   const config = TD_TYPE_CONFIG[type] as unknown as (typeof TD_TYPE_CONFIG)['penalty-questions'];
   const { user } = useTdAuth();
@@ -89,13 +127,36 @@ function EditorBody({ target, onSaved }: { target: TdEditorTarget; onSaved?: (ro
   const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [conflict, setConflict] = useState<Conflict | null>(null);
-  const [tab, setTab] = useState<Tab>('edit');
   const noteId = useId();
   const [approving, setApproving] = useState(false);
 
   const creating = row === null;
   const otherTab = tab === 'preview' || (tab === 'history' && row !== null) || (tab === 'approved' && Boolean(row?.approved));
   const dirty = creating || !sameDraft(draft, base);
+
+  const go = useCallback(
+    (index: number) => {
+      if (!nav || index < 0 || (index >= nav.total && !nav.more)) return;
+      if (!creating && !sameDraft(draft, base) && !window.confirm(t('This one has changes that are not saved. Leave it without saving?'))) return;
+      nav.onGo(index);
+    },
+    [nav, creating, draft, base],
+  );
+  // ← and → step through the list, unless a field is being typed in or another dialog is on top.
+  useEffect(() => {
+    if (!nav) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.defaultPrevented || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
+      if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
+      const el = event.target as HTMLElement | null;
+      if (el && (el.isContentEditable || /^(?:INPUT|TEXTAREA|SELECT)$/.test(el.tagName))) return;
+      if (document.querySelectorAll('[data-slot="dialog-content"]').length > 1) return;
+      event.preventDefault();
+      go(nav.index + (event.key === 'ArrowLeft' ? -1 : 1));
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [nav, go]);
   const history = useTdHistory(type, row?.id ?? null);
   const release = useTdCurrentRelease();
 
@@ -192,6 +253,22 @@ function EditorBody({ target, onSaved }: { target: TdEditorTarget; onSaved?: (ro
         <div className="flex flex-wrap items-center gap-2 pr-8">
           {row && <TdStatusChip status={row.status} />}
           <span className="text-xs uppercase tracking-wide text-(--td-text-3)">{config.singular}</span>
+          {nav && (
+            <div className="ml-auto flex items-center gap-3">
+              <span className="text-xs font-black tabular-nums tracking-widest text-slate-400">
+                {nav.index + 1} <span className="mx-1 text-slate-200">/</span> {nav.total}
+                {nav.more ? '+' : ''}
+              </span>
+              <div className="flex gap-1 rounded-xl border border-slate-100 bg-slate-50 p-1">
+                <Button variant="ghost" size="icon" aria-label={t('Previous')} title={t('Previous')} disabled={nav.index <= 0} onClick={() => go(nav.index - 1)} className="h-8 w-8 rounded-lg hover:bg-white hover:shadow-sm">
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+                <Button variant="ghost" size="icon" aria-label={t('Next')} title={t('Next')} disabled={nav.index >= nav.total - 1 && !nav.more} onClick={() => go(nav.index + 1)} className="h-8 w-8 rounded-lg hover:bg-white hover:shadow-sm">
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+          )}
         </div>
         <DialogTitle className="line-clamp-2 text-lg">{title}</DialogTitle>
         <DialogDescription asChild>

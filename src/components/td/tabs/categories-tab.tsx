@@ -2,13 +2,75 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import { ArchiveRestore, Loader2, Trash2 } from 'lucide-react';
+import { toast } from 'sonner';
+import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { TdCellTitle, TdContentList } from '@/components/td/content/td-content-list';
 import { TdContentEditorDialog, type TdEditorTarget } from '@/components/td/content/td-content-editor';
+import { useTdWrite } from '@/hooks/use-td-content';
+import type { TdContentRow } from '@/lib/td/admin-api';
+import { tdAdmin } from '@/lib/td/client';
+import { tdErrorText } from '@/lib/td/errors';
 import { t } from '@/lib/td/i18n';
 
-/** The categories of the two rounds that have them. Their cards and questions are on the Questions page. */
+type CategoryType = 'card-categories' | 'box-categories';
+type CategoryRow = TdContentRow<CategoryType>;
+
+const nameOf = (row: CategoryRow) => ('prompt' in row.data ? row.data.prompt : row.data.title) || row.data.key;
+
+/** The categories of the two rounds that have them: add one, change it, delete
+ *  it or bring it back. Their cards and questions are on the Questions page. */
 export function TdCategoriesTab() {
+  const write = useTdWrite();
   const [target, setTarget] = useState<TdEditorTarget | null>(null);
+  const [deleting, setDeleting] = useState<{ type: CategoryType; row: CategoryRow } | null>(null);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [refused, setRefused] = useState<string | null>(null);
+
+  const act = async (action: 'archive' | 'restore', type: CategoryType, row: CategoryRow) => {
+    setBusy(row.id);
+    setRefused(null);
+    try {
+      await write((operation) => tdAdmin.content(type)[action](row.id, row.version, operation));
+      toast.success(action === 'archive' ? t('Category deleted') : t('Category restored'));
+      setDeleting(null);
+    } catch (error) {
+      if (action === 'archive') setRefused(tdErrorText(error));
+      else toast.error(tdErrorText(error));
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const actions = (type: CategoryType, row: CategoryRow, href: string, label: string) => (
+    <span className="flex items-center justify-end gap-1" onClick={(event) => event.stopPropagation()}>
+      <Link href={href} className="mr-1 whitespace-nowrap text-xs font-bold text-blue-700 underline underline-offset-2">
+        {label}
+      </Link>
+      {row.status === 'archived' ? (
+        <Button variant="ghost" size="icon-sm" aria-label={t('Restore the category')} title={t('Restore the category')} disabled={busy !== null} onClick={() => void act('restore', type, row)}>
+          {busy === row.id ? <Loader2 className="animate-spin" /> : <ArchiveRestore />}
+        </Button>
+      ) : (
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          aria-label={t('Delete the category')}
+          title={t('Delete the category')}
+          disabled={busy !== null}
+          onClick={() => {
+            setRefused(null);
+            setDeleting({ type, row });
+          }}
+          className="text-slate-400 hover:text-red-600"
+        >
+          <Trash2 />
+        </Button>
+      )}
+    </span>
+  );
+
   return (
     <>
       <div className="grid items-start gap-6 xl:grid-cols-2">
@@ -23,15 +85,7 @@ export function TdCategoriesTab() {
           emptyTitle={t('No card categories yet')}
           columns={[
             { header: t('Category'), cell: (row) => <TdCellTitle title={row.data.prompt} sub={row.data.key} /> },
-            {
-              header: '',
-              className: 'w-24 text-right',
-              cell: (row) => (
-                <Link href={`/td/questions?mode=round-1&category=${encodeURIComponent(row.data.key)}`} onClick={(event) => event.stopPropagation()} className="text-xs font-bold text-blue-700 underline underline-offset-2">
-                  {t('Its cards')}
-                </Link>
-              ),
-            },
+            { header: '', className: 'w-40 text-right', cell: (row) => actions('card-categories', row, `/td/questions?mode=round-1&category=${encodeURIComponent(row.data.key)}`, t('Its cards')) },
           ]}
         />
         <TdContentList
@@ -45,18 +99,36 @@ export function TdCategoriesTab() {
           emptyTitle={t('No box categories yet')}
           columns={[
             { header: t('Category'), cell: (row) => <TdCellTitle title={row.data.title} sub={row.data.key} /> },
-            {
-              header: '',
-              className: 'w-28 text-right',
-              cell: (row) => (
-                <Link href={`/td/questions?mode=round-3&category=${encodeURIComponent(row.data.key)}`} onClick={(event) => event.stopPropagation()} className="text-xs font-bold text-blue-700 underline underline-offset-2">
-                  {t('Its questions')}
-                </Link>
-              ),
-            },
+            { header: '', className: 'w-44 text-right', cell: (row) => actions('box-categories', row, `/td/questions?mode=round-3&category=${encodeURIComponent(row.data.key)}`, t('Its questions')) },
           ]}
         />
       </div>
+
+      <Dialog open={deleting !== null} onOpenChange={(open) => !open && busy === null && setDeleting(null)}>
+        <DialogContent className="rounded-[2rem] sm:max-w-[480px]">
+          <DialogHeader>
+            <DialogTitle>{t('Delete this category?')}</DialogTitle>
+            <DialogDescription>
+              {deleting && t('“{name}” leaves the game at the next publish. Nothing is lost: show the archived ones with the status filter and restore it whenever you want.', { name: nameOf(deleting.row) })}
+            </DialogDescription>
+          </DialogHeader>
+          {refused && (
+            <p role="alert" className="rounded-xl border border-red-100 bg-red-50 px-3 py-2 text-sm text-red-700">
+              {refused}
+            </p>
+          )}
+          <DialogFooter>
+            <Button variant="outline" disabled={busy !== null} onClick={() => setDeleting(null)}>
+              {t('Cancel')}
+            </Button>
+            <Button variant="destructive" disabled={busy !== null} onClick={() => deleting && void act('archive', deleting.type, deleting.row)}>
+              {busy !== null ? <Loader2 className="animate-spin" /> : <Trash2 />}
+              {t('Delete')}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <TdContentEditorDialog target={target} onClose={() => setTarget(null)} />
     </>
   );

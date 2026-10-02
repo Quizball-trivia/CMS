@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { useRef, useState, type ReactNode } from 'react';
 import { CheckCircle2, ChevronDown, Download, FileUp, Loader2, SearchCheck, Undo2, Upload } from 'lucide-react';
 import { toast } from 'sonner';
 import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -10,7 +10,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { TD_TYPE_CONFIG } from '@/components/td/content/content-types';
 import { TdEmptyState, TdSection } from '@/components/td/td-page';
 import { TdErrorPanel } from '@/components/td/td-error-panel';
-import { tdKeys, useTdWrite } from '@/hooks/use-td-content';
+import { tdKeys, useTdWrite, useTdAllRows } from '@/hooks/use-td-content';
 import type { TdContentType } from '@/lib/td/admin-api';
 import { TdApiError } from '@/lib/td/api-client';
 import { tdAdmin, tdTokens } from '@/lib/td/client';
@@ -80,9 +80,27 @@ interface Prepared extends TdParsedImport {
   batchKey: string;
 }
 
-export function TdImportTab() {
+/** On its own page the form sits in a titled section; in the dialog the dialog's header names it. */
+function Frame({ embedded, children }: { embedded: boolean; children: ReactNode }) {
+  if (embedded) return <>{children}</>;
+  return (
+    <TdSection title={t('Import a spreadsheet')} description={t('Every row becomes a draft, all at once or none. Then they go through ready and approval like any other content.')}>
+      {children}
+    </TdSection>
+  );
+}
+
+const CATEGORY_OF: Partial<Record<TdContentType, 'card-categories' | 'box-categories'>> = { cards: 'card-categories', 'box-questions': 'box-categories' };
+
+/** The upload: a page of its own, and (`embedded`) the body of the Questions
+ *  page's upload dialog, opened on that page's game mode and category. */
+export function TdImportTab({ embedded = false, initialType, initialCategory }: { embedded?: boolean; initialType?: TdContentType; initialCategory?: string | null } = {}) {
   const { user } = useTdAuth();
-  const [type, setType] = useState<TdContentType>('penalty-questions');
+  const [type, setType] = useState<TdContentType>(initialType && TD_IMPORTABLE_TYPES.includes(initialType) ? initialType : 'penalty-questions');
+  // Rows that name no category go to this one.
+  const [category, setCategory] = useState(initialCategory ?? '');
+  const categoryType = CATEGORY_OF[type];
+  const categories = useTdAllRows(categoryType ?? 'card-categories', { status: 'draft,ready,approved' }, categoryType !== undefined);
   const [pasted, setPasted] = useState('');
   const [prepared, setPrepared] = useState<Prepared | null>(null);
   // The report and the payload hash it was made for: an answer for items no longer shown is dropped.
@@ -107,7 +125,7 @@ export function TdImportTab() {
     // Begun before reading, so a replay cannot go out under a sign-in made meanwhile.
     const operation = tdTokens.read()?.staffId === user.id ? beginOperation(tdTokens) : null;
     reset();
-    const parsed = json ? parseItemsJson(text) : parseSheet(type, text);
+    const parsed = json ? parseItemsJson(text) : parseSheet(type, text, { categoryKey: categoryType && category ? category : undefined });
     const hash = await sha256Hex(canonicalJson(parsed.items));
     shown.current = hash;
     const saved = batchKeyFor(user.id, hash);
@@ -172,7 +190,7 @@ export function TdImportTab() {
 
   return (
     <>
-      <TdSection title={t('Import a spreadsheet')} description={t('Every row becomes a draft, all at once or none. Then they go through ready and approval like any other content.')}>
+      <Frame embedded={embedded}>
         <div className="flex flex-col gap-5 p-5">
           <div className="flex flex-wrap items-end gap-3">
             <label className="flex flex-col gap-1.5 text-xs font-medium text-(--td-text-3)">
@@ -182,6 +200,7 @@ export function TdImportTab() {
                 disabled={busy !== null}
                 onChange={(event) => {
                   setType(event.target.value as TdContentType);
+                  setCategory('');
                   reset();
                 }}
                 className="h-10 min-w-56 rounded-lg border border-border bg-(--td-input) px-3 text-sm text-foreground"
@@ -193,6 +212,27 @@ export function TdImportTab() {
                 ))}
               </select>
             </label>
+            {categoryType && (
+              <label className="flex flex-col gap-1.5 text-xs font-medium text-(--td-text-3)">
+                {t('Category for the rows')}
+                <select
+                  value={category}
+                  disabled={busy !== null}
+                  onChange={(event) => {
+                    setCategory(event.target.value);
+                    reset();
+                  }}
+                  className="h-10 min-w-56 rounded-lg border border-border bg-(--td-input) px-3 text-sm text-foreground"
+                >
+                  <option value="">{t('As the file says (categoryKey column)')}</option>
+                  {(categories.data?.rows ?? []).map((row) => (
+                    <option key={row.id} value={row.data.key}>
+                      {'prompt' in row.data ? row.data.prompt : row.data.title}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
             <Button variant="secondary" className="rounded-lg" onClick={() => downloadText(sheetTemplate(type), `table-derby-${type}-template.csv`)}>
               <Download />
               {t('Template')}
@@ -215,7 +255,7 @@ export function TdImportTab() {
             </Button>
           </div>
 
-          <details className="group rounded-lg border border-border">
+          <details open={embedded ? true : undefined} className="group rounded-lg border border-border">
             <summary className="flex cursor-pointer list-none items-center justify-between px-4 py-2.5 text-sm font-medium">
               {t('Columns for {type}', { type: TD_TYPE_CONFIG[type].plural })}
               <ChevronDown className="size-4 transition-transform group-open:rotate-180" />
@@ -229,6 +269,8 @@ export function TdImportTab() {
                   </li>
                 ))}
               </ul>
+              <p className="mt-3 font-medium text-(--td-text-2)">{t('An example file')}</p>
+              <pre className="mt-1 overflow-x-auto rounded-lg bg-slate-950 p-3 font-mono text-[11px] leading-relaxed text-slate-100">{sheetTemplate(type).trim()}</pre>
               <p className="mt-3 text-(--td-text-3)">
                 {t('CSV or TSV with a header row, or cells pasted from a spreadsheet. Lists are separated by | (write \\| for a bar). Rows are imported in order: a row may refer to one above it. A JSON file of items may mix types.')}
               </p>
@@ -287,8 +329,8 @@ export function TdImportTab() {
             </div>
           )}
         </div>
-      </TdSection>
-      <ImportBatches />
+      </Frame>
+      {!embedded && <ImportBatches />}
     </>
   );
 }

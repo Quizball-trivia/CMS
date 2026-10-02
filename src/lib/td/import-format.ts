@@ -28,7 +28,7 @@ export interface TdImportColumn {
 
 const col = (name: string, kind: Kind | 'custom', help: string, example: string, required = kind !== 'optional' && kind !== 'optionalNumber'): TdImportColumn => ({ name, kind, required, help, example });
 
-const KEY = col('key', 'text', t('The row’s key: lower-case letters, digits, - and _'), 'messi');
+const KEY = col('key', 'text', t('The row’s ID: lower-case letters, digits, - and _. Leave it out and one is made for the row.'), 'messi', false);
 const ALIASES = (name = 'aliases') => col(name, 'list', t('Accepted spellings, separated by |'), 'messi|lionel messi');
 const POSITION = col('position', 'optionalNumber', t('Order in a release (optional)'), '');
 const NOTE = col('note', 'optional', t('A note for the team (optional)'), '');
@@ -256,7 +256,26 @@ export interface TdParsedImport {
   problems: TdParseProblem[];
 }
 
-export function parseSheet(type: TdContentType, text: string): TdParsedImport {
+/** Two FNV-1a passes over a row's cells: the same row always gets the same
+ *  made-up ID, so reading a file twice names its rows the same way both times. */
+function rowHash(cells: readonly string[]): string {
+  const text = cells.join('\u001f');
+  let a = 0x811c9dc5;
+  let b = 0x9e3779b9;
+  for (let i = 0; i < text.length; i++) {
+    const code = text.charCodeAt(i);
+    a = Math.imul(a ^ code, 0x01000193);
+    b = Math.imul(b ^ code, 0x85ebca6b);
+  }
+  return (a >>> 0).toString(36) + (b >>> 0).toString(36);
+}
+
+export interface TdSheetOptions {
+  /** The category for rows that name none (a file uploaded into one category needs no categoryKey column). */
+  categoryKey?: string;
+}
+
+export function parseSheet(type: TdContentType, text: string, options: TdSheetOptions = {}): TdParsedImport {
   const columns = [...TD_IMPORT_COLUMNS[type], POSITION, NOTE];
   const { rows, lines: at } = parseDelimited(text);
   const problems: TdParseProblem[] = [];
@@ -264,7 +283,8 @@ export function parseSheet(type: TdContentType, text: string): TdParsedImport {
   const header = rows[0].map((cell) => cell.trim());
   const index = new Map(header.map((name, i) => [name.toLowerCase(), i]));
   for (const name of header) if (name && !columns.some((c) => c.name.toLowerCase() === name.toLowerCase())) problems.push({ line: at[0], column: name, message: t('“{name}” is not a column of this type', { name }) });
-  for (const column of columns) if (column.required && !index.has(column.name.toLowerCase())) problems.push({ line: at[0], column: column.name, message: t('The column “{name}” is missing', { name: column.name }) });
+  for (const column of columns)
+    if (column.required && !index.has(column.name.toLowerCase()) && !(column.name === 'categoryKey' && options.categoryKey)) problems.push({ line: at[0], column: column.name, message: t('The column “{name}” is missing', { name: column.name }) });
   if (problems.length) return { items: [], lines: [], problems };
   const items: unknown[] = [];
   const lines: number[] = [];
@@ -274,6 +294,15 @@ export function parseSheet(type: TdContentType, text: string): TdParsedImport {
     let ok = true;
     for (const column of columns) {
       const at = index.get(column.name.toLowerCase());
+      const blank = at === undefined || (cells[at] ?? '').trim() === '';
+      if (column === KEY && blank) {
+        values.key = `row-${rowHash(cells)}`;
+        continue;
+      }
+      if (column.name === 'categoryKey' && blank && options.categoryKey) {
+        values.categoryKey = options.categoryKey;
+        continue;
+      }
       if (at === undefined) {
         if (column.kind === 'custom' && column.name === 'prompt') values.prompt = '';
         else if (!column.required) values[column.name] = column.kind === 'boolean' ? false : null;

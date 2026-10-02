@@ -1,294 +1,229 @@
 /** The frame, signing in, the team and the messages every page shares. */
 export const KA_SHELL: Record<string, string> = {
   // The frame: td-shell.tsx, td-wordmark.tsx, app/td/layout.tsx
-  "Table Derby CMS": "Table Derby — მართვის პანელი",
-  "%s · Table Derby CMS": "%s · Table Derby — მართვის პანელი",
-  "Content management for Table Derby": "Table Derby-ის კონტენტის მართვა",
-  "Table Derby CMS home": "Table Derby — მართვის პანელის მთავარი გვერდი",
-  "Content studio": "კონტენტის სტუდია",
-  Account: "ანგარიში",
-  Staff: "გუნდი",
-  "Log out": "გასვლა",
+  'Table Derby CMS': 'Table Derby — მართვის პანელი',
+  '%s · Table Derby CMS': '%s · Table Derby — მართვის პანელი',
+  'Content management for Table Derby': 'Table Derby-ის კონტენტის მართვა',
+  'Table Derby CMS home': 'Table Derby — მართვის პანელის მთავარი გვერდი',
+  'Content studio': 'კონტენტის სტუდია',
+  Account: 'ანგარიში',
+  Staff: 'გუნდი',
+  'Log out': 'გასვლა',
 
   // The environment: td-environment-badge.tsx
-  Production: "რეალური გარემო (PROD)",
-  Staging: "სატესტო გარემო (STAGING)",
-  Local: "ლოკალური გარემო (LOCAL)",
-  "PROD — live players": "PROD — რეალური მოთამაშეები",
-  "STAGING — safe sandbox": "STAGING — უსაფრთხო სატესტო გარემო",
-  LOCAL: "LOCAL — ლოკალური გარემო",
-  "Mock API": "იმიტირებული API (mock)",
-  "{label} · mock API": "{label} · იმიტირებული API (mock)",
-  "Data comes from the in-browser mock API, not the Table Derby API":
-    "მონაცემები მოდის ბრაუზერში გაშვებული იმიტირებული (mock) API-დან და არა Table Derby-ის API-დან",
+  Production: 'რეალური გარემო (PROD)',
+  Staging: 'სატესტო გარემო (STAGING)',
+  Local: 'ლოკალური გარემო (LOCAL)',
+  'PROD — live players': 'PROD — რეალური მოთამაშეები',
+  'STAGING — safe sandbox': 'STAGING — უსაფრთხო სატესტო გარემო',
+  LOCAL: 'LOCAL — ლოკალური გარემო',
+  'Mock API': 'იმიტირებული API (mock)',
+  '{label} · mock API': '{label} · იმიტირებული API (mock)',
+  'Data comes from the in-browser mock API, not the Table Derby API': 'მონაცემები მოდის ბრაუზერში გაშვებული იმიტირებული (mock) API-დან და არა Table Derby-ის API-დან',
 
   // Pages and their groups: navigation.ts
-  Overview: "მიმოხილვა",
-  Content: "კონტენტი",
-  Operations: "ოპერაციები",
-  Admin: "ადმინისტრირება",
-  Dashboard: "დეშბორდი",
-  Media: "მედია",
-  Releases: "გამოშვებები",
-  Integration: "ინტეგრაცია",
-  Team: "გუნდი",
-  Settings: "პარამეტრები",
-  "Players, matches and dailies played, today and yesterday in Georgia time.":
-    "მოთამაშეები, მატჩები და ნათამაშები ყოველდღიური თამაშები — დღეს და გუშინ, საქართველოს დროით.",
-  "The cards and questions of every game mode: search, edit, upload, approve.":
-    "თამაშის ყველა რეჟიმის ბარათები და კითხვები: ძებნა, რედაქტირება, ატვირთვა, დამტკიცება.",
-  "The categories of Round I (ბარათონი) and Round III (პაპა კარლოს ყუთი). A category is approved with its questions.":
-    "I ტურის (ბარათონი) და III ტურის (პაპა კარლოს ყუთი) კატეგორიები. კატეგორია თავის კითხვებთან ერთად მტკიცდება.",
-  "Football Logic, Put in Order and Career Path, each on a calendar with one puzzle per Georgia date.":
-    "საფეხბურთო ლოგიკა, დაალაგე სწორად და კარიერის გზა — თითოეული თავის კალენდარზე, საქართველოს ყოველ თარიღზე თითო თავსატეხით.",
-  "Clubs and crests used by Career Path, onboarding and cards.":
-    "კლუბები და ემბლემები, რომლებსაც იყენებს კარიერის გზა, ონბორდინგი და ბარათები.",
-  "Upload and preview images, record their rights (licence, credit, source) and approve them.":
-    "ატვირთეთ და გადახედეთ სურათებს, მიუთითეთ მათი უფლებები (ლიცენზია, ავტორი, წყარო) და დაამტკიცეთ ისინი.",
-  "Upload questions in bulk from a spreadsheet file: check, preview, import as drafts, and undo a batch.":
-    "ატვირთეთ კითხვები ერთიანად ცხრილის ფაილიდან: შემოწმება, გადახედვა, დრაფტებად ატვირთვა და პაკეტის გაუქმება.",
-  "Changes since the last release, the validation report (pool sizes, missing images, rights, 30 days of dailies), publish and roll back.":
-    "ცვლილებები ბოლო გამოშვების შემდეგ, ვალიდაციის ანგარიში (კონტენტის რაოდენობა, ნაკლული სურათები, უფლებები, ყოველდღიური თამაშების 30 დღე), გამოქვეყნება და უკან დაბრუნება.",
-  "Search by nickname or Betsson id, match history and replays, and corrections (void + refund) with a reason.":
-    "ძებნა ნიკნეიმით ან Betsson ID-ით, მატჩების ისტორია და გამეორებები, შესწორებები (ანულირება + დაბრუნება) მიზეზის მითითებით.",
-  "Standings, frozen snapshots and their export.":
-    "მიმდინარე ცხრილი, დაფიქსირებული სნეპშოტები და მათი ექსპორტი.",
-  "Session inits, launches and webhook deliveries with their reason codes, retry and search.":
-    "სესიის ინიციალიზაცია, გაშვება და ვებჰუკების მიწოდება — მიზეზის კოდებით, ხელახლა ცდითა და ძებნით.",
-  "Invite editors and set roles.": "მოიწვიეთ რედაქტორები და მიანიჭეთ როლები.",
-  "Tickets per day and maintenance mode.":
-    "ბილეთები დღეში და ტექნიკური სამუშაოების რეჟიმი.",
+  Overview: 'მიმოხილვა',
+  Content: 'კონტენტი',
+  Operations: 'ოპერაციები',
+  Admin: 'ადმინისტრირება',
+  Dashboard: 'დეშბორდი',
+  Media: 'მედია',
+  Releases: 'გამოშვებები',
+  Integration: 'ინტეგრაცია',
+  Team: 'გუნდი',
+  Settings: 'პარამეტრები',
+  'Players, matches and dailies played, today and yesterday in Georgia time.': 'მოთამაშეები, მატჩები და ნათამაშები ყოველდღიური თამაშები — დღეს და გუშინ, საქართველოს დროით.',
+  'The cards and questions of every game mode: search, edit, upload, approve.': 'თამაშის ყველა რეჟიმის ბარათები და კითხვები: ძებნა, რედაქტირება, ატვირთვა, დამტკიცება.',
+  'The categories of Round I (ბარათონი) and Round III (პაპა კარლოს ყუთი). A category is approved with its questions.':
+    'I ტურის (ბარათონი) და III ტურის (პაპა კარლოს ყუთი) კატეგორიები. კატეგორია თავის კითხვებთან ერთად მტკიცდება.',
+  'Football Logic, Put in Order and Career Path, each on a calendar with one puzzle per Georgia date.':
+    'საფეხბურთო ლოგიკა, დაალაგე სწორად და კარიერის გზა — თითოეული თავის კალენდარზე, საქართველოს ყოველ თარიღზე თითო თავსატეხით.',
+  'Clubs and crests used by Career Path, onboarding and cards.': 'კლუბები და ემბლემები, რომლებსაც იყენებს კარიერის გზა, ონბორდინგი და ბარათები.',
+  'Upload and preview images, record their rights (licence, credit, source) and approve them.': 'ატვირთეთ და გადახედეთ სურათებს, მიუთითეთ მათი უფლებები (ლიცენზია, ავტორი, წყარო) და დაამტკიცეთ ისინი.',
+  'Upload questions in bulk from a spreadsheet file: check, preview, import as drafts, and undo a batch.': 'ატვირთეთ კითხვები ერთიანად ცხრილის ფაილიდან: შემოწმება, გადახედვა, დრაფტებად ატვირთვა და პაკეტის გაუქმება.',
+  'Changes since the last release, the validation report (pool sizes, missing images, rights, 30 days of dailies), publish and roll back.':
+    'ცვლილებები ბოლო გამოშვების შემდეგ, ვალიდაციის ანგარიში (კონტენტის რაოდენობა, ნაკლული სურათები, უფლებები, ყოველდღიური თამაშების 30 დღე), გამოქვეყნება და უკან დაბრუნება.',
+  'Search by nickname or Betsson id, match history and replays, and corrections (void + refund) with a reason.':
+    'ძებნა ნიკნეიმით ან Betsson ID-ით, მატჩების ისტორია და გამეორებები, შესწორებები (ანულირება + დაბრუნება) მიზეზის მითითებით.',
+  'Standings, frozen snapshots and their export.': 'მიმდინარე ცხრილი, დაფიქსირებული სნეპშოტები და მათი ექსპორტი.',
+  'Session inits, launches and webhook deliveries with their reason codes, retry and search.': 'სესიის ინიციალიზაცია, გაშვება და ვებჰუკების მიწოდება — მიზეზის კოდებით, ხელახლა ცდითა და ძებნით.',
+  'Invite editors and set roles.': 'მოიწვიეთ რედაქტორები და მიანიჭეთ როლები.',
+  'Tickets per day and maintenance mode.': 'ბილეთები დღეში და ტექნიკური სამუშაოების რეჟიმი.',
 
   // Roles: types/td.ts
-  Editor: "რედაქტორი",
-  Publisher: "გამომქვეყნებელი",
-  "Betsson admin": "Betsson-ის ადმინისტრატორი",
-  "Ops (Quizball)": "Quizball-ის ops გუნდი",
+  Editor: 'რედაქტორი',
+  Publisher: 'გამომქვეყნებელი',
+  'Betsson admin': 'Betsson-ის ადმინისტრატორი',
+  'Ops (Quizball)': 'Quizball-ის ops გუნდი',
 
   // Whole-screen states: td-status-screens.tsx
-  "Loading Table Derby CMS…": "Table Derby-ის მართვის პანელი იტვირთება…",
-  "The Table Derby API is not responding": "Table Derby-ის API არ პასუხობს",
-  "You are still signed in. Try again in a moment.":
-    "თქვენ კვლავ შესული ხართ. სცადეთ ცოტა ხანში.",
-  "You do not have access to this section": "ამ განყოფილებაზე წვდომა არ გაქვთ",
-  "Your role cannot open this tab. Ask a Betsson admin if you need it.":
-    "თქვენი როლით ამ გვერდს ვერ გახსნით. თუ გჭირდებათ, მიმართეთ Betsson-ის ადმინისტრატორს.",
-  "Back to the dashboard": "დეშბორდზე დაბრუნება",
-  "This browser is not supported": "ეს ბრაუზერი მხარდაჭერილი არ არის",
-  "The Table Derby CMS needs a current version of Chrome, Edge, Safari or Firefox. Update your browser, then open this page again.":
-    "Table Derby-ის მართვის პანელს სჭირდება Chrome-ის, Edge-ის, Safari-ის ან Firefox-ის ახალი ვერსია. განაახლეთ ბრაუზერი და ხელახლა გახსენით ეს გვერდი.",
+  'Loading Table Derby CMS…': 'Table Derby-ის მართვის პანელი იტვირთება…',
+  'The Table Derby API is not responding': 'Table Derby-ის API არ პასუხობს',
+  'You are still signed in. Try again in a moment.': 'თქვენ კვლავ შესული ხართ. სცადეთ ცოტა ხანში.',
+  'You do not have access to this section': 'ამ განყოფილებაზე წვდომა არ გაქვთ',
+  'Your role cannot open this tab. Ask a Betsson admin if you need it.': 'თქვენი როლით ამ გვერდს ვერ გახსნით. თუ გჭირდებათ, მიმართეთ Betsson-ის ადმინისტრატორს.',
+  'Back to the dashboard': 'დეშბორდზე დაბრუნება',
+  'This browser is not supported': 'ეს ბრაუზერი მხარდაჭერილი არ არის',
+  'The Table Derby CMS needs a current version of Chrome, Edge, Safari or Firefox. Update your browser, then open this page again.':
+    'Table Derby-ის მართვის პანელს სჭირდება Chrome-ის, Edge-ის, Safari-ის ან Firefox-ის ახალი ვერსია. განაახლეთ ბრაუზერი და ხელახლა გახსენით ეს გვერდი.',
 
   // Signing in: td-login-form.tsx, td-auth-provider.tsx
-  "Sign in": "შესვლა",
-  "Staff access is by invitation only.":
-    "გუნდის წევრების წვდომა მხოლოდ მოწვევით არის შესაძლებელი.",
-  "Hide password": "პაროლის დამალვა",
-  "Show password": "პაროლის ჩვენება",
-  "Email or password is incorrect.": "ელფოსტა ან პაროლი არასწორია.",
-  "This account has no access to the Table Derby CMS.":
-    "ამ ანგარიშს Table Derby-ის მართვის პანელზე წვდომა არ აქვს.",
-  "Too many attempts. Wait a minute and try again.":
-    "ძალიან ბევრი მცდელობა. დაელოდეთ ერთ წუთს და სცადეთ ხელახლა.",
-  "Could not reach the Table Derby API. Try again.":
-    "Table Derby-ის API-სთან დაკავშირება ვერ მოხერხდა. სცადეთ ხელახლა.",
-  "You have joined the team. Sign in with your new password.":
-    "თქვენ გუნდში გაწევრიანდით. შედით ახალი პაროლით.",
-  "Your password is set. Sign in with it.":
-    "პაროლი დაყენებულია. შედით ამ პაროლით.",
-  "Mock API: demo accounts (password “demo”)":
-    "იმიტირებული API (mock): სადემონსტრაციო ანგარიშები (პაროლი „demo“)",
-  "Your session has ended. Please sign in again.":
-    "თქვენი სესია დასრულდა. გთხოვთ, ხელახლა შეხვიდეთ.",
-  "Another sign-in replaced this one": "ეს შესვლა სხვა შესვლამ ჩაანაცვლა",
+  'Sign in': 'შესვლა',
+  'Staff access is by invitation only.': 'გუნდის წევრების წვდომა მხოლოდ მოწვევით არის შესაძლებელი.',
+  'Hide password': 'პაროლის დამალვა',
+  'Show password': 'პაროლის ჩვენება',
+  'Email or password is incorrect.': 'ელფოსტა ან პაროლი არასწორია.',
+  'This account has no access to the Table Derby CMS.': 'ამ ანგარიშს Table Derby-ის მართვის პანელზე წვდომა არ აქვს.',
+  'Too many attempts. Wait a minute and try again.': 'ძალიან ბევრი მცდელობა. დაელოდეთ ერთ წუთს და სცადეთ ხელახლა.',
+  'Could not reach the Table Derby API. Try again.': 'Table Derby-ის API-სთან დაკავშირება ვერ მოხერხდა. სცადეთ ხელახლა.',
+  'You have joined the team. Sign in with your new password.': 'თქვენ გუნდში გაწევრიანდით. შედით ახალი პაროლით.',
+  'Your password is set. Sign in with it.': 'პაროლი დაყენებულია. შედით ამ პაროლით.',
+  'Mock API: demo accounts (password “demo”)': 'იმიტირებული API (mock): სადემონსტრაციო ანგარიშები (პაროლი „demo“)',
+  'Your session has ended. Please sign in again.': 'თქვენი სესია დასრულდა. გთხოვთ, ხელახლა შეხვიდეთ.',
+  'Another sign-in replaced this one': 'ეს შესვლა სხვა შესვლამ ჩაანაცვლა',
 
   // Invitation and reset links: td-set-password-form.tsx
-  "Join the team": "გუნდში გაწევრიანება",
-  "Choose your name and a password to finish your invitation.":
-    "მოწვევის დასასრულებლად შეიყვანეთ თქვენი სახელი და აირჩიეთ პაროლი.",
-  Join: "გაწევრიანება",
-  "Set a new password": "ახალი პაროლის დაყენება",
-  "Choose a new password for your account.":
-    "აირჩიეთ ახალი პაროლი თქვენი ანგარიშისთვის.",
-  "Set password": "პაროლის დაყენება",
-  "Your name": "თქვენი სახელი",
-  "New password": "ახალი პაროლი",
-  "Repeat the password": "გაიმეორეთ პაროლი",
-  "{min} to {max} characters. A long phrase is easier to remember than a short, complicated word.":
-    "{min}-დან {max} სიმბოლომდე. გრძელი ფრაზა უფრო ადვილად დასამახსოვრებელია, ვიდრე მოკლე და რთული სიტყვა.",
-  "Already set your password? {link}": "პაროლი უკვე დაყენებული გაქვთ? {link}",
-  "Go to sign in": "შესვლის გვერდზე გადასვლა",
-  "Use at least {min} characters.": "გამოიყენეთ მინიმუმ {min} სიმბოლო.",
-  "Use at most {max} characters.": "გამოიყენეთ მაქსიმუმ {max} სიმბოლო.",
-  "The two passwords are not the same.": "პაროლები ერთმანეთს არ ემთხვევა.",
-  "Enter your name (at most 80 characters).":
-    "შეიყვანეთ თქვენი სახელი (მაქსიმუმ 80 სიმბოლო).",
-  "No answer from the Table Derby API. It may have gone through: try signing in with the password you chose, or send this again.":
-    "Table Derby-ის API-მ არ უპასუხა. შესაძლოა, მოთხოვნა მაინც შესრულდა: სცადეთ შესვლა არჩეული პაროლით ან გაგზავნეთ ხელახლა.",
-  "This link is used now, most likely by your try that got no answer: sign in with the password you chose.":
-    "ეს ბმული უკვე გამოყენებულია — სავარაუდოდ, თქვენივე მცდელობით, რომელსაც პასუხი არ მოჰყოლია: შედით არჩეული პაროლით.",
-  "This invitation link has expired or was already used. If you already joined, sign in; otherwise ask a team manager for a new one.":
-    "მოწვევის ბმულს ვადა გაუვიდა ან ის უკვე გამოყენებულია. თუ უკვე გაწევრიანდით, შედით; თუ არა, სთხოვეთ გუნდის ადმინისტრატორს ახალი ბმული.",
-  "This reset link has expired or was already used. If you already set a new password, sign in; otherwise ask a team manager for a new one.":
-    "პაროლის აღდგენის ბმულს ვადა გაუვიდა ან ის უკვე გამოყენებულია. თუ ახალი პაროლი უკვე დააყენეთ, შედით; თუ არა, სთხოვეთ გუნდის ადმინისტრატორს ახალი ბმული.",
-  "The API refused this password: use {min} to {max} characters.":
-    "API-მ ეს პაროლი არ მიიღო: გამოიყენეთ {min}-დან {max} სიმბოლომდე.",
-  "Check your name and password and try again.":
-    "შეამოწმეთ სახელი და პაროლი და სცადეთ ხელახლა.",
-  "Check your password and try again.": "შეამოწმეთ პაროლი და სცადეთ ხელახლა.",
-  "The Table Derby API could not take this just now. Try again in a moment.":
-    "Table Derby-ის API-მ ახლა მოთხოვნა ვერ მიიღო. სცადეთ ცოტა ხანში.",
-  "This link is incomplete or damaged. Open the whole link you were given, or ask a team manager for a new one.":
-    "ბმული არასრული ან დაზიანებულია. გახსენით ბმული მთლიანად, როგორც მოგაწოდეს, ან სთხოვეთ გუნდის ადმინისტრატორს ახალი.",
-  "You are signed in as {name}. Finishing here signs you in with this account instead.":
-    "ახლა შესული ხართ ანგარიშით: {name}. აქ დასრულების შემდეგ მის ნაცვლად ამ ბმულის ანგარიშით შეხვალთ.",
-  "You have joined": "თქვენ გაწევრიანდით",
-  "Password set": "პაროლი დაყენებულია",
-  "Your account is ready, but the Table Derby API could not be reached to check who is signed in on this browser.":
-    "თქვენი ანგარიში მზადაა, მაგრამ Table Derby-ის API-სთან დაკავშირება ვერ მოხერხდა იმის შესამოწმებლად, ვინ არის შესული ამ ბრაუზერში.",
-  "Your new password is set, but the Table Derby API could not be reached to check who is signed in on this browser.":
-    "ახალი პაროლი დაყენებულია, მაგრამ Table Derby-ის API-სთან დაკავშირება ვერ მოხერხდა იმის შესამოწმებლად, ვინ არის შესული ამ ბრაუზერში.",
-  "Your account is ready, but this browser is still signed in as {name}.":
-    "თქვენი ანგარიში მზადაა, მაგრამ ამ ბრაუზერში კვლავ შესულია {name}.",
-  "Your new password is set, but this browser is still signed in as {name}.":
-    "ახალი პაროლი დაყენებულია, მაგრამ ამ ბრაუზერში კვლავ შესულია {name}.",
-  "Sign out and sign in with the new password":
-    "გასვლა და ახალი პაროლით შესვლა",
-  "Stay signed in as {name}": "დარჩენა ამ ანგარიშით: {name}",
+  'Join the team': 'გუნდში გაწევრიანება',
+  'Choose your name and a password to finish your invitation.': 'მოწვევის დასასრულებლად შეიყვანეთ თქვენი სახელი და აირჩიეთ პაროლი.',
+  Join: 'გაწევრიანება',
+  'Set a new password': 'ახალი პაროლის დაყენება',
+  'Choose a new password for your account.': 'აირჩიეთ ახალი პაროლი თქვენი ანგარიშისთვის.',
+  'Set password': 'პაროლის დაყენება',
+  'Your name': 'თქვენი სახელი',
+  'New password': 'ახალი პაროლი',
+  'Repeat the password': 'გაიმეორეთ პაროლი',
+  '{min} to {max} characters. A long phrase is easier to remember than a short, complicated word.': '{min}-დან {max} სიმბოლომდე. გრძელი ფრაზა უფრო ადვილად დასამახსოვრებელია, ვიდრე მოკლე და რთული სიტყვა.',
+  'Already set your password? {link}': 'პაროლი უკვე დაყენებული გაქვთ? {link}',
+  'Go to sign in': 'შესვლის გვერდზე გადასვლა',
+  'Use at least {min} characters.': 'გამოიყენეთ მინიმუმ {min} სიმბოლო.',
+  'Use at most {max} characters.': 'გამოიყენეთ მაქსიმუმ {max} სიმბოლო.',
+  'The two passwords are not the same.': 'პაროლები ერთმანეთს არ ემთხვევა.',
+  'Enter your name (at most 80 characters).': 'შეიყვანეთ თქვენი სახელი (მაქსიმუმ 80 სიმბოლო).',
+  'No answer from the Table Derby API. It may have gone through: try signing in with the password you chose, or send this again.':
+    'Table Derby-ის API-მ არ უპასუხა. შესაძლოა, მოთხოვნა მაინც შესრულდა: სცადეთ შესვლა არჩეული პაროლით ან გაგზავნეთ ხელახლა.',
+  'This link is used now, most likely by your try that got no answer: sign in with the password you chose.':
+    'ეს ბმული უკვე გამოყენებულია — სავარაუდოდ, თქვენივე მცდელობით, რომელსაც პასუხი არ მოჰყოლია: შედით არჩეული პაროლით.',
+  'This invitation link has expired or was already used. If you already joined, sign in; otherwise ask a team manager for a new one.':
+    'მოწვევის ბმულს ვადა გაუვიდა ან ის უკვე გამოყენებულია. თუ უკვე გაწევრიანდით, შედით; თუ არა, სთხოვეთ გუნდის ადმინისტრატორს ახალი ბმული.',
+  'This reset link has expired or was already used. If you already set a new password, sign in; otherwise ask a team manager for a new one.':
+    'პაროლის აღდგენის ბმულს ვადა გაუვიდა ან ის უკვე გამოყენებულია. თუ ახალი პაროლი უკვე დააყენეთ, შედით; თუ არა, სთხოვეთ გუნდის ადმინისტრატორს ახალი ბმული.',
+  'The API refused this password: use {min} to {max} characters.': 'API-მ ეს პაროლი არ მიიღო: გამოიყენეთ {min}-დან {max} სიმბოლომდე.',
+  'Check your name and password and try again.': 'შეამოწმეთ სახელი და პაროლი და სცადეთ ხელახლა.',
+  'Check your password and try again.': 'შეამოწმეთ პაროლი და სცადეთ ხელახლა.',
+  'The Table Derby API could not take this just now. Try again in a moment.': 'Table Derby-ის API-მ ახლა მოთხოვნა ვერ მიიღო. სცადეთ ცოტა ხანში.',
+  'This link is incomplete or damaged. Open the whole link you were given, or ask a team manager for a new one.':
+    'ბმული არასრული ან დაზიანებულია. გახსენით ბმული მთლიანად, როგორც მოგაწოდეს, ან სთხოვეთ გუნდის ადმინისტრატორს ახალი.',
+  'You are signed in as {name}. Finishing here signs you in with this account instead.': 'ახლა შესული ხართ ანგარიშით: {name}. აქ დასრულების შემდეგ მის ნაცვლად ამ ბმულის ანგარიშით შეხვალთ.',
+  'You have joined': 'თქვენ გაწევრიანდით',
+  'Password set': 'პაროლი დაყენებულია',
+  'Your account is ready, but the Table Derby API could not be reached to check who is signed in on this browser.':
+    'თქვენი ანგარიში მზადაა, მაგრამ Table Derby-ის API-სთან დაკავშირება ვერ მოხერხდა იმის შესამოწმებლად, ვინ არის შესული ამ ბრაუზერში.',
+  'Your new password is set, but the Table Derby API could not be reached to check who is signed in on this browser.':
+    'ახალი პაროლი დაყენებულია, მაგრამ Table Derby-ის API-სთან დაკავშირება ვერ მოხერხდა იმის შესამოწმებლად, ვინ არის შესული ამ ბრაუზერში.',
+  'Your account is ready, but this browser is still signed in as {name}.': 'თქვენი ანგარიში მზადაა, მაგრამ ამ ბრაუზერში კვლავ შესულია {name}.',
+  'Your new password is set, but this browser is still signed in as {name}.': 'ახალი პაროლი დაყენებულია, მაგრამ ამ ბრაუზერში კვლავ შესულია {name}.',
+  'Sign out and sign in with the new password': 'გასვლა და ახალი პაროლით შესვლა',
+  'Stay signed in as {name}': 'დარჩენა ამ ანგარიშით: {name}',
 
   // The dashboard: td-dashboard.tsx
-  "Dailies played": "ყოველდღიური თამაშები",
-  "Practice runs": "ვარჯიშები",
-  "{n} new": "{n} ახალი",
-  "{started} started · {voided} voided":
-    "{started} დაწყებული · {voided} ანულირებული",
-  "{n} completed": "{n} დასრულებული",
-  "{count} early-quit penalties need a second look: a match was voided afterwards, so the player may not have deserved them.":
-    "{count} ჯარიმა ადრე დათმობისთვის გადასამოწმებელია: მატჩი მოგვიანებით ანულირდა, ამიტომ შესაძლოა, მოთამაშეს ის არ ეკუთვნოდა.",
-  Review: "გადამოწმება",
-  "Today is {today} and yesterday {yesterday}, counted midnight to midnight in Georgian time. Test accounts are left out.":
-    "დღეს: {today}; გუშინ: {yesterday}. დღე ითვლება შუაღამიდან შუაღამემდე, საქართველოს დროით. სატესტო ანგარიშები არ ითვლება.",
-  "{count} matches corrected today.": "დღეს შესწორდა {count} მატჩი.",
-  "Updated {time}.": "განახლდა: {time}.",
+  'Dailies played': 'ყოველდღიური თამაშები',
+  'Practice runs': 'ვარჯიშები',
+  '{n} new': '{n} ახალი',
+  '{started} started · {voided} voided': '{started} დაწყებული · {voided} ანულირებული',
+  '{n} completed': '{n} დასრულებული',
+  '{count} early-quit penalties need a second look: a match was voided afterwards, so the player may not have deserved them.':
+    '{count} ჯარიმა ადრე დათმობისთვის გადასამოწმებელია: მატჩი მოგვიანებით ანულირდა, ამიტომ შესაძლოა, მოთამაშეს ის არ ეკუთვნოდა.',
+  Review: 'გადამოწმება',
+  'Today is {today} and yesterday {yesterday}, counted midnight to midnight in Georgian time. Test accounts are left out.':
+    'დღეს: {today}; გუშინ: {yesterday}. დღე ითვლება შუაღამიდან შუაღამემდე, საქართველოს დროით. სატესტო ანგარიშები არ ითვლება.',
+  '{count} matches corrected today.': 'დღეს შესწორდა {count} მატჩი.',
+  'Updated {time}.': 'განახლდა: {time}.',
 
   // The team: td-team.tsx
-  "Roles are enforced by the API on every request. Nobody can grant or remove the ops role here.":
-    "როლებს API ყოველ მოთხოვნაზე ამოწმებს. ops როლის მინიჭება ან მოხსნა აქ არავის შეუძლია.",
-  "Invite member": "წევრის მოწვევა",
-  "Name (optional)": "სახელი (არასავალდებულო)",
-  "Make the invitation link": "მოწვევის ბმულის შექმნა",
-  "Enter a valid email address (and a name of at most 80 characters, or none).":
-    "შეიყვანეთ სწორი ელფოსტის მისამართი (სახელი — მაქსიმუმ 80 სიმბოლო, ან ცარიელი).",
-  "This email already has an account: it cannot be invited again.":
-    "ამ ელფოსტაზე ანგარიში უკვე არსებობს: მისი ხელახლა მოწვევა შეუძლებელია.",
-  "Your role cannot invite this role.":
-    "თქვენი როლით ამ როლის მოწვევა შეუძლებელია.",
-  "Invitation link": "მოწვევის ბმული",
-  "Invitation link for {email}": "მოწვევის ბმული — {email}",
-  "Invitation for {email}.": "მოწვევა: {email}.",
-  "Inviting the same email again makes a new link.":
-    "იმავე ელფოსტის ხელახლა მოწვევა ახალ ბმულს შექმნის.",
-  "Reset link": "პაროლის აღდგენის ბმული",
-  "Reset link for {who}": "პაროლის აღდგენის ბმული — {who}",
-  "Reset link for {email}. Opening it sets a new password and signs them out everywhere else.":
-    "პაროლის აღდგენის ბმული — {email}. მისი გახსნით დაყენდება ახალი პაროლი, ხოლო ეს წევრი ყველა სხვა მოწყობილობაზე გავა ანგარიშიდან.",
-  "Making another reset link for them stops this one.":
-    "ამ წევრისთვის ახალი ბმულის შექმნის შემდეგ ეს ბმული აღარ იმუშავებს.",
-  "Send them this link yourself: the API does not email it.":
-    "ეს ბმული თავად გაუგზავნეთ: API მას ელფოსტით არ აგზავნის.",
-  "Copy link": "ბმულის კოპირება",
-  "Shown once: it cannot be seen again after you close this. It works once, until {time} (Georgia).":
-    "ჩანს მხოლოდ ერთხელ: ამის დახურვის შემდეგ მას ვეღარ ნახავთ. ბმული ერთჯერადია; მოქმედების ვადა: {time} (საქართველოს დროით).",
-  Done: "დასრულება",
-  "No answer from the Table Derby API, so a link may have been made. Make another: an earlier one then stops working.":
-    "Table Derby-ის API-მ არ უპასუხა, ამიტომ შესაძლოა, ბმული მაინც შეიქმნა. შექმენით ახალი: წინა ბმული მაშინ აღარ იმუშავებს.",
-  "{email} is no longer on the team.": "{email} გუნდში აღარ არის.",
-  "No reset link for {email}: {reason}":
-    "პაროლის აღდგენის ბმული ვერ შეიქმნა ({email}): {reason}",
-  "Last sign-in (Georgia)": "ბოლო შესვლა (საქართველოს დროით)",
-  active: "აქტიური",
-  invited: "მოწვეული",
-  disabled: "გათიშული",
-  "No staff yet": "გუნდში ჯერ არავინ არის",
+  'Roles are enforced by the API on every request. Nobody can grant or remove the ops role here.': 'როლებს API ყოველ მოთხოვნაზე ამოწმებს. ops როლის მინიჭება ან მოხსნა აქ არავის შეუძლია.',
+  'Invite member': 'წევრის მოწვევა',
+  'Name (optional)': 'სახელი (არასავალდებულო)',
+  'Make the invitation link': 'მოწვევის ბმულის შექმნა',
+  'Enter a valid email address (and a name of at most 80 characters, or none).': 'შეიყვანეთ სწორი ელფოსტის მისამართი (სახელი — მაქსიმუმ 80 სიმბოლო, ან ცარიელი).',
+  'This email already has an account: it cannot be invited again.': 'ამ ელფოსტაზე ანგარიში უკვე არსებობს: მისი ხელახლა მოწვევა შეუძლებელია.',
+  'Your role cannot invite this role.': 'თქვენი როლით ამ როლის მოწვევა შეუძლებელია.',
+  'Invitation link': 'მოწვევის ბმული',
+  'Invitation link for {email}': 'მოწვევის ბმული — {email}',
+  'Invitation for {email}.': 'მოწვევა: {email}.',
+  'Inviting the same email again makes a new link.': 'იმავე ელფოსტის ხელახლა მოწვევა ახალ ბმულს შექმნის.',
+  'Reset link': 'პაროლის აღდგენის ბმული',
+  'Reset link for {who}': 'პაროლის აღდგენის ბმული — {who}',
+  'Reset link for {email}. Opening it sets a new password and signs them out everywhere else.':
+    'პაროლის აღდგენის ბმული — {email}. მისი გახსნით დაყენდება ახალი პაროლი, ხოლო ეს წევრი ყველა სხვა მოწყობილობაზე გავა ანგარიშიდან.',
+  'Making another reset link for them stops this one.': 'ამ წევრისთვის ახალი ბმულის შექმნის შემდეგ ეს ბმული აღარ იმუშავებს.',
+  'Send them this link yourself: the API does not email it.': 'ეს ბმული თავად გაუგზავნეთ: API მას ელფოსტით არ აგზავნის.',
+  'Copy link': 'ბმულის კოპირება',
+  'Shown once: it cannot be seen again after you close this. It works once, until {time} (Georgia).':
+    'ჩანს მხოლოდ ერთხელ: ამის დახურვის შემდეგ მას ვეღარ ნახავთ. ბმული ერთჯერადია; მოქმედების ვადა: {time} (საქართველოს დროით).',
+  Done: 'დასრულება',
+  'No answer from the Table Derby API, so a link may have been made. Make another: an earlier one then stops working.':
+    'Table Derby-ის API-მ არ უპასუხა, ამიტომ შესაძლოა, ბმული მაინც შეიქმნა. შექმენით ახალი: წინა ბმული მაშინ აღარ იმუშავებს.',
+  '{email} is no longer on the team.': '{email} გუნდში აღარ არის.',
+  'No reset link for {email}: {reason}': 'პაროლის აღდგენის ბმული ვერ შეიქმნა ({email}): {reason}',
+  'Last sign-in (Georgia)': 'ბოლო შესვლა (საქართველოს დროით)',
+  active: 'აქტიური',
+  invited: 'მოწვეული',
+  disabled: 'გათიშული',
+  'No staff yet': 'გუნდში ჯერ არავინ არის',
 
   // What the API refused, in plain words: errors.ts
-  "The API did not accept this request.": "API-მ ეს მოთხოვნა არ მიიღო.",
-  "Your session has ended; sign in again.":
-    "თქვენი სესია დასრულდა; შედით ხელახლა.",
-  "You are signed out.": "თქვენ სისტემიდან გასული ხართ.",
-  "Your role cannot do this.": "თქვენი როლით ამის გაკეთება შეუძლებელია.",
-  "It no longer exists; it may have been removed.":
-    "ის აღარ არსებობს; შესაძლოა, წაიშალა.",
-  "Too many requests; wait a minute and try again.":
-    "ძალიან ბევრი მოთხოვნა; დაელოდეთ ერთ წუთს და სცადეთ ხელახლა.",
-  "This key is already taken.": "ეს ID უკვე დაკავებულია.",
-  "This conflicts with something that already exists.":
-    "ეს ეწინააღმდეგება უკვე არსებულ ჩანაწერს.",
-  "The API is busy; try again.": "API დაკავებულია; სცადეთ ხელახლა.",
-  "Something went wrong on the API.": "API-ის მხარეს შეცდომა მოხდა.",
-  "Someone changed this since you opened it.":
-    "მას შემდეგ, რაც გახსენით, ეს სხვამ შეცვალა.",
-  "This step is not allowed from the current status.":
-    "მიმდინარე სტატუსიდან ეს ნაბიჯი დაუშვებელია.",
-  "You made the last edit, so another publisher must approve it.":
-    "ბოლო ცვლილება თქვენ შეიტანეთ, ამიტომ ის სხვა გამომქვეყნებელმა უნდა დაამტკიცოს.",
-  "Some fields are not valid.": "ზოგიერთი ველი არასწორია.",
-  "Approve what this refers to first.": "ჯერ დაამტკიცეთ ის, რასაც ეს იყენებს.",
-  "Live content still uses this.": "მოქმედი კონტენტი ამას ჯერ კიდევ იყენებს.",
-  "Another change got in the way; try again.":
-    "ხელი შეუშალა სხვა ცვლილებამ; სცადეთ ხელახლა.",
-  "The match is not decided yet; it can be corrected once it is.":
-    "მატჩი ჯერ არ დასრულებულა; შესწორება შესაძლებელია მხოლოდ მისი დასრულების შემდეგ.",
-  "That is already the result of this match.": "ამ მატჩის შედეგი უკვე ასეთია.",
-  "Tickets per day cannot change within five minutes of Georgian midnight.":
-    "ბილეთების დღიური რაოდენობის შეცვლა შეუძლებელია შუაღამემდე ან შუაღამის შემდეგ ხუთი წუთის ფარგლებში (საქართველოს დროით).",
-  "This image was refused.": "ეს სურათი არ მიიღება.",
-  "An image is at most 2 MB.": "სურათის ზომა არ უნდა აღემატებოდეს 2 MB-ს.",
-  "Image storage is not available right now; try again later.":
-    "სურათების საცავი ახლა მიუწვდომელია; სცადეთ მოგვიანებით.",
-  "Another publish or roll back is running.":
-    "ახლა მიმდინარეობს სხვა გამოქვეყნება ან უკან დაბრუნება.",
-  "This request key was already used for something else; start again.":
-    "ამ მოთხოვნის გასაღები უკვე გამოყენებულია სხვა მოქმედებისთვის; დაიწყეთ თავიდან.",
-  "This release cannot be rolled back to: it must have been current before, not be current now, and still be available.":
-    "ამ გამოშვებაზე უკან დაბრუნება შეუძლებელია: ის ადრე მიმდინარე უნდა ყოფილიყო, ახლა მიმდინარე არ უნდა იყოს და კვლავ ხელმისაწვდომი უნდა იყოს.",
-  "This release no longer serves every daily game today, so it cannot be made current.":
-    "ეს გამოშვება დღეს ყველა ყოველდღიურ თამაშს ვეღარ უზრუნველყოფს, ამიტომ მისი მიმდინარედ დაყენება შეუძლებელია.",
-  "Could not renew your session; try again.":
-    "თქვენი სესიის განახლება ვერ მოხერხდა; სცადეთ ხელახლა.",
-  "You signed out or switched accounts; the request was cancelled.":
-    "თქვენ გახვედით სისტემიდან ან ანგარიში შეცვალეთ; მოთხოვნა გაუქმდა.",
-  "The Table Derby API is not responding; try again.":
-    "Table Derby-ის API არ პასუხობს; სცადეთ ხელახლა.",
-  "Something went wrong.": "რაღაც შეცდომა მოხდა.",
-  "Only JPEG, PNG or WebP images are accepted.":
-    "მიიღება მხოლოდ JPEG, PNG ან WebP სურათები.",
-  "The file is not the image its type says.":
-    "ფაილი არ არის იმ ტიპის სურათი, რომელიც მითითებულია.",
-  "The file carries data after the image.":
-    "ფაილი სურათის შემდეგ დამატებით მონაცემებს შეიცავს.",
-  "An image is at most 4096 pixels a side.":
-    "სურათის თითოეული გვერდი არ უნდა აღემატებოდეს 4096 პიქსელს.",
-  "Animated images are not accepted.": "ანიმირებული სურათები არ მიიღება.",
-  "The image could not be read.": "სურათის წაკითხვა ვერ მოხერხდა.",
+  'The API did not accept this request.': 'API-მ ეს მოთხოვნა არ მიიღო.',
+  'Your session has ended; sign in again.': 'თქვენი სესია დასრულდა; შედით ხელახლა.',
+  'You are signed out.': 'თქვენ სისტემიდან გასული ხართ.',
+  'Your role cannot do this.': 'თქვენი როლით ამის გაკეთება შეუძლებელია.',
+  'It no longer exists; it may have been removed.': 'ის აღარ არსებობს; შესაძლოა, წაიშალა.',
+  'Too many requests; wait a minute and try again.': 'ძალიან ბევრი მოთხოვნა; დაელოდეთ ერთ წუთს და სცადეთ ხელახლა.',
+  'This key is already taken.': 'ეს ID უკვე დაკავებულია.',
+  'This conflicts with something that already exists.': 'ეს ეწინააღმდეგება უკვე არსებულ ჩანაწერს.',
+  'The API is busy; try again.': 'API დაკავებულია; სცადეთ ხელახლა.',
+  'Something went wrong on the API.': 'API-ის მხარეს შეცდომა მოხდა.',
+  'Someone changed this since you opened it.': 'მას შემდეგ, რაც გახსენით, ეს სხვამ შეცვალა.',
+  'This step is not allowed from the current status.': 'მიმდინარე სტატუსიდან ეს ნაბიჯი დაუშვებელია.',
+  'You made the last edit, so another publisher must approve it.': 'ბოლო ცვლილება თქვენ შეიტანეთ, ამიტომ ის სხვა გამომქვეყნებელმა უნდა დაამტკიცოს.',
+  'Some fields are not valid.': 'ზოგიერთი ველი არასწორია.',
+  'Approve what this refers to first.': 'ჯერ დაამტკიცეთ ის, რასაც ეს იყენებს.',
+  'Live content still uses this.': 'მოქმედი კონტენტი ამას ჯერ კიდევ იყენებს.',
+  'Another change got in the way; try again.': 'ხელი შეუშალა სხვა ცვლილებამ; სცადეთ ხელახლა.',
+  'The match is not decided yet; it can be corrected once it is.': 'მატჩი ჯერ არ დასრულებულა; შესწორება შესაძლებელია მხოლოდ მისი დასრულების შემდეგ.',
+  'That is already the result of this match.': 'ამ მატჩის შედეგი უკვე ასეთია.',
+  'Tickets per day cannot change within five minutes of Georgian midnight.': 'ბილეთების დღიური რაოდენობის შეცვლა შეუძლებელია შუაღამემდე ან შუაღამის შემდეგ ხუთი წუთის ფარგლებში (საქართველოს დროით).',
+  'This image was refused.': 'ეს სურათი არ მიიღება.',
+  'An image is at most 2 MB.': 'სურათის ზომა არ უნდა აღემატებოდეს 2 MB-ს.',
+  'Image storage is not available right now; try again later.': 'სურათების საცავი ახლა მიუწვდომელია; სცადეთ მოგვიანებით.',
+  'Another publish or roll back is running.': 'ახლა მიმდინარეობს სხვა გამოქვეყნება ან უკან დაბრუნება.',
+  'This request key was already used for something else; start again.': 'ამ მოთხოვნის გასაღები უკვე გამოყენებულია სხვა მოქმედებისთვის; დაიწყეთ თავიდან.',
+  'This release cannot be rolled back to: it must have been current before, not be current now, and still be available.':
+    'ამ გამოშვებაზე უკან დაბრუნება შეუძლებელია: ის ადრე მიმდინარე უნდა ყოფილიყო, ახლა მიმდინარე არ უნდა იყოს და კვლავ ხელმისაწვდომი უნდა იყოს.',
+  'This release no longer serves every daily game today, so it cannot be made current.': 'ეს გამოშვება დღეს ყველა ყოველდღიურ თამაშს ვეღარ უზრუნველყოფს, ამიტომ მისი მიმდინარედ დაყენება შეუძლებელია.',
+  'Could not renew your session; try again.': 'თქვენი სესიის განახლება ვერ მოხერხდა; სცადეთ ხელახლა.',
+  'You signed out or switched accounts; the request was cancelled.': 'თქვენ გახვედით სისტემიდან ან ანგარიში შეცვალეთ; მოთხოვნა გაუქმდა.',
+  'The Table Derby API is not responding; try again.': 'Table Derby-ის API არ პასუხობს; სცადეთ ხელახლა.',
+  'Something went wrong.': 'რაღაც შეცდომა მოხდა.',
+  'Only JPEG, PNG or WebP images are accepted.': 'მიიღება მხოლოდ JPEG, PNG ან WebP სურათები.',
+  'The file is not the image its type says.': 'ფაილი არ არის იმ ტიპის სურათი, რომელიც მითითებულია.',
+  'The file carries data after the image.': 'ფაილი სურათის შემდეგ დამატებით მონაცემებს შეიცავს.',
+  'An image is at most 4096 pixels a side.': 'სურათის თითოეული გვერდი არ უნდა აღემატებოდეს 4096 პიქსელს.',
+  'Animated images are not accepted.': 'ანიმირებული სურათები არ მიიღება.',
+  'The image could not be read.': 'სურათის წაკითხვა ვერ მოხერხდა.',
 
   // Messages the workspace itself makes for a failed request: api-client.ts, operation.ts, use-td-content.ts
-  "The session changed; the request was cancelled":
-    "სესია შეიცვალა; მოთხოვნა გაუქმდა",
-  "Request failed with status {status}":
-    "მოთხოვნა ვერ შესრულდა (სტატუსი {status})",
-  "The API returned an incomplete session": "API-მ არასრული სესია დააბრუნა",
-  "Not signed in": "შესული არ ხართ",
-  "Your session has ended; sign in again":
-    "თქვენი სესია დასრულდა; შედით ხელახლა",
-  "Could not renew the session; try again":
-    "სესიის განახლება ვერ მოხერხდა; სცადეთ ხელახლა",
+  'The session changed; the request was cancelled': 'სესია შეიცვალა; მოთხოვნა გაუქმდა',
+  'Request failed with status {status}': 'მოთხოვნა ვერ შესრულდა (სტატუსი {status})',
+  'The API returned an incomplete session': 'API-მ არასრული სესია დააბრუნა',
+  'Not signed in': 'შესული არ ხართ',
+  'Your session has ended; sign in again': 'თქვენი სესია დასრულდა; შედით ხელახლა',
+  'Could not renew the session; try again': 'სესიის განახლება ვერ მოხერხდა; სცადეთ ხელახლა',
 
   // What must be approved first: td-error-panel.tsx
-  "box question": "ყუთის კითხვა",
-  "{type} “{key}”": "{type} „{key}“",
-  "{type} in puzzle “{puzzle}”": "{type} თავსატეხში „{puzzle}“",
-  "cards: none approved yet": "ბარათები: ჯერ არცერთი არ არის დამტკიცებული",
-  "box questions: none approved yet":
-    "ყუთის კითხვები: ჯერ არცერთი არ არის დამტკიცებული",
+  'box question': 'ყუთის კითხვა',
+  '{type} “{key}”': '{type} „{key}“',
+  '{type} in puzzle “{puzzle}”': '{type} თავსატეხში „{puzzle}“',
+  'cards: none approved yet': 'ბარათები: ჯერ არცერთი არ არის დამტკიცებული',
+  'box questions: none approved yet': 'ყუთის კითხვები: ჯერ არცერთი არ არის დამტკიცებული',
   // The statuses (draft, ready, approved, archived) and the types' own names are in ka-content.
 };

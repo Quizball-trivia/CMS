@@ -1,280 +1,254 @@
 /** The question list, the editor dialog, the form fields and the statuses. */
 export const KA_CONTENT: Record<string, string> = {
   // content/content-types.tsx — what each type's row is called, in the nominative (sentences take the name as it stands)
-  "card category": "ბარათის კატეგორია",
-  "card categories": "ბარათის კატეგორიები",
-  card: "ბარათი",
-  cards: "ბარათები",
-  subject: "პერსონაჟი",
-  subjects: "პერსონაჟები",
-  "box category": "ყუთის კატეგორია",
-  "box categories": "ყუთის კატეგორიები",
-  question: "კითხვა",
-  questions: "კითხვები",
-  "penalty question": "პენალტის კითხვა",
-  "penalty questions": "პენალტის კითხვები",
-  "practice question": "სავარჯიშო კითხვა",
-  "practice questions": "სავარჯიშო კითხვები",
-  image: "სურათი",
-  images: "სურათები",
-  club: "კლუბი",
-  clubs: "კლუბები",
-  "Football Logic question": "„საფეხბურთო ლოგიკის“ კითხვა",
-  "Football Logic questions": "„საფეხბურთო ლოგიკის“ კითხვები",
-  "Put in Order round": "„დაალაგე სწორად“-ის რაუნდი",
-  "Put in Order rounds": "„დაალაგე სწორად“-ის რაუნდები",
-  "Career Path question": "„კარიერის გზის“ კითხვა",
-  "Career Path questions": "„კარიერის გზის“ კითხვები",
-  "calendar date": "კალენდრის თარიღი",
-  "calendar dates": "კალენდრის თარიღები",
-  "daily settings": "ყოველდღიური თამაშის პარამეტრები",
+  'card category': 'ბარათის კატეგორია',
+  'card categories': 'ბარათის კატეგორიები',
+  card: 'ბარათი',
+  cards: 'ბარათები',
+  subject: 'პერსონაჟი',
+  subjects: 'პერსონაჟები',
+  'box category': 'ყუთის კატეგორია',
+  'box categories': 'ყუთის კატეგორიები',
+  question: 'კითხვა',
+  questions: 'კითხვები',
+  'penalty question': 'პენალტის კითხვა',
+  'penalty questions': 'პენალტის კითხვები',
+  'practice question': 'სავარჯიშო კითხვა',
+  'practice questions': 'სავარჯიშო კითხვები',
+  image: 'სურათი',
+  images: 'სურათები',
+  club: 'კლუბი',
+  clubs: 'კლუბები',
+  'Football Logic question': '„საფეხბურთო ლოგიკის“ კითხვა',
+  'Football Logic questions': '„საფეხბურთო ლოგიკის“ კითხვები',
+  'Put in Order round': '„დაალაგე სწორად“-ის რაუნდი',
+  'Put in Order rounds': '„დაალაგე სწორად“-ის რაუნდები',
+  'Career Path question': '„კარიერის გზის“ კითხვა',
+  'Career Path questions': '„კარიერის გზის“ კითხვები',
+  'calendar date': 'კალენდრის თარიღი',
+  'calendar dates': 'კალენდრის თარიღები',
+  'daily settings': 'ყოველდღიური თამაშის პარამეტრები',
 
   // content/td-status.tsx — the status as one short word (filter pills, the row's pill, history lines)
-  draft: "დრაფტი",
-  ready: "მზადაა შესამოწმებლად",
-  approved: "დამტკიცებული",
-  archived: "დაარქივებული",
+  draft: 'დრაფტი',
+  ready: 'მზადაა შესამოწმებლად',
+  approved: 'დამტკიცებული',
+  archived: 'დაარქივებული',
 
   // The list and the question page share these (content/td-content-list.tsx, tabs/questions-tab.tsx)
-  "{n} selected": "მონიშნულია: {n}",
-  "Mark {n} ready": "მზადად მონიშვნა ({n})",
-  "Approve {n}": "დამტკიცება ({n})",
-  "{n} marked ready": "მზადად მოინიშნა: {n}",
-  "{n} approved": "დამტკიცდა: {n}",
-  "{n} refused": "ვერ შესრულდა: {n}",
-  "Select all shown": "ყველა ნაჩვენების მონიშვნა",
-  "Select {label}": "მონიშვნა: {label}",
+  '{n} selected': 'მონიშნულია: {n}',
+  'Mark {n} ready': 'მზადად მონიშვნა ({n})',
+  'Approve {n}': 'დამტკიცება ({n})',
+  '{n} marked ready': 'მზადად მოინიშნა: {n}',
+  '{n} approved': 'დამტკიცდა: {n}',
+  '{n} refused': 'ვერ შესრულდა: {n}',
+  'Select all shown': 'ყველა ნაჩვენების მონიშვნა',
+  'Select {label}': 'მონიშვნა: {label}',
 
   // content/td-content-list.tsx
-  New: "ახალი",
-  "Search the text": "ტექსტში ძებნა",
-  "Search {title}": "ძებნა: {title}",
-  Sort: "დალაგება",
-  "Try another search or status.": "სცადეთ სხვა საძიებო ტექსტი ან სტატუსი.",
+  New: 'ახალი',
+  'Search the text': 'ტექსტში ძებნა',
+  'Search {title}': 'ძებნა: {title}',
+  Sort: 'დალაგება',
+  'Try another search or status.': 'სცადეთ სხვა საძიებო ტექსტი ან სტატუსი.',
 
   // content/td-content-editor.tsx — the header
-  "New {type}": "ახალი {type}",
-  "Revision {revision} · content v{content} · last edit by {editor}":
-    "რევიზია {revision} · კონტენტი v{content} · ბოლო ცვლილება: {editor}",
-  "Revision {revision} · content v{content} · approved v{approved} · last edit by {editor}":
-    "რევიზია {revision} · კონტენტი v{content} · დამტკიცებულია v{approved} · ბოლო ცვლილება: {editor}",
-  "Revision {revision} · content v{content} · approved v{approved} by {approver} · last edit by {editor}":
-    "რევიზია {revision} · კონტენტი v{content} · დამტკიცებულია v{approved} ({approver}) · ბოლო ცვლილება: {editor}",
-  "Not in the current release.": "მიმდინარე გამოშვებაში არ არის.",
-  "In the current release at content v{version}.":
-    "მიმდინარე გამოშვებაშია: კონტენტი v{version}.",
-  "In the current release at content v{version} (an older version).":
-    "მიმდინარე გამოშვებაშია: კონტენტი v{version} (ძველი ვერსია).",
-  "Saved as a draft; mark it ready when it is done, then a publisher approves it.":
-    "შეინახება დრაფტად; როცა დაასრულებთ, მონიშნეთ მზადად — შემდეგ მას გამომქვეყნებელი დაამტკიცებს.",
-  Content: "კონტენტი",
-  History: "ისტორია",
-  "Approved version": "დამტკიცებული ვერსია",
+  'New {type}': 'ახალი {type}',
+  'Revision {revision} · content v{content} · last edit by {editor}': 'რევიზია {revision} · კონტენტი v{content} · ბოლო ცვლილება: {editor}',
+  'Revision {revision} · content v{content} · approved v{approved} · last edit by {editor}': 'რევიზია {revision} · კონტენტი v{content} · დამტკიცებულია v{approved} · ბოლო ცვლილება: {editor}',
+  'Revision {revision} · content v{content} · approved v{approved} by {approver} · last edit by {editor}': 'რევიზია {revision} · კონტენტი v{content} · დამტკიცებულია v{approved} ({approver}) · ბოლო ცვლილება: {editor}',
+  'Not in the current release.': 'მიმდინარე გამოშვებაში არ არის.',
+  'In the current release at content v{version}.': 'მიმდინარე გამოშვებაშია: კონტენტი v{version}.',
+  'In the current release at content v{version} (an older version).': 'მიმდინარე გამოშვებაშია: კონტენტი v{version} (ძველი ვერსია).',
+  'Saved as a draft; mark it ready when it is done, then a publisher approves it.': 'შეინახება დრაფტად; როცა დაასრულებთ, მონიშნეთ მზადად — შემდეგ მას გამომქვეყნებელი დაამტკიცებს.',
+  Content: 'კონტენტი',
+  History: 'ისტორია',
+  'Approved version': 'დამტკიცებული ვერსია',
 
   // content/td-content-editor.tsx — the form, its notices and toasts
-  "This draft differs from the last approved version (v{version}). A release carries the approved version until this one is approved. {compare}":
-    "ეს დრაფტი განსხვავდება ბოლო დამტკიცებული ვერსიისგან (v{version}). სანამ ეს არ დამტკიცდება, გამოშვებაში დამტკიცებული ვერსია ხვდება. {compare}",
-  Compare: "შედარება",
-  "It changed meanwhile ({name}, {time}); this is the row as it is now. Check it and try again.":
-    "ამასობაში ჩანაწერი შეიცვალა ({name}, {time}); აქ მისი ახლანდელი ვერსიაა. გადაამოწმეთ და სცადეთ ხელახლა.",
-  "Merged onto the newer version. Review it, then save.":
-    "ცვლილებები ახალ ვერსიას შეუერთდა. გადახედეთ და შეინახეთ.",
-  "The order in a release. Changing it is a change to the content.":
-    "რიგი გამოშვებაში. მისი შეცვლა კონტენტის ცვლილებად ითვლება.",
-  "For the team: sources, checks, questions. Changing only the note keeps the row’s status.":
-    "გუნდისთვის: წყაროები, შემოწმებები, კითხვები. მხოლოდ შენიშვნის შეცვლისას ჩანაწერის სტატუსი არ იცვლება.",
-  "A number in the form is not valid: fix it to save.":
-    "ფორმაში ერთ-ერთი რიცხვი არასწორია: შესანახად გაასწორეთ.",
-  "Waiting for the upload to finish.": "ველოდებით ატვირთვის დასრულებას.",
-  "Unsaved changes. Save before changing the status.":
-    "ცვლილებები შენახული არ არის. სტატუსის შეცვლამდე შეინახეთ.",
-  "{type} created as a draft": "{type} დრაფტად შეიქმნა",
-  Saved: "შენახულია",
-  "Marked ready for review": "მზადად მოინიშნა შესამოწმებლად",
-  Restored: "აღდგენილია",
+  'This draft differs from the last approved version (v{version}). A release carries the approved version until this one is approved. {compare}':
+    'ეს დრაფტი განსხვავდება ბოლო დამტკიცებული ვერსიისგან (v{version}). სანამ ეს არ დამტკიცდება, გამოშვებაში დამტკიცებული ვერსია ხვდება. {compare}',
+  Compare: 'შედარება',
+  'It changed meanwhile ({name}, {time}); this is the row as it is now. Check it and try again.': 'ამასობაში ჩანაწერი შეიცვალა ({name}, {time}); აქ მისი ახლანდელი ვერსიაა. გადაამოწმეთ და სცადეთ ხელახლა.',
+  'Merged onto the newer version. Review it, then save.': 'ცვლილებები ახალ ვერსიას შეუერთდა. გადახედეთ და შეინახეთ.',
+  'The order in a release. Changing it is a change to the content.': 'რიგი გამოშვებაში. მისი შეცვლა კონტენტის ცვლილებად ითვლება.',
+  'For the team: sources, checks, questions. Changing only the note keeps the row’s status.': 'გუნდისთვის: წყაროები, შემოწმებები, კითხვები. მხოლოდ შენიშვნის შეცვლისას ჩანაწერის სტატუსი არ იცვლება.',
+  'A number in the form is not valid: fix it to save.': 'ფორმაში ერთ-ერთი რიცხვი არასწორია: შესანახად გაასწორეთ.',
+  'Waiting for the upload to finish.': 'ველოდებით ატვირთვის დასრულებას.',
+  'Unsaved changes. Save before changing the status.': 'ცვლილებები შენახული არ არის. სტატუსის შეცვლამდე შეინახეთ.',
+  '{type} created as a draft': '{type} დრაფტად შეიქმნა',
+  Saved: 'შენახულია',
+  'Marked ready for review': 'მზადად მოინიშნა შესამოწმებლად',
+  Restored: 'აღდგენილია',
 
   // content/td-content-editor.tsx — when someone else changed the row meanwhile
-  "This row no longer exists": "ეს ჩანაწერი აღარ არსებობს",
-  "It was removed while you were editing (an import undo removes rows nobody changed). Copy anything you need, then close.":
-    "ჩანაწერი წაიშალა, სანამ მას არედაქტირებდით (ატვირთვის გაუქმება შლის ჩანაწერებს, რომლებიც არავის შეუცვლია). დააკოპირეთ, რაც გჭირდებათ, და დახურეთ.",
-  "Someone changed this while you were editing":
-    "სანამ არედაქტირებდით, ეს ჩანაწერი სხვამ შეცვალა",
-  "{name} saved revision {revision} ({status}) at {time}.":
-    "ბოლო შენახვა: {name}, {time} — რევიზია {revision} ({status}).",
-  "It is archived now: a publisher restores it before anyone edits it.":
-    "ახლა ის დაარქივებულია: რედაქტირებამდე გამომქვეყნებელმა უნდა აღადგინოს.",
-  "Their changes to fields you did not touch are kept; where you both changed a field, choose which to keep.":
-    "მათი ცვლილებები იმ ველებში, რომლებსაც თქვენ არ შეხებიხართ, შენარჩუნებულია; სადაც ერთი და იგივე ველი ორივემ შეცვალეთ, აირჩიეთ, რომელი დარჩეს.",
-  Theirs: "მათი",
-  Yours: "თქვენი",
-  "Your changes and theirs touch different fields, so they merge cleanly.":
-    "თქვენი და მათი ცვლილებები სხვადასხვა ველს ეხება, ამიტომ უპრობლემოდ ერთიანდება.",
-  "Continue with the merge": "გაერთიანებით გაგრძელება",
-  "Discard mine, load theirs": "ჩემის გაუქმება და მათის ჩატვირთვა",
+  'This row no longer exists': 'ეს ჩანაწერი აღარ არსებობს',
+  'It was removed while you were editing (an import undo removes rows nobody changed). Copy anything you need, then close.':
+    'ჩანაწერი წაიშალა, სანამ მას არედაქტირებდით (ატვირთვის გაუქმება შლის ჩანაწერებს, რომლებიც არავის შეუცვლია). დააკოპირეთ, რაც გჭირდებათ, და დახურეთ.',
+  'Someone changed this while you were editing': 'სანამ არედაქტირებდით, ეს ჩანაწერი სხვამ შეცვალა',
+  '{name} saved revision {revision} ({status}) at {time}.': 'ბოლო შენახვა: {name}, {time} — რევიზია {revision} ({status}).',
+  'It is archived now: a publisher restores it before anyone edits it.': 'ახლა ის დაარქივებულია: რედაქტირებამდე გამომქვეყნებელმა უნდა აღადგინოს.',
+  'Their changes to fields you did not touch are kept; where you both changed a field, choose which to keep.':
+    'მათი ცვლილებები იმ ველებში, რომლებსაც თქვენ არ შეხებიხართ, შენარჩუნებულია; სადაც ერთი და იგივე ველი ორივემ შეცვალეთ, აირჩიეთ, რომელი დარჩეს.',
+  Theirs: 'მათი',
+  Yours: 'თქვენი',
+  'Your changes and theirs touch different fields, so they merge cleanly.': 'თქვენი და მათი ცვლილებები სხვადასხვა ველს ეხება, ამიტომ უპრობლემოდ ერთიანდება.',
+  'Continue with the merge': 'გაერთიანებით გაგრძელება',
+  'Discard mine, load theirs': 'ჩემის გაუქმება და მათის ჩატვირთვა',
 
   // content/td-content-editor.tsx — the history and the approved version
-  Created: "შეიქმნა",
-  Edited: "შეიცვალა",
-  "Note changed": "შეიცვალა შენიშვნა",
-  "Marked ready": "მოინიშნა მზადად",
-  "Removed (import undo)": "წაიშალა (ატვირთვის გაუქმება)",
-  Seeded: "დაემატა საწყის მონაცემებად",
-  "{action} by {name}": "{action} · {name}",
-  import: "ფაილის ატვირთვით",
-  "Older changes are not shown.": "უფრო ძველი ცვლილებები არ ჩანს.",
-  Field: "ველი",
-  Now: "ახლა",
+  Created: 'შეიქმნა',
+  Edited: 'შეიცვალა',
+  'Note changed': 'შეიცვალა შენიშვნა',
+  'Marked ready': 'მოინიშნა მზადად',
+  'Removed (import undo)': 'წაიშალა (ატვირთვის გაუქმება)',
+  Seeded: 'დაემატა საწყის მონაცემებად',
+  '{action} by {name}': '{action} · {name}',
+  import: 'ფაილის ატვირთვით',
+  'Older changes are not shown.': 'უფრო ძველი ცვლილებები არ ჩანს.',
+  Field: 'ველი',
+  Now: 'ახლა',
 
   // content/td-form.tsx
-  "Fixed once created": "შექმნის შემდეგ აღარ იცვლება",
-  fixed: "უცვლელი",
-  "Enter a number": "შეიყვანეთ რიცხვი",
-  "Not a number": "ეს რიცხვი არ არის",
-  Add: "დამატება",
-  "Move up": "ზემოთ გადატანა",
-  "Move down": "ქვემოთ გადატანა",
-  Remove: "წაშლა",
-  "Remove {value}": "წაშლა: {value}",
-  "Accepted spellings": "მისაღები ვარიანტები",
-  "Press Enter or type a comma after each spelling. Players’ answers are compared with these.":
-    "ყოველი ვარიანტის შემდეგ დააჭირეთ Enter-ს ან დაწერეთ მძიმე. მოთამაშის პასუხი ამ ვარიანტებს დარდება.",
-  "e.g. messi, lionel messi": "მაგ. მესი, ლიონელ მესი",
+  'Fixed once created': 'შექმნის შემდეგ აღარ იცვლება',
+  fixed: 'უცვლელი',
+  'Enter a number': 'შეიყვანეთ რიცხვი',
+  'Not a number': 'ეს რიცხვი არ არის',
+  Add: 'დამატება',
+  'Move up': 'ზემოთ გადატანა',
+  'Move down': 'ქვემოთ გადატანა',
+  Remove: 'წაშლა',
+  'Remove {value}': 'წაშლა: {value}',
+  'Accepted spellings': 'მისაღები ვარიანტები',
+  'Press Enter or type a comma after each spelling. Players’ answers are compared with these.': 'ყოველი ვარიანტის შემდეგ დააჭირეთ Enter-ს ან დაწერეთ მძიმე. მოთამაშის პასუხი ამ ვარიანტებს დარდება.',
+  'e.g. messi, lionel messi': 'მაგ. მესი, ლიონელ მესი',
 
   // content/td-category-approval.tsx
-  "Approve the category with its cards":
-    "კატეგორიის დამტკიცება ბარათებთან ერთად",
-  "Approve the category with its questions":
-    "კატეგორიის დამტკიცება კითხვებთან ერთად",
-  "Every live card of “{key}” is approved already or approved now, in one step. A release then carries them together.":
-    "კატეგორიის „{key}“ ყველა მოქმედი ბარათი ან უკვე დამტკიცებულია, ან ახლა მტკიცდება — ერთ ნაბიჯად. გამოშვებაში ისინი ერთად ხვდება.",
-  "Every live question of “{key}” is approved already or approved now, in one step. A release then carries them together.":
-    "კატეგორიის „{key}“ ყველა მოქმედი კითხვა ან უკვე დამტკიცებულია, ან ახლა მტკიცდება — ერთ ნაბიჯად. გამოშვებაში ისინი ერთად ხვდება.",
-  "Loading its cards…": "ბარათები იტვირთება…",
-  "Loading its questions…": "კითხვები იტვირთება…",
-  "This category has more rows than the CMS loads at once; approve some on their own first.":
-    "ამ კატეგორიაში იმაზე მეტი ჩანაწერია, ვიდრე CMS ერთ ჯერზე ტვირთავს; ნაწილი ჯერ ცალ-ცალკე დაამტკიცეთ.",
-  "{ready} ready to approve with it · {approved} approved already":
-    "ერთად დასამტკიცებელი: {ready} · უკვე დამტკიცებული: {approved}",
-  "{ready} ready to approve with it · {approved} approved already · {held} holding it up":
-    "ერთად დასამტკიცებელი: {ready} · უკვე დამტკიცებული: {approved} · ხელს უშლის: {held}",
-  "Still a draft: mark it ready (or archive it) first.":
-    "ისევ დრაფტია: ჯერ მონიშნეთ მზადად (ან დააარქივეთ).",
-  "You made its last edit: another publisher approves it.":
-    "ბოლო ცვლილება თქვენ შეიტანეთ: მას სხვა გამომქვეყნებელი ამტკიცებს.",
-  "At most {max} can be approved with the category in one step; approve some of them on their own first.":
-    "კატეგორიასთან ერთად ერთ ნაბიჯად მაქსიმუმ {max} ჩანაწერი მტკიცდება; ნაწილი ჯერ ცალ-ცალკე დაამტკიცეთ.",
-  "A category needs at least one approved row.":
-    "კატეგორიას მინიმუმ ერთი დამტკიცებული ჩანაწერი სჭირდება.",
-  "A card changed meanwhile. The list is refreshed: check it and approve again.":
-    "ამასობაში ერთ-ერთი ბარათი შეიცვალა. სია განახლდა: გადაამოწმეთ და ხელახლა დაამტკიცეთ.",
-  "A question changed meanwhile. The list is refreshed: check it and approve again.":
-    "ამასობაში ერთ-ერთი კითხვა შეიცვალა. სია განახლდა: გადაამოწმეთ და ხელახლა დაამტკიცეთ.",
-  "The category changed meanwhile. Close this and look at it again.":
-    "ამასობაში კატეგორია შეიცვალა. დახურეთ ეს ფანჯარა და ხელახლა ნახეთ.",
+  'Approve the category with its cards': 'კატეგორიის დამტკიცება ბარათებთან ერთად',
+  'Approve the category with its questions': 'კატეგორიის დამტკიცება კითხვებთან ერთად',
+  'Every live card of “{key}” is approved already or approved now, in one step. A release then carries them together.':
+    'კატეგორიის „{key}“ ყველა მოქმედი ბარათი ან უკვე დამტკიცებულია, ან ახლა მტკიცდება — ერთ ნაბიჯად. გამოშვებაში ისინი ერთად ხვდება.',
+  'Every live question of “{key}” is approved already or approved now, in one step. A release then carries them together.':
+    'კატეგორიის „{key}“ ყველა მოქმედი კითხვა ან უკვე დამტკიცებულია, ან ახლა მტკიცდება — ერთ ნაბიჯად. გამოშვებაში ისინი ერთად ხვდება.',
+  'Loading its cards…': 'ბარათები იტვირთება…',
+  'Loading its questions…': 'კითხვები იტვირთება…',
+  'This category has more rows than the CMS loads at once; approve some on their own first.': 'ამ კატეგორიაში იმაზე მეტი ჩანაწერია, ვიდრე CMS ერთ ჯერზე ტვირთავს; ნაწილი ჯერ ცალ-ცალკე დაამტკიცეთ.',
+  '{ready} ready to approve with it · {approved} approved already': 'ერთად დასამტკიცებელი: {ready} · უკვე დამტკიცებული: {approved}',
+  '{ready} ready to approve with it · {approved} approved already · {held} holding it up': 'ერთად დასამტკიცებელი: {ready} · უკვე დამტკიცებული: {approved} · ხელს უშლის: {held}',
+  'Still a draft: mark it ready (or archive it) first.': 'ისევ დრაფტია: ჯერ მონიშნეთ მზადად (ან დააარქივეთ).',
+  'You made its last edit: another publisher approves it.': 'ბოლო ცვლილება თქვენ შეიტანეთ: მას სხვა გამომქვეყნებელი ამტკიცებს.',
+  'At most {max} can be approved with the category in one step; approve some of them on their own first.': 'კატეგორიასთან ერთად ერთ ნაბიჯად მაქსიმუმ {max} ჩანაწერი მტკიცდება; ნაწილი ჯერ ცალ-ცალკე დაამტკიცეთ.',
+  'A category needs at least one approved row.': 'კატეგორიას მინიმუმ ერთი დამტკიცებული ჩანაწერი სჭირდება.',
+  'A card changed meanwhile. The list is refreshed: check it and approve again.': 'ამასობაში ერთ-ერთი ბარათი შეიცვალა. სია განახლდა: გადაამოწმეთ და ხელახლა დაამტკიცეთ.',
+  'A question changed meanwhile. The list is refreshed: check it and approve again.': 'ამასობაში ერთ-ერთი კითხვა შეიცვალა. სია განახლდა: გადაამოწმეთ და ხელახლა დაამტკიცეთ.',
+  'The category changed meanwhile. Close this and look at it again.': 'ამასობაში კატეგორია შეიცვალა. დახურეთ ეს ფანჯარა და ხელახლა ნახეთ.',
 
   // content/td-preview.tsx
-  "Card · {count} points": "ბარათი · {count} ქულა",
-  "Clues, read out one by one": "მინიშნებები — იკითხება სათითაოდ",
-  "Penalty question": "პენალტის კითხვა",
-  "Practice · easy": "ივარჯიშე · მარტივი",
-  "Practice · medium": "ივარჯიშე · საშუალო",
-  "Practice · hard": "ივარჯიშე · რთული",
-  "The question appears here.": "კითხვა აქ გამოჩნდება.",
-  "Whose career is this?": "ვისი კარიერაა?",
-  "Option {n}": "ვარიანტი {n}",
-  "Nothing to show yet.": "საჩვენებელი ჯერ არაფერია.",
-  "Shown with the image {name}": "ჩანს სურათთან ერთად: {name}",
-  "Also accepted:": "ასევე მიიღება:",
-  "Right order": "სწორი თანმიმდევრობა",
+  'Card · {count} points': 'ბარათი · {count} ქულა',
+  'Clues, read out one by one': 'მინიშნებები — იკითხება სათითაოდ',
+  'Penalty question': 'პენალტის კითხვა',
+  'Practice · easy': 'ივარჯიშე · მარტივი',
+  'Practice · medium': 'ივარჯიშე · საშუალო',
+  'Practice · hard': 'ივარჯიშე · რთული',
+  'The question appears here.': 'კითხვა აქ გამოჩნდება.',
+  'Whose career is this?': 'ვისი კარიერაა?',
+  'Option {n}': 'ვარიანტი {n}',
+  'Nothing to show yet.': 'საჩვენებელი ჯერ არაფერია.',
+  'Shown with the image {name}': 'ჩანს სურათთან ერთად: {name}',
+  'Also accepted:': 'ასევე მიიღება:',
+  'Right order': 'სწორი თანმიმდევრობა',
 
   // tabs/questions-tab.tsx — the game modes
-  "Round I · ბარათონი": "I ტური · ბარათონი",
-  "Round II · გამარჯობა": "II ტური · გამარჯობა",
-  "Round III · პაპა კარლოს ყუთი": "III ტური · პაპა კარლოს ყუთი",
-  "Practice · ივარჯიშე": "ივარჯიშე",
-  "Daily · Football Logic": "ყოველდღიური · საფეხბურთო ლოგიკა",
-  "Daily · Put in Order": "ყოველდღიური · დაალაგე სწორად",
-  "Daily · Career Path": "ყოველდღიური · კარიერის გზა",
+  'Round I · ბარათონი': 'I ტური · ბარათონი',
+  'Round II · გამარჯობა': 'II ტური · გამარჯობა',
+  'Round III · პაპა კარლოს ყუთი': 'III ტური · პაპა კარლოს ყუთი',
+  'Practice · ივარჯიშე': 'ივარჯიშე',
+  'Daily · Football Logic': 'ყოველდღიური · საფეხბურთო ლოგიკა',
+  'Daily · Put in Order': 'ყოველდღიური · დაალაგე სწორად',
+  'Daily · Career Path': 'ყოველდღიური · კარიერის გზა',
 
   // tabs/questions-tab.tsx — what a mode's rows are called: the button, the empty list, the count
-  "New Card": "ახალი ბარათი",
-  "New Subject": "ახალი პერსონაჟი",
-  "New Question": "ახალი კითხვა",
-  "New Round": "ახალი რაუნდი",
-  "No cards yet": "ბარათები ჯერ არ არის",
-  "No subjects yet": "პერსონაჟები ჯერ არ არის",
-  "No questions yet": "კითხვები ჯერ არ არის",
-  "No rounds yet": "რაუნდები ჯერ არ არის",
-  "Create the first card, or upload a file.":
-    "შექმენით პირველი ბარათი ან ატვირთეთ ფაილი.",
-  "Create the first subject, or upload a file.":
-    "შექმენით პირველი პერსონაჟი ან ატვირთეთ ფაილი.",
-  "Create the first question, or upload a file.":
-    "შექმენით პირველი კითხვა ან ატვირთეთ ფაილი.",
-  "Create the first round, or upload a file.":
-    "შექმენით პირველი რაუნდი ან ატვირთეთ ფაილი.",
-  "Showing {n} cards": "ნაჩვენებია {n} ბარათი",
-  "Showing {n} cards so far": "ჯერჯერობით ნაჩვენებია {n} ბარათი",
-  "Showing {n} subjects": "ნაჩვენებია {n} პერსონაჟი",
-  "Showing {n} subjects so far": "ჯერჯერობით ნაჩვენებია {n} პერსონაჟი",
-  "Showing {n} questions": "ნაჩვენებია {n} კითხვა",
-  "Showing {n} questions so far": "ჯერჯერობით ნაჩვენებია {n} კითხვა",
-  "Showing {n} rounds": "ნაჩვენებია {n} რაუნდი",
-  "Showing {n} rounds so far": "ჯერჯერობით ნაჩვენებია {n} რაუნდი",
+  'New Card': 'ახალი ბარათი',
+  'New Subject': 'ახალი პერსონაჟი',
+  'New Question': 'ახალი კითხვა',
+  'New Round': 'ახალი რაუნდი',
+  'No cards yet': 'ბარათები ჯერ არ არის',
+  'No subjects yet': 'პერსონაჟები ჯერ არ არის',
+  'No questions yet': 'კითხვები ჯერ არ არის',
+  'No rounds yet': 'რაუნდები ჯერ არ არის',
+  'Create the first card, or upload a file.': 'შექმენით პირველი ბარათი ან ატვირთეთ ფაილი.',
+  'Create the first subject, or upload a file.': 'შექმენით პირველი პერსონაჟი ან ატვირთეთ ფაილი.',
+  'Create the first question, or upload a file.': 'შექმენით პირველი კითხვა ან ატვირთეთ ფაილი.',
+  'Create the first round, or upload a file.': 'შექმენით პირველი რაუნდი ან ატვირთეთ ფაილი.',
+  'Showing {n} cards': 'ნაჩვენებია {n} ბარათი',
+  'Showing {n} cards so far': 'ჯერჯერობით ნაჩვენებია {n} ბარათი',
+  'Showing {n} subjects': 'ნაჩვენებია {n} პერსონაჟი',
+  'Showing {n} subjects so far': 'ჯერჯერობით ნაჩვენებია {n} პერსონაჟი',
+  'Showing {n} questions': 'ნაჩვენებია {n} კითხვა',
+  'Showing {n} questions so far': 'ჯერჯერობით ნაჩვენებია {n} კითხვა',
+  'Showing {n} rounds': 'ნაჩვენებია {n} რაუნდი',
+  'Showing {n} rounds so far': 'ჯერჯერობით ნაჩვენებია {n} რაუნდი',
 
   // tabs/questions-tab.tsx — the page, its filters and rows
-  "The cards and questions of every game mode.":
-    "ყველა თამაშის რეჟიმის ბარათები და კითხვები.",
-  "Upload Questions": "კითხვების ატვირთვა",
-  "Search questions, answers and accepted spellings...":
-    "მოძებნეთ კითხვა, პასუხი ან მისაღები ვარიანტი...",
-  "Search questions": "კითხვების ძებნა",
-  "In game order": "თამაშის თანმიმდევრობით",
-  "Manage categories": "კატეგორიების მართვა",
-  "Try another search, category or status.":
-    "სცადეთ სხვა საძიებო ტექსტი, კატეგორია ან სტატუსი.",
-  "Select all": "ყველას მონიშვნა",
-  "Actions for {label}": "მოქმედებები: {label}",
-  "Archive or restore…": "დაარქივება ან აღდგენა…",
-  "Answer: {answer}": "პასუხი: {answer}",
-  "{count} clue lines": "{count} მინიშნების ხაზი",
-  "{count} clues": "{count} მინიშნება",
-  "{count} points": "{count} ქულა",
-  "{count} options": "{count} პასუხის ვარიანტი",
-  "{count} items": "{count} ელემენტი",
-  "{count} clubs": "{count} კლუბი",
-  easy: "მარტივი",
-  medium: "საშუალო",
-  hard: "რთული",
+  'The cards and questions of every game mode.': 'ყველა თამაშის რეჟიმის ბარათები და კითხვები.',
+  'Upload Questions': 'კითხვების ატვირთვა',
+  'Search questions, answers and accepted spellings...': 'მოძებნეთ კითხვა, პასუხი ან მისაღები ვარიანტი...',
+  'Search questions': 'კითხვების ძებნა',
+  'In game order': 'თამაშის თანმიმდევრობით',
+  'Manage categories': 'კატეგორიების მართვა',
+  'Try another search, category or status.': 'სცადეთ სხვა საძიებო ტექსტი, კატეგორია ან სტატუსი.',
+  'Select all': 'ყველას მონიშვნა',
+  'Actions for {label}': 'მოქმედებები: {label}',
+  'Archive or restore…': 'დაარქივება ან აღდგენა…',
+  'Answer: {answer}': 'პასუხი: {answer}',
+  '{count} clue lines': '{count} მინიშნების ხაზი',
+  '{count} clues': '{count} მინიშნება',
+  '{count} points': '{count} ქულა',
+  '{count} options': '{count} პასუხის ვარიანტი',
+  '{count} items': '{count} ელემენტი',
+  '{count} clubs': '{count} კლუბი',
+  easy: 'მარტივი',
+  medium: 'საშუალო',
+  hard: 'რთული',
 
   // tabs/categories-tab.tsx
-  "Each category holds cards worth 1 to 3 points. A category is approved with its cards.":
-    "თითო კატეგორიაში 1-დან 3 ქულამდე ღირებულების ბარათებია. კატეგორია თავის ბარათებთან ერთად მტკიცდება.",
-  "Each category holds the box's questions. A category is approved with its questions.":
-    "თითო კატეგორიაში ყუთის კითხვებია. კატეგორია თავის კითხვებთან ერთად მტკიცდება.",
-  "New category": "ახალი კატეგორია",
-  "No card categories yet": "ბარათის კატეგორიები ჯერ არ არის",
-  "No box categories yet": "ყუთის კატეგორიები ჯერ არ არის",
-  "Its cards": "მისი ბარათები",
-  "Its questions": "მისი კითხვები",
+  'Each category holds cards worth 1 to 3 points. A category is approved with its cards.': 'თითო კატეგორიაში 1-დან 3 ქულამდე ღირებულების ბარათებია. კატეგორია თავის ბარათებთან ერთად მტკიცდება.',
+  "Each category holds the box's questions. A category is approved with its questions.": 'თითო კატეგორიაში ყუთის კითხვებია. კატეგორია თავის კითხვებთან ერთად მტკიცდება.',
+  'New category': 'ახალი კატეგორია',
+  'No card categories yet': 'ბარათის კატეგორიები ჯერ არ არის',
+  'No box categories yet': 'ყუთის კატეგორიები ჯერ არ არის',
+  'Its cards': 'მისი ბარათები',
+  'Its questions': 'მისი კითხვები',
 
   // lib/td/content-rules.ts — what the form refuses before it is sent
-  "the answer is not one of the options":
-    "სწორი პასუხი ვარიანტებს შორის არ არის",
-  "an image is an upload (or, kept from before, a URL): exactly one":
-    "სურათი ან ატვირთული ფაილია, ან (ადრინდელი) URL: ზუსტად ერთ-ერთი",
-  "item keys repeat": "ელემენტების ID-ები მეორდება",
-  "Football Logic and Put in Order have seconds; Career Path has none":
-    "„საფეხბურთო ლოგიკასა“ და „დაალაგე სწორად“-ს წამები აქვს; „კარიერის გზას“ — არა",
+  'the answer is not one of the options': 'სწორი პასუხი ვარიანტებს შორის არ არის',
+  'an image is an upload (or, kept from before, a URL): exactly one': 'სურათი ან ატვირთული ფაილია, ან (ადრინდელი) URL: ზუსტად ერთ-ერთი',
+  'item keys repeat': 'ელემენტების ID-ები მეორდება',
+  'Football Logic and Put in Order have seconds; Career Path has none': '„საფეხბურთო ლოგიკასა“ და „დაალაგე სწორად“-ს წამები აქვს; „კარიერის გზას“ — არა',
 
   // lib/td/workflow.ts — why an action is not offered
-  "Ready for a publisher to approve.":
-    "მზადაა: ელოდება გამომქვეყნებლის დამტკიცებას.",
-  "You made the last edit, so another publisher approves it.":
-    "ბოლო ცვლილება თქვენ შეიტანეთ, ამიტომ მას სხვა გამომქვეყნებელი ამტკიცებს.",
-  "Editors archive only their own drafts that nobody else has touched and that were never approved.":
-    "რედაქტორი მხოლოდ საკუთარ დრაფტს აარქივებს — ისეთს, რომელიც სხვას არ შეუცვლია და არასდროს დამტკიცებულა.",
-  "Restore it before editing.": "რედაქტირებამდე აღადგინეთ.",
-  "A publisher restores archived content.":
-    "დაარქივებულ კონტენტს გამომქვეყნებელი აღადგენს.",
+  'Ready for a publisher to approve.': 'მზადაა: ელოდება გამომქვეყნებლის დამტკიცებას.',
+  'You made the last edit, so another publisher approves it.': 'ბოლო ცვლილება თქვენ შეიტანეთ, ამიტომ მას სხვა გამომქვეყნებელი ამტკიცებს.',
+  'Editors archive only their own drafts that nobody else has touched and that were never approved.': 'რედაქტორი მხოლოდ საკუთარ დრაფტს აარქივებს — ისეთს, რომელიც სხვას არ შეუცვლია და არასდროს დამტკიცებულა.',
+  'Restore it before editing.': 'რედაქტირებამდე აღადგინეთ.',
+  'A publisher restores archived content.': 'დაარქივებულ კონტენტს გამომქვეყნებელი აღადგენს.',
+
+  // Stepping through the list from the editor
+  Previous: 'წინა',
+  Next: 'შემდეგი',
+  'This one has changes that are not saved. Leave it without saving?': 'ამ ჩანაწერში შეუნახავი ცვლილებებია. გადახვიდეთ შენახვის გარეშე?',
+
+  // Deleting and restoring a category
+  'Category deleted': 'კატეგორია წაიშალა',
+  'Category restored': 'კატეგორია აღდგა',
+  'Restore the category': 'კატეგორიის აღდგენა',
+  'Delete the category': 'კატეგორიის წაშლა',
+  'Delete this category?': 'წაიშალოს ეს კატეგორია?',
+  '“{name}” leaves the game at the next publish. Nothing is lost: show the archived ones with the status filter and restore it whenever you want.':
+    '„{name}“ თამაშიდან მომდევნო გამოქვეყნებისას ამოვა. არაფერი იკარგება: სტატუსის ფილტრით აჩვენეთ დაარქივებულები და ნებისმიერ დროს აღადგინეთ.',
+
+  // The upload dialog of the Questions page
+  'Upload questions': 'კითხვების ატვირთვა',
+  'Choose the game mode and the category, check the file format below, then choose the file. Every row becomes a draft.':
+    'აირჩიეთ თამაშის რეჟიმი და კატეგორია, გადახედეთ ფაილის ფორმატს ქვემოთ და შემდეგ აირჩიეთ ფაილი. ყოველი სტრიქონი დრაფტად შეინახება.',
 };
