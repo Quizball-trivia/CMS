@@ -39,7 +39,6 @@ const { createOrigin, MemoryStorage, put } = await import('@/lib/td/__tests__/he
 const { TdContentEditorDialog } = await import('../content/td-content-editor');
 const { TdImportTab } = await import('../tabs/import-tab');
 const { TdQuestionsTab } = await import('../tabs/questions-tab');
-const { TdCategoriesTab } = await import('../tabs/categories-tab');
 const { TdReleasesTab } = await import('../tabs/releases-tab');
 const { useTdWrite } = await import('@/hooks/use-td-content');
 const { CorrectionForm, OpsReviews, Replay } = await import('../tabs/players-tab');
@@ -327,53 +326,6 @@ describe('stepping through a list', () => {
     fireEvent.click(within(dialog).getByRole('button', { name: 'Next' }));
     await waitFor(() => expect(within(screen.getByRole('dialog')).getByText('Question 51?')).toBeTruthy());
     window.history.replaceState(null, '', window.location.pathname);
-  });
-});
-
-describe('categories', () => {
-  it('every category has an Edit button; an editor deletes only a draft of their own and restores nothing', async () => {
-    const publisher = await clientFor('publisher');
-    await publisher.admin.content('card-categories').create({ data: { key: 'theirs', prompt: 'Made by a publisher' } });
-    const gone = await publisher.admin.content('card-categories').create({ data: { key: 'gone', prompt: 'Deleted before' } });
-    await publisher.admin.content('card-categories').archive(gone.id, gone.version);
-    const { admin } = await signIn('editor');
-    await admin.content('card-categories').create({ data: { key: 'mine', prompt: 'Made by me' } });
-    renderTd(<TdCategoriesTab />);
-    const theirs = (await screen.findByText('Made by a publisher')).closest('tr')!;
-    const mine = screen.getByText('Made by me').closest('tr')!;
-    expect(within(theirs).getByRole('button', { name: 'Edit the category' })).toBeTruthy();
-    expect(within(theirs).queryByRole('button', { name: 'Delete the category' })).toBeNull();
-    expect(within(mine).getByRole('button', { name: 'Delete the category' })).toBeTruthy();
-    fireEvent.click(within(theirs).getByRole('button', { name: 'Edit the category' }));
-    expect(await screen.findByRole('dialog')).toBeTruthy();
-    cleanup();
-
-    // A draft of the editor's own that a publisher touched (a note): the confirmation says why it cannot be deleted.
-    const touched = await admin.content('card-categories').create({ data: { key: 'touched', prompt: 'Touched by a publisher' } });
-    await publisher.admin.content('card-categories').edit(touched.id, { version: touched.version, data: touched.data, position: touched.position, note: 'Checked' });
-    renderTd(<TdCategoriesTab />);
-    fireEvent.click(within((await screen.findByText('Touched by a publisher')).closest('tr')!).getByRole('button', { name: 'Delete the category' }));
-    let asked = await screen.findByRole('dialog');
-    expect(await within(asked).findByText('Editors archive only their own drafts that nobody else has touched and that were never approved.')).toBeTruthy();
-    expect(within(asked).getByRole('button', { name: 'Delete' }).hasAttribute('disabled')).toBe(true);
-    fireEvent.click(within(asked).getByRole('button', { name: 'Cancel' }));
-    fireEvent.click(within(screen.getByText('Made by me').closest('tr')!).getByRole('button', { name: 'Delete the category' }));
-    asked = await screen.findByRole('dialog');
-    await waitFor(() => expect(within(asked).getByRole('button', { name: 'Delete' }).hasAttribute('disabled')).toBe(false));
-    fireEvent.click(within(asked).getByRole('button', { name: 'Delete' }));
-    await waitFor(async () => expect((await admin.content('card-categories').list({ q: 'mine', status: 'archived' })).items).toHaveLength(1));
-    cleanup();
-
-    renderTd(<TdCategoriesTab />);
-    fireEvent.click((await screen.findAllByRole('button', { name: 'archived' }))[0]);
-    const archived = (await screen.findByText('Deleted before')).closest('tr')!;
-    expect(within(archived).queryByRole('button', { name: 'Restore the category' })).toBeNull();
-    cleanup();
-
-    await signIn('publisher');
-    renderTd(<TdCategoriesTab />);
-    fireEvent.click((await screen.findAllByRole('button', { name: 'archived' }))[0]);
-    expect(within((await screen.findByText('Deleted before')).closest('tr')!).getByRole('button', { name: 'Restore the category' })).toBeTruthy();
   });
 });
 

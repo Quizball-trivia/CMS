@@ -1,5 +1,6 @@
 /** Georgian for every text of the Table Derby workspace, by its English source.
  *  One file per area; a text used in several areas lives in ka-common. */
+import { KA_CATEGORIES } from './ka-categories';
 import { KA_COMMON } from './ka-common';
 import { KA_CONTENT } from './ka-content';
 import { KA_DASHBOARD } from './ka-dashboard';
@@ -18,6 +19,7 @@ export const KA_PARTS = {
   ops: KA_OPS,
   questions: KA_QUESTIONS,
   dashboard: KA_DASHBOARD,
+  categories: KA_CATEGORIES,
 } as const;
 
 export const KA: Record<string, string> = {
@@ -29,4 +31,5 @@ export const KA: Record<string, string> = {
   ...KA_OPS,
   ...KA_QUESTIONS,
   ...KA_DASHBOARD,
+  ...KA_CATEGORIES,
 };
