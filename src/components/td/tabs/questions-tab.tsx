@@ -23,6 +23,7 @@ import { isTdPublisher } from '@/lib/td/workflow';
 import { cn } from '@/lib/utils';
 import { useTdAuth } from '@/providers/td-auth-provider';
 import { TdImportTab } from './import-tab';
+import { TdReleasesTab } from './releases-tab';
 
 type CategoryType = 'card-categories' | 'box-categories';
 
@@ -202,6 +203,7 @@ export function TdQuestionsTab() {
   const [refusals, setRefusals] = useState<Array<{ label: string; message: string }>>([]);
   const [target, setTarget] = useState<TdEditorTarget | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [publishing, setPublishing] = useState(false);
   // A step past the last loaded row waits for its page. Closing, another step or a new filter gives the wait up.
   const wait = useRef<object | null>(null);
   const [waiting, setWaiting] = useState(false);
@@ -318,11 +320,9 @@ export function TdQuestionsTab() {
           <p className="text-base font-medium text-gray-500">{t('The cards and questions of every game mode.')}</p>
         </header>
         <div className="flex shrink-0 flex-wrap items-center gap-2">
-          <Button asChild variant="outline" className="h-11 rounded-xl border-gray-200 bg-white px-4 text-sm font-semibold shadow-sm">
-            <Link href="/td/releases">
-              <Rocket />
-              {t('Publish')}
-            </Link>
+          <Button variant="outline" onClick={() => setPublishing(true)} className="h-11 rounded-xl border-gray-200 bg-white px-4 text-sm font-semibold shadow-sm">
+            <Rocket />
+            {t('Publish')}
           </Button>
           <Button variant="outline" onClick={() => setUploading(true)} className="h-11 rounded-xl border-gray-200 bg-white px-4 text-sm font-semibold shadow-sm">
             <Upload />
@@ -601,6 +601,16 @@ export function TdQuestionsTab() {
           <div className="min-h-0 flex-1 overflow-y-auto">
             {uploading && <TdImportTab embedded initialType={mode.type} initialCategory={mode.categoryType && category !== 'all' ? category : null} />}
           </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={publishing} onOpenChange={setPublishing}>
+        <DialogContent className="flex max-h-[90vh] w-full flex-col gap-0 overflow-hidden rounded-[2rem] border-slate-200 bg-white p-0 sm:max-w-5xl">
+          <DialogHeader className="border-b border-slate-100 px-6 pb-4 pt-5">
+            <DialogTitle className="text-2xl font-black tracking-tight text-slate-900">{t('Publish')}</DialogTitle>
+            <DialogDescription>{t('Approved questions reach players when they are published.')}</DialogDescription>
+          </DialogHeader>
+          <div className="min-h-0 flex-1 overflow-y-auto p-6">{publishing && <TdReleasesTab />}</div>
         </DialogContent>
       </Dialog>
 

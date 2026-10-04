@@ -62,6 +62,7 @@ export const KA_CONTENT: Record<string, string> = {
   'In the current release at content v{version} (an older version).': 'მიმდინარე გამოშვებაშია: კონტენტი v{version} (ძველი ვერსია).',
   'Saved as a draft; mark it ready when it is done, then a publisher approves it.': 'შეინახება დრაფტად; როცა დაასრულებთ, მონიშნეთ მზადად — შემდეგ მას გამომქვეყნებელი დაამტკიცებს.',
   Content: 'კონტენტი',
+  'Approved questions reach players when they are published.': 'დამტკიცებული კითხვები მოთამაშეებამდე გამოქვეყნების შემდეგ მიდის.',
   History: 'ისტორია',
   'Approved version': 'დამტკიცებული ვერსია',
 

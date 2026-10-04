@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { safeNextPath, tabForSegment, tabsForRole, TD_TABS } from '../navigation';
 
-const CONTENT = ['dashboard', 'questions', 'categories', 'dailies', 'clubs', 'media', 'import', 'releases'];
+const CONTENT = ['dashboard', 'categories', 'questions', 'dailies'];
 const keys = (role: Parameters<typeof tabsForRole>[0]) => tabsForRole(role).map((tab) => tab.key);
 
 describe('Table Derby navigation', () => {
-  it('has every page: the rounds are game modes of the one Questions page', () => {
-    expect(TD_TABS).toHaveLength(13);
+  it('has the Quizball CMS’s pages, adapted: the rounds are game modes of the one Questions page', () => {
+    expect(TD_TABS).toHaveLength(9);
   });
 
   it('shows editors and publishers only the content tabs', () => {
@@ -15,11 +15,11 @@ describe('Table Derby navigation', () => {
   });
 
   it('adds players, leaderboard, integration and team for Betsson admins', () => {
-    expect(keys('betsson_admin')).toEqual([...CONTENT, 'players', 'leaderboard', 'integration', 'team']);
+    expect(keys('betsson_admin')).toEqual([...CONTENT, 'players', 'leaderboard', 'team', 'integration']);
   });
 
   it('gives settings to ops only', () => {
-    expect(keys('ops')).toEqual([...CONTENT, 'players', 'leaderboard', 'integration', 'team', 'settings']);
+    expect(keys('ops')).toEqual([...CONTENT, 'players', 'leaderboard', 'team', 'integration', 'settings']);
   });
 
   it.each([

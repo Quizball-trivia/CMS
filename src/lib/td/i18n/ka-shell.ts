@@ -32,6 +32,11 @@ export const KA_SHELL: Record<string, string> = {
   Integration: 'ინტეგრაცია',
   Team: 'გუნდი',
   Settings: 'პარამეტრები',
+  Analytics: 'ანალიტიკა',
+  Competitions: 'შეჯიბრებები',
+  Users: 'მომხმარებლები',
+  'Daily Challenges': 'ყოველდღიური',
+  'Football Logic, Put in Order and Career Path: their timing and the question sets they play.': 'საფეხბურთო ლოგიკა, დაალაგე სწორად და კარიერის გზა: დრო და კითხვების ნაკრებები, რომლებსაც თამაშობენ.',
   'Players, matches and dailies played: today, yesterday, the last 7 and the last 30 days.': 'მოთამაშეები, მატჩები და ყოველდღიური თამაშები: დღეს, გუშინ, ბოლო 7 და ბოლო 30 დღეში.',
   'The cards and questions of every game mode: search, edit, upload, approve.': 'თამაშის ყველა რეჟიმის ბარათები და კითხვები: ძებნა, რედაქტირება, ატვირთვა, დამტკიცება.',
   'The categories of Round I (ბარათონი) and Round III (პაპა კარლოს ყუთი). A category is approved with its questions.':

@@ -7,17 +7,13 @@ export type TdTabKey =
   | 'questions'
   | 'categories'
   | 'dailies'
-  | 'clubs'
-  | 'media'
-  | 'import'
-  | 'releases'
   | 'players'
   | 'leaderboard'
   | 'integration'
   | 'team'
   | 'settings';
 
-export type TdTabGroup = 'overview' | 'content' | 'publish' | 'operations' | 'admin';
+export type TdTabGroup = 'analytics' | 'content' | 'competitions' | 'users' | 'settings';
 
 export interface TdTab {
   key: TdTabKey;
@@ -36,12 +32,13 @@ const ALL = TD_ROLES;
 const ADMINS: readonly TdRole[] = ['betsson_admin', 'ops'];
 const OPS: readonly TdRole[] = ['ops'];
 
+// The Quizball CMS's sidebar groups (components/layout/sidebar.tsx), in its order.
 export const TD_TAB_GROUP_LABELS: Record<TdTabGroup, string> = {
-  overview: t('Overview'),
+  analytics: t('Analytics'),
   content: t('Content'),
-  publish: t('Publish'),
-  operations: t('Operations'),
-  admin: t('Admin'),
+  competitions: t('Competitions'),
+  users: t('Users'),
+  settings: t('Settings'),
 };
 
 export const TD_TABS: readonly TdTab[] = [
@@ -50,15 +47,7 @@ export const TD_TABS: readonly TdTab[] = [
     href: TD_ROOT,
     label: t('Dashboard'),
     description: t('Players, matches and dailies played: today, yesterday, the last 7 and the last 30 days.'),
-    group: 'overview',
-    roles: ALL,
-  },
-  {
-    key: 'questions',
-    href: `${TD_ROOT}/questions`,
-    label: t('Questions'),
-    description: t('The cards and questions of every game mode: search, edit, upload, approve.'),
-    group: 'content',
+    group: 'analytics',
     roles: ALL,
   },
   {
@@ -70,44 +59,19 @@ export const TD_TABS: readonly TdTab[] = [
     roles: ALL,
   },
   {
+    key: 'questions',
+    href: `${TD_ROOT}/questions`,
+    label: t('Questions'),
+    description: t('The cards and questions of every game mode: search, edit, upload, approve.'),
+    group: 'content',
+    roles: ALL,
+  },
+  {
     key: 'dailies',
     href: `${TD_ROOT}/dailies`,
-    label: t('Dailies'),
-    description: t('Football Logic, Put in Order and Career Path, each on a calendar with one puzzle per Georgia date.'),
-    group: 'content',
-    roles: ALL,
-  },
-  {
-    key: 'clubs',
-    href: `${TD_ROOT}/clubs`,
-    label: t('Clubs'),
-    description: t('Clubs and crests used by Career Path, onboarding and cards.'),
-    group: 'content',
-    roles: ALL,
-  },
-  {
-    key: 'media',
-    href: `${TD_ROOT}/media`,
-    label: t('Media'),
-    description: t('Upload and preview images, record their rights (licence, credit, source) and approve them.'),
-    group: 'content',
-    roles: ALL,
-  },
-  {
-    key: 'import',
-    href: `${TD_ROOT}/import`,
-    label: t('Upload'),
-    description: t('Upload questions in bulk from a spreadsheet file: check, preview, import as drafts, and undo a batch.'),
-    group: 'publish',
-    roles: ALL,
-  },
-  {
-    key: 'releases',
-    href: `${TD_ROOT}/releases`,
-    label: t('Releases'),
-    description: t('Changes since the last release, the validation report (pool sizes, missing images, rights, 30 days of dailies), publish and roll back.'),
-    group: 'publish',
-    // Editors see the validation report; publish and roll back stay publisher+ in the API.
+    label: t('Daily Challenges'),
+    description: t('Football Logic, Put in Order and Career Path: their timing and the question sets they play.'),
+    group: 'competitions',
     roles: ALL,
   },
   {
@@ -115,7 +79,7 @@ export const TD_TABS: readonly TdTab[] = [
     href: `${TD_ROOT}/players`,
     label: t('Players'),
     description: t('Search by nickname or Betsson id, match history and replays, and corrections (void + refund) with a reason.'),
-    group: 'operations',
+    group: 'users',
     roles: ADMINS,
   },
   {
@@ -123,15 +87,7 @@ export const TD_TABS: readonly TdTab[] = [
     href: `${TD_ROOT}/leaderboard`,
     label: t('Leaderboard'),
     description: t('Standings, frozen snapshots and their export.'),
-    group: 'operations',
-    roles: ADMINS,
-  },
-  {
-    key: 'integration',
-    href: `${TD_ROOT}/integration`,
-    label: t('Integration'),
-    description: t('Session inits, launches and webhook deliveries with their reason codes, retry and search.'),
-    group: 'operations',
+    group: 'users',
     roles: ADMINS,
   },
   {
@@ -139,7 +95,15 @@ export const TD_TABS: readonly TdTab[] = [
     href: `${TD_ROOT}/team`,
     label: t('Team'),
     description: t('Invite editors and set roles.'),
-    group: 'admin',
+    group: 'settings',
+    roles: ADMINS,
+  },
+  {
+    key: 'integration',
+    href: `${TD_ROOT}/integration`,
+    label: t('Integration'),
+    description: t('Session inits, launches and webhook deliveries with their reason codes, retry and search.'),
+    group: 'settings',
     roles: ADMINS,
   },
   {
@@ -147,7 +111,7 @@ export const TD_TABS: readonly TdTab[] = [
     href: `${TD_ROOT}/settings`,
     label: t('Settings'),
     description: t('Tickets per day and maintenance mode.'),
-    group: 'admin',
+    group: 'settings',
     roles: OPS,
   },
 ];
