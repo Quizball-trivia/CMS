@@ -78,14 +78,14 @@ try {
   await page.getByText('You do not have access to this section').waitFor();
   check('editor is denied Team', true);
   const editorNav = await navLabels(page);
-  check('editor sees the 8 content pages only', editorNav.length === 8 && editorNav.includes('Questions') && !editorNav.includes('Team') && !editorNav.includes('Settings') && !editorNav.includes('Integration'), editorNav.join(', '));
+  check('editor sees the 4 content pages only', editorNav.length === 4 && editorNav.includes('Questions') && !editorNav.includes('Team') && !editorNav.includes('Settings') && !editorNav.includes('Integration'), editorNav.join(', '));
   await page.goto(`${BASE}/td/integration`);
   await page.getByText('You do not have access to this section').waitFor();
   check('editor opening Integration directly is denied, and no webhook event is read', !(await page.getByText(/^td-evt-/).count()));
   await page.locator('aside nav > div > a', { hasText: 'Content' }).click();
-  await page.locator('aside nav ul a[aria-label="Clubs"]').click();
-  await page.waitForURL(/\/td\/clubs$/);
-  await page.getByRole('heading', { level: 1, name: 'Clubs' }).waitFor();
+  await page.locator('aside nav ul a[aria-label="Questions"]').click();
+  await page.waitForURL(/\/td\/questions$/);
+  await page.getByRole('heading', { level: 1, name: 'Questions' }).waitFor();
   check('navigation opens a tab', true);
 
   await signOut(page);
@@ -149,7 +149,7 @@ try {
   await page.getByRole('button', { name: 'Join' }).click();
   await page.getByText('Smoke Member').first().waitFor();
   const memberNav = await navLabels(page);
-  check('the new member is signed in as an editor', memberNav.length === 8 && !memberNav.includes('Team'), memberNav.join(', '));
+  check('the new member is signed in as an editor', memberNav.length === 4 && !memberNav.includes('Team'), memberNav.join(', '));
 
   // Content workflow on the mock API: an editor drafts and marks ready, a publisher approves and publishes.
   await signOut(page);
@@ -161,22 +161,28 @@ try {
   await sheet.getByRole('textbox', { name: 'Question', exact: true }).fill('Smoke test question?');
   await sheet.getByRole('textbox', { name: 'Answer (as shown)', exact: true }).fill('Smoke');
   await sheet.getByRole('textbox', { name: 'Accepted spellings', exact: true }).fill('smoke,');
-  await page.getByRole('button', { name: 'Create draft' }).click();
+  await page.getByRole('button', { name: 'Create Question' }).click();
+  await page.getByRole('heading', { name: 'Question Preview' }).waitFor();
   await page.getByRole('button', { name: 'Mark ready' }).click();
   await page.getByText('Ready for a publisher to approve.').waitFor();
   check('editor creates a draft and marks it ready; no approve for editors', (await page.getByRole('button', { name: 'Approve' }).count()) === 0);
   await page.keyboard.press('Escape');
 
-  await page.goto(`${BASE}/td/media`);
-  await page.locator('main img[alt="dinamo-stadium"]').waitFor();
-  check('media previews come through the staff token as blob URLs', (await page.locator('main img[alt="dinamo-stadium"]').getAttribute('src'))?.startsWith('blob:') === true);
+  await page.goto(`${BASE}/td/questions?mode=practice`);
+  await page.getByText('Which city is home to Dinamo Tbilisi?').click();
+  const picture = page.locator('[data-slot="dialog-content"] img[alt="dinamo-stadium"]');
+  await picture.waitFor();
+  check('a question shows its uploaded image, through the staff token as a blob URL', (await picture.getAttribute('src'))?.startsWith('blob:') === true);
+  await page.keyboard.press('Escape');
 
-  await page.goto(`${BASE}/td/import`);
+  await page.goto(`${BASE}/td/questions?mode=penalties`);
+  await page.getByRole('button', { name: 'Upload Questions' }).click();
   await page.getByLabel(/Or paste the cells here/).fill('key\tq\tdisplay\taliases\nsmoke-imp\tImported?\tYes\tyes');
   await page.getByRole('button', { name: 'Read the pasted cells' }).click();
   await page.getByRole('button', { name: 'Check' }).click();
   await page.getByText(/1 ready to import · 0 with problems/).waitFor();
   check('import reads pasted cells and the API previews them', true);
+  await page.keyboard.press('Escape');
 
   await signOut(page);
   await page.waitForURL(/\/td\/login/);
@@ -184,14 +190,15 @@ try {
   await page.goto(`${BASE}/td/questions?mode=penalties`);
   await page.getByText('Smoke test question?').click();
   await page.getByRole('button', { name: 'Approve' }).click();
-  await page.locator('[data-slot="dialog-content"]').getByText('Approved', { exact: true }).waitFor();
+  await page.locator('[data-slot="dialog-content"]').getByText('approved', { exact: true }).waitFor();
   check('publisher approves the ready question', true);
   await page.keyboard.press('Escape');
 
-  await page.goto(`${BASE}/td/releases`);
-  await page.getByText('Valid: it can be published.').waitFor();
   await page.getByRole('button', { name: 'Publish' }).first().click();
-  await page.getByRole('dialog').getByRole('button', { name: 'Publish' }).click();
+  const publish = page.locator('[data-slot="dialog-content"]');
+  await publish.getByText('Valid: it can be published.').waitFor();
+  await publish.getByRole('button', { name: 'Publish' }).first().click();
+  await page.getByRole('dialog', { name: 'Publish the approved content?' }).getByRole('button', { name: 'Publish' }).click();
   await page.getByText(/is current now\./).waitFor({ timeout: 20_000 });
   check('publisher publishes and sees every phase to current', true);
 
