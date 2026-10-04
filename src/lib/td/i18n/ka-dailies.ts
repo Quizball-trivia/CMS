@@ -1,0 +1,29 @@
+/** The Daily Challenges page: the three daily games, their timing and the sets they play in turn. A set is „ნაკრები“. */
+export const KA_DAILIES: Record<string, string> = {
+  'Loading daily challenges…': 'იტვირთება ყოველდღიური თამაშები…',
+  'Use the visual clues to decode the footballer, match, or moment.': 'გამოიყენეთ ვიზუალური მინიშნებები ფეხბურთელის, მატჩის ან მომენტის გამოსაცნობად.',
+  'Put the items into the correct order.': 'დაალაგეთ ელემენტები სწორი თანმიმდევრობით.',
+  'Read the club path and identify the player behind the journey.': 'წაიკითხეთ კლუბების გზა და გამოიცანით, რომელი ფეხბურთელის კარიერაა.',
+  'Approved, and the next {days} days are covered': 'დამტკიცებულია და მომდევნო {days} დღე დაფარულია',
+  'Not approved, or some of the next {days} days have no playable set': 'დამტკიცებული არ არის ან მომდევნო {days} დღიდან ზოგ დღეს სათამაშო ნაკრები არ აქვს',
+  '{count} sets': '{count} ნაკრები',
+  '{seconds} s': '{seconds} წმ',
+  'No settings yet': 'პარამეტრები ჯერ არ არის',
+  'Seconds / Question': 'წამი / კითხვა',
+  'Seconds / Round': 'წამი / რაუნდი',
+  'Cycle starts': 'ციკლის დასაწყისი',
+  'Sets in turn': 'ნაკრებები რიგრიგობით',
+  'Pick the sets this game plays in turn, one a day.': 'აირჩიეთ ნაკრებები, რომლებსაც ეს თამაში რიგრიგობით თამაშობს, დღეში თითო.',
+  'Search sets...': 'ნაკრების ძებნა...',
+  'Day {turns}': 'დღე {turns}',
+  '{approved} approved · {total} total': '{approved} დამტკიცებული · სულ {total}',
+  'No sets yet. Give questions a set on the Questions page or in an upload.': 'ნაკრებები ჯერ არ არის. კითხვებს ნაკრები ეძლევა კითხვების გვერდზე ან ატვირთვისას.',
+  'No sets match this search.': 'ამ ძიებით ნაკრები ვერ მოიძებნა.',
+  'One set a day, in this order, the first on the day the cycle starts. With none selected, no set is played in turn.':
+    'დღეში ერთი ნაკრები, ამ რიგით; პირველი — ციკლის დაწყების დღეს. თუ არცერთი არ არის არჩეული, ნაკრები რიგრიგობით არ თამაშდება.',
+  '{missing} of the next {days} days have no playable set (from {date}). A release needs all {days}.':
+    'მომდევნო {days} დღიდან {missing} დღეს სათამაშო ნაკრები არ აქვს (პირველი — {date}). გამოშვებას ყველა {days} დღე სჭირდება.',
+  'The next {days} days all have a playable set.': 'მომდევნო {days} დღიდან ყველას აქვს სათამაშო ნაკრები.',
+  'Settings waiting for approval are not counted.': 'დამტკიცებას მოლოდინში მყოფი პარამეტრები არ ითვლება.',
+  '{game} saved': '{game} შენახულია',
+};
