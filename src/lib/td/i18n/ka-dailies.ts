@@ -24,6 +24,6 @@ export const KA_DAILIES: Record<string, string> = {
   '{missing} of the next {days} days have no playable set (from {date}). A release needs all {days}.':
     'მომდევნო {days} დღიდან {missing} დღეს სათამაშო ნაკრები არ აქვს (პირველი — {date}). გამოშვებას ყველა {days} დღე სჭირდება.',
   'The next {days} days all have a playable set.': 'მომდევნო {days} დღიდან ყველას აქვს სათამაშო ნაკრები.',
-  'Settings waiting for approval are not counted.': 'დამტკიცებას მოლოდინში მყოფი პარამეტრები არ ითვლება.',
+  'Settings waiting for approval are not counted.': 'დამტკიცების მოლოდინში მყოფი პარამეტრები არ ითვლება.',
   '{game} saved': '{game} შენახულია',
 };

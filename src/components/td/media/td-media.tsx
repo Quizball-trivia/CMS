@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useRef, useState } from 'react';
+import { useContext, useMemo, useRef, useState } from 'react';
 import { ExternalLink, ImageIcon, ImageOff, Loader2, Search, Upload, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
@@ -14,7 +14,8 @@ import { tdAdmin } from '@/lib/td/client';
 import { contentWriteIssues } from '@/lib/td/content-rules';
 import type { MediaUpload, SchemaIssue } from '@/lib/td/contract';
 import { t } from '@/lib/td/i18n';
-import { issuesAt, TdTextField } from '@/components/td/content/td-form';
+import { TdIssueText, TdTextField } from '@/components/td/content/td-form';
+import { TdOpenImageContext } from '@/components/td/content/td-open-row';
 import { useTdUploadingReport } from '@/components/td/content/td-uploading';
 import { cn } from '@/lib/utils';
 
@@ -125,34 +126,37 @@ export function TdMediaPicker({
   const [open, setOpen] = useState(false);
   const media = useTdAllRows('media', { status: 'draft,ready,approved' });
   const chosen = media.data?.rows.find((row) => row.data.key === value);
+  const openImage = useContext(TdOpenImageContext);
   return (
     <div className="flex flex-col gap-1.5">
-      <span className="text-xs font-medium text-(--td-text-3)">{label}</span>
-      <div className="flex items-center gap-3 rounded-lg border border-border bg-(--td-input)/40 p-2">
-        <TdMediaThumb uploadId={chosen ? releasedImage(chosen).uploadId : null} url={chosen ? releasedImage(chosen).url : null} alt={value ?? t('No image')} />
+      <span className="ml-1 text-[10px] font-black uppercase tracking-widest text-slate-400">{label}</span>
+      <div className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white p-2">
+        <TdMediaThumb uploadId={chosen ? releasedImage(chosen).uploadId : null} url={chosen ? releasedImage(chosen).url : null} alt={value ?? t('No image')} className="h-14 w-20" />
         <div className="min-w-0 flex-1">
           {value ? (
-            <>
-              <p className="truncate font-mono text-xs">{value}</p>
-              {chosen ? (
-                mediaUsable(chosen) ? (
-                  <p className="text-xs text-(--td-new)">
-                    {t('Approved with its rights')}
-                    {replacementPending(chosen) && <span className="text-amber-800"> · {t('a replacement waits for approval; releases show the one here')}</span>}
-                  </p>
-                ) : (
-                  <p className="text-xs text-amber-800">{t('Not approved with its rights yet: approving this needs it')}</p>
-                )
+            chosen ? (
+              mediaUsable(chosen) ? (
+                <p className="text-xs font-medium text-emerald-600">
+                  {t('Approved with its rights')}
+                  {replacementPending(chosen) && <span className="text-amber-700"> · {t('a replacement waits for approval; releases show the one here')}</span>}
+                </p>
               ) : (
-                media.isSuccess && <p className="text-xs text-(--td-danger)">{t('No image has this key')}</p>
-              )}
-            </>
+                <p className="text-xs font-medium text-amber-700">{t('Its author, licence and source need approving with the question.')}</p>
+              )
+            ) : (
+              media.isSuccess && <p className="text-xs font-medium text-red-600">{t('This image no longer exists')}</p>
+            )
           ) : (
-            <p className="text-sm text-(--td-text-3)">{t('No image')}</p>
+            <p className="text-sm text-slate-400">{t('No image')}</p>
           )}
         </div>
-        <Button type="button" variant="secondary" size="sm" className="rounded-lg" onClick={() => setOpen(true)}>
-          {t('Choose')}
+        {chosen && openImage && (
+          <Button type="button" variant="outline" size="sm" className="rounded-lg text-xs font-bold" onClick={() => openImage(chosen.data.key)}>
+            {t('Image details')}
+          </Button>
+        )}
+        <Button type="button" variant="outline" size="sm" className="rounded-lg text-xs font-bold" onClick={() => setOpen(true)}>
+          {value ? t('Change') : t('Choose')}
         </Button>
         {value && (
           <Button type="button" variant="ghost" size="icon-sm" aria-label={t('Remove image')} onClick={() => onChange(null)}>
@@ -223,7 +227,7 @@ function TdMediaPickerDialog({
         </div>
         <ul className="-mx-2 grid max-h-[50vh] gap-1 overflow-y-auto px-2 sm:grid-cols-2">
           {loading && <li className="text-sm text-(--td-text-3)">{t('Loading…')}</li>}
-          {!loading && shown.length === 0 && <li className="text-sm text-(--td-text-3)">{t('No images. Upload one on the Media tab.')}</li>}
+          {!loading && shown.length === 0 && <li className="text-sm text-(--td-text-3)">{t('No images yet: upload one above.')}</li>}
           {shown.map((row) => (
             <li key={row.id}>
               <button type="button" onClick={() => onPick(row.data.key)} className="flex w-full items-center gap-3 rounded-lg p-2 text-left hover:bg-card">
@@ -249,7 +253,7 @@ function TdMediaPickerDialog({
 function NewImageForm({ upload, suggestedKey, onCancel, onSaved }: { upload: MediaUpload; suggestedKey?: string; onCancel: () => void; onSaved: (key: string) => void }) {
   const write = useTdWrite();
   const reportBusy = useTdUploadingReport();
-  const [key, setKey] = useState(suggestedKey ?? `img-${upload.id.slice(0, 8)}`);
+  const [key] = useState(suggestedKey ?? `img-${upload.id.slice(0, 8)}`);
   const [rights, setRights] = useState({ author: '', license: '', source: '' });
   const [issues, setIssues] = useState<SchemaIssue[]>([]);
   const [error, setError] = useState<unknown>(null);
@@ -283,11 +287,11 @@ function NewImageForm({ upload, suggestedKey, onCancel, onSaved }: { upload: Med
         </p>
       </div>
       <div className="grid gap-2 sm:grid-cols-2">
-        <TdTextField label={t('ID')} value={key} onChange={setKey} issues={issuesAt(issues, 'data.key')} />
         <TdTextField label={t('Credit (author)')} value={rights.author} onChange={(author) => setRights({ ...rights, author })} />
         <TdTextField label={t('Licence')} value={rights.license} onChange={(license) => setRights({ ...rights, license })} />
         <TdTextField label={t('Source')} value={rights.source} onChange={(source) => setRights({ ...rights, source })} />
       </div>
+      <TdIssueText issues={issues} />
       <TdErrorPanel error={error} />
       <div className="flex gap-2">
         <Button size="sm" className="rounded-lg" disabled={busy} onClick={() => void save()}>

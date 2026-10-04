@@ -14,6 +14,7 @@ import { contentWriteIssues, TD_MERGE_UNITS } from '@/lib/td/content-rules';
 import type { SchemaIssue } from '@/lib/td/contract';
 import { describeTdError } from '@/lib/td/errors';
 import { formatGeorgiaTime } from '@/lib/td/georgia';
+import { moveImagesAlong } from '@/lib/td/images';
 import { t, tc, TD_LANG, tn } from '@/lib/td/i18n';
 import { mergeDrafts, resolveConflicts, sameDraft, type TdDraft, type TdFieldConflict } from '@/lib/td/merge';
 import { contentActions } from '@/lib/td/workflow';
@@ -21,6 +22,7 @@ import { cn } from '@/lib/utils';
 import { useTdAuth } from '@/providers/td-auth-provider';
 import { TD_TYPE_CONFIG } from './content-types';
 import { TdCategoryApproval } from './td-category-approval';
+import { TdOpenImageContext } from './td-open-row';
 import { TdUploadingContext } from './td-uploading';
 import { TdInvalidInputContext, TdPendingInputContext } from './td-form';
 import { hasPreview, TdPreview } from './td-preview';
@@ -184,6 +186,7 @@ function EditorBody({
   const [conflict, setConflict] = useState<Conflict | null>(null);
   const [approving, setApproving] = useState(false);
   const [confirmArchive, setConfirmArchive] = useState(false);
+  const markRef = useRef<HTMLSpanElement>(null);
 
   const creating = row === null;
   const dirty = creating || !sameDraft(draft, base);
@@ -212,7 +215,9 @@ function EditorBody({
       if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
       const el = event.target as HTMLElement | null;
       if (el && (el.isContentEditable || /^(?:INPUT|TEXTAREA|SELECT)$/.test(el.tagName))) return;
-      if (document.querySelectorAll('[data-slot="dialog-content"]').length > 1) return;
+      // Only the dialog on top takes them (this editor may itself sit over another dialog, a category's).
+      const dialogs = document.querySelectorAll('[data-slot="dialog-content"]');
+      if (!dialogs[dialogs.length - 1]?.contains(markRef.current)) return;
       event.preventDefault();
       go(nav.index + (event.key === 'ArrowLeft' ? -1 : 1));
     };
@@ -311,15 +316,27 @@ function EditorBody({
   };
 
   const transition = (action: 'ready' | 'approve' | 'archive' | 'restore', done: string) => {
-    if (!row) return;
+    if (!row || !user) return;
     const { id, version } = row;
+    const saved = row;
     setConfirmArchive(false);
     void run(
       action,
-      () => write((operation) => (action === 'approve' ? api.approve(id, version, undefined, operation) : api[action](id, version, operation))),
+      () =>
+        write(async (operation) => {
+          if (action === 'ready' || action === 'approve') await moveImagesAlong(type, [saved], action, operation, user);
+          return action === 'approve' ? api.approve(id, version, undefined, operation) : api[action](id, version, operation);
+        }),
       done,
     );
   };
+
+  // The image a form names opens over it, for its rights and its approval.
+  const [image, setImage] = useState<TdEditorTarget | null>(null);
+  const openImage = useCallback(async (key: string) => {
+    const found = (await tdAdmin.content('media').list({ q: key, limit: 20 })).items.find((r) => r.data.key === key);
+    if (found) setImage({ type: 'media', row: found as TdContentRow });
+  }, []);
   const approve = () => (CATEGORY_TYPES.has(type) ? setApproving(true) : transition('approve', tc('Approved', 'it happened')));
 
   // A trail whose last refresh failed may be stale: it does not count.
@@ -394,6 +411,7 @@ function EditorBody({
     const difficulty = type === 'practice-questions' ? String(data.difficulty) : null;
     return (
       <>
+        <span ref={markRef} hidden />
         {header}
         <div className="relative min-h-0 flex-1 overflow-y-auto px-6 py-5">
           <div className="space-y-4">
@@ -448,6 +466,7 @@ function EditorBody({
 
   return (
     <>
+      <span ref={markRef} hidden />
       {header}
       <div className="space-y-4">
         {conflict ? (
@@ -493,19 +512,21 @@ function EditorBody({
             <TdUploadingContext.Provider value={reportUploading}>
               <TdInvalidInputContext.Provider value={reportInvalid}>
                 <TdPendingInputContext.Provider value={reportPending}>
-                  <fieldset disabled={busy !== null || Boolean(nav?.waiting)} className="flex flex-col gap-4">
-                    <Editor
-                      value={draft.data as never}
-                      onChange={(update: unknown) =>
-                        setDraft((current) => ({
-                          ...current,
-                          data: (typeof update === 'function' ? (update as (d: Record<string, unknown>) => Record<string, unknown>)(current.data) : update) as Record<string, unknown>,
-                        }))
-                      }
-                      issues={issues}
-                      creating={creating}
-                    />
-                  </fieldset>
+                  <TdOpenImageContext.Provider value={(key) => void openImage(key)}>
+                    <fieldset disabled={busy !== null || Boolean(nav?.waiting)} className="flex flex-col gap-4">
+                      <Editor
+                        value={draft.data as never}
+                        onChange={(update: unknown) =>
+                          setDraft((current) => ({
+                            ...current,
+                            data: (typeof update === 'function' ? (update as (d: Record<string, unknown>) => Record<string, unknown>)(current.data) : update) as Record<string, unknown>,
+                          }))
+                        }
+                        issues={issues}
+                        creating={creating}
+                      />
+                    </fieldset>
+                  </TdOpenImageContext.Provider>
                 </TdPendingInputContext.Provider>
               </TdInvalidInputContext.Provider>
             </TdUploadingContext.Provider>
@@ -551,6 +572,7 @@ function EditorBody({
         />
       )}
       <span className="sr-only">{name}</span>
+      <TdContentEditorDialog target={image} onClose={() => setImage(null)} />
     </>
   );
 }

@@ -35,4 +35,11 @@ export const KA_QUESTIONS: Record<string, string> = {
   Items: 'ელემენტები',
   'Correct Order': 'სწორი თანმიმდევრობა',
   'No uploaded image is called {name}.': 'ატვირთული სურათი სახელით „{name}“ არ არსებობს.',
+
+  // The image field of the form (media/td-media.tsx)
+  'Its author, licence and source need approving with the question.': 'მისი ავტორი, ლიცენზია და წყარო კითხვასთან ერთად უნდა დამტკიცდეს.',
+  'This image no longer exists': 'ეს სურათი აღარ არსებობს',
+  'Image details': 'სურათის მონაცემები',
+  Change: 'შეცვლა',
+  'No images yet: upload one above.': 'სურათები ჯერ არ არის: ატვირთეთ ზემოთ.',
 };

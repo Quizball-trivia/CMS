@@ -196,6 +196,29 @@ describe('content editor', () => {
     expect(screen.getByRole('button', { name: 'Create Question' }).hasAttribute('disabled')).toBe(false);
   });
 
+  it('a question’s image is marked ready and approved with the question, as there is no Media page', async () => {
+    const editor = await clientFor('editor');
+    const png = Uint8Array.from(atob('iVBORw0KGgoAAAANSUhEUgAAABAAAAAJCAIAAAC0SDtlAAAAFElEQVR42mP4GKVEEmIY1TAoNAAAV/DNUSF4ln8AAAAASUVORK5CYII='), (c) => c.charCodeAt(0));
+    const upload = await editor.admin.media.upload(new Blob([png], { type: 'image/png' }), 'image/png');
+    await editor.admin.content('media').create({ data: { key: 'stadium-photo', url: null, uploadId: upload.id, width: upload.width, height: upload.height, author: 'A. Photographer', license: 'CC BY 4.0', source: 'https://example.org/stadium' } });
+    const question = await editor.admin.content('practice-questions').create({
+      data: { key: 'with-image', difficulty: 'easy', category: 'Stadiums', prompt: 'Which stadium is this?', options: ['Dinamo Arena', 'Mikheil Meskhi'], answer: 0, explanation: null, imageKey: 'stadium-photo' },
+    });
+    await signIn('editor');
+    renderTd(<TdContentEditorDialog target={{ type: 'practice-questions', row: question }} onClose={() => {}} startOn="preview" />);
+    fireEvent.click(screen.getByRole('button', { name: 'Mark ready' }));
+    await waitFor(async () => expect((await editor.admin.content('practice-questions').get(question.id)).status).toBe('ready'));
+    const image = () => editor.admin.content('media').list({ q: 'stadium-photo' }).then((page) => page.items[0]!);
+    expect((await image()).status).toBe('ready');
+    cleanup();
+
+    const publisher = await signIn('publisher');
+    renderTd(<TdContentEditorDialog target={{ type: 'practice-questions', row: await publisher.admin.content('practice-questions').get(question.id) }} onClose={() => {}} startOn="preview" />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Approve' }));
+    await waitFor(async () => expect((await publisher.admin.content('practice-questions').get(question.id)).status).toBe('approved'));
+    expect((await image()).status).toBe('approved');
+  });
+
   it('approves a category with its ready cards in one step', async () => {
     const editor = await clientFor('editor');
     const category = await editor.admin.content('card-categories').create({ data: { key: 'coaches', prompt: 'Famous coaches' } });
@@ -337,11 +360,13 @@ describe('media', () => {
     const png = Uint8Array.from(atob('iVBORw0KGgoAAAANSUhEUgAAABAAAAAJCAIAAAC0SDtlAAAAFElEQVR42mP4GKVEEmIY1TAoNAAAV/DNUSF4ln8AAAAASUVORK5CYII='), (c) => c.charCodeAt(0));
     fireEvent.change(within(dialog).getByTestId('td-upload-input'), { target: { files: [new File([png], 'crest.png', { type: 'image/png' })] } });
     expect(await within(dialog).findByText(/Uploaded · 16 × 9 px/)).toBeTruthy();
-    expect((within(dialog).getByLabelText('ID') as HTMLInputElement).value).toBe('crest-torpedo');
+    // Its ID is made, never typed.
+    expect(within(dialog).queryByLabelText('ID')).toBeNull();
     fireEvent.change(within(dialog).getByLabelText('Licence'), { target: { value: 'CC0' } });
     fireEvent.click(within(dialog).getByRole('button', { name: 'Save and use it' }));
     await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Choose an image' })).toBeNull());
-    expect(await screen.findByText('crest-torpedo')).toBeTruthy();
+    expect(await screen.findByText('Its author, licence and source need approving with the question.')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Image details' })).toBeTruthy();
     const [image] = (await admin.content('media').list({ q: 'crest-torpedo' })).items;
     expect(image).toMatchObject({ status: 'draft', data: { key: 'crest-torpedo', width: 16, height: 9, license: 'CC0', author: null } });
   });

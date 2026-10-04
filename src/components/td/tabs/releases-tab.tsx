@@ -56,7 +56,6 @@ function editHref(type: TdContentType, key: string): string | null {
   if (questions) return questions;
   const q = `?q=${encodeURIComponent(key)}`;
   if (type === 'card-categories' || type === 'box-categories') return `/td/categories${q}`;
-  if (type === 'media' || type === 'clubs') return `/td/${type}${q}`;
   if (type === 'daily-schedule' || type === 'daily-settings') return `/td/dailies${q}`;
   return null;
 }

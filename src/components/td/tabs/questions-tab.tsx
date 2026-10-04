@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type MouseEvent } from 'react';
 import { motion } from 'framer-motion';
 import { Archive, ArchiveRestore, ChevronLeft, ChevronRight, Clock, FileText, HelpCircle, Image as ImageIcon, Layers, Loader2, MoreHorizontal, Plus, Rocket, Search, Send, X } from 'lucide-react';
 import { toast } from 'sonner';
@@ -19,6 +19,7 @@ import type { TdContentRow, TdContentStatus, TdContentType } from '@/lib/td/admi
 import { tdAdmin, tdTokens } from '@/lib/td/client';
 import { tdErrorText } from '@/lib/td/errors';
 import { t, tn } from '@/lib/td/i18n';
+import { moveImagesAlong } from '@/lib/td/images';
 import { beginOperation, runEach } from '@/lib/td/operation';
 import { TD_QUESTION_MODES } from '@/lib/td/question-modes';
 import { isTdPublisher } from '@/lib/td/workflow';
@@ -122,7 +123,7 @@ export function TdQuestionsTab() {
   const [category, setCategory] = useState(() => readParam('category') || 'all');
   const [status, setStatus] = useState<'all' | TdContentStatus>('all');
   const [difficulty, setDifficulty] = useState<'all' | (typeof DIFFICULTIES)[number]>('all');
-  const [page, setPage] = useState(1);
+  const [asked, setPage] = useState(1);
   const [selected, setSelected] = useState<string[]>([]);
   const [bulk, setBulk] = useState<{ completed: number; total: number; failed: number } | null>(null);
   const [refusals, setRefusals] = useState<Array<{ label: string; message: string }>>([]);
@@ -153,8 +154,10 @@ export function TdQuestionsTab() {
   const more = !byDifficulty && Boolean(list.hasNextPage);
   const isLoading = byDifficulty ? everyPractice.isLoading : list.isLoading;
   const error = byDifficulty ? everyPractice.error : list.error;
-  const pageRows = rows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
   const totalPages = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
+  // Fewer rows than before (archived, filtered): the last page that has any.
+  const page = more ? asked : Math.min(asked, totalPages);
+  const pageRows = rows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   // A page past the loaded rows loads the next fifty first.
   const { hasNextPage, isFetchingNextPage, fetchNextPage } = list;
@@ -217,6 +220,27 @@ export function TdQuestionsTab() {
   const visibleIds = pageRows.map((row) => row.id);
   const allVisibleSelected = visibleIds.length > 0 && visibleIds.every((id) => selected.includes(id));
 
+  const openReportLink = (event: MouseEvent) => {
+    const link = (event.target as HTMLElement).closest('a');
+    const href = link?.getAttribute('href');
+    if (!href?.startsWith('/td/questions')) return;
+    event.preventDefault();
+    const params = new URL(href, window.location.origin).searchParams;
+    const key = params.get('mode');
+    const text = params.get('q') ?? '';
+    reset(() => {
+      if (key && TD_QUESTION_MODES.some((m) => m.key === key)) setModeKey(key);
+      setCategory('all');
+      setStatus('all');
+      setDifficulty('all');
+      setSearchQuery(text);
+      searched.current = text.trim();
+      setQ(text.trim());
+    });
+    window.history.replaceState(null, '', href);
+    setPublishing(false);
+  };
+
   const changeMode = (key: string) =>
     reset(() => {
       setModeKey(key);
@@ -234,6 +258,7 @@ export function TdQuestionsTab() {
     let failed = 0;
     const results = await runEach(tdTokens, operation, targets, async (row) => {
       try {
+        if ((action === 'ready' || action === 'approve') && user) await moveImagesAlong(mode.type, [row], action, operation, user);
         return action === 'approve' ? await api.approve(row.id, row.version, undefined, operation) : await api[action](row.id, row.version, operation);
       } catch (caught) {
         failed++;
@@ -574,7 +599,7 @@ export function TdQuestionsTab() {
                 : t('Showing {first} to {last} of {total} questions', { first, last, total: rows.length })}
             </p>
             <div className="flex items-center gap-1">
-              <Button variant="outline" size="icon" aria-label={t('Previous page')} className="h-8 w-8 rounded-lg" onClick={() => setPage((p) => p - 1)} disabled={page === 1}>
+              <Button variant="outline" size="icon" aria-label={t('Previous page')} className="h-8 w-8 rounded-lg" onClick={() => setPage(page - 1)} disabled={page === 1}>
                 <ChevronLeft className="h-4 w-4" />
               </Button>
               <div className="flex items-center rounded-lg border bg-muted/50 px-3 py-1 text-xs font-bold">
@@ -585,7 +610,7 @@ export function TdQuestionsTab() {
                 size="icon"
                 aria-label={t('Next page')}
                 className="h-8 w-8 rounded-lg"
-                onClick={() => setPage((p) => p + 1)}
+                onClick={() => setPage(page + 1)}
                 disabled={(page >= totalPages && !more) || (!byDifficulty && isFetchingNextPage)}
               >
                 {!byDifficulty && isFetchingNextPage ? <Loader2 className="h-4 w-4 animate-spin" /> : <ChevronRight className="h-4 w-4" />}
@@ -631,7 +656,10 @@ export function TdQuestionsTab() {
             <DialogTitle className="text-2xl font-black tracking-tight text-slate-900">{t('Publish')}</DialogTitle>
             <DialogDescription>{t('Approved questions reach players when they are published.')}</DialogDescription>
           </DialogHeader>
-          <div className="min-h-0 flex-1 overflow-y-auto p-6">{publishing && <TdReleasesTab />}</div>
+          {/* The report's links go to this page: they filter the list here and close the dialog. */}
+          <div className="min-h-0 flex-1 overflow-y-auto p-6" onClickCapture={openReportLink}>
+            {publishing && <TdReleasesTab />}
+          </div>
         </DialogContent>
       </Dialog>
 
