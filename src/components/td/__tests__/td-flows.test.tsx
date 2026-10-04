@@ -219,6 +219,27 @@ describe('content editor', () => {
     expect((await image()).status).toBe('approved');
   });
 
+  it('an image is not approved for a question that changed since it was opened', async () => {
+    const editor = await clientFor('editor');
+    const png = Uint8Array.from(atob('iVBORw0KGgoAAAANSUhEUgAAABAAAAAJCAIAAAC0SDtlAAAAFElEQVR42mP4GKVEEmIY1TAoNAAAV/DNUSF4ln8AAAAASUVORK5CYII='), (c) => c.charCodeAt(0));
+    const upload = await editor.admin.media.upload(new Blob([png], { type: 'image/png' }), 'image/png');
+    const media = await editor.admin.content('media').create({ data: { key: 'changed-photo', url: null, uploadId: upload.id, width: upload.width, height: upload.height, author: 'A', license: 'CC0', source: 'https://example.org' } });
+    await editor.admin.content('media').ready(media.id, media.version);
+    const made = await editor.admin.content('practice-questions').create({
+      data: { key: 'changed-q', difficulty: 'easy', category: 'Stadiums', prompt: 'Which?', options: ['A', 'B'], answer: 0, explanation: null, imageKey: 'changed-photo' },
+    });
+    const ready = await editor.admin.content('practice-questions').ready(made.id, made.version);
+    await signIn('publisher');
+    renderTd(<TdContentEditorDialog target={{ type: 'practice-questions', row: ready }} onClose={() => {}} startOn="preview" />);
+    const approve = await screen.findByRole('button', { name: 'Approve' });
+    // Changed after it was opened: the approval is refused, and its image stays as it was.
+    await editor.admin.content('practice-questions').edit(ready.id, { version: ready.version, data: { ...ready.data, prompt: 'Which one?' } });
+    fireEvent.click(approve);
+    await waitFor(async () => expect((await editor.admin.content('practice-questions').get(made.id)).status).not.toBe('approved'));
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect((await editor.admin.content('media').get(media.id)).status).toBe('ready');
+  });
+
   it('approves a category with its ready cards in one step', async () => {
     const editor = await clientFor('editor');
     const category = await editor.admin.content('card-categories').create({ data: { key: 'coaches', prompt: 'Famous coaches' } });
@@ -332,6 +353,17 @@ describe('stepping through a list', () => {
     expect(screen.getByRole('button', { name: 'Next' }).hasAttribute('disabled')).toBe(true);
     fireEvent.keyDown(document.body, { key: 'ArrowRight' });
     expect(onGo).not.toHaveBeenCalled();
+  });
+
+  it('a row opens from the keyboard', async () => {
+    await signIn('editor');
+    window.history.replaceState(null, '', '?mode=penalties');
+    renderTd(<TdQuestionsTab />);
+    const row = (await screen.findAllByRole('button', { name: /\?$/ }))[0]!;
+    row.focus();
+    fireEvent.keyDown(row, { key: 'Enter' });
+    expect(await screen.findByRole('heading', { name: 'Question Preview' })).toBeTruthy();
+    window.history.replaceState(null, '', window.location.pathname);
   });
 
   it('a step past the last loaded question loads the next page and opens its row', async () => {

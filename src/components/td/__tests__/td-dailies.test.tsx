@@ -225,6 +225,30 @@ describe('the Daily Challenges page', () => {
     expect(screen.queryByText(/Settings waiting for approval/)).toBeNull();
   });
 
+  it('a save made on an older revision is refused, the edit kept; saving again is then a choice', async () => {
+    await signIn('editor');
+    renderTd(<TdDailiesTab />);
+    fireEvent.change(await screen.findByLabelText('Seconds / Question'), { target: { value: '41' } });
+    // Meanwhile someone else takes fl-2 out of the rotation.
+    await changeSettings('publisher', 'footballLogic', (data) => ({ ...data, cycle: data.cycle ? { ...data.cycle, sets: ['fl-1'] } : null }));
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(screen.getByText('Someone changed this since you opened it.')).toBeTruthy());
+    expect((await settingsOf('footballLogic')).data.cycle?.sets).toEqual(['fl-1']);
+    expect((screen.getByLabelText('Seconds / Question') as HTMLInputElement).value).toBe('41');
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(async () => expect((await settingsOf('footballLogic')).data.seconds).toBe(41));
+  });
+
+  it('lists the days that play a set of their own, and a publisher sends them back to the rotation', async () => {
+    const day = addDays(georgiaToday(), 3);
+    await approved('daily-schedule', { game: 'footballLogic', date: day, puzzle: 'fl-2' });
+    await signIn('publisher');
+    renderTd(<TdDailiesTab />);
+    expect(await screen.findByText(new RegExp(`1 day has a set of its own.*${formatDay(day)} \\(fl-2\\)`))).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Play the rotation on those days' }));
+    await waitFor(() => expect(screen.queryByText(/has a set of its own/)).toBeNull());
+  });
+
   it('a publisher’s own edit waits for another publisher', async () => {
     await signIn('publisher');
     renderTd(<TdDailiesTab />);

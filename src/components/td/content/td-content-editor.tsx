@@ -14,7 +14,7 @@ import { contentWriteIssues, TD_MERGE_UNITS } from '@/lib/td/content-rules';
 import type { SchemaIssue } from '@/lib/td/contract';
 import { describeTdError } from '@/lib/td/errors';
 import { formatGeorgiaTime } from '@/lib/td/georgia';
-import { moveImagesAlong } from '@/lib/td/images';
+import { findImage, moveImagesAlong } from '@/lib/td/images';
 import { t, tc, TD_LANG, tn } from '@/lib/td/i18n';
 import { mergeDrafts, resolveConflicts, sameDraft, type TdDraft, type TdFieldConflict } from '@/lib/td/merge';
 import { contentActions } from '@/lib/td/workflow';
@@ -334,7 +334,7 @@ function EditorBody({
   // The image a form names opens over it, for its rights and its approval.
   const [image, setImage] = useState<TdEditorTarget | null>(null);
   const openImage = useCallback(async (key: string) => {
-    const found = (await tdAdmin.content('media').list({ q: key, limit: 20 })).items.find((r) => r.data.key === key);
+    const found = await findImage(key);
     if (found) setImage({ type: 'media', row: found as TdContentRow });
   }, []);
   const approve = () => (CATEGORY_TYPES.has(type) ? setApproving(true) : transition('approve', tc('Approved', 'it happened')));

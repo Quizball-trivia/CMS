@@ -20,7 +20,7 @@ import { TdApiError } from '@/lib/td/api-client';
 import { tdAdmin } from '@/lib/td/client';
 import { addDays, dayNumber, daysFrom, formatDay, scheduledSet, type DailyCycle } from '@/lib/td/georgia';
 import { t, tc, tn } from '@/lib/td/i18n';
-import { contentActions } from '@/lib/td/workflow';
+import { contentActions, isTdPublisher } from '@/lib/td/workflow';
 import { cn } from '@/lib/utils';
 import { useTdAuth } from '@/providers/td-auth-provider';
 
@@ -122,11 +122,11 @@ function useDailyGame(game: TdDailyGame) {
     const rows = (settings.data?.rows ?? []).filter((r) => r.data.game === game);
     return rows.find((r) => r.status !== 'archived') ?? rows[0] ?? null;
   }, [settings.data, game]);
-  const missing = useMemo(() => {
-    if (!today || !schedule.data || !setsLoaded) return null;
-    return planDays(daysFrom(today, COVERAGE_DAYS), today, schedule.data.rows, row, sets).filter((day) => day.missing);
-  }, [today, schedule.data, setsLoaded, row, sets]);
-  return { today, row, sets, missing, loaded: settings.isSuccess && setsLoaded, error: settings.error ?? setsError ?? schedule.error };
+  const days = useMemo(() => (today && schedule.data && setsLoaded ? planDays(daysFrom(today, COVERAGE_DAYS), today, schedule.data.rows, row, sets) : null), [today, schedule.data, setsLoaded, row, sets]);
+  const missing = days ? days.filter((day) => day.missing) : null;
+  // Dates with a set of their own play it instead of the rotation (made before this page; it has no calendar).
+  const own = days ? days.filter((day) => day.source === 'date' && day.row) : [];
+  return { today, row, sets, missing, own, loaded: settings.isSuccess && setsLoaded, error: settings.error ?? setsError ?? schedule.error };
 }
 
 /** What the form holds: the seconds as typed, the cycle's start and its sets in turn (none: no cycle). */
@@ -134,6 +134,8 @@ interface Form {
   seconds: string;
   anchor: string;
   sets: string[];
+  /** The revision an edit started from: a save sent at it is refused if someone changed the row meanwhile. */
+  base?: number | null;
 }
 
 function formOf(game: TdDailyGame, row: SettingsRow | null, today: string | null): Form {
@@ -275,7 +277,7 @@ function DailyEditor({ game, edit, onEdit }: { game: TdDailyGame; edit: Form | u
   const { user } = useTdAuth();
   const write = useTdWrite();
   const queryClient = useQueryClient();
-  const { today, row, sets, missing } = useDailyGame(game);
+  const { today, row, sets, missing, own } = useDailyGame(game);
   const [busy, setBusy] = useState<Action | null>(null);
   const [error, setError] = useState<unknown>(null);
 
@@ -296,19 +298,21 @@ function DailyEditor({ game, edit, onEdit }: { game: TdDailyGame; edit: Form | u
     return [...sets, ...gone.map((key): DailySet => ({ key, questions: 0, approved: 0, playable: false }))];
   }, [sets, form.sets]);
 
-  const change = (patch: Partial<Form>) => onEdit({ ...form, ...patch });
+  const change = (patch: Partial<Form>) => onEdit({ ...form, ...patch, base: edit ? edit.base : (row?.version ?? null) });
 
   async function run(action: Action, work: () => Promise<unknown>, done: string) {
     setBusy(action);
     setError(null);
     try {
       await work();
+      // The fields were locked meanwhile, so nothing typed since is lost.
       onEdit(null);
       toast.success(done);
     } catch (caught) {
       if (caught instanceof TdApiError && caught.code === 'revision_conflict') {
-        // The form shows the row as it is now.
-        onEdit(null);
+        // Someone changed it meanwhile: the edit stays, now on their revision, so saving again is a choice made knowing it.
+        const current = (caught.details as { current?: { version?: number } } | null)?.current;
+        if (edit && typeof current?.version === 'number') onEdit({ ...edit, base: current.version });
         void queryClient.invalidateQueries({ queryKey: tdKeys.content });
       }
       setError(caught);
@@ -320,8 +324,19 @@ function DailyEditor({ game, edit, onEdit }: { game: TdDailyGame; edit: Form | u
   const api = tdAdmin.content('daily-settings');
   const save = () => {
     const data = dataOf(game, form);
-    void run('save', () => write((operation) => (row ? api.edit(row.id, { version: row.version, data }, operation) : api.create({ data }, operation))), t('{game} saved', { game: info.label }));
+    const version = edit?.base ?? row?.version;
+    void run('save', () => write((operation) => (row && version != null ? api.edit(row.id, { version, data }, operation) : api.create({ data }, operation))), t('{game} saved', { game: info.label }));
   };
+  // Archived, a date's own set gives way to the rotation at the next publish.
+  const playRotation = () =>
+    run(
+      'save',
+      () => write(async (operation) => {
+        for (const day of own) await tdAdmin.content('daily-schedule').archive(day.row!.id, day.row!.version, operation);
+      }),
+      t('Those days play the rotation from the next publish'),
+    );
+
   const transition = (action: 'ready' | 'approve' | 'restore', done: string) => {
     if (!row) return;
     const { id, version } = row;
@@ -400,44 +415,60 @@ function DailyEditor({ game, edit, onEdit }: { game: TdDailyGame; edit: Form | u
 
         <TdErrorPanel error={error} />
 
-        {(game !== 'careerPath' || form.sets.length > 0) && (
-          <div className="grid gap-4 md:grid-cols-2">
-            {game !== 'careerPath' && (
-              <SettingField
-                label={game === 'footballLogic' ? t('Seconds / Question') : t('Seconds / Round')}
-                type="number"
-                min={1}
-                max={600}
-                value={form.seconds}
-                onChange={(seconds) => change({ seconds })}
-                problem={problems.seconds}
-              />
+        <fieldset disabled={busy !== null} className="contents">
+          {(game !== 'careerPath' || form.sets.length > 0) && (
+            <div className="grid gap-4 md:grid-cols-2">
+              {game !== 'careerPath' && (
+                <SettingField
+                  label={game === 'footballLogic' ? t('Seconds / Question') : t('Seconds / Round')}
+                  type="number"
+                  min={1}
+                  max={600}
+                  value={form.seconds}
+                  onChange={(seconds) => change({ seconds })}
+                  problem={problems.seconds}
+                />
+              )}
+              {form.sets.length > 0 && <SettingField label={t('Cycle starts')} type="date" value={form.anchor} onChange={(anchor) => change({ anchor })} problem={problems.anchor} />}
+            </div>
+          )}
+
+          <div className="space-y-2">
+            <div className="flex items-end justify-between gap-3">
+              <div>
+                <Label className="text-[10px] font-black uppercase tracking-widest text-slate-400">{t('Sets in turn')}</Label>
+                <p className="mt-1 text-xs text-slate-500">
+                  {t('Pick the sets this game plays in turn, one a day.')}
+                </p>
+              </div>
+              <span className={cn('shrink-0 text-xs font-semibold', form.sets.length > 0 ? 'text-slate-600' : 'text-amber-600')}>
+                {t('{n} selected', { n: form.sets.length })}
+              </span>
+            </div>
+            <DailySets
+              options={options}
+              turns={form.sets}
+              coverage={coverage}
+              onSelectAll={() => change({ sets: [...form.sets, ...options.map((set) => set.key).filter((key) => !form.sets.includes(key))] })}
+              onClear={() => change({ sets: [] })}
+              onToggle={(key, checked) => change({ sets: checked ? [...form.sets, key] : form.sets.filter((k) => k !== key) })}
+            />
+          </div>
+        </fieldset>
+        {own.length > 0 && (
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800">
+            <span>
+              {tn(own.length, '{count} day has a set of its own, which plays instead of the rotation: {dates}.', '{count} days have a set of their own, which play instead of the rotation: {dates}.', {
+                dates: own.map((day) => `${formatDay(day.date)} (${day.planned})`).join(', '),
+              })}
+            </span>
+            {user && isTdPublisher(user.role) && (
+              <Button size="sm" variant="outline" disabled={busy !== null} onClick={() => void playRotation()} className="h-8 rounded-lg text-xs font-bold">
+                {t('Play the rotation on those days')}
+              </Button>
             )}
-            {form.sets.length > 0 && <SettingField label={t('Cycle starts')} type="date" value={form.anchor} onChange={(anchor) => change({ anchor })} problem={problems.anchor} />}
           </div>
         )}
-
-        <div className="space-y-2">
-          <div className="flex items-end justify-between gap-3">
-            <div>
-              <Label className="text-[10px] font-black uppercase tracking-widest text-slate-400">{t('Sets in turn')}</Label>
-              <p className="mt-1 text-xs text-slate-500">
-                {t('Pick the sets this game plays in turn, one a day.')}
-              </p>
-            </div>
-            <span className={cn('shrink-0 text-xs font-semibold', form.sets.length > 0 ? 'text-slate-600' : 'text-amber-600')}>
-              {t('{n} selected', { n: form.sets.length })}
-            </span>
-          </div>
-          <DailySets
-            options={options}
-            turns={form.sets}
-            coverage={coverage}
-            onSelectAll={() => change({ sets: [...form.sets, ...options.map((set) => set.key).filter((key) => !form.sets.includes(key))] })}
-            onClear={() => change({ sets: [] })}
-            onToggle={(key, checked) => change({ sets: checked ? [...form.sets, key] : form.sets.filter((k) => k !== key) })}
-          />
-        </div>
       </CardContent>
     </Card>
   );

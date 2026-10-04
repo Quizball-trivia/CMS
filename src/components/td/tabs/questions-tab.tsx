@@ -215,7 +215,8 @@ export function TdQuestionsTab() {
   const publisher = user ? isTdPublisher(user.role) : false;
   const canReady = (row: TdContentRow) => row.status === 'draft';
   const canApprove = (row: TdContentRow) => publisher && row.status === 'ready' && row.lastEditor.id !== user?.id;
-  const canArchive = (row: TdContentRow) => row.status !== 'archived' && (publisher || (row.approvedVersion === null && row.lastEditor.id === user?.id));
+  // An editor's archive needs the row's whole history (nobody else touched it): the question dialog checks that.
+  const canArchive = (row: TdContentRow) => publisher && row.status !== 'archived';
   const chosen = rows.filter((row) => selected.includes(row.id));
   const visibleIds = pageRows.map((row) => row.id);
   const allVisibleSelected = visibleIds.length > 0 && visibleIds.every((id) => selected.includes(id));
@@ -515,6 +516,14 @@ export function TdQuestionsTab() {
                     transition={{ delay: Math.min(index * 0.05, 0.2) }}
                     className="group relative flex cursor-pointer items-center justify-between border-b border-gray-50 px-6 py-5 transition-all last:border-0 hover:scale-[1.01] hover:bg-slate-50 active:scale-[0.99]"
                     onClick={() => open({ type: mode.type, row })}
+                    role="button"
+                    tabIndex={0}
+                    aria-label={shown.title || keyOf(row)}
+                    onKeyDown={(event) => {
+                      if (event.target !== event.currentTarget || (event.key !== 'Enter' && event.key !== ' ')) return;
+                      event.preventDefault();
+                      open({ type: mode.type, row });
+                    }}
                   >
                     <div className="flex min-w-0 flex-1 items-center gap-5">
                       <input

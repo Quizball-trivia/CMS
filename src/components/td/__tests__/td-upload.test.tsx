@@ -195,6 +195,20 @@ describe('the question file format', () => {
     expect(toTdImportItem(question, { categoryKey: '', category: '', puzzle: 'cp-1', clubs })).toMatchObject({ data: { prompt: 'ვისი გზაა?', clubs: [{ name: 'Dinamo Tbilisi', clubKey: 'dinamo-tbilisi' }, { name: 'Rubin Kazan', clubKey: null }, { name: 'NAPOLI', clubKey: 'napoli' }, { name: 'Paris Saint-Germain', clubKey: 'psg' }] } });
   });
 
+  it('gives a Career Path row the same ID whether or not its clubs are found in the clubs list', () => {
+    const parsed = parseTdUpload('1. Question: Dinamo Tbilisi ➔ Napoli\nAnswer: ხვიჩა', 'career-path');
+    const question = parsed.questions[0]!;
+    const keyWith = (clubs: Array<{ key: string; label: string; value: string }>) => dataOf<{ key: string }>(toTdImportItem(question, { categoryKey: '', category: '', puzzle: 'cp-1', clubs })).key;
+    expect(keyWith([])).toBe(keyWith([{ key: 'napoli', label: 'Napoli', value: 'Napoli' }]));
+  });
+
+  it('reads an Image line after an Explanation as the image, not as more explanation', () => {
+    const parsed = parseTdUpload('1. რომელი სტადიონია?\nA) დინამო არენა*\nB) მესხი\nDifficulty: Easy\nExplanation: თბილისშია.\nImage: arena-photo', 'practice-questions');
+    expect(parsed.errors).toEqual([]);
+    const item = toTdImportItem(parsed.questions[0]!, { categoryKey: '', category: 'სტადიონები', puzzle: '', clubs: [] });
+    expect(dataOf<{ explanation: string; imageKey: string }>(item)).toMatchObject({ explanation: 'თბილისშია.', imageKey: 'arena-photo' });
+  });
+
   it('reports a broken question by its line and number and reads the others', () => {
     const parsed = parseTdUpload('1. კარგი?\nAnswer: დიახ\n2. ცუდი?\n3. კარგი 2?\nAnswer: კი', 'penalty-questions');
     expect(parsed.questions).toHaveLength(2);

@@ -408,14 +408,15 @@ function parsePractice(block: Block): Parsed<ParsedPractice> {
       explaining = true;
       continue;
     }
-    // Lines after the explanation belong to it until a Difficulty line, as in the Quizball CMS.
-    if (explaining) {
-      explanation.push(text);
-      continue;
-    }
     const image = labelled(text, 'Image');
     if (image !== null) {
       once.take('Image', image, line);
+      explaining = false;
+      continue;
+    }
+    // Lines after the explanation belong to it until another labelled line, as in the Quizball CMS.
+    if (explaining) {
+      explanation.push(text);
       continue;
     }
     const option = OPTION_LINE.exec(text);
@@ -735,5 +736,7 @@ function columnValues(question: TdParsedQuestion, context: TdUploadContext): Rec
 /** The import item of a question: a draft of its mode's type, under the ID its content makes. */
 export function toTdImportItem(question: TdParsedQuestion, context: TdUploadContext) {
   const values = columnValues(question, context);
-  return toItem(question.kind, { key: madeKey(question.kind, values), ...values });
+  // The ID comes from what the file says: a club found in the clubs list later must not make the same row a new one.
+  const said = question.kind === 'career-path' ? { ...values, clubs: (values.clubs as Array<{ name: string }>).map((club) => ({ name: club.name, clubKey: null })) } : values;
+  return toItem(question.kind, { key: madeKey(question.kind, said), ...values });
 }

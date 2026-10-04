@@ -2,6 +2,7 @@
 
 import type { ReactNode } from 'react';
 import { CheckCircle2, ImageOff, Loader2 } from 'lucide-react';
+import { releasedImage } from '@/components/td/media/td-media';
 import { useTdAllRows, useTdUploadUrl } from '@/hooks/use-td-content';
 import type { TdContentData, TdContentType } from '@/lib/td/admin-api';
 import { t } from '@/lib/td/i18n';
@@ -95,7 +96,9 @@ function UploadedImage({ uploadId, alt }: { uploadId: string; alt: string }) {
 export function TdQuestionImage({ imageKey, src }: { imageKey?: string | null; src?: string | null }) {
   const media = useTdAllRows('media', {}, Boolean(imageKey));
   if (imageKey) {
-    const row = media.data?.rows.find((r) => r.data.key === imageKey);
+    const found = media.data?.rows.find((r) => r.data.key === imageKey);
+    // The approved image, as releases show it (a replacement waiting for approval is not it yet).
+    const row = found ? { data: releasedImage(found) } : undefined;
     const uploadId = row?.data.uploadId ?? null;
     if (uploadId) return <UploadedImage uploadId={uploadId} alt={imageKey} />;
     if (media.isLoading) return <div className={cn(FRAME, 'text-slate-400')}><Loader2 className="h-6 w-6 animate-spin" /></div>;

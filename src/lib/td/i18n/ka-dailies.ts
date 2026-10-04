@@ -26,4 +26,7 @@ export const KA_DAILIES: Record<string, string> = {
   'The next {days} days all have a playable set.': 'მომდევნო {days} დღიდან ყველას აქვს სათამაშო ნაკრები.',
   'Settings waiting for approval are not counted.': 'დამტკიცების მოლოდინში მყოფი პარამეტრები არ ითვლება.',
   '{game} saved': '{game} შენახულია',
+  '{count} days have a set of their own, which play instead of the rotation: {dates}.': '{count} დღეს საკუთარი ნაკრები აქვს, რომელიც რიგრიგობის ნაცვლად თამაშდება: {dates}.',
+  'Play the rotation on those days': 'ამ დღეებში რიგრიგობით თამაში',
+  'Those days play the rotation from the next publish': 'ეს დღეები შემდეგი გამოქვეყნებიდან რიგრიგობით თამაშდება',
 };

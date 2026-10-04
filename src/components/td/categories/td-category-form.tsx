@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useId, useState, type MutableRefObject } from 'react';
+import { type MutableRefObject, useCallback, useEffect, useId, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { ArchiveRestore } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -105,6 +105,14 @@ export function TdCategoryForm({ category, leaveRef, onSuccess }: TdCategoryForm
     setError(caught);
   }
 
+  const alive = useRef(true);
+  useEffect(
+    () => () => {
+      alive.current = false;
+    },
+    [],
+  );
+
   async function run(label: Busy, work: () => Promise<unknown>, done: string) {
     setBusy(label);
     setError(null);
@@ -112,7 +120,8 @@ export function TdCategoryForm({ category, leaveRef, onSuccess }: TdCategoryForm
     try {
       await work();
       toast.success(done);
-      onSuccess?.();
+      // Only while this form is still the one open: a save finishing after its dialog closed must not close the next one.
+      if (alive.current) onSuccess?.();
     } catch (caught) {
       handleRefusal(caught);
     } finally {
