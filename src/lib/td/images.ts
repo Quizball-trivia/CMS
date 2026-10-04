@@ -30,7 +30,9 @@ export async function findImage(key: string, options?: TdOperation): Promise<TdC
 }
 
 export async function moveImagesAlong(type: TdContentType, rows: readonly TdContentRow[], action: 'ready' | 'approve', operation: TdOperation, me: { id: string }): Promise<void> {
-  // Approved only for questions still at the revision reviewed: an image is never approved for a question that will be refused.
+  // Approved only for questions still at the revision reviewed. A question changed in the moment between this
+  // check and its own approval is refused while its image stays approved: an image never approved before is
+  // shown by no approved question, so approving it changes no release.
   if (action === 'approve') {
     for (const row of rows) {
       const now = await tdAdmin.content(type).get(row.id, operation);
@@ -41,6 +43,9 @@ export async function moveImagesAlong(type: TdContentType, rows: readonly TdCont
     try {
       const image = await findImage(key, operation);
       if (!image) continue;
+      // Only an image never approved moves with a question: a replacement of an approved one changes every
+      // question showing it, so it is approved on its own (Image details), never by approving one question.
+      if (image.approvedVersion !== null) continue;
       if (action === 'ready' && image.status === 'draft') await tdAdmin.content('media').ready(image.id, image.version, operation);
       if (action === 'approve' && image.status === 'ready' && image.lastEditor.id !== me.id) await tdAdmin.content('media').approve(image.id, image.version, undefined, operation);
     } catch {

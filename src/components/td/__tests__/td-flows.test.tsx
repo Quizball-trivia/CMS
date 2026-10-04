@@ -219,6 +219,30 @@ describe('content editor', () => {
     expect((await image()).status).toBe('approved');
   });
 
+  it('approving a question never approves a waiting replacement of an image already approved', async () => {
+    const editor = await clientFor('editor');
+    const png = Uint8Array.from(atob('iVBORw0KGgoAAAANSUhEUgAAABAAAAAJCAIAAAC0SDtlAAAAFElEQVR42mP4GKVEEmIY1TAoNAAAV/DNUSF4ln8AAAAASUVORK5CYII='), (c) => c.charCodeAt(0));
+    const upload = await editor.admin.media.upload(new Blob([png], { type: 'image/png' }), 'image/png');
+    const made = await editor.admin.content('media').create({ data: { key: 'shared-photo', url: null, uploadId: upload.id, width: upload.width, height: upload.height, author: 'A', license: 'CC0', source: 'https://example.org' } });
+    const ready = await editor.admin.content('media').ready(made.id, made.version);
+    const publisher = await clientFor('publisher');
+    const approved = await publisher.admin.content('media').approve(ready.id, ready.version);
+    // A replacement waits: a new credit, marked ready.
+    const replaced = await editor.admin.content('media').edit(approved.id, { version: approved.version, data: { ...approved.data, author: 'B' } });
+    await editor.admin.content('media').ready(replaced.id, replaced.version);
+    const q = await editor.admin.content('practice-questions').create({
+      data: { key: 'shared-q', difficulty: 'easy', category: 'Stadiums', prompt: 'Which?', options: ['A', 'B'], answer: 0, explanation: null, imageKey: 'shared-photo' },
+    });
+    const qReady = await editor.admin.content('practice-questions').ready(q.id, q.version);
+    await signIn('publisher');
+    renderTd(<TdContentEditorDialog target={{ type: 'practice-questions', row: qReady }} onClose={() => {}} startOn="preview" />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Approve' }));
+    await waitFor(async () => expect((await editor.admin.content('practice-questions').get(q.id)).status).toBe('approved'));
+    const image = await editor.admin.content('media').get(made.id);
+    expect(image.status).toBe('ready');
+    expect(image.approved?.author).toBe('A');
+  });
+
   it('an image is not approved for a question that changed since it was opened', async () => {
     const editor = await clientFor('editor');
     const png = Uint8Array.from(atob('iVBORw0KGgoAAAANSUhEUgAAABAAAAAJCAIAAAC0SDtlAAAAFElEQVR42mP4GKVEEmIY1TAoNAAAV/DNUSF4ln8AAAAASUVORK5CYII='), (c) => c.charCodeAt(0));

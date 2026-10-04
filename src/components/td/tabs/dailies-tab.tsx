@@ -134,8 +134,19 @@ interface Form {
   seconds: string;
   anchor: string;
   sets: string[];
-  /** The revision an edit started from: a save sent at it is refused if someone changed the row meanwhile. */
+  /** The revision an edit started from (null: there was no row, so it saves as a new one): a save sent at it is refused if someone changed the row meanwhile. */
   base?: number | null;
+  /** The fields as they were when the edit started: what was changed, against what someone else changed meanwhile. */
+  from?: Fields;
+}
+
+type Fields = Pick<Form, 'seconds' | 'anchor' | 'sets'>;
+
+/** Theirs where this edit left a field as it found it, this edit's where it changed it. */
+function rebase(edit: Form, theirs: Fields, version: number): Form {
+  const from = edit.from ?? theirs;
+  const pick = <K extends keyof Fields>(key: K): Fields[K] => (JSON.stringify(edit[key]) === JSON.stringify(from[key]) ? theirs[key] : edit[key]);
+  return { seconds: pick('seconds'), anchor: pick('anchor'), sets: pick('sets'), base: version, from: theirs };
 }
 
 function formOf(game: TdDailyGame, row: SettingsRow | null, today: string | null): Form {
@@ -273,7 +284,7 @@ function DailySets({
 
 type Action = 'save' | 'ready' | 'approve' | 'restore';
 
-function DailyEditor({ game, edit, onEdit }: { game: TdDailyGame; edit: Form | undefined; onEdit: (form: Form | null) => void }) {
+function DailyEditor({ game, edit, onEdit }: { game: TdDailyGame; edit: Form | undefined; onEdit: (form: Form | null | ((current: Form | undefined) => Form | null | undefined)) => void }) {
   const { user } = useTdAuth();
   const write = useTdWrite();
   const queryClient = useQueryClient();
@@ -298,21 +309,22 @@ function DailyEditor({ game, edit, onEdit }: { game: TdDailyGame; edit: Form | u
     return [...sets, ...gone.map((key): DailySet => ({ key, questions: 0, approved: 0, playable: false }))];
   }, [sets, form.sets]);
 
-  const change = (patch: Partial<Form>) => onEdit({ ...form, ...patch, base: edit ? edit.base : (row?.version ?? null) });
+  const change = (patch: Partial<Form>) => onEdit({ ...form, ...patch, base: edit ? edit.base : (row?.version ?? null), from: edit ? edit.from : saved });
 
-  async function run(action: Action, work: () => Promise<unknown>, done: string) {
+  /** `sent`: the draft a save went out with. Cleared once saved only if it is still the one shown: anything
+   *  typed since (after leaving for another game and coming back) stays. */
+  async function run(action: Action, work: () => Promise<unknown>, done: string, sent?: Form) {
     setBusy(action);
     setError(null);
     try {
       await work();
-      // The fields were locked meanwhile, so nothing typed since is lost.
-      onEdit(null);
+      if (sent) onEdit((current) => (current === sent ? null : current));
       toast.success(done);
     } catch (caught) {
       if (caught instanceof TdApiError && caught.code === 'revision_conflict') {
-        // Someone changed it meanwhile: the edit stays, now on their revision, so saving again is a choice made knowing it.
-        const current = (caught.details as { current?: { version?: number } } | null)?.current;
-        if (edit && typeof current?.version === 'number') onEdit({ ...edit, base: current.version });
+        // Someone changed it meanwhile: their changes come in where this edit left a field alone, and the edit stays on their revision.
+        const current = (caught.details as { current?: SettingsRow } | null)?.current;
+        if (sent && current && typeof current.version === 'number') onEdit((now) => (now === sent ? rebase(sent, formOf(game, current, today), current.version) : now));
         void queryClient.invalidateQueries({ queryKey: tdKeys.content });
       }
       setError(caught);
@@ -324,8 +336,9 @@ function DailyEditor({ game, edit, onEdit }: { game: TdDailyGame; edit: Form | u
   const api = tdAdmin.content('daily-settings');
   const save = () => {
     const data = dataOf(game, form);
-    const version = edit?.base ?? row?.version;
-    void run('save', () => write((operation) => (row && version != null ? api.edit(row.id, { version, data }, operation) : api.create({ data }, operation))), t('{game} saved', { game: info.label }));
+    // An edit begun when there was no row saves as a new one: one made meanwhile refuses it, and is not overwritten.
+    const version = edit ? edit.base : row?.version;
+    void run('save', () => write((operation) => (row && version != null ? api.edit(row.id, { version, data }, operation) : api.create({ data }, operation))), t('{game} saved', { game: info.label }), edit);
   };
   // Archived, a date's own set gives way to the rotation at the next publish.
   const playRotation = () =>
@@ -463,7 +476,7 @@ function DailyEditor({ game, edit, onEdit }: { game: TdDailyGame; edit: Form | u
               })}
             </span>
             {user && isTdPublisher(user.role) && (
-              <Button size="sm" variant="outline" disabled={busy !== null} onClick={() => void playRotation()} className="h-8 rounded-lg text-xs font-bold">
+              <Button size="sm" variant="outline" disabled={busy !== null || dirty} title={dirty ? t('Unsaved changes. Save before changing the status.') : undefined} onClick={() => void playRotation()} className="h-8 rounded-lg text-xs font-bold">
                 {t('Play the rotation on those days')}
               </Button>
             )}
@@ -527,10 +540,11 @@ export function TdDailiesTab() {
   const settings = useTdAllRows('daily-settings', { status: ALL });
   const { loaded, error } = useDailyGame(game);
 
-  const setEdit = (which: TdDailyGame, form: Form | null) =>
+  const setEdit = (which: TdDailyGame, form: Form | null | ((current: Form | undefined) => Form | null | undefined)) =>
     setEdits((current) => {
       const next = { ...current };
-      if (form) next[which] = form;
+      const value = typeof form === 'function' ? form(current[which]) : form;
+      if (value) next[which] = value;
       else delete next[which];
       return next;
     });

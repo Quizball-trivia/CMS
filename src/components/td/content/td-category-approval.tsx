@@ -10,6 +10,7 @@ import { tdKeys, useTdAllRows, useTdWrite } from '@/hooks/use-td-content';
 import type { TdContentRow } from '@/lib/td/admin-api';
 import { TdApiError } from '@/lib/td/api-client';
 import { tdAdmin } from '@/lib/td/client';
+import { moveImagesAlong } from '@/lib/td/images';
 import { t } from '@/lib/td/i18n';
 import { useTdAuth } from '@/providers/td-auth-provider';
 import { TdStatusChip } from './td-status';
@@ -80,7 +81,11 @@ export function TdCategoryApproval({
     setNotice(null);
     try {
       const listed = review.withIt.map((row) => ({ id: row.id, version: row.version }));
-      const row = await write((operation) => tdAdmin.content(type).approve(category.id, category.version, listed, operation));
+      const row = await write(async (operation) => {
+        // The cards' images go with them, as a question's go with it.
+        await moveImagesAlong(childType, review.withIt as unknown as TdContentRow[], 'approve', operation, user!);
+        return tdAdmin.content(type).approve(category.id, category.version, listed, operation);
+      });
       onApproved(row);
     } catch (caught) {
       if (caught instanceof TdApiError && caught.code === 'revision_conflict') {

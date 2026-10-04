@@ -237,6 +237,8 @@ describe('the Daily Challenges page', () => {
     expect((screen.getByLabelText('Seconds / Question') as HTMLInputElement).value).toBe('41');
     fireEvent.click(screen.getByRole('button', { name: 'Save' }));
     await waitFor(async () => expect((await settingsOf('footballLogic')).data.seconds).toBe(41));
+    // Their change to the rotation stays: this edit only changed the seconds.
+    expect((await settingsOf('footballLogic')).data.cycle?.sets).toEqual(['fl-1']);
   });
 
   it('lists the days that play a set of their own, and a publisher sends them back to the rotation', async () => {

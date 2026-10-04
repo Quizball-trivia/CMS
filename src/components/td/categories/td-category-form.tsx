@@ -106,12 +106,13 @@ export function TdCategoryForm({ category, leaveRef, onSuccess }: TdCategoryForm
   }
 
   const alive = useRef(true);
-  useEffect(
-    () => () => {
+  useEffect(() => {
+    // Set again on mount: development mounts effects twice.
+    alive.current = true;
+    return () => {
       alive.current = false;
-    },
-    [],
-  );
+    };
+  }, []);
 
   async function run(label: Busy, work: () => Promise<unknown>, done: string) {
     setBusy(label);
