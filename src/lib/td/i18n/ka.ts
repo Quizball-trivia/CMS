@@ -6,6 +6,7 @@ import { KA_EDITORS } from './ka-editors';
 import { KA_OPS } from './ka-ops';
 import { KA_PUBLISH } from './ka-publish';
 import { KA_SHELL } from './ka-shell';
+import { KA_UPLOAD } from './ka-upload';
 
 export const KA_PARTS = {
   common: KA_COMMON,
@@ -14,6 +15,7 @@ export const KA_PARTS = {
   editors: KA_EDITORS,
   publish: KA_PUBLISH,
   ops: KA_OPS,
+  upload: KA_UPLOAD,
 } as const;
 
 export const KA: Record<string, string> = {
@@ -23,4 +25,5 @@ export const KA: Record<string, string> = {
   ...KA_EDITORS,
   ...KA_PUBLISH,
   ...KA_OPS,
+  ...KA_UPLOAD,
 };

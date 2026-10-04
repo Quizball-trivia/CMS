@@ -232,8 +232,8 @@ function read(column: TdImportColumn, cell: string): unknown {
   }
 }
 
-/** One item from a sheet row, in the contract's data shape. */
-function toItem(type: TdContentType, values: Record<string, unknown>) {
+/** One item from a row's values (as a sheet's columns read them), in the contract's data shape. */
+export function toItem(type: TdContentType, values: Record<string, unknown>) {
   const { position, note, ...data } = values;
   if (type === 'cards') {
     const { photoId, photoVer } = data;
@@ -270,6 +270,11 @@ function rowHash(text: string): string {
     b = Math.imul(b ^ code, 0x85ebca6b);
   }
   return (a >>> 0).toString(36) + (b >>> 0).toString(36);
+}
+
+/** The ID made up for a row that has none: from what its columns say, in the type's own column order. */
+export function madeKey(type: TdContentType, values: Record<string, unknown>): string {
+  return `row-${rowHash(canonicalJson(TD_IMPORT_COLUMNS[type].map((column) => (column === KEY ? null : (values[column.name] ?? null)))))}`;
 }
 
 export interface TdSheetOptions {
@@ -321,7 +326,7 @@ export function parseSheet(type: TdContentType, text: string, options: TdSheetOp
       }
     }
     if (ok && keyless) {
-      values.key = `row-${rowHash(canonicalJson(TD_IMPORT_COLUMNS[type].map((column) => (column === KEY ? null : (values[column.name] ?? null)))))}`;
+      values.key = madeKey(type, values);
       const first = made.get(values.key as string);
       if (first !== undefined) {
         ok = false;
@@ -354,6 +359,9 @@ function limits(items: unknown[]): TdParseProblem[] {
   if (new TextEncoder().encode(JSON.stringify({ items })).length > TD_IMPORT_MAX_BYTES) return [{ line: 0, column: null, message: t('The import is larger than the API accepts (4 MB). Split the file.') }];
   return [];
 }
+
+/** What a payload of items may not exceed (count and size), as problems. */
+export const tdImportLimits = limits;
 
 /** A CSV template for a type: the header and one example row. */
 export function sheetTemplate(type: TdContentType): string {
