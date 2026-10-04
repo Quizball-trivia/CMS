@@ -1,24 +1,32 @@
 'use client';
 
-import { useState } from 'react';
-import { ChevronLeft, ChevronRight, Pencil, Plus } from 'lucide-react';
+import { useId, useMemo, useState, type ReactNode } from 'react';
+import { Image as ImageIcon, List, Route, Search, type LucideIcon } from 'lucide-react';
+import { toast } from 'sonner';
+import { useQueryClient } from '@tanstack/react-query';
+import { Card, CardContent } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
-import { TdSection } from '@/components/td/td-page';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Badge } from '@/components/ui/badge';
 import { TdErrorPanel } from '@/components/td/td-error-panel';
-import { TdCellTitle, TdContentList } from '@/components/td/content/td-content-list';
-import { TdContentEditorDialog, type TdEditorTarget } from '@/components/td/content/td-content-editor';
-import { TD_DAILY_GAMES, useTdPuzzles, type TdPuzzle } from '@/components/td/content/editors/dailies';
-import { TdStatusChip } from '@/components/td/content/td-status';
-import { useTdAllRows } from '@/hooks/use-td-content';
-import type { TdContentRow, TdDailyGame } from '@/lib/td/admin-api';
-import { addDays, daysFrom, formatDay, formatMonth, monthGrid, scheduledSet, shiftMonth, WEEKDAYS_SHORT, type DailyCycle } from '@/lib/td/georgia';
+import { dailyGame, TD_DAILY_GAMES, type TdPuzzle } from '@/components/td/content/editors/dailies';
+import { TD_STATUS_LABELS } from '@/components/td/content/td-status';
+import { tdKeys, useTdAllRows, useTdWrite } from '@/hooks/use-td-content';
 import { useGeorgiaToday } from '@/hooks/use-georgia-today';
-import { t } from '@/lib/td/i18n';
+import type { TdContentData, TdContentRow, TdDailyGame } from '@/lib/td/admin-api';
+import { TdApiError } from '@/lib/td/api-client';
+import { tdAdmin } from '@/lib/td/client';
+import { addDays, dayNumber, daysFrom, formatDay, scheduledSet, type DailyCycle } from '@/lib/td/georgia';
+import { t, tc, tn } from '@/lib/td/i18n';
+import { contentActions } from '@/lib/td/workflow';
 import { cn } from '@/lib/utils';
+import { useTdAuth } from '@/providers/td-auth-provider';
 
 const ALL = 'draft,ready,approved,archived';
 const COVERAGE_DAYS = 30;
-const WEEKDAYS = WEEKDAYS_SHORT;
+const DEFAULT_SECONDS = 30;
 
 type ScheduleRow = TdContentRow<'daily-schedule'>;
 type SettingsRow = TdContentRow<'daily-settings'>;
@@ -71,189 +79,455 @@ export function planDays(dates: string[], today: string, rows: ScheduleRow[], se
   });
 }
 
-export function TdDailiesTab() {
-  const [game, setGame] = useState<TdDailyGame>('footballLogic');
-  const [target, setTarget] = useState<TdEditorTarget | null>(null);
-  const info = TD_DAILY_GAMES.find((g) => g.game === game)!;
+// Quizball's icons for the same three games (daily-challenges.definitions.ts).
+const META: Record<TdDailyGame, { Icon: LucideIcon; description: string }> = {
+  footballLogic: { Icon: ImageIcon, description: t('Use the visual clues to decode the footballer, match, or moment.') },
+  putInOrder: { Icon: List, description: t('Put the items into the correct order.') },
+  careerPath: { Icon: Route, description: t('Read the club path and identify the player behind the journey.') },
+};
+
+interface DailySet extends TdPuzzle {
+  /** Questions with approved content in this set. */
+  approved: number;
+}
+
+/** The sets a game has, from its live questions: how many there are in each and how many are approved. */
+function useDailySets(game: TdDailyGame) {
+  const rows = useTdAllRows(dailyGame(game).type, { status: 'draft,ready,approved' });
+  const sets = useMemo(() => {
+    const byKey = new Map<string, DailySet>();
+    const entry = (key: string) => byKey.get(key) ?? { key, questions: 0, approved: 0, playable: false };
+    for (const row of rows.data?.rows ?? []) {
+      const working = entry(String(row.data.puzzle));
+      byKey.set(working.key, { ...working, questions: working.questions + 1 });
+      if (row.approvedVersion !== null && row.approved) {
+        const approved = entry(String(row.approved.puzzle));
+        byKey.set(approved.key, { ...approved, approved: approved.approved + 1, playable: true });
+      }
+    }
+    return [...byKey.values()].sort((a, b) => a.key.localeCompare(b.key));
+  }, [rows.data]);
+  return { sets, isSuccess: rows.isSuccess, error: rows.error };
+}
+
+/** What a game has: its settings row, its sets, and whether each of the next 30 days has a playable set. */
+function useDailyGame(game: TdDailyGame) {
+  const today = useGeorgiaToday();
+  const settings = useTdAllRows('daily-settings', { status: ALL });
+  const { sets, isSuccess: setsLoaded, error: setsError } = useDailySets(game);
+  const range = today ? { from: today, to: addDays(today, COVERAGE_DAYS - 1) } : {};
+  const schedule = useTdAllRows('daily-schedule', { game, status: ALL, ...range }, today !== null);
+
+  const row = useMemo(() => {
+    const rows = (settings.data?.rows ?? []).filter((r) => r.data.game === game);
+    return rows.find((r) => r.status !== 'archived') ?? rows[0] ?? null;
+  }, [settings.data, game]);
+  const missing = useMemo(() => {
+    if (!today || !schedule.data || !setsLoaded) return null;
+    return planDays(daysFrom(today, COVERAGE_DAYS), today, schedule.data.rows, row, sets).filter((day) => day.missing);
+  }, [today, schedule.data, setsLoaded, row, sets]);
+  return { today, row, sets, missing, loaded: settings.isSuccess && setsLoaded, error: settings.error ?? setsError ?? schedule.error };
+}
+
+/** What the form holds: the seconds as typed, the cycle's start and its sets in turn (none: no cycle). */
+interface Form {
+  seconds: string;
+  anchor: string;
+  sets: string[];
+}
+
+function formOf(game: TdDailyGame, row: SettingsRow | null, today: string | null): Form {
+  return {
+    seconds: game === 'careerPath' ? '' : String(row ? (row.data.seconds ?? '') : DEFAULT_SECONDS),
+    anchor: row?.data.cycle?.anchor ?? today ?? '',
+    sets: row?.data.cycle?.sets ?? [],
+  };
+}
+
+function dataOf(game: TdDailyGame, form: Form): TdContentData<'daily-settings'> {
+  return { game, seconds: game === 'careerPath' ? null : Number(form.seconds), cycle: form.sets.length > 0 ? { anchor: form.anchor, sets: form.sets } : null };
+}
+
+function problemsOf(game: TdDailyGame, form: Form) {
+  const seconds = form.seconds.trim();
+  const secondsOk = game === 'careerPath' || (/^\d+$/.test(seconds) && Number(seconds) >= 1 && Number(seconds) <= 600);
+  return {
+    seconds: secondsOk ? null : t('1 to 600 seconds.'),
+    anchor: form.sets.length === 0 || dayNumber(form.anchor) !== null ? null : t('A date (YYYY-MM-DD)'),
+  };
+}
+
+function sameForm(game: TdDailyGame, a: Form, b: Form): boolean {
+  return a.sets.join() === b.sets.join() && (a.sets.length === 0 || a.anchor === b.anchor) && (game === 'careerPath' || a.seconds.trim() === b.seconds.trim());
+}
+
+function SettingField({ label, type, value, onChange, problem, min, max }: { label: string; type: 'number' | 'date'; value: string; onChange: (value: string) => void; problem: string | null; min?: number; max?: number }) {
+  const id = useId();
   return (
-    <>
-      <div className="flex flex-wrap gap-1 rounded-xl border border-border bg-card p-1" role="tablist" aria-label={t('Daily game')}>
-        {TD_DAILY_GAMES.map((g) => (
-          <button
-            key={g.game}
-            type="button"
-            role="tab"
-            aria-selected={g.game === game}
-            onClick={() => setGame(g.game)}
-            className={cn('rounded-lg px-4 py-2 text-sm font-medium', g.game === game ? 'bg-(--td-input) text-foreground' : 'text-(--td-text-3) hover:text-foreground')}
-          >
-            {g.label}
-          </button>
-        ))}
-      </div>
-      <TdCalendar key={game} game={game} onOpen={setTarget} />
-      <TdGameSettings game={game} onOpen={setTarget} />
-      <TdContentList
-        key={`list-${game}`}
-        type={info.type}
-        title={t('{game}: puzzles', { game: info.label })}
-        description={t('Every question belongs to a puzzle (set); a date plays one puzzle.')}
-        onOpen={(row) => setTarget({ type: info.type, row })}
-        onCreate={() => setTarget({ type: info.type, row: null })}
-        createLabel={t('New question')}
-        emptyTitle={t('No questions yet')}
-        columns={[
-          { header: t('Puzzle'), className: 'w-32', cell: (row) => <span className="font-mono text-xs">{String(row.data.puzzle)}</span> },
-          {
-            header: t('Question'),
-            cell: (row) => {
-              const data = row.data as { key: string; displayAnswer?: string; prompt?: string };
-              return <TdCellTitle title={data.displayAnswer ?? data.prompt} sub={data.key} />;
-            },
-          },
-        ]}
-      />
-      <TdContentEditorDialog target={target} onClose={() => setTarget(null)} />
-    </>
+    <div className="space-y-2">
+      <Label htmlFor={id} className="text-[10px] font-black uppercase tracking-widest text-slate-400">{label}</Label>
+      <Input id={id} type={type} value={value} min={min} max={max} aria-invalid={problem !== null} onChange={(event) => onChange(event.target.value)} className="h-10" />
+      {problem && <p role="alert" className="text-xs text-red-600">{problem}</p>}
+    </div>
   );
 }
 
-function TdCalendar({ game, onOpen }: { game: TdDailyGame; onOpen: (target: TdEditorTarget) => void }) {
-  const today = useGeorgiaToday();
-  const [month, setMonth] = useState<string | null>(null);
-  const shown = month ?? today?.slice(0, 7) ?? null;
-  const weeks = shown ? monthGrid(`${shown}-01`) : [];
-  const monthDates = weeks.flat().filter((d): d is string => d !== null);
-  const earlier = (a: string, b: string) => (a < b ? a : b);
-  const later = (a: string, b: string) => (a > b ? a : b);
-  const from = today && shown ? earlier(monthDates[0], today) : undefined;
-  const to = today && shown ? later(monthDates[monthDates.length - 1], addDays(today, COVERAGE_DAYS - 1)) : undefined;
-  const rows = useTdAllRows('daily-schedule', { game, from, to, status: ALL }, Boolean(from));
-  const settings = useTdAllRows('daily-settings', { game, status: ALL });
-  const { puzzles } = useTdPuzzles(game);
-  const setting = settings.data?.rows.find((row) => row.status !== 'archived') ?? null;
-
-  const days = today && from && to ? planDays(daysFrom(from, Math.round((Date.parse(to) - Date.parse(from)) / 86_400_000) + 1), today, rows.data?.rows ?? [], setting, puzzles) : [];
-  const byDate = new Map(days.map((d) => [d.date, d]));
-  const coverage = days.filter((d) => d.inWindow);
-  const missing = coverage.filter((d) => d.missing);
-
-  const open = (day: TdDayView) =>
-    onOpen(day.row ? { type: 'daily-schedule', row: day.row } : { type: 'daily-schedule', row: null, preset: { game, date: day.date, puzzle: day.planned ?? '' } });
+function DailySets({
+  options,
+  turns,
+  coverage,
+  onToggle,
+  onSelectAll,
+  onClear,
+}: {
+  options: DailySet[];
+  /** The cycle: set keys in turn, a set that plays twice twice. */
+  turns: string[];
+  coverage: ReactNode;
+  onToggle: (key: string, checked: boolean) => void;
+  onSelectAll: () => void;
+  onClear: () => void;
+}) {
+  const [query, setQuery] = useState('');
+  const normalizedQuery = query.trim().toLowerCase();
+  const selected = useMemo(() => new Set(turns), [turns]);
+  const filtered = useMemo(() => {
+    const toShow = normalizedQuery.length === 0 ? options : options.filter((set) => set.key.toLowerCase().includes(normalizedQuery));
+    // The sets in turn first, in turn: the order shows what plays after what.
+    const rank = (key: string) => (selected.has(key) ? turns.indexOf(key) : turns.length);
+    return [...toShow].sort((left, right) => rank(left.key) - rank(right.key) || right.approved - left.approved || left.key.localeCompare(right.key));
+  }, [options, normalizedQuery, selected, turns]);
 
   return (
-    <TdSection
-      title={t('Calendar')}
-      description={t('One puzzle per Georgia date: the date’s own entry, otherwise the cycle. It shows what a release published now would play; pending changes are marked.')}
-      actions={
-        shown && (
-          <div className="flex items-center gap-1">
-            <Button variant="ghost" size="icon-sm" aria-label={t('Previous month')} onClick={() => setMonth(shiftMonth(shown, -1))}>
-              <ChevronLeft />
-            </Button>
-            <span className="w-36 text-center text-sm font-medium">{formatMonth(shown)}</span>
-            <Button variant="ghost" size="icon-sm" aria-label={t('Next month')} onClick={() => setMonth(shiftMonth(shown, 1))}>
-              <ChevronRight />
-            </Button>
-          </div>
-        )
-      }
-    >
-      <div className="flex flex-col gap-3 p-4">
-        <TdErrorPanel error={rows.error ?? settings.error} />
-        {today && rows.isSuccess && (
-          <p className={cn('rounded-lg px-3 py-2 text-sm', missing.length ? 'bg-(--td-danger)/10 text-(--td-danger)' : 'bg-(--td-new)/10 text-(--td-new)')}>
-            {missing.length
-              ? t('{missing} of the next {days} days have no playable puzzle (from {date}). A release needs all {days}.', { missing: missing.length, days: COVERAGE_DAYS, date: formatDay(missing[0].date) })
-              : t('The next {days} days all have a playable puzzle.', { days: COVERAGE_DAYS })}
-          </p>
-        )}
-        <div className="grid grid-cols-7 gap-1 text-xs">
-          {WEEKDAYS.map((day) => (
-            <div key={day} className="px-1 pb-1 text-center font-medium text-(--td-text-3)">
-              {day}
-            </div>
-          ))}
-          {weeks.flat().map((date, i) => {
-            if (!date) return <div key={`pad-${i}`} />;
-            const day = byDate.get(date);
+    <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-3">
+      <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+        <div className="relative md:w-80">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+          <Input
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder={t('Search sets...')}
+            className="h-9 bg-white pl-9"
+          />
+        </div>
+        <div className="flex items-center gap-2">
+          <Button type="button" variant="outline" size="sm" onClick={onClear} disabled={turns.length === 0}>
+            {t('Clear')}
+          </Button>
+          <Button type="button" variant="outline" size="sm" onClick={onSelectAll} disabled={options.every((set) => selected.has(set.key))}>
+            {t('Select all')}
+          </Button>
+        </div>
+      </div>
+
+      <div className="mt-3 max-h-64 overflow-y-auto pr-1">
+        <div className="grid gap-2 sm:grid-cols-2 2xl:grid-cols-3">
+          {filtered.map((set) => {
+            const isSelected = selected.has(set.key);
+            const positions = turns.flatMap((key, index) => (key === set.key ? [index + 1] : []));
             return (
-              <button
-                key={date}
-                type="button"
-                onClick={() => day && open(day)}
-                aria-label={day?.planned != null ? `${formatDay(date)}: ${day.planned}` : t('{date}: no puzzle', { date: formatDay(date) })}
+              <label
+                key={set.key}
                 className={cn(
-                  'flex min-h-20 flex-col gap-1 rounded-lg border p-1.5 text-left transition-colors hover:bg-secondary/60',
-                  day?.inWindow ? 'border-border bg-(--td-input)/40' : 'border-transparent bg-(--td-input)/15',
-                  day?.missing && 'border-(--td-danger)/60',
-                  date === today && 'ring-1 ring-primary',
+                  'flex cursor-pointer items-start gap-2 rounded-xl border bg-white px-3 py-2 transition-colors',
+                  isSelected ? 'border-slate-900 ring-1 ring-slate-900' : 'border-slate-200 hover:border-slate-300'
                 )}
               >
-                <span className="flex items-center justify-between">
-                  <span className={cn('tabular-nums', date === today ? 'font-bold text-primary' : 'text-(--td-text-3)')}>{Number(date.slice(8))}</span>
-                  {day?.row && <TdStatusChip status={day.row.status} className="px-1.5 py-0 text-[10px]" />}
-                </span>
-                {day?.planned ? (
-                  <span className={cn('truncate font-mono text-[11px]', day.playable ? 'text-foreground' : 'text-(--td-danger)')} title={day.playable ? undefined : t('No approved question in this puzzle')}>
-                    {day.planned}
-                  </span>
-                ) : (
-                  day?.inWindow && <span className="text-[11px] text-(--td-danger)">{t('No puzzle')}</span>
-                )}
-                {day?.planned && <span className="text-[10px] text-(--td-text-3)">{day.source === 'cycle' ? t('cycle') : t('own date')}</span>}
-                {day?.pending && <span className="truncate text-[10px] text-amber-800">→ {day.pending}</span>}
-              </button>
+                <Checkbox
+                  checked={isSelected}
+                  onCheckedChange={(checked) => onToggle(set.key, checked === true)}
+                  className="mt-0.5"
+                />
+                <div className="min-w-0">
+                  <div className="truncate text-sm font-semibold text-slate-900">
+                    {set.key}
+                  </div>
+                  <div className={cn('mt-0.5 text-xs', isSelected && !set.playable ? 'text-amber-600' : 'text-slate-500')}>
+                    {isSelected ? `${t('Day {turns}', { turns: positions.join(', ') })} · ` : ''}
+                    {t('{approved} approved · {total} total', { approved: set.approved, total: set.questions })}
+                  </div>
+                </div>
+              </label>
             );
           })}
         </div>
-        <p className="text-xs text-(--td-text-3)">{t('Click a date to schedule it or open its entry. An archived entry still holds its date: a publisher restores it rather than making a new one.')}</p>
+        {filtered.length === 0 ? (
+          <div className="rounded-xl border border-dashed border-slate-300 bg-white p-6 text-center text-sm text-slate-500">
+            {options.length === 0
+              ? t('No sets yet. Give questions a set on the Questions page or in an upload.')
+              : t('No sets match this search.')}
+          </div>
+        ) : null}
       </div>
-    </TdSection>
+
+      {coverage}
+
+      <p className="mt-3 text-xs text-slate-500">
+        {t('One set a day, in this order, the first on the day the cycle starts. With none selected, no set is played in turn.')}
+      </p>
+    </div>
   );
 }
 
-function TdGameSettings({ game, onOpen }: { game: TdDailyGame; onOpen: (target: TdEditorTarget) => void }) {
-  const settings = useTdAllRows('daily-settings', { game, status: ALL });
-  const row = settings.data?.rows.find((r) => r.status !== 'archived') ?? settings.data?.rows[0] ?? null;
-  const data = row?.data;
-  return (
-    <TdSection
-      title={t('Timing and cycle')}
-      description={t('Seconds per question or round, and the puzzles played in turn on dates without their own.')}
-      actions={
-        row ? (
-          <Button variant="secondary" className="rounded-lg" onClick={() => onOpen({ type: 'daily-settings', row })}>
-            <Pencil />
-            {t('Edit')}
-          </Button>
-        ) : (
-          settings.isSuccess && (
-            <Button className="rounded-lg" onClick={() => onOpen({ type: 'daily-settings', row: null, preset: { game, seconds: game === 'careerPath' ? null : 30, cycle: null } })}>
-              <Plus />
-              {t('Create settings')}
-            </Button>
-          )
-        )
+type Action = 'save' | 'ready' | 'approve' | 'restore';
+
+function DailyEditor({ game, edit, onEdit }: { game: TdDailyGame; edit: Form | undefined; onEdit: (form: Form | null) => void }) {
+  const { user } = useTdAuth();
+  const write = useTdWrite();
+  const queryClient = useQueryClient();
+  const { today, row, sets, missing } = useDailyGame(game);
+  const [busy, setBusy] = useState<Action | null>(null);
+  const [error, setError] = useState<unknown>(null);
+
+  const info = dailyGame(game);
+  const { Icon, description } = META[game];
+  const saved = formOf(game, row, today);
+  const form = edit ?? saved;
+  const dirty = !sameForm(game, form, saved);
+  const problems = problemsOf(game, form);
+  const invalid = problems.seconds !== null || problems.anchor !== null;
+  const actions = row && user ? contentActions(row, user) : null;
+  const saveAllowed = actions ? actions.save.allowed : true;
+
+  // A set the cycle names that no question has any more stays in the list, so it can be taken out.
+  const options = useMemo(() => {
+    const known = new Set(sets.map((set) => set.key));
+    const gone = [...new Set(form.sets)].filter((key) => !known.has(key));
+    return [...sets, ...gone.map((key): DailySet => ({ key, questions: 0, approved: 0, playable: false }))];
+  }, [sets, form.sets]);
+
+  const change = (patch: Partial<Form>) => onEdit({ ...form, ...patch });
+
+  async function run(action: Action, work: () => Promise<unknown>, done: string) {
+    setBusy(action);
+    setError(null);
+    try {
+      await work();
+      onEdit(null);
+      toast.success(done);
+    } catch (caught) {
+      if (caught instanceof TdApiError && caught.code === 'revision_conflict') {
+        // The form shows the row as it is now.
+        onEdit(null);
+        void queryClient.invalidateQueries({ queryKey: tdKeys.content });
       }
-    >
-      <div className="flex flex-wrap items-center gap-x-8 gap-y-2 px-5 py-4 text-sm">
-        {settings.isLoading && <span className="text-(--td-text-3)">{t('Loading…')}</span>}
-        {settings.isSuccess && !row && <span className="text-(--td-text-3)">{t('No settings yet: a release needs them.')}</span>}
-        {row && data && (
-          <>
-            <TdStatusChip status={row.status} />
-            <span>
-              <span className="text-(--td-text-3)">{t('Seconds')} </span>
-              {data.seconds ?? '—'}
-            </span>
-            <span>
-              <span className="text-(--td-text-3)">{t('Cycle')} </span>
-              {data.cycle ? t('{puzzles} from {date}', { puzzles: data.cycle.sets.join(' → '), date: formatDay(data.cycle.anchor) }) : t('none')}
-            </span>
-          </>
-        )}
+      setError(caught);
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  const api = tdAdmin.content('daily-settings');
+  const save = () => {
+    const data = dataOf(game, form);
+    void run('save', () => write((operation) => (row ? api.edit(row.id, { version: row.version, data }, operation) : api.create({ data }, operation))), t('{game} saved', { game: info.label }));
+  };
+  const transition = (action: 'ready' | 'approve' | 'restore', done: string) => {
+    if (!row) return;
+    const { id, version } = row;
+    void run(action, () => write((operation) => (action === 'approve' ? api.approve(id, version, undefined, operation) : api[action](id, version, operation))), done);
+  };
+
+  const reason = !actions
+    ? null
+    : dirty && (actions.ready.allowed || actions.approve.allowed || actions.restore.allowed)
+      ? t('Unsaved changes. Save before changing the status.')
+      : ([...new Set([actions.save.reason, actions.approve.reason, actions.restore.reason])].filter(Boolean).join(' ') || null);
+
+  // What a release published now would play, so settings still waiting for approval are not in it.
+  const waiting = row !== null && (row.status === 'draft' || row.status === 'ready');
+  const coverage =
+    missing === null ? null : (
+      <div className={cn('mt-3 rounded-xl border border-dashed border-slate-300 bg-white p-3 text-center text-sm', missing.length > 0 ? 'text-amber-600' : 'text-slate-500')}>
+        {missing.length > 0
+          ? tn(
+              missing.length,
+              '{missing} of the next {days} days has no playable set (from {date}). A release needs all {days}.',
+              '{missing} of the next {days} days have no playable set (from {date}). A release needs all {days}.',
+              { missing: missing.length, days: COVERAGE_DAYS, date: formatDay(missing[0].date) },
+            )
+          : t('The next {days} days all have a playable set.', { days: COVERAGE_DAYS })}
+        {waiting && ` ${t('Settings waiting for approval are not counted.')}`}
       </div>
-    </TdSection>
+    );
+
+  return (
+    <Card className="border-slate-200 shadow-sm">
+      <CardContent className="space-y-5 p-5">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+          <div className="flex items-start gap-3">
+            <div className="rounded-2xl bg-slate-100 p-3">
+              <Icon className="h-5 w-5 text-slate-700" />
+            </div>
+            <div className="min-w-0 space-y-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <h2 className="text-xl font-bold tracking-tight text-slate-950">{info.label}</h2>
+                <Badge variant="outline" className="border-slate-300 text-slate-600">
+                  {tn(form.sets.length, '{count} set', '{count} sets')}
+                </Badge>
+                <Badge variant="outline" className="border-slate-300 text-slate-600">
+                  {row ? TD_STATUS_LABELS[row.status] : t('No settings yet')}
+                </Badge>
+              </div>
+              <p className="max-w-3xl text-sm text-slate-500">{description}</p>
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-2 lg:items-end">
+            <div className="flex flex-wrap items-center gap-3">
+              <Button onClick={save} disabled={busy !== null || !saveAllowed || invalid || (row !== null && !dirty)}>
+                {t('Save')}
+              </Button>
+              {actions?.ready.allowed && (
+                <Button onClick={() => transition('ready', t('Marked ready for review'))} disabled={busy !== null || dirty}>
+                  {t('Mark ready')}
+                </Button>
+              )}
+              {actions?.approve.allowed && (
+                <Button onClick={() => transition('approve', tc('Approved', 'it happened'))} disabled={busy !== null || dirty}>
+                  {t('Approve')}
+                </Button>
+              )}
+              {actions?.restore.allowed && (
+                <Button onClick={() => transition('restore', t('Restored'))} disabled={busy !== null || dirty}>
+                  {t('Restore')}
+                </Button>
+              )}
+            </div>
+            {reason && <p className="max-w-xs text-xs text-slate-500 lg:text-right">{reason}</p>}
+          </div>
+        </div>
+
+        <TdErrorPanel error={error} />
+
+        {(game !== 'careerPath' || form.sets.length > 0) && (
+          <div className="grid gap-4 md:grid-cols-2">
+            {game !== 'careerPath' && (
+              <SettingField
+                label={game === 'footballLogic' ? t('Seconds / Question') : t('Seconds / Round')}
+                type="number"
+                min={1}
+                max={600}
+                value={form.seconds}
+                onChange={(seconds) => change({ seconds })}
+                problem={problems.seconds}
+              />
+            )}
+            {form.sets.length > 0 && <SettingField label={t('Cycle starts')} type="date" value={form.anchor} onChange={(anchor) => change({ anchor })} problem={problems.anchor} />}
+          </div>
+        )}
+
+        <div className="space-y-2">
+          <div className="flex items-end justify-between gap-3">
+            <div>
+              <Label className="text-[10px] font-black uppercase tracking-widest text-slate-400">{t('Sets in turn')}</Label>
+              <p className="mt-1 text-xs text-slate-500">
+                {t('Pick the sets this game plays in turn, one a day.')}
+              </p>
+            </div>
+            <span className={cn('shrink-0 text-xs font-semibold', form.sets.length > 0 ? 'text-slate-600' : 'text-amber-600')}>
+              {t('{n} selected', { n: form.sets.length })}
+            </span>
+          </div>
+          <DailySets
+            options={options}
+            turns={form.sets}
+            coverage={coverage}
+            onSelectAll={() => change({ sets: [...form.sets, ...options.map((set) => set.key).filter((key) => !form.sets.includes(key))] })}
+            onClear={() => change({ sets: [] })}
+            onToggle={(key, checked) => change({ sets: checked ? [...form.sets, key] : form.sets.filter((k) => k !== key) })}
+          />
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function DailyGameButton({ game, isSelected, edit, onSelect }: { game: TdDailyGame; isSelected: boolean; edit: Form | undefined; onSelect: () => void }) {
+  const { today, row, missing } = useDailyGame(game);
+  const { Icon } = META[game];
+  const form = edit ?? formOf(game, row, today);
+  const seconds = game === 'careerPath' ? '' : form.seconds.trim();
+  const good = row?.status === 'approved' && missing !== null && missing.length === 0;
+  return (
+    <button
+      type="button"
+      onClick={onSelect}
+      className={cn(
+        'w-full rounded-2xl border px-3 py-3 text-left transition-colors',
+        isSelected
+          ? 'border-slate-900 bg-slate-950 text-white shadow-sm'
+          : 'border-transparent hover:border-slate-200 hover:bg-slate-50'
+      )}
+    >
+      <div className="flex items-center gap-3">
+        <div className={cn('rounded-xl p-2', isSelected ? 'bg-white/10' : 'bg-slate-100')}>
+          <Icon className={cn('h-4 w-4', isSelected ? 'text-white' : 'text-slate-600')} />
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center justify-between gap-2">
+            <div className="truncate text-sm font-bold">{dailyGame(game).label}</div>
+            <div
+              role="img"
+              aria-label={good ? t('Approved, and the next {days} days are covered', { days: COVERAGE_DAYS }) : t('Not approved, or some of the next {days} days have no playable set', { days: COVERAGE_DAYS })}
+              title={good ? t('Approved, and the next {days} days are covered', { days: COVERAGE_DAYS }) : t('Not approved, or some of the next {days} days have no playable set', { days: COVERAGE_DAYS })}
+              className={cn('h-2 w-2 rounded-full', good ? 'bg-emerald-500' : 'bg-slate-300')}
+            />
+          </div>
+          <div className={cn('mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px]', isSelected ? 'text-slate-300' : 'text-slate-500')}>
+            <span>{tn(form.sets.length, '{count} set', '{count} sets')}</span>
+            {seconds !== '' && (
+              <>
+                <span>·</span>
+                <span>{t('{seconds} s', { seconds })}</span>
+              </>
+            )}
+          </div>
+        </div>
+      </div>
+    </button>
+  );
+}
+
+export function TdDailiesTab() {
+  const [game, setGame] = useState<TdDailyGame>(TD_DAILY_GAMES[0].game);
+  // What is typed and not saved, by game: it stays while another game is open.
+  const [edits, setEdits] = useState<Partial<Record<TdDailyGame, Form>>>({});
+  const settings = useTdAllRows('daily-settings', { status: ALL });
+  const { loaded, error } = useDailyGame(game);
+
+  const setEdit = (which: TdDailyGame, form: Form | null) =>
+    setEdits((current) => {
+      const next = { ...current };
+      if (form) next[which] = form;
+      else delete next[which];
+      return next;
+    });
+
+  return (
+    <>
+      <TdErrorPanel error={error} />
+
+      {!loaded && !error ? (
+        <Card>
+          <CardContent className="p-8 text-sm text-slate-500">{t('Loading daily challenges…')}</CardContent>
+        </Card>
+      ) : null}
+
+      <div className="grid gap-4 xl:grid-cols-[360px_minmax(0,1fr)]">
+        <Card className="border-slate-200 shadow-sm">
+          <CardContent className="p-2">
+            <div className="space-y-1">
+              {settings.isSuccess &&
+                TD_DAILY_GAMES.map((info) => (
+                  <DailyGameButton key={info.game} game={info.game} isSelected={info.game === game} edit={edits[info.game]} onSelect={() => setGame(info.game)} />
+                ))}
+            </div>
+          </CardContent>
+        </Card>
+
+        {loaded ? <DailyEditor key={game} game={game} edit={edits[game]} onEdit={(form) => setEdit(game, form)} /> : null}
+      </div>
+    </>
   );
 }
