@@ -241,6 +241,32 @@ describe('the Daily Challenges page', () => {
     expect((await settingsOf('footballLogic')).data.cycle?.sets).toEqual(['fl-1']);
   });
 
+  it('a draft typed while a save is on its way stays, and saves next on the revision that save made', async () => {
+    await signIn('editor');
+    // Saves of the settings wait for the gate.
+    let open!: () => void;
+    const gate = new Promise<void>((resolve) => (open = resolve));
+    const inner = server;
+    server = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      if (String(input).includes('/daily-settings/') && init?.method === 'PATCH') await gate;
+      return inner(input, init);
+    }) as typeof fetch;
+    const { admin } = await signIn('editor');
+    h.admin = admin;
+    renderTd(<TdDailiesTab />);
+    fireEvent.change(await screen.findByLabelText('Seconds / Question'), { target: { value: '41' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    // Away and back while it is saving: the fields are free again, and a new value is typed.
+    fireEvent.click(await gameButton('Put in Order'));
+    fireEvent.click(await gameButton('Football Logic'));
+    fireEvent.change(await screen.findByLabelText('Seconds / Question'), { target: { value: '30' } });
+    open();
+    await waitFor(async () => expect((await settingsOf('footballLogic')).data.seconds).toBe(41));
+    expect((screen.getByLabelText('Seconds / Question') as HTMLInputElement).value).toBe('30');
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(async () => expect((await settingsOf('footballLogic')).data.seconds).toBe(30));
+  });
+
   it('lists the days that play a set of their own, and a publisher sends them back to the rotation', async () => {
     const day = addDays(georgiaToday(), 3);
     await approved('daily-schedule', { game: 'footballLogic', date: day, puzzle: 'fl-2' });

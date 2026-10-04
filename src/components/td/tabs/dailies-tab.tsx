@@ -317,8 +317,10 @@ function DailyEditor({ game, edit, onEdit }: { game: TdDailyGame; edit: Form | u
     setBusy(action);
     setError(null);
     try {
-      await work();
-      if (sent) onEdit((current) => (current === sent ? null : current));
+      const result = await work();
+      // A draft typed while it was saving stays, now based on what was saved.
+      const savedRow = sent && result && typeof (result as SettingsRow).version === 'number' ? (result as SettingsRow) : null;
+      if (sent) onEdit((current) => (current === sent ? null : current && savedRow ? { ...current, base: savedRow.version, from: formOf(game, savedRow, today) } : current));
       toast.success(done);
     } catch (caught) {
       if (caught instanceof TdApiError && caught.code === 'revision_conflict') {
