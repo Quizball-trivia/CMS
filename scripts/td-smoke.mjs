@@ -177,17 +177,19 @@ try {
 
   await page.goto(`${BASE}/td/questions?mode=penalties`);
   await page.getByRole('button', { name: 'Upload Questions' }).click();
-  await page.getByLabel(/Or paste the cells here/).fill('key\tq\tdisplay\taliases\nsmoke-imp\tImported?\tYes\tyes');
-  await page.getByRole('button', { name: 'Read the pasted cells' }).click();
-  await page.getByRole('button', { name: 'Check' }).click();
-  await page.getByText(/1 ready to import · 0 with problems/).waitFor();
-  check('import reads pasted cells and the API previews them', true);
-  await page.keyboard.press('Escape');
+  const upload = page.locator('[data-slot="dialog-content"]');
+  await upload.locator('input[type="file"]').setInputFiles({ name: 'smoke.txt', mimeType: 'text/plain', buffer: Buffer.from('1. Uploaded in the smoke test?\nAnswer: Yes | yes\n') });
+  await upload.getByText('1 question selected for upload').waitFor();
+  await upload.getByRole('button', { name: 'Upload 1 Question' }).click();
+  await page.getByLabel('Search questions').fill('Uploaded');
+  await page.getByText('Uploaded in the smoke test?').waitFor();
+  check('an editor uploads a .txt file of questions and finds them in the list as drafts', true);
 
   await signOut(page);
   await page.waitForURL(/\/td\/login/);
   await signIn(page, 'publisher@demo.tablederby.test');
-  await page.goto(`${BASE}/td/questions?mode=penalties`);
+  // Ten a page, as the Quizball list shows them: the search finds it on the first.
+  await page.goto(`${BASE}/td/questions?mode=penalties&q=Smoke`);
   await page.getByText('Smoke test question?').click();
   await page.getByRole('button', { name: 'Approve' }).click();
   await page.locator('[data-slot="dialog-content"]').getByText('approved', { exact: true }).waitFor();
@@ -201,6 +203,7 @@ try {
   await page.getByRole('dialog', { name: 'Publish the approved content?' }).getByRole('button', { name: 'Publish' }).click();
   await page.getByText(/is current now\./).waitFor({ timeout: 20_000 });
   check('publisher publishes and sees every phase to current', true);
+  await page.keyboard.press('Escape');
 
   await signOut(page);
   await page.waitForURL(/\/td\/login/);

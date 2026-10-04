@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
-import { Archive, ArchiveRestore, ChevronLeft, ChevronRight, Clock, FileText, HelpCircle, Image as ImageIcon, Layers, Loader2, MoreHorizontal, Plus, Rocket, Search, Send, Upload, X } from 'lucide-react';
+import { Archive, ArchiveRestore, ChevronLeft, ChevronRight, Clock, FileText, HelpCircle, Image as ImageIcon, Layers, Loader2, MoreHorizontal, Plus, Rocket, Search, Send, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
@@ -24,7 +24,7 @@ import { TD_QUESTION_MODES } from '@/lib/td/question-modes';
 import { isTdPublisher } from '@/lib/td/workflow';
 import { cn } from '@/lib/utils';
 import { useTdAuth } from '@/providers/td-auth-provider';
-import { TdImportTab } from './import-tab';
+import { TdBulkUploadDialog } from '@/components/td/questions/td-bulk-upload-dialog';
 import { TdReleasesTab } from './releases-tab';
 
 const PAGE_SIZE = 10;
@@ -128,7 +128,6 @@ export function TdQuestionsTab() {
   const [refusals, setRefusals] = useState<Array<{ label: string; message: string }>>([]);
   const [archiving, setArchiving] = useState<TdContentRow[] | null>(null);
   const [target, setTarget] = useState<TdEditorTarget | null>(null);
-  const [uploading, setUploading] = useState(false);
   const [publishing, setPublishing] = useState(false);
   // A step past the last loaded row waits for its page. Closing, another step or a new filter gives the wait up.
   const wait = useRef<object | null>(null);
@@ -281,10 +280,7 @@ export function TdQuestionsTab() {
             <Rocket className="mr-2 h-4 w-4" />
             {t('Publish')}
           </Button>
-          <Button variant="outline" onClick={() => setUploading(true)}>
-            <Upload className="mr-2 h-4 w-4" />
-            {t('Upload Questions')}
-          </Button>
+          <TdBulkUploadDialog key={`${mode.type}:${category}`} initialType={mode.type} initialCategory={mode.categoryType && category !== 'all' ? category : null} />
           <Button
             onClick={() => open({ type: mode.type, row: null, preset: mode.categoryType && category !== 'all' ? { categoryKey: category } : undefined })}
             className="flex h-11 items-center gap-2 rounded-xl bg-gray-900 px-6 text-sm font-bold text-white shadow-lg shadow-gray-200 transition-all hover:bg-gray-800 active:scale-95"
@@ -626,18 +622,6 @@ export function TdQuestionsTab() {
               {t('Archive')}
             </Button>
           </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={uploading} onOpenChange={setUploading}>
-        <DialogContent className="flex max-h-[90vh] w-full flex-col gap-0 overflow-hidden rounded-[2rem] border-slate-200 bg-white p-0 sm:max-w-4xl">
-          <DialogHeader className="border-b border-slate-100 px-6 pb-4 pt-5">
-            <DialogTitle className="text-2xl font-black tracking-tight text-slate-900">{t('Upload questions')}</DialogTitle>
-            <DialogDescription>{t('Choose the game mode and the category, check the file format below, then choose the file. Every row becomes a draft.')}</DialogDescription>
-          </DialogHeader>
-          <div className="min-h-0 flex-1 overflow-y-auto">
-            {uploading && <TdImportTab embedded initialType={mode.type} initialCategory={mode.categoryType && category !== 'all' ? category : null} />}
-          </div>
         </DialogContent>
       </Dialog>
 

@@ -37,7 +37,6 @@ const { memoryBlobStore } = await import('@/lib/td/mock/blob-store');
 const { createMockTdApi, MOCK_PASSWORD, MOCK_STAFF } = await import('@/lib/td/mock-api');
 const { createOrigin, MemoryStorage, put } = await import('@/lib/td/__tests__/helpers');
 const { TdContentEditorDialog } = await import('../content/td-content-editor');
-const { TdImportTab } = await import('../tabs/import-tab');
 const { TdQuestionsTab } = await import('../tabs/questions-tab');
 const { TdReleasesTab } = await import('../tabs/releases-tab');
 const { useTdWrite } = await import('@/hooks/use-td-content');
@@ -715,110 +714,6 @@ describe('integration', () => {
     const dead = await open('td-evt-0004');
     fireEvent.click(await within(dead).findByRole('button', { name: 'Retry now' }));
     expect(await within(dead).findByText(/retried 60 events in the last hour/)).toBeTruthy();
-  });
-});
-
-describe('import', () => {
-  it('reads pasted cells, checks them, imports all as drafts once, and undoes the batch', async () => {
-    const { admin } = await signIn('editor');
-    renderTd(<TdImportTab />);
-    fireEvent.change(screen.getByLabelText(/Or paste the cells here/), { target: { value: 'key\tq\tdisplay\taliases\nimp-1\tFirst?\tOne\tone|1\nimp-2\tSecond?\tTwo\ttwo' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Read the pasted cells' }));
-    expect(await screen.findByText(/2 items read/)).toBeTruthy();
-    fireEvent.click(screen.getByRole('button', { name: 'Check' }));
-    expect(await screen.findByText(/2 ready to import · 0 with problems/)).toBeTruthy();
-    fireEvent.click(screen.getByRole('button', { name: /Import 2 as drafts/ }));
-    expect(await screen.findByText(/Imported 2 drafts as batch/)).toBeTruthy();
-    expect((await admin.content('penalty-questions').list({ q: 'imp-' })).items).toHaveLength(2);
-    fireEvent.click(await screen.findByText(/^cms:/, { selector: 'span' }));
-    fireEvent.click(await screen.findByRole('button', { name: 'Undo this import' }));
-    // The key is retired before the batch shows it undone (its Undo button goes).
-    await waitFor(() => expect(screen.queryByRole('button', { name: 'Undo this import' })).toBeNull());
-    expect((await admin.content('penalty-questions').list({ q: 'imp-' })).items).toHaveLength(0);
-
-    // The same cells after an undo are a new import, not the undone batch answered again.
-    fireEvent.click(screen.getByRole('button', { name: 'Read the pasted cells' }));
-    fireEvent.click(await screen.findByRole('button', { name: 'Check' }));
-    fireEvent.click(await screen.findByRole('button', { name: /Import 2 as drafts/ }));
-    expect(await screen.findByText(/Imported 2 drafts as batch/)).toBeTruthy();
-    expect((await admin.content('penalty-questions').list({ q: 'imp-' })).items).toHaveLength(2);
-  });
-
-  it('of two files chosen one after the other, the later choice is the one shown, whichever is read first', async () => {
-    await signIn('editor');
-    renderTd(<TdImportTab />);
-    const file = (name: string, key: string) => {
-      const read = deferred<string>();
-      return { read, file: Object.assign(new File([''], name), { text: () => read.promise }), cells: `key,q,display,aliases\n${key},Which?,One,one` };
-    };
-    const older = file('older.csv', 'older-1');
-    const latest = file('latest.csv', 'latest-1');
-    const input = screen.getByTestId('td-import-file');
-    fireEvent.change(input, { target: { files: [older.file] } });
-    fireEvent.change(input, { target: { files: [latest.file] } });
-    await act(async () => {
-      older.read.resolve(older.cells);
-      await sleep(20);
-      latest.read.resolve(latest.cells);
-      await sleep(20);
-    });
-    expect(await screen.findByText('latest.csv')).toBeTruthy();
-    expect(screen.queryByText('older.csv')).toBeNull();
-  });
-
-  it('an import whose answer was lost is answered with its own batch when the same cells are read again', async () => {
-    const inner = server;
-    let lose = true;
-    server = (async (input: RequestInfo | URL, init?: RequestInit) => {
-      const response = await inner(input, init);
-      if (lose && init?.method === 'POST' && String(input).endsWith('/admin/content/imports')) {
-        lose = false;
-        throw new TypeError('Failed to fetch');
-      }
-      return response;
-    }) as typeof fetch;
-    const { admin } = await signIn('editor');
-    renderTd(<TdImportTab />);
-    fireEvent.change(screen.getByLabelText(/Or paste the cells here/), { target: { value: 'key\tq\tdisplay\taliases\nlost-1\tFirst?\tOne\tone\nlost-2\tSecond?\tTwo\ttwo' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Read the pasted cells' }));
-    fireEvent.click(await screen.findByRole('button', { name: 'Check' }));
-    fireEvent.click(await screen.findByRole('button', { name: /Import 2 as drafts/ }));
-    await waitFor(() => expect(lose).toBe(false));
-    await waitFor(() => expect(screen.getByRole('button', { name: /Import 2 as drafts/ }).hasAttribute('disabled')).toBe(false));
-    expect(screen.queryByText(/Imported 2 drafts/)).toBeNull();
-    expect((await admin.content('penalty-questions').list({ q: 'lost-' })).items).toHaveLength(2);
-
-    // Read again: asked with the same key before any check (which would call its own rows duplicates).
-    fireEvent.click(screen.getByRole('button', { name: 'Read the pasted cells' }));
-    expect(await screen.findByText(/Already imported as batch cms:/)).toBeTruthy();
-    expect((await admin.content('penalty-questions').list({ q: 'lost-' })).items).toHaveLength(2);
-    expect((await admin.imports.list()).items).toHaveLength(1);
-  });
-
-  it('never replays a saved import key under someone else’s sign-in', async () => {
-    const inner = server;
-    const applied: string[] = [];
-    server = ((input: RequestInfo | URL, init?: RequestInit) => {
-      if (init?.method === 'POST' && String(input).endsWith('/admin/content/imports')) applied.push((JSON.parse(String(init.body)) as { batchKey: string }).batchKey);
-      return inner(input, init);
-    }) as typeof fetch;
-    const editor = await signIn('editor');
-    const next = await clientFor('ops');
-    renderTd(<TdImportTab />);
-    const cells = 'key\tq\tdisplay\taliases\nswitch-1\tFirst?\tOne\tone';
-    fireEvent.change(screen.getByLabelText(/Or paste the cells here/), { target: { value: cells } });
-    fireEvent.click(screen.getByRole('button', { name: 'Read the pasted cells' }));
-    fireEvent.click(await screen.findByRole('button', { name: 'Check' }));
-    fireEvent.click(await screen.findByRole('button', { name: /Import 1 as drafts/ }));
-    expect(await screen.findByText(/Imported 1 drafts as batch/)).toBeTruthy();
-    expect(applied).toHaveLength(1);
-
-    // Someone else signs in in this browser; this view has not caught up yet.
-    await put(editor.tokens, { ...next.tokens.read()!, generation: 'gen-next', staffId: next.user.id });
-    fireEvent.click(screen.getByRole('button', { name: 'Read the pasted cells' }));
-    expect(await screen.findByText(/1 item read/)).toBeTruthy();
-    await sleep(50);
-    expect(applied).toHaveLength(1);
   });
 });
 
