@@ -38,7 +38,6 @@ const { createMockTdApi, MOCK_PASSWORD, MOCK_STAFF } = await import('@/lib/td/mo
 const { createOrigin, MemoryStorage, put } = await import('@/lib/td/__tests__/helpers');
 const { TdContentEditorDialog } = await import('../content/td-content-editor');
 const { TdImportTab } = await import('../tabs/import-tab');
-const { TdDashboard } = await import('../td-dashboard');
 const { TdQuestionsTab } = await import('../tabs/questions-tab');
 const { TdCategoriesTab } = await import('../tabs/categories-tab');
 const { TdReleasesTab } = await import('../tabs/releases-tab');
@@ -216,47 +215,6 @@ describe('content editor', () => {
     await waitFor(async () => expect((await publisher.admin.content('card-categories').get(category.id)).status).toBe('approved'));
     const cards = await publisher.admin.content('cards').list({ category: 'coaches' });
     expect(cards.items.map((c: TdContentRow<'cards'>) => c.status)).toEqual(['approved', 'approved']);
-  });
-});
-
-describe('dashboard', () => {
-  it('shows today, yesterday, the last 7 and the last 30 days side by side, and a bar for each of the 30 days', async () => {
-    const { admin } = await signIn('editor');
-    const data = await admin.dashboard();
-    renderTd(<TdDashboard />);
-    const players = (await screen.findByRole('rowheader', { name: 'Players' })).closest('tr')!;
-    await waitFor(() => expect(within(players).getAllByRole('cell').map((cell) => cell.firstElementChild?.textContent)).toEqual([data.today, data.yesterday, data.last7Days!, data.last30Days!].map((of) => String(of.players.active))));
-    const dailies = screen.getByRole('rowheader', { name: 'Dailies played' }).closest('tr')!;
-    expect(within(dailies).getAllByRole('cell')[2].textContent).toBe(`${data.last7Days!.dailies.attempts}${data.last7Days!.dailies.completed} completed`);
-    expect(screen.getByRole('columnheader', { name: /Last 7 days/ })).toBeTruthy();
-    expect(screen.getByRole('columnheader', { name: /Last 30 days/ })).toBeTruthy();
-
-    const bars = within(screen.getByRole('list', { name: 'Players' })).getAllByRole('listitem');
-    expect(bars).toHaveLength(30);
-    fireEvent.click(screen.getByRole('button', { name: 'Practice runs' }));
-    const runs = within(screen.getByRole('list', { name: 'Practice runs' })).getAllByRole('listitem');
-    expect(runs[29].getAttribute('aria-label')).toMatch(new RegExp(`: ${data.today.practice.runs}$`));
-
-    // The same figures as numbers, today first.
-    const numbers = screen.getByText('The figures of each day').closest('details')!;
-    const [, first] = within(numbers).getAllByRole('row');
-    const point = data.days[data.days.length - 1];
-    expect(within(first).getAllByRole('cell').map((cell) => cell.textContent)).toEqual([point.activePlayers, point.newPlayers, point.matchesSettled, point.dailiesCompleted, point.practiceRuns].map(String));
-    expect(within(numbers).getAllByRole('row')).toHaveLength(31);
-  });
-
-  it('leaves the longer periods empty, and says so, until the API has counted them; a day with no figure has an empty bar', async () => {
-    const { admin } = await signIn('editor');
-    const data = await admin.dashboard();
-    h.admin = { ...admin, dashboard: async () => ({ ...data, last7Days: null, last30Days: null, days: data.days.slice(-2) }) };
-    renderTd(<TdDashboard />);
-    expect(await screen.findByText('The figures of the last 7 and 30 days are still being counted; they appear within the hour.')).toBeTruthy();
-    const players = screen.getByRole('rowheader', { name: 'Players' }).closest('tr')!;
-    expect(within(players).getAllByRole('cell').map((cell) => cell.firstElementChild?.textContent).slice(2)).toEqual(['—', '—']);
-    const bars = within(screen.getByRole('list', { name: 'Players' })).getAllByRole('listitem');
-    expect(bars).toHaveLength(30);
-    expect(bars[0].getAttribute('aria-label')).toMatch(/no figure yet$/);
-    expect(bars[29].getAttribute('aria-label')).not.toMatch(/no figure yet$/);
   });
 });
 

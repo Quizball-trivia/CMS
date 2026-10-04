@@ -2,6 +2,7 @@
  *  One file per area; a text used in several areas lives in ka-common. */
 import { KA_COMMON } from './ka-common';
 import { KA_CONTENT } from './ka-content';
+import { KA_DASHBOARD } from './ka-dashboard';
 import { KA_EDITORS } from './ka-editors';
 import { KA_OPS } from './ka-ops';
 import { KA_PUBLISH } from './ka-publish';
@@ -16,6 +17,7 @@ export const KA_PARTS = {
   publish: KA_PUBLISH,
   ops: KA_OPS,
   questions: KA_QUESTIONS,
+  dashboard: KA_DASHBOARD,
 } as const;
 
 export const KA: Record<string, string> = {
@@ -26,4 +28,5 @@ export const KA: Record<string, string> = {
   ...KA_PUBLISH,
   ...KA_OPS,
   ...KA_QUESTIONS,
+  ...KA_DASHBOARD,
 };
