@@ -22,7 +22,7 @@ import { browserPendingPublications, type HeldRequest, type PendingPublications,
 import { isTdPublisher } from '@/lib/td/workflow';
 import { cn } from '@/lib/utils';
 import { useTdAuth } from '@/providers/td-auth-provider';
-import { questionsHref } from './questions-tab';
+import { questionsHref } from '@/lib/td/question-modes';
 
 /**
  * Whether the API refused this very request (so nothing started and a new attempt takes a new key).

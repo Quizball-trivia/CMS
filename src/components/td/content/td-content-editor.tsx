@@ -1,13 +1,12 @@
 'use client';
 
-import { useCallback, useEffect, useId, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type MutableRefObject, type ReactNode } from 'react';
-import { Archive, ArchiveRestore, Check, ChevronLeft, ChevronRight, Eye, History, Loader2, RefreshCw, Save, Send, TriangleAlert } from 'lucide-react';
+import { useCallback, useEffect, useRef, useState, type MutableRefObject, type ReactNode } from 'react';
+import { Archive, ArchiveRestore, CheckCircle2, ChevronLeft, ChevronRight, Edit, Eye, Loader2, RefreshCw, Send, TriangleAlert } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Textarea } from '@/components/ui/textarea';
 import { TdErrorPanel } from '@/components/td/td-error-panel';
-import { useTdContentRow, useTdCurrentRelease, useTdHistory, useTdWrite } from '@/hooks/use-td-content';
+import { useTdAllRows, useTdContentRow, useTdHistory, useTdWrite } from '@/hooks/use-td-content';
 import { TD_CONTENT_SCHEMA_NAMES, type TdContentData, type TdContentRow, type TdContentType } from '@/lib/td/admin-api';
 import { TdApiError } from '@/lib/td/api-client';
 import { tdAdmin } from '@/lib/td/client';
@@ -15,7 +14,7 @@ import { contentWriteIssues, TD_MERGE_UNITS } from '@/lib/td/content-rules';
 import type { SchemaIssue } from '@/lib/td/contract';
 import { describeTdError } from '@/lib/td/errors';
 import { formatGeorgiaTime } from '@/lib/td/georgia';
-import { t, tc, TD_LANG, tr } from '@/lib/td/i18n';
+import { t, tc, TD_LANG, tn } from '@/lib/td/i18n';
 import { mergeDrafts, resolveConflicts, sameDraft, type TdDraft, type TdFieldConflict } from '@/lib/td/merge';
 import { contentActions } from '@/lib/td/workflow';
 import { cn } from '@/lib/utils';
@@ -23,9 +22,9 @@ import { useTdAuth } from '@/providers/td-auth-provider';
 import { TD_TYPE_CONFIG } from './content-types';
 import { TdCategoryApproval } from './td-category-approval';
 import { TdUploadingContext } from './td-uploading';
-import { issuesAt, TdField, TdInvalidInputContext, TdNumberField, TdPendingInputContext } from './td-form';
+import { TdInvalidInputContext, TdPendingInputContext } from './td-form';
 import { hasPreview, TdPreview } from './td-preview';
-import { TdStatusChip, TD_STATUS_LABELS, TD_STATUS_WORDS } from './td-status';
+import { TD_STATUS_LABELS, TD_STATUS_WORDS } from './td-status';
 
 export interface TdEditorTarget<T extends TdContentType = TdContentType> {
   type: T;
@@ -37,8 +36,9 @@ export interface TdEditorTarget<T extends TdContentType = TdContentType> {
 const draftOf = (row: TdContentRow): TdDraft => ({ data: row.data as Record<string, unknown>, position: row.position, note: row.note });
 
 const CATEGORY_TYPES = new Set<TdContentType>(['card-categories', 'box-categories']);
+const CATEGORY_OF: Partial<Record<TdContentType, 'card-categories' | 'box-categories'>> = { cards: 'card-categories', 'box-questions': 'box-categories' };
 
-type Tab = 'edit' | 'preview' | 'history' | 'approved';
+type Mode = 'view' | 'edit';
 
 /** Where the open row stands in its list, and how to step to its neighbours. */
 export interface TdEditorNav {
@@ -51,42 +51,61 @@ export interface TdEditorNav {
   onGo: (index: number) => void;
 }
 
-/** The editor of one row, in a dialog over its list (as the Quizball CMS reviews
- *  and edits a question). With `nav`, the arrows and the ← → keys step through
- *  the list, staying on the tab that is open; `startOn="preview"` opens an
- *  existing row on what a player sees. */
+/** The game modes a new row may be made in, for the form's Type select (the Questions page passes its own). */
+export interface TdTypeChoice {
+  options: ReadonlyArray<{ type: TdContentType; label: string }>;
+  onChange: (type: TdContentType) => void;
+}
+
+const LABEL = 'text-[10px] font-black uppercase tracking-widest text-slate-400';
+
+/** The Quizball CMS's question dialog (components/questions/question-dialog.tsx):
+ *  an existing question opens on its preview, with the arrows and the ← → keys
+ *  stepping through the list; "Edit Details" turns it into the form. A row
+ *  with no preview (a category, a setting) opens on the form. */
 export function TdContentEditorDialog({
   target,
   onClose,
   onSaved,
   nav,
   startOn = 'edit',
+  types,
 }: {
   target: TdEditorTarget | null;
   onClose: () => void;
   onSaved?: (row: TdContentRow) => void;
   nav?: TdEditorNav | null;
   startOn?: 'edit' | 'preview';
+  types?: TdTypeChoice;
 }) {
-  // The tab is chosen when the dialog opens and kept while stepping through rows.
-  const [session, setSession] = useState<{ open: boolean; tab: Tab }>({ open: false, tab: 'edit' });
+  // Chosen when the dialog opens and kept while stepping through rows.
+  const [session, setSession] = useState<{ open: boolean; mode: Mode }>({ open: false, mode: 'edit' });
   if ((target !== null) !== session.open) {
-    setSession({ open: target !== null, tab: target?.row && startOn === 'preview' && hasPreview(target.type) ? 'preview' : 'edit' });
+    setSession({ open: target !== null, mode: target?.row && startOn === 'preview' && hasPreview(target.type) ? 'view' : 'edit' });
   }
+  // A new row turns to its preview once saved (the form asks for it).
+  const mode: Mode = session.mode === 'view' && target && hasPreview(target.type) ? 'view' : 'edit';
   // Asked before the dialog closes: the open form says whether it may be left.
   const leaveRef = useRef<() => boolean>(() => true);
   return (
     <Dialog open={target !== null} onOpenChange={(open) => !open && leaveRef.current() && onClose()}>
-      <DialogContent className="flex h-[min(90vh,880px)] w-full flex-col gap-0 overflow-hidden rounded-[2rem] border-slate-200 bg-white p-0 sm:max-w-3xl">
+      <DialogContent
+        className={cn(
+          'rounded-[1.5rem] border border-slate-200 bg-white shadow-2xl focus:outline-none',
+          mode === 'view' ? 'flex max-h-[92vh] w-[min(94vw,920px)] max-w-none flex-col gap-0 overflow-hidden p-0 sm:max-w-none' : 'max-h-[calc(100vh-2rem)] w-full overflow-y-auto p-5 sm:max-w-2xl sm:p-6',
+        )}
+      >
         {target && (
           <EditorBody
             key={`${target.type}:${target.row?.id ?? 'new'}`}
             target={target}
             leaveRef={leaveRef}
             onSaved={onSaved}
+            onClose={onClose}
             nav={target.row ? (nav ?? null) : null}
-            tab={session.tab}
-            setTab={(tab) => setSession((current) => ({ ...current, tab }))}
+            mode={mode}
+            setMode={(next) => setSession((current) => ({ ...current, mode: next }))}
+            types={target.row ? undefined : types}
           />
         )}
       </DialogContent>
@@ -105,16 +124,20 @@ function EditorBody({
   target,
   leaveRef,
   onSaved,
+  onClose,
   nav,
-  tab: asked,
-  setTab,
+  mode,
+  setMode,
+  types,
 }: {
   target: TdEditorTarget;
   leaveRef: MutableRefObject<() => boolean>;
   onSaved?: (row: TdContentRow) => void;
+  onClose: () => void;
   nav: TdEditorNav | null;
-  tab: Tab;
-  setTab: (tab: Tab) => void;
+  mode: Mode;
+  setMode: (mode: Mode) => void;
+  types?: TdTypeChoice;
 }) {
   const { type } = target;
   const config = TD_TYPE_CONFIG[type] as unknown as (typeof TD_TYPE_CONFIG)['penalty-questions'];
@@ -159,13 +182,10 @@ function EditorBody({
   const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [conflict, setConflict] = useState<Conflict | null>(null);
-  const noteId = useId();
   const [approving, setApproving] = useState(false);
+  const [confirmArchive, setConfirmArchive] = useState(false);
 
   const creating = row === null;
-  // The tab asked for, or Content when this row has no such tab (a step from a row that had it).
-  const tab: Tab = (asked === 'preview' && !hasPreview(type)) || (asked === 'history' && row === null) || (asked === 'approved' && !row?.approved) ? 'edit' : asked;
-  const otherTab = tab !== 'edit';
   const dirty = creating || !sameDraft(draft, base);
   // Something here would be lost by leaving: a change, text the draft does not have yet (not a valid number, a spelling not entered), an upload still running.
   const unsaved = held || typing.size > 0 || !sameDraft(draft, base);
@@ -184,23 +204,24 @@ function EditorBody({
     },
     [nav, mayLeave],
   );
-  // ← and → step through the list, unless a field is being typed in, the tabs have the keys, or another dialog is on top.
+  // ← and → step through the list on the preview, unless a field has the keys or another dialog is on top.
   useEffect(() => {
-    if (!nav) return;
+    if (!nav || mode !== 'view') return;
     const onKey = (event: KeyboardEvent) => {
       if (event.defaultPrevented || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
       if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
       const el = event.target as HTMLElement | null;
-      if (el && (el.isContentEditable || /^(?:INPUT|TEXTAREA|SELECT)$/.test(el.tagName) || el.closest('[role="tablist"]'))) return;
+      if (el && (el.isContentEditable || /^(?:INPUT|TEXTAREA|SELECT)$/.test(el.tagName))) return;
       if (document.querySelectorAll('[data-slot="dialog-content"]').length > 1) return;
       event.preventDefault();
       go(nav.index + (event.key === 'ArrowLeft' ? -1 : 1));
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [nav, go]);
+  }, [nav, go, mode]);
   const history = useTdHistory(type, row?.id ?? null);
-  const release = useTdCurrentRelease();
+  const categoryType = CATEGORY_OF[type];
+  const categories = useTdAllRows(categoryType ?? 'card-categories', {}, categoryType !== undefined && mode === 'view');
 
   // A fresher copy replaces the form only while nothing is typed in it.
   const fresh = useTdContentRow(type, row?.id ?? null);
@@ -221,7 +242,7 @@ function EditorBody({
   const api = tdAdmin.content(type);
   const schemaName = TD_CONTENT_SCHEMA_NAMES[type];
 
-  async function run(label: string, work: () => Promise<TdContentRow>, done: string) {
+  async function run(label: string, work: () => Promise<TdContentRow>, done: string): Promise<boolean> {
     setBusy(label);
     setError(null);
     setNotice(null);
@@ -230,8 +251,10 @@ function EditorBody({
       adopt(next);
       toast.success(done);
       onSaved?.(next);
+      return true;
     } catch (caught) {
       handleRefusal(caught);
+      return false;
     } finally {
       setBusy(null);
     }
@@ -248,13 +271,17 @@ function EditorBody({
       }
       const merge = theirs ? mergeDrafts(base, draft, draftOf(theirs), TD_MERGE_UNITS[type]) : { merged: draft, conflicts: [] };
       setConflict({ theirs, conflicts: merge.conflicts, merged: merge.merged, choices: {} });
+      setMode('edit');
       return;
     }
-    if (view.code === 'validation') setIssues(view.issues);
+    if (view.code === 'validation') {
+      setIssues(view.issues);
+      setMode('edit');
+    }
     setError(caught);
   }
 
-  const save = () => {
+  const save = async () => {
     if (held) return;
     const body = creating
       ? { data: draft.data, ...(draft.note ? { note: draft.note } : {}) }
@@ -265,101 +292,164 @@ function EditorBody({
       setError(null);
       return;
     }
-    void run(
+    const saved = await run(
       'save',
       () => write((operation) => (creating ? api.create(body as never, operation) : api.edit(row.id, body as never, operation))),
       creating ? t('{type} created as a draft', { type: capitalise(config.singular) }) : t('Saved'),
     );
+    if (saved && hasPreview(type)) setMode('view');
+  };
+
+  const cancel = () => {
+    if (!mayLeave()) return;
+    if (creating || !hasPreview(type)) return onClose();
+    setDraft(base);
+    setIssues([]);
+    setError(null);
+    setConflict(null);
+    setMode('view');
   };
 
   const transition = (action: 'ready' | 'approve' | 'archive' | 'restore', done: string) => {
     if (!row) return;
     const { id, version } = row;
+    setConfirmArchive(false);
     void run(
       action,
       () => write((operation) => (action === 'approve' ? api.approve(id, version, undefined, operation) : api[action](id, version, operation))),
       done,
     );
   };
+  const approve = () => (CATEGORY_TYPES.has(type) ? setApproving(true) : transition('approve', tc('Approved', 'it happened')));
 
   // A trail whose last refresh failed may be stale: it does not count.
   const actions = row && user ? contentActions(row, user, history.isError ? null : (history.data ?? null)) : null;
   const Editor = config.Editor;
-  const title = creating ? t('New {type}', { type: config.singular }) : config.title(draft.data as never) || config.singular;
-  const approvedDiffers = Boolean(row?.approved && (!sameDraft({ data: row.approved as Record<string, unknown>, position: row.approvedPosition ?? 0, note: '' }, { data: row.data as Record<string, unknown>, position: row.position, note: '' })));
-  const inRelease = row ? release.members.get(row.id) : undefined;
+  const question = hasPreview(type);
+  const name = config.title(draft.data as never) || config.singular;
+  const title =
+    mode === 'view' ? t('Question Preview') : creating ? (question ? t('New Question') : t('New {type}', { type: config.singular })) : question ? t('Edit Question') : t('Edit {type}', { type: config.singular });
+  const approvedDiffers = Boolean(row?.approved && !sameDraft({ data: row.approved as Record<string, unknown>, position: row.approvedPosition ?? 0, note: '' }, { data: row.data as Record<string, unknown>, position: row.position, note: '' }));
+  const reason = actions && (actions.approve.reason ?? actions.restore.reason);
 
-  return (
-    <div className="flex h-full min-h-0 flex-col">
-      <DialogHeader className="gap-2 border-b border-(--td-divider) px-6 pb-4 pt-5">
-        <div className="flex flex-wrap items-center gap-2 pr-8">
-          {row && <TdStatusChip status={row.status} />}
-          <span className="text-xs uppercase tracking-wide text-(--td-text-3)">{config.singular}</span>
-          {nav && (
-            <div className="ml-auto flex items-center gap-3">
-              <span className="text-xs font-black tabular-nums tracking-widest text-slate-400">
-                {nav.index + 1} <span className="mx-1 text-slate-200">/</span> {nav.total}
-                {nav.more ? '+' : ''}
-              </span>
-              <div className="flex gap-1 rounded-xl border border-slate-100 bg-slate-50 p-1">
-                <Button variant="ghost" size="icon" aria-label={t('Previous')} title={t('Previous')} disabled={nav.waiting || nav.index <= 0} onClick={() => go(nav.index - 1)} className="h-8 w-8 rounded-lg hover:bg-white hover:shadow-sm">
-                  <ChevronLeft className="h-4 w-4" />
-                </Button>
-                <Button variant="ghost" size="icon" aria-label={t('Next')} title={t('Next')} disabled={nav.waiting || (nav.index >= nav.total - 1 && !nav.more)} onClick={() => go(nav.index + 1)} className="h-8 w-8 rounded-lg hover:bg-white hover:shadow-sm">
-                  {nav.waiting ? <Loader2 className="h-4 w-4 animate-spin" /> : <ChevronRight className="h-4 w-4" />}
-                </Button>
-              </div>
+  const workflow = actions && (
+    <>
+      {actions.approve.allowed ? (
+        <QuickAction tone="go" busy={busy === 'approve'} disabled={busy !== null || dirty || held} onClick={approve} icon={<Eye className="mr-2 h-4 w-4" />}>
+          {t('Approve')}
+        </QuickAction>
+      ) : actions.ready.allowed ? (
+        <QuickAction tone="go" busy={busy === 'ready'} disabled={busy !== null || dirty || held} onClick={() => transition('ready', t('Marked ready for review'))} icon={<Send className="mr-2 h-4 w-4" />}>
+          {t('Mark ready')}
+        </QuickAction>
+      ) : actions.restore.allowed ? (
+        <QuickAction tone="go" busy={busy === 'restore'} disabled={busy !== null || dirty || held} onClick={() => transition('restore', t('Restored'))} icon={<ArchiveRestore className="mr-2 h-4 w-4" />}>
+          {t('Restore')}
+        </QuickAction>
+      ) : null}
+    </>
+  );
+  const archive = actions?.archive.allowed && (
+    <Button
+      variant={confirmArchive ? 'destructive' : 'ghost'}
+      disabled={busy !== null || dirty || held}
+      onClick={() => (confirmArchive ? transition('archive', tc('Archived', 'it happened')) : setConfirmArchive(true))}
+      className={cn('h-11 rounded-xl text-sm font-bold transition-all', !confirmArchive && 'text-red-400 hover:bg-red-50 hover:text-red-600')}
+    >
+      {busy === 'archive' ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Archive className="mr-2 h-4 w-4" />}
+      {confirmArchive ? t('Confirm?') : t('Archive')}
+    </Button>
+  );
+
+  const header = (
+    <DialogHeader className={cn(mode === 'view' ? 'shrink-0 border-b border-slate-100 py-5 pl-6 pr-14' : 'pb-4 pr-12')}>
+      <div className="flex items-center justify-between gap-3">
+        <DialogTitle className="text-2xl font-black tracking-tight text-slate-900">{title}</DialogTitle>
+        {mode === 'view' && nav && nav.total > 0 && (
+          <div className="flex items-center gap-3">
+            <span className="text-xs font-black uppercase tracking-widest text-slate-400">
+              {nav.index + 1} <span className="mx-1 text-slate-200">/</span> {nav.total}
+              {nav.more ? '+' : ''}
+            </span>
+            <div className="flex gap-1 rounded-xl border border-slate-100 bg-slate-50 p-1">
+              <Button variant="ghost" size="icon" aria-label={t('Previous')} title={t('Previous')} disabled={nav.waiting || nav.index <= 0} onClick={() => go(nav.index - 1)} className="h-8 w-8 rounded-lg transition-all hover:bg-white hover:shadow-sm">
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+              <Button variant="ghost" size="icon" aria-label={t('Next')} title={t('Next')} disabled={nav.waiting || (nav.index >= nav.total - 1 && !nav.more)} onClick={() => go(nav.index + 1)} className="h-8 w-8 rounded-lg transition-all hover:bg-white hover:shadow-sm">
+                {nav.waiting ? <Loader2 className="h-4 w-4 animate-spin" /> : <ChevronRight className="h-4 w-4" />}
+              </Button>
             </div>
-          )}
-        </div>
-        <DialogTitle className="line-clamp-2 text-lg">{title}</DialogTitle>
-        <DialogDescription asChild>
-          <div className="flex flex-col gap-0.5 text-xs text-(--td-text-3)">
-            {row ? (
-              <>
-                <span>{revisionLine(row)}</span>
-                {release.loaded && (
-                  <span>
-                    {inRelease === undefined
-                      ? t('Not in the current release.')
-                      : inRelease === row.contentVersion
-                        ? t('In the current release at content v{version}.', { version: inRelease })
-                        : t('In the current release at content v{version} (an older version).', { version: inRelease })}
-                  </span>
-                )}
-              </>
-            ) : (
-              <span>{t('Saved as a draft; mark it ready when it is done, then a publisher approves it.')}</span>
-            )}
-          </div>
-        </DialogDescription>
-        {(row || hasPreview(type)) && (
-          <div className="flex gap-1 pt-1" role="tablist" onKeyDown={stepTabs}>
-            <TabButton active={tab === 'edit'} onClick={() => setTab('edit')}>
-              {t('Content')}
-            </TabButton>
-            {hasPreview(type) && (
-              <TabButton active={tab === 'preview'} onClick={() => setTab('preview')}>
-                <Eye className="size-3.5" />
-                {t('Preview')}
-              </TabButton>
-            )}
-            {row && (
-              <TabButton active={tab === 'history'} onClick={() => setTab('history')}>
-                <History className="size-3.5" />
-                {t('History')}
-              </TabButton>
-            )}
-            {row?.approved && (
-              <TabButton active={tab === 'approved'} onClick={() => setTab('approved')}>
-                {t('Approved version')}
-              </TabButton>
-            )}
           </div>
         )}
-      </DialogHeader>
+      </div>
+      <DialogDescription className="sr-only">{row ? revisionLine(row) : t('Saved as a draft; mark it ready when it is done, then a publisher approves it.')}</DialogDescription>
+    </DialogHeader>
+  );
 
-      <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5">
+  if (mode === 'view' && row) {
+    const data = draft.data;
+    const categoryKey = typeof data.categoryKey === 'string' ? data.categoryKey : null;
+    const categoryRow = categoryKey ? categories.data?.rows.find((r) => (r.data as { key: string }).key === categoryKey) : undefined;
+    const categoryName = categoryRow ? ((categoryRow.data as { prompt?: string; title?: string }).prompt ?? (categoryRow.data as { title?: string }).title) : categoryKey;
+    const difficulty = type === 'practice-questions' ? String(data.difficulty) : null;
+    return (
+      <>
+        {header}
+        <div className="relative min-h-0 flex-1 overflow-y-auto px-6 py-5">
+          <div className="space-y-4">
+            <div className="flex flex-wrap items-center gap-3">
+              {difficulty && (
+                <span className={cn('rounded-full border border-slate-100 bg-slate-50 px-3 py-1.5 text-[10px] font-black uppercase tracking-widest', DIFFICULTY_TEXT[difficulty] ?? 'text-slate-500')}>{DIFFICULTY_WORDS[difficulty] ?? difficulty}</span>
+              )}
+              {type === 'cards' && (
+                <span className="rounded-full border border-slate-100 bg-slate-50 px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-slate-600">{tn(Number(data.value), '{count} point', '{count} points')}</span>
+              )}
+              <span className="rounded-full border border-slate-200 bg-slate-50/50 px-3 py-1 text-[10px] font-black uppercase tracking-widest text-slate-700">{config.singular}</span>
+              {categoryName && <span className="rounded-full border border-slate-200 bg-slate-50/50 px-3 py-1 text-[10px] font-black uppercase tracking-widest text-slate-700">{categoryName}</span>}
+              <span className={cn('rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-widest', row.status === 'approved' ? 'bg-slate-900 text-white shadow-sm' : 'bg-slate-100 text-slate-500')}>{TD_STATUS_WORDS[row.status]}</span>
+            </div>
+            {approvedDiffers && (
+              <p className="flex items-start gap-2 rounded-xl bg-amber-50 px-3 py-2 text-xs font-medium text-amber-700">
+                <TriangleAlert className="mt-0.5 size-3.5 shrink-0" />
+                {t('This version is not approved yet: players get the last approved one until it is.')}
+              </p>
+            )}
+            {notice && <p className="rounded-xl bg-slate-50 px-3 py-2 text-xs text-slate-600">{notice}</p>}
+            <TdPreview type={type} data={data} />
+            <TdErrorPanel error={error} />
+            {reason && <p className="text-xs font-medium text-slate-400">{reason}</p>}
+            <div className="flex gap-3 border-t border-slate-100 pt-4">
+              {workflow}
+              {actions?.save.allowed && (
+                <Button variant="outline" onClick={() => setMode('edit')} className="h-11 flex-1 rounded-xl border-slate-200 text-sm font-bold text-slate-700 transition-all hover:bg-slate-50">
+                  <Edit className="mr-2 h-4 w-4" />
+                  {t('Edit Details')}
+                </Button>
+              )}
+              {archive}
+            </div>
+          </div>
+        </div>
+        {approving && CATEGORY_TYPES.has(type) && (
+          <TdCategoryApproval
+            type={type as 'card-categories' | 'box-categories'}
+            category={row as TdContentRow<'card-categories'>}
+            onClose={() => setApproving(false)}
+            onApproved={(next) => {
+              adopt(next);
+              setApproving(false);
+              onSaved?.(next);
+            }}
+          />
+        )}
+      </>
+    );
+  }
+
+  return (
+    <>
+      {header}
+      <div className="space-y-4">
         {conflict ? (
           <ConflictPanel
             conflict={conflict}
@@ -379,115 +469,75 @@ function EditorBody({
           />
         ) : (
           <>
-            {tab === 'preview' && <TdPreview type={type} data={draft.data} />}
-            {tab === 'history' && row && <HistoryList type={type} id={row.id} />}
-            {tab === 'approved' && row?.approved && (
-              <ApprovedCompare approved={row.approved as Record<string, unknown>} current={row.data as Record<string, unknown>} approvedPosition={row.approvedPosition} position={row.position} />
+            {types && (
+              <div className="space-y-1.5">
+                <label htmlFor="td-new-type" className={cn(LABEL, 'ml-1')}>
+                  {t('Type')} *
+                </label>
+                <select
+                  id="td-new-type"
+                  value={type}
+                  onChange={(event) => mayLeave() && types.onChange(event.target.value as TdContentType)}
+                  className="h-9 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-medium"
+                >
+                  {types.options.map((option) => (
+                    <option key={option.type} value={option.type}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
             )}
-            {/* Hidden, not unmounted, on the other tabs: its fields keep what was typed, and a field whose text is not valid keeps holding Save. */}
-            <div className={cn('flex flex-col gap-4', otherTab && 'hidden')}>
-              {approvedDiffers && (
-                <p className="flex items-start gap-2 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-700">
-                  <TriangleAlert className="mt-0.5 size-3.5 shrink-0" />
-                  <span>
-                    {tr('This draft differs from the last approved version (v{version}). A release carries the approved version until this one is approved. {compare}', {
-                      version: row!.approvedVersion,
-                      compare: (
-                        <button key="compare" type="button" className="underline" onClick={() => setTab('approved')}>
-                          {t('Compare')}
-                        </button>
-                      ),
-                    })}
-                  </span>
-                </p>
-              )}
-              {notice && <p className="rounded-lg bg-(--td-input) px-3 py-2 text-xs text-(--td-text-2)">{notice}</p>}
-              {/* Locked while a write and its refresh run: the answer replaces the form, so nothing typed meanwhile may be lost. */}
-              <TdUploadingContext.Provider value={reportUploading}>
-                <TdInvalidInputContext.Provider value={reportInvalid}>
-                  <TdPendingInputContext.Provider value={reportPending}>
-                    <fieldset disabled={busy !== null || Boolean(nav?.waiting)} className="contents">
-                      <Editor
-                        value={draft.data as never}
-                        onChange={(update: unknown) =>
-                          setDraft((current) => ({
-                            ...current,
-                            data: (typeof update === 'function' ? (update as (d: Record<string, unknown>) => Record<string, unknown>)(current.data) : update) as Record<string, unknown>,
-                          }))
-                        }
-                        issues={issues}
-                        creating={creating}
-                      />
-                      {!creating && (
-                        <TdNumberField
-                          label={t('Position')}
-                          value={draft.position}
-                          onChange={(position) => setDraft({ ...draft, position: position ?? 0 })}
-                          issues={issuesAt(issues, 'position')}
-                          hint={t('The order in a release. Changing it is a change to the content.')}
-                          className="max-w-40"
-                        />
-                      )}
-                      <TdField label={t('Note')} htmlFor={noteId} issues={issuesAt(issues, 'note')} hint={t('For the team: sources, checks, questions. Changing only the note keeps the row’s status.')}>
-                        <Textarea id={noteId} value={draft.note} onChange={(event) => setDraft({ ...draft, note: event.target.value })} className="min-h-16 rounded-lg border-border bg-(--td-input) text-sm" />
-                      </TdField>
-                    </fieldset>
-                  </TdPendingInputContext.Provider>
-                </TdInvalidInputContext.Provider>
-              </TdUploadingContext.Provider>
-              {issues.some((issue) => !issue.path.startsWith('data.') && issue.path !== 'note' && issue.path !== 'position') && (
-                <TdErrorPanel error={new TdApiError(422, 'validation', 'Some fields are not valid', { issues })} />
+            {notice && <p className="rounded-xl bg-slate-50 px-3 py-2 text-xs text-slate-600">{notice}</p>}
+            {/* Locked while a write and its refresh run: the answer replaces the form, so nothing typed meanwhile may be lost. */}
+            <TdUploadingContext.Provider value={reportUploading}>
+              <TdInvalidInputContext.Provider value={reportInvalid}>
+                <TdPendingInputContext.Provider value={reportPending}>
+                  <fieldset disabled={busy !== null || Boolean(nav?.waiting)} className="flex flex-col gap-4">
+                    <Editor
+                      value={draft.data as never}
+                      onChange={(update: unknown) =>
+                        setDraft((current) => ({
+                          ...current,
+                          data: (typeof update === 'function' ? (update as (d: Record<string, unknown>) => Record<string, unknown>)(current.data) : update) as Record<string, unknown>,
+                        }))
+                      }
+                      issues={issues}
+                      creating={creating}
+                    />
+                  </fieldset>
+                </TdPendingInputContext.Provider>
+              </TdInvalidInputContext.Provider>
+            </TdUploadingContext.Provider>
+            {issues.some((issue) => !issue.path.startsWith('data.')) && <TdErrorPanel error={new TdApiError(422, 'validation', 'Some fields are not valid', { issues })} />}
+            <TdErrorPanel error={error} hideIssues={issues.length > 0} />
+            {invalid.size > 0 && <p className="text-xs font-medium text-red-600">{t('A number in the form is not valid: fix it to save.')}</p>}
+            {uploads > 0 && <p className="text-xs text-slate-400">{t('Waiting for the upload to finish.')}</p>}
+            {!question && row && reason && <p className="text-xs font-medium text-slate-400">{reason}</p>}
+            {!question && row && (workflow || archive) && (
+              <div className="flex gap-3">
+                {workflow}
+                {archive}
+              </div>
+            )}
+            <div className="flex gap-3 border-t border-slate-100 pt-4">
+              <Button variant="ghost" onClick={cancel} className="h-11 flex-1 rounded-xl text-sm font-bold text-slate-500 transition-all hover:bg-slate-100 hover:text-slate-900">
+                {t('Cancel')}
+              </Button>
+              {(creating || actions?.save.allowed) && (
+                <Button
+                  onClick={() => void save()}
+                  disabled={busy !== null || !dirty || held || Boolean(nav?.waiting)}
+                  className="h-11 flex-1 rounded-xl bg-slate-900 text-sm font-bold text-white shadow-md transition-all hover:-translate-y-0.5 hover:bg-slate-800 active:translate-y-0"
+                >
+                  {busy === 'save' ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle2 className="mr-2 h-4 w-4" />}
+                  {creating ? (question ? t('Create Question') : t('Create')) : t('Save Changes')}
+                </Button>
               )}
             </div>
           </>
         )}
       </div>
-
-      {!conflict && (
-        <footer className="flex flex-col gap-2 border-t border-(--td-divider) px-6 py-4">
-          <TdErrorPanel error={error} hideIssues={issues.length > 0} />
-          {invalid.size > 0 && <p className="text-xs text-(--td-danger)">{t('A number in the form is not valid: fix it to save.')}</p>}
-          {actions && (actions.approve.reason || actions.restore.reason) && <p className="text-xs text-(--td-text-3)">{actions.approve.reason ?? actions.restore.reason}</p>}
-          <div className="flex flex-wrap items-center gap-2">
-            {(creating || actions?.save.allowed) && (
-              <Button onClick={save} disabled={busy !== null || !dirty || held || Boolean(nav?.waiting)} className="rounded-lg">
-                {busy === 'save' ? <Loader2 className="animate-spin" /> : <Save />}
-                {creating ? t('Create draft') : t('Save')}
-              </Button>
-            )}
-            {actions?.ready.allowed && (
-              <ActionButton busy={busy} name="ready" dirty={dirty || held} onClick={() => transition('ready', t('Marked ready for review'))} icon={<Send />}>
-                {t('Mark ready')}
-              </ActionButton>
-            )}
-            {actions?.approve.allowed && (
-              <ActionButton
-                busy={busy}
-                name="approve"
-                dirty={dirty || held}
-                onClick={() => (CATEGORY_TYPES.has(type) ? setApproving(true) : transition('approve', tc('Approved', 'it happened')))}
-                icon={<Check />}
-              >
-                {t('Approve')}
-              </ActionButton>
-            )}
-            {actions?.restore.allowed && (
-              <ActionButton busy={busy} name="restore" dirty={dirty || held} onClick={() => transition('restore', t('Restored'))} icon={<ArchiveRestore />}>
-                {t('Restore')}
-              </ActionButton>
-            )}
-            <span className="flex-1" />
-            {actions?.archive.allowed && (
-              <Button variant="ghost" disabled={busy !== null || dirty || held} onClick={() => transition('archive', tc('Archived', 'it happened'))} className="rounded-lg text-(--td-text-2) hover:text-(--td-danger)">
-                {busy === 'archive' ? <Loader2 className="animate-spin" /> : <Archive />}
-                {t('Archive')}
-              </Button>
-            )}
-          </div>
-          {uploads > 0 && <p className="text-xs text-(--td-text-3)">{t('Waiting for the upload to finish.')}</p>}
-          {dirty && !creating && row && <p className="text-xs text-(--td-text-3)">{t('Unsaved changes. Save before changing the status.')}</p>}
-        </footer>
-      )}
       {approving && row && CATEGORY_TYPES.has(type) && (
         <TdCategoryApproval
           type={type as 'card-categories' | 'box-categories'}
@@ -500,7 +550,26 @@ function EditorBody({
           }}
         />
       )}
-    </div>
+      <span className="sr-only">{name}</span>
+    </>
+  );
+}
+
+const DIFFICULTY_TEXT: Record<string, string> = { easy: 'text-emerald-600', medium: 'text-amber-600', hard: 'text-rose-600' };
+const DIFFICULTY_WORDS: Record<string, string> = { easy: t('easy'), medium: t('medium'), hard: t('hard') };
+
+/** The Quizball dialog's status button: ghost, green while it moves the row on. */
+function QuickAction({ tone, busy, disabled, onClick, icon, children }: { tone: 'go'; busy: boolean; disabled: boolean; onClick: () => void; icon: ReactNode; children: ReactNode }) {
+  return (
+    <Button
+      variant="ghost"
+      disabled={disabled}
+      onClick={onClick}
+      className={cn('h-11 flex-1 rounded-xl text-sm font-bold transition-all', tone === 'go' && 'text-emerald-600 hover:bg-emerald-50 hover:text-emerald-700')}
+    >
+      {busy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : icon}
+      {children}
+    </Button>
   );
 }
 
@@ -513,42 +582,6 @@ function revisionLine(row: TdContentRow): string {
   if (row.approvedVersion === null) return t('Revision {revision} · content v{content} · last edit by {editor}', vars);
   if (!row.approvedBy) return t('Revision {revision} · content v{content} · approved v{approved} · last edit by {editor}', { ...vars, approved: row.approvedVersion });
   return t('Revision {revision} · content v{content} · approved v{approved} by {approver} · last edit by {editor}', { ...vars, approved: row.approvedVersion, approver: row.approvedBy.name });
-}
-
-/** ← and → move along the tabs and open the one they land on; Home and End go to the first and the last. */
-function stepTabs(event: ReactKeyboardEvent<HTMLDivElement>) {
-  const tabs = [...event.currentTarget.querySelectorAll<HTMLButtonElement>('[role="tab"]')];
-  const at = tabs.indexOf(document.activeElement as HTMLButtonElement);
-  const to = { ArrowRight: (at + 1) % tabs.length, ArrowLeft: (at - 1 + tabs.length) % tabs.length, Home: 0, End: tabs.length - 1 }[event.key];
-  if (at < 0 || to === undefined) return;
-  event.preventDefault();
-  tabs[to]?.focus();
-  tabs[to]?.click();
-}
-
-function TabButton({ active, onClick, children }: { active: boolean; onClick: () => void; children: ReactNode }) {
-  return (
-    <button
-      type="button"
-      role="tab"
-      aria-selected={active}
-      tabIndex={active ? 0 : -1}
-      onClick={onClick}
-      className={cn('inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium', active ? 'bg-(--td-input) text-foreground' : 'text-(--td-text-3) hover:text-foreground')}
-    >
-      {children}
-    </button>
-  );
-}
-
-function ActionButton({ busy, name, dirty, onClick, icon, children }: { busy: string | null; name: string; dirty: boolean; onClick: () => void; icon: ReactNode; children: ReactNode }) {
-  // `dirty` also covers an upload running (the caller passes both).
-  return (
-    <Button variant="secondary" disabled={busy !== null || dirty} onClick={onClick} className="rounded-lg">
-      {busy === name ? <Loader2 className="animate-spin" /> : icon}
-      {children}
-    </Button>
-  );
 }
 
 export function showValue(value: unknown): string {
@@ -648,78 +681,3 @@ function ConflictPanel({
   );
 }
 
-const ACTION_LABELS: Record<string, string> = {
-  create: t('Created'),
-  edit: t('Edited'),
-  'edit.note': t('Note changed'),
-  ready: t('Marked ready'),
-  approve: tc('Approved', 'it happened'),
-  archive: tc('Archived', 'it happened'),
-  restore: t('Restored'),
-  delete: t('Removed (import undo)'),
-  seed: t('Seeded'),
-};
-
-function HistoryList({ type, id }: { type: TdContentType; id: string }) {
-  const history = useTdHistory(type, id);
-  if (history.isLoading) return <p className="text-sm text-(--td-text-3)">{t('Loading…')}</p>;
-  if (history.error) return <TdErrorPanel error={history.error} />;
-  return (
-    <ol className="flex flex-col">
-      {history.data?.items.map((entry) => (
-        <li key={entry.id} className="flex gap-3 border-b border-(--td-divider) py-2.5 text-sm last:border-0">
-          <span className="w-32 shrink-0 text-xs tabular-nums text-(--td-text-3)">{formatGeorgiaTime(entry.at)}</span>
-          <span className="min-w-0 flex-1">
-            {tr('{action} by {name}', {
-              action: (
-                <span key="action" className="font-medium">
-                  {ACTION_LABELS[entry.action] ?? entry.action}
-                </span>
-              ),
-              name: entry.actor.name,
-            })}
-            {entry.fromStatus && entry.toStatus && entry.fromStatus !== entry.toStatus && (
-              <span className="text-(--td-text-3)">
-                {' '}
-                · {TD_STATUS_WORDS[entry.fromStatus]} → {TD_STATUS_WORDS[entry.toStatus]}
-              </span>
-            )}
-            {entry.batchId && <span className="text-(--td-text-3)"> · {t('import')}</span>}
-          </span>
-          <span className="shrink-0 text-xs tabular-nums text-(--td-text-3)">{entry.contentVersion !== null && `v${entry.contentVersion}`}</span>
-        </li>
-      ))}
-      {history.data && !history.data.complete && <li className="pt-2 text-xs text-(--td-text-3)">{t('Older changes are not shown.')}</li>}
-    </ol>
-  );
-}
-
-function ApprovedCompare({ approved, current, approvedPosition, position }: { approved: Record<string, unknown>; current: Record<string, unknown>; approvedPosition: number | null; position: number }) {
-  const rows = useMemo(() => {
-    const fields = [...new Set([...Object.keys(approved), ...Object.keys(current)])];
-    return [...fields.map((field) => ({ field, approved: approved[field], current: current[field] })), { field: 'position', approved: approvedPosition, current: position }];
-  }, [approved, current, approvedPosition, position]);
-  return (
-    <table className="w-full text-sm">
-      <thead>
-        <tr className="text-left text-xs text-(--td-text-3)">
-          <th className="w-32 py-1.5 pr-3 font-medium">{t('Field')}</th>
-          <th className="py-1.5 pr-3 font-medium">{t('Approved')}</th>
-          <th className="py-1.5 font-medium">{t('Now')}</th>
-        </tr>
-      </thead>
-      <tbody>
-        {rows.map((r) => {
-          const changed = showValue(r.approved) !== showValue(r.current);
-          return (
-            <tr key={r.field} className="border-t border-(--td-divider) align-top">
-              <td className="py-2 pr-3 font-mono text-xs text-(--td-text-3)">{r.field}</td>
-              <td className="py-2 pr-3 break-words">{showValue(r.approved)}</td>
-              <td className={cn('py-2 break-words', changed && 'text-amber-700')}>{showValue(r.current)}</td>
-            </tr>
-          );
-        })}
-      </tbody>
-    </table>
-  );
-}

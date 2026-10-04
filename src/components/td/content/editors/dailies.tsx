@@ -94,6 +94,13 @@ export function FootballLogicEditor({ value, onChange, issues, creating }: TdEdi
   );
 }
 
+/** An item's key, never shown: the first `item-n` the round does not use yet. */
+function freeItemKey(items: ReadonlyArray<{ key: string }>): string {
+  let n = items.length + 1;
+  while (items.some((item) => item.key === `item-${n}`)) n++;
+  return `item-${n}`;
+}
+
 export function PutInOrderEditor({ value, onChange, issues, creating }: TdEditorProps<'put-in-order'>) {
   const items = value.items;
   const set = (index: number, patch: Partial<(typeof items)[number]>) => onChange({ ...value, items: items.map((item, i) => (i === index ? { ...item, ...patch } : item)) });
@@ -112,9 +119,8 @@ export function PutInOrderEditor({ value, onChange, issues, creating }: TdEditor
         <ol className="flex flex-col gap-2">
           {items.map((item, index) => (
             <li key={index} className="flex flex-col gap-1">
-              <div className="grid grid-cols-[1fr_auto] gap-2 sm:grid-cols-[8rem_1fr_7rem_auto]">
-                <Input aria-label={t('Item {n} key', { n: index + 1 })} value={item.key} onChange={(event) => set(index, { key: event.target.value })} className={cn(tdInputClass, 'font-mono')} placeholder={t('key')} />
-                <Input aria-label={t('Item {n} label', { n: index + 1 })} value={item.label} onChange={(event) => set(index, { label: event.target.value })} className={cn(tdInputClass, 'col-span-2 sm:col-span-1')} placeholder={t('Label')} />
+              <div className="grid grid-cols-[1fr_7rem_auto] gap-2">
+                <Input aria-label={t('Item {n} label', { n: index + 1 })} value={item.label} onChange={(event) => set(index, { label: event.target.value })} className={tdInputClass} placeholder={t('Label')} />
                 <TdNumberInput label={t('Item {n} sort value', { n: index + 1 })} value={item.sortValue} onChange={(sortValue) => set(index, { sortValue })} />
                 <div className="flex items-center">
                   <Button type="button" variant="ghost" size="icon-sm" aria-label={t('Move up')} disabled={index === 0} onClick={() => move(index, -1)}>
@@ -132,7 +138,7 @@ export function PutInOrderEditor({ value, onChange, issues, creating }: TdEditor
             </li>
           ))}
         </ol>
-        <Button type="button" variant="secondary" size="sm" className="w-fit rounded-lg" disabled={items.length >= 12} onClick={() => onChange({ ...value, items: [...items, { key: `item-${items.length + 1}`, label: '', sortValue: items.length + 1 }] })}>
+        <Button type="button" variant="secondary" size="sm" className="w-fit rounded-lg" disabled={items.length >= 12} onClick={() => onChange({ ...value, items: [...items, { key: freeItemKey(items), label: '', sortValue: items.length + 1 }] })}>
           <Plus />
           {t('Add an item')}
         </Button>

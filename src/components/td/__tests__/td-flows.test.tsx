@@ -108,25 +108,27 @@ describe('content editor', () => {
     const spellings = screen.getByLabelText('Accepted spellings');
     fireEvent.change(spellings, { target: { value: 'tbilisi' } });
     fireEvent.keyDown(spellings, { key: 'Enter' });
-    fireEvent.click(screen.getByRole('button', { name: 'Create draft' }));
-    expect(await screen.findByText('Draft')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Create Question' }));
+    // Saved, it opens on its preview, as the Quizball dialog shows a question.
+    expect(await screen.findByRole('heading', { name: 'Question Preview' })).toBeTruthy();
+    expect(screen.getByText('Capital of Georgia?')).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: 'Mark ready' }));
-    expect(await screen.findByText('Ready for review')).toBeTruthy();
+    expect(await screen.findByText('Ready for a publisher to approve.')).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Approve' })).toBeNull();
-    expect(screen.getByText('Ready for a publisher to approve.')).toBeTruthy();
     cleanup();
 
     await signIn('publisher');
     const [row] = (await h.admin.content('penalty-questions').list({ status: 'ready', q: 'Capital of Georgia' })).items;
-    renderTd(<TdContentEditorDialog target={{ type: 'penalty-questions', row }} onClose={() => {}} />);
+    renderTd(<TdContentEditorDialog target={{ type: 'penalty-questions', row }} onClose={() => {}} startOn="preview" />);
     fireEvent.click(await screen.findByRole('button', { name: 'Approve' }));
-    expect(await screen.findByText('Approved')).toBeTruthy();
+    await waitFor(async () => expect((await h.admin.content('penalty-questions').get(row.id)).status).toBe('approved'));
+    expect(await screen.findByText('approved')).toBeTruthy();
 
     // A publisher's own edit waits for another publisher.
     const own = await h.admin.content('penalty-questions').create({ data: penalty('own-edit') });
     const ready = await h.admin.content('penalty-questions').ready(own.id, own.version);
     cleanup();
-    renderTd(<TdContentEditorDialog target={{ type: 'penalty-questions', row: ready }} onClose={() => {}} />);
+    renderTd(<TdContentEditorDialog target={{ type: 'penalty-questions', row: ready }} onClose={() => {}} startOn="preview" />);
     expect(await screen.findByText('You made the last edit, so another publisher approves it.')).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Approve' })).toBeNull();
   });
@@ -135,62 +137,54 @@ describe('content editor', () => {
     const { admin } = await signIn('editor');
     const before = (await admin.content('penalty-questions').list({ limit: 200 })).items.length;
     renderTd(<TdContentEditorDialog target={{ type: 'penalty-questions', row: null }} onClose={() => {}} />);
-    fireEvent.change(screen.getByLabelText('ID'), { target: { value: 'Not A Key' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Create draft' }));
-    expect(await screen.findByText(/^Lower-case letters/)).toBeTruthy();
-    expect(screen.getAllByText('Required').length).toBeGreaterThanOrEqual(2);
+    expect(screen.queryByLabelText('ID')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Create Question' }));
+    expect((await screen.findAllByText('Required')).length).toBeGreaterThanOrEqual(2);
     expect(screen.getByText('Add at least one')).toBeTruthy();
     expect((await admin.content('penalty-questions').list({ limit: 200 })).items).toHaveLength(before);
   });
 
-  it('merges a stale save unit by unit: a question and its answer clash as one, my note is kept', async () => {
+  it('merges a stale save unit by unit: a question and its answer clash as one', async () => {
     const { admin } = await signIn('editor');
     const row = await admin.content('penalty-questions').create({ data: penalty('merge-me') });
     const other = await clientFor('publisher');
     renderTd(<TdContentEditorDialog target={{ type: 'penalty-questions', row }} onClose={() => {}} />);
     fireEvent.change(screen.getByLabelText('Question'), { target: { value: 'Mine?' } });
-    fireEvent.change(screen.getByLabelText('Note'), { target: { value: 'checked with the rules' } });
     const theirs = await other.admin.content('penalty-questions').edit(row.id, { version: row.version, data: { ...row.data, display: 'Theirs', aliases: ['spain', 'españa'] } });
-    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Save Changes' }));
     expect(await screen.findByText('Someone changed this while you were editing')).toBeTruthy();
     // The question, its answer and its spellings are one unit: never my question with their answer.
     const clash = screen.getByText('q + display + aliases').closest('li')!;
-    fireEvent.click(within(clash).getByRole('radio', { name: /Theirs/ }));
+    fireEvent.click(within(clash).getByRole('radio', { name: /Yours/ }));
     fireEvent.click(screen.getByRole('button', { name: 'Continue with the merge' }));
     expect(await screen.findByText('Merged onto the newer version. Review it, then save.')).toBeTruthy();
-    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Save Changes' }));
     await waitFor(async () => expect((await admin.content('penalty-questions').get(row.id)).version).toBe(theirs.version + 1));
     const saved = await admin.content('penalty-questions').get(row.id);
-    expect(saved.data).toEqual({ key: 'merge-me', q: 'Who won Euro 2024?', display: 'Theirs', aliases: ['spain', 'españa'] });
-    expect(saved.note).toBe('checked with the rules');
+    // Mine as a whole: my question with my answer and spellings, never with theirs.
+    expect(saved.data).toEqual({ key: 'merge-me', q: 'Mine?', display: 'Spain', aliases: ['spain'] });
   });
 
   it('holds Save while a number field shows text that is not a number, rather than saving the old number', async () => {
     const { admin } = await signIn('editor');
-    const row = await admin.content('penalty-questions').create({ data: penalty('numbers') });
-    renderTd(<TdContentEditorDialog target={{ type: 'penalty-questions', row }} onClose={() => {}} />);
-    fireEvent.change(screen.getByLabelText('Question'), { target: { value: 'Changed?' } });
-    const save = screen.getByRole('button', { name: 'Save' });
-    expect(save.hasAttribute('disabled')).toBe(false);
-
-    fireEvent.change(screen.getByLabelText('Position'), { target: { value: '12abc' } });
+    const row = await admin.content('put-in-order').create({
+      data: { key: 'numbers', puzzle: 'pio-1', prompt: 'Order these', items: [{ key: 'item-1', label: 'Italy', sortValue: 2006 }, { key: 'item-2', label: 'Spain', sortValue: 2010 }] },
+    });
+    renderTd(<TdContentEditorDialog target={{ type: 'put-in-order', row }} onClose={() => {}} />);
+    expect(screen.queryByLabelText('Item 1 key')).toBeNull();
+    const save = screen.getByRole('button', { name: 'Save Changes' });
+    const sort = screen.getByLabelText('Item 1 sort value');
+    fireEvent.change(sort, { target: { value: '12abc' } });
     expect(screen.getByText('Not a number')).toBeTruthy();
     expect(save.hasAttribute('disabled')).toBe(true);
-    fireEvent.change(screen.getByLabelText('Position'), { target: { value: '' } });
-    expect(screen.getByText('Enter a number')).toBeTruthy();
-    expect(save.hasAttribute('disabled')).toBe(true);
     fireEvent.click(save);
-    expect((await admin.content('penalty-questions').get(row.id)).version).toBe(row.version);
-    // Still held on the other tabs of the editor, and the typed text is still there on the way back.
-    fireEvent.click(screen.getByRole('tab', { name: /History/ }));
-    expect(save.hasAttribute('disabled')).toBe(true);
-    fireEvent.click(screen.getByRole('tab', { name: 'Content' }));
-    expect(screen.getByText('Enter a number')).toBeTruthy();
+    expect((await admin.content('put-in-order').get(row.id)).version).toBe(row.version);
 
-    fireEvent.change(screen.getByLabelText('Position'), { target: { value: '7' } });
-    expect(screen.queryByText('Enter a number')).toBeNull();
+    fireEvent.change(sort, { target: { value: '2014' } });
+    expect(screen.queryByText('Not a number')).toBeNull();
+    expect(save.hasAttribute('disabled')).toBe(false);
     fireEvent.click(save);
-    await waitFor(async () => expect((await admin.content('penalty-questions').get(row.id)).position).toBe(7));
+    await waitFor(async () => expect(((await admin.content('put-in-order').get(row.id)).data as { items: { sortValue: number }[] }).items[0].sortValue).toBe(2014));
   });
 
   it('holds Save while an item’s sort value is not a number, instead of saving it as 0', async () => {
@@ -199,10 +193,10 @@ describe('content editor', () => {
     const sort = await screen.findByLabelText('Item 1 sort value');
     fireEvent.change(sort, { target: { value: 'x' } });
     expect(screen.getByText('Not a number')).toBeTruthy();
-    expect(screen.getByRole('button', { name: 'Create draft' }).hasAttribute('disabled')).toBe(true);
+    expect(screen.getByRole('button', { name: 'Create Question' }).hasAttribute('disabled')).toBe(true);
     fireEvent.change(sort, { target: { value: '1990' } });
     expect(screen.queryByText('Not a number')).toBeNull();
-    expect(screen.getByRole('button', { name: 'Create draft' }).hasAttribute('disabled')).toBe(false);
+    expect(screen.getByRole('button', { name: 'Create Question' }).hasAttribute('disabled')).toBe(false);
   });
 
   it('approves a category with its ready cards in one step', async () => {
@@ -267,40 +261,41 @@ describe('dashboard', () => {
 });
 
 describe('stepping through a list', () => {
-  it('← and → step to the neighbours; on the tabs they move along the tabs instead', async () => {
+  it('← and → step to the neighbours on the preview, not in the form', async () => {
     const { admin } = await signIn('editor');
     const row = await admin.content('penalty-questions').create({ data: penalty('step-keys') });
     const onGo = vi.fn();
-    renderTd(<TdContentEditorDialog target={{ type: 'penalty-questions', row }} onClose={() => {}} nav={{ index: 1, total: 3, more: false, onGo }} />);
+    renderTd(<TdContentEditorDialog target={{ type: 'penalty-questions', row }} onClose={() => {}} startOn="preview" nav={{ index: 1, total: 3, more: false, onGo }} />);
+    expect(screen.getByText('2')).toBeTruthy();
     fireEvent.keyDown(document.body, { key: 'ArrowRight' });
     fireEvent.keyDown(document.body, { key: 'ArrowLeft' });
     expect(onGo.mock.calls).toEqual([[2], [0]]);
 
-    const content = screen.getByRole('tab', { name: 'Content' });
-    content.focus();
-    fireEvent.keyDown(content, { key: 'ArrowRight' });
+    fireEvent.click(screen.getByRole('button', { name: 'Edit Details' }));
+    expect(await screen.findByRole('heading', { name: 'Edit Question' })).toBeTruthy();
+    fireEvent.keyDown(document.body, { key: 'ArrowRight' });
     expect(onGo).toHaveBeenCalledTimes(2);
-    expect(screen.getByRole('tab', { name: /Preview/ }).getAttribute('aria-selected')).toBe('true');
-    expect(document.activeElement).toBe(screen.getByRole('tab', { name: /Preview/ }));
+    expect(screen.queryByRole('button', { name: 'Next' })).toBeNull();
   });
 
-  it('asks before leaving text that is not a valid number, as it does for any unsaved change', async () => {
+  it('Cancel in the form asks before it drops a change, then goes back to the preview', async () => {
     const { admin } = await signIn('editor');
-    const row = await admin.content('penalty-questions').create({ data: penalty('step-held') });
-    const onGo = vi.fn();
+    const row = await admin.content('penalty-questions').create({ data: penalty('cancel-held') });
     const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
-    renderTd(<TdContentEditorDialog target={{ type: 'penalty-questions', row }} onClose={() => {}} nav={{ index: 0, total: 2, more: false, onGo }} />);
-    fireEvent.change(screen.getByLabelText('Position'), { target: { value: '-' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Next' }));
+    renderTd(<TdContentEditorDialog target={{ type: 'penalty-questions', row }} onClose={() => {}} startOn="preview" />);
+    fireEvent.click(screen.getByRole('button', { name: 'Edit Details' }));
+    fireEvent.change(screen.getByLabelText('Question'), { target: { value: 'Changed?' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
     expect(confirm).toHaveBeenCalledTimes(1);
-    expect(onGo).not.toHaveBeenCalled();
+    expect(screen.getByRole('heading', { name: 'Edit Question' })).toBeTruthy();
     confirm.mockReturnValue(true);
-    fireEvent.click(screen.getByRole('button', { name: 'Next' }));
-    expect(onGo).toHaveBeenCalledWith(1);
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    expect(await screen.findByRole('heading', { name: 'Question Preview' })).toBeTruthy();
+    expect(screen.getByText('Who won Euro 2024?')).toBeTruthy();
     confirm.mockRestore();
   });
 
-  it('asks the same before the dialog closes, and closes at once when nothing was changed', async () => {
+  it('asks before the dialog closes on a change, and closes at once when nothing was changed', async () => {
     const { admin } = await signIn('editor');
     const row = await admin.content('penalty-questions').create({ data: penalty('close-held') });
     const onClose = vi.fn();
@@ -310,7 +305,7 @@ describe('stepping through a list', () => {
     expect(confirm).not.toHaveBeenCalled();
     expect(onClose).toHaveBeenCalledTimes(1);
 
-    fireEvent.change(screen.getByLabelText('Position'), { target: { value: '-' } });
+    fireEvent.change(screen.getByLabelText('Question'), { target: { value: 'Changed?' } });
     fireEvent.keyDown(screen.getByRole('dialog'), { key: 'Escape' });
     expect(confirm).toHaveBeenCalledTimes(1);
     expect(onClose).toHaveBeenCalledTimes(1);
@@ -319,7 +314,7 @@ describe('stepping through a list', () => {
     expect(onClose).toHaveBeenCalledTimes(2);
 
     // A spelling typed but not entered yet is not in the draft: closing would lose it, so it asks too.
-    fireEvent.change(screen.getByLabelText('Position'), { target: { value: String(row.position) } });
+    fireEvent.change(screen.getByLabelText('Question'), { target: { value: 'Who won Euro 2024?' } });
     fireEvent.change(screen.getByLabelText('Accepted spellings'), { target: { value: 'espana' } });
     confirm.mockClear();
     confirm.mockReturnValue(false);
@@ -329,59 +324,50 @@ describe('stepping through a list', () => {
     confirm.mockRestore();
   });
 
-  it('a step from the approved version to a row never approved lands on Content, with the tabs still reachable', async () => {
-    const editor = await clientFor('editor');
-    const made = await editor.admin.content('penalty-questions').create({ data: penalty('tab-approved') });
-    const ready = await editor.admin.content('penalty-questions').ready(made.id, made.version);
-    const { admin } = await signIn('publisher');
-    const approved = await admin.content('penalty-questions').approve(ready.id, ready.version);
-    const draft = await editor.admin.content('penalty-questions').create({ data: penalty('tab-draft') });
+  it('a step opens the next row on its preview', async () => {
+    const { admin } = await signIn('editor');
+    const one = await admin.content('penalty-questions').create({ data: { ...penalty('step-one'), q: 'First question?' } });
+    const two = await admin.content('penalty-questions').create({ data: { ...penalty('step-two'), q: 'Second question?' } });
     const nav = { index: 0, total: 2, more: false, onGo: () => {} };
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     const view = render(
       <QueryClientProvider client={client}>
-        <TdContentEditorDialog target={{ type: 'penalty-questions', row: approved }} onClose={() => {}} nav={nav} />
+        <TdContentEditorDialog target={{ type: 'penalty-questions', row: one }} onClose={() => {}} startOn="preview" nav={nav} />
       </QueryClientProvider>,
     );
-    fireEvent.click(screen.getByRole('tab', { name: 'Approved version' }));
-    expect(screen.getByRole('tab', { name: 'Approved version' }).getAttribute('aria-selected')).toBe('true');
+    expect(screen.getByText('First question?')).toBeTruthy();
     view.rerender(
       <QueryClientProvider client={client}>
-        <TdContentEditorDialog target={{ type: 'penalty-questions', row: draft }} onClose={() => {}} nav={{ ...nav, index: 1 }} />
+        <TdContentEditorDialog target={{ type: 'penalty-questions', row: two }} onClose={() => {}} startOn="preview" nav={{ ...nav, index: 1 }} />
       </QueryClientProvider>,
     );
-    expect(screen.queryByRole('tab', { name: 'Approved version' })).toBeNull();
-    const content = screen.getByRole('tab', { name: 'Content' });
-    expect(content.getAttribute('aria-selected')).toBe('true');
-    expect(content.tabIndex).toBe(0);
-    expect((screen.getByLabelText('Question') as HTMLInputElement).value).toBe('Who won Euro 2024?');
+    expect(screen.getByRole('heading', { name: 'Question Preview' })).toBeTruthy();
+    expect(screen.getByText('Second question?')).toBeTruthy();
   });
 
-  it('locks the form while the next row’s page is on its way', async () => {
+  it('holds the steps while the next row’s page is on its way', async () => {
     const { admin } = await signIn('editor');
     const row = await admin.content('penalty-questions').create({ data: penalty('step-wait') });
     const onGo = vi.fn();
-    renderTd(<TdContentEditorDialog target={{ type: 'penalty-questions', row }} onClose={() => {}} nav={{ index: 0, total: 1, more: true, waiting: true, onGo }} />);
-    expect((screen.getByLabelText('Question') as HTMLInputElement).matches(':disabled')).toBe(true);
+    renderTd(<TdContentEditorDialog target={{ type: 'penalty-questions', row }} onClose={() => {}} startOn="preview" nav={{ index: 0, total: 1, more: true, waiting: true, onGo }} />);
     expect(screen.getByRole('button', { name: 'Next' }).hasAttribute('disabled')).toBe(true);
     fireEvent.keyDown(document.body, { key: 'ArrowRight' });
     expect(onGo).not.toHaveBeenCalled();
   });
 
-  it('a step past the last loaded question loads the next page and opens its first row', async () => {
+  it('a step past the last loaded question loads the next page and opens its row', async () => {
     const { admin } = await signIn('editor');
     for (let i = 1; i <= 51; i++) await admin.content('penalty-questions').create({ data: { ...penalty(`page-${String(i).padStart(2, '0')}`), q: `Question ${String(i).padStart(2, '0')}?` } });
     // The search leaves the mock's own questions out.
     window.history.replaceState(null, '', '?mode=penalties&q=Question');
     renderTd(<TdQuestionsTab />);
-    const rows = await screen.findAllByText(/^Question \d\d\?$/);
-    expect(rows).toHaveLength(50);
-    fireEvent.click(rows[49]);
+    expect(await screen.findAllByText(/^Question \d\d\?$/)).toHaveLength(10);
+    for (let i = 0; i < 4; i++) fireEvent.click(screen.getByRole('button', { name: 'Next page' }));
+    fireEvent.click(await screen.findByText('Question 50?'));
     const dialog = await screen.findByRole('dialog');
-    expect(within(dialog).getByRole('heading').textContent).toBe('Question 50?');
+    expect(within(dialog).getByText('Question 50?')).toBeTruthy();
     fireEvent.click(within(dialog).getByRole('button', { name: 'Next' }));
-    await waitFor(() => expect(within(screen.getByRole('dialog')).getByRole('heading').textContent).toBe('Question 51?'));
-    expect(screen.getAllByText(/^Question \d\d\?$/).length).toBeGreaterThanOrEqual(51);
+    await waitFor(() => expect(within(screen.getByRole('dialog')).getByText('Question 51?')).toBeTruthy());
     window.history.replaceState(null, '', window.location.pathname);
   });
 });
