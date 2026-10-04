@@ -130,32 +130,6 @@ export const KA_SHELL: Record<string, string> = {
   'Sign out and sign in with the new password': 'გასვლა და ახალი პაროლით შესვლა',
   'Stay signed in as {name}': 'დარჩენა ამ ანგარიშით: {name}',
 
-  // The dashboard: td-dashboard.tsx
-  'Dailies played': 'ყოველდღიური თამაშები',
-  'Practice runs': 'ვარჯიშები',
-  '{n} new': '{n} ახალი',
-  '{started} started · {voided} voided': '{started} დაწყებული · {voided} ანულირებული',
-  '{n} started': '{n} დაწყებული',
-  '{n} completed': '{n} დასრულებული',
-  '{count} early-quit penalties need a second look: a match was voided afterwards, so the player may not have deserved them.':
-    '{count} ჯარიმა ადრე დათმობისთვის გადასამოწმებელია: მატჩი მოგვიანებით ანულირდა, ამიტომ შესაძლოა, მოთამაშეს ის არ ეკუთვნოდა.',
-  Review: 'გადამოწმება',
-  'Last 7 days': 'ბოლო 7 დღე',
-  'Last 30 days': 'ბოლო 30 დღე',
-  'New players': 'ახალი მოთამაშეები',
-  'Dailies completed': 'დასრულებული ყოველდღიურები',
-  'Day by day': 'დღეების მიხედვით',
-  'The figures of each day': 'თითოეული დღის ციფრები',
-  Day: 'დღე',
-  'The last 30 days, a bar a day. The most in one day: {n}.': 'ბოლო 30 დღე, თითო სვეტი — ერთი დღე. ერთი დღის მაქსიმუმი: {n}.',
-  'What the chart shows': 'რას აჩვენებს დიაგრამა',
-  '{day}: no figure yet': '{day}: მონაცემი ჯერ არ არის',
-  'The figures of the last 7 and 30 days are still being counted; they appear within the hour.': 'ბოლო 7 და 30 დღის მონაცემები ჯერ ითვლება; ერთ საათში გამოჩნდება.',
-  'A day runs from midnight to midnight in Georgian time, and the last 7 and 30 days include today. A player who played on several days counts once. Test accounts are left out, and bots are not counted as players.':
-    'დღე ითვლება შუაღამიდან შუაღამემდე, საქართველოს დროით; ბოლო 7 და 30 დღეში დღევანდელი დღეც შედის. რამდენიმე დღეს ნათამაშები მოთამაშე ერთხელ ითვლება. სატესტო ანგარიშები არ ითვლება, ბოტები კი მოთამაშეებად არ ითვლებიან.',
-  '{count} matches corrected today.': 'დღეს შესწორდა {count} მატჩი.',
-  'Updated {time}.': 'განახლდა: {time}.',
-
   // The team: td-team.tsx
   'Roles are enforced by the API on every request. Nobody can grant or remove the ops role here.': 'როლებს API ყოველ მოთხოვნაზე ამოწმებს. ops როლის მინიჭება ან მოხსნა აქ არავის შეუძლია.',
   'Invite member': 'წევრის მოწვევა',
@@ -243,11 +217,4 @@ export const KA_SHELL: Record<string, string> = {
   'cards: none approved yet': 'ბარათები: ჯერ არცერთი არ არის დამტკიცებული',
   'box questions: none approved yet': 'ყუთის კითხვები: ჯერ არცერთი არ არის დამტკიცებული',
   // The statuses (draft, ready, approved, archived) and the types' own names are in ka-content.
-
-  // The dashboard's leaderboard card
-  'The top 10 by rating, of {total} ranked players.': 'საუკეთესო 10 რეიტინგით; სულ {total} მოთამაშეა რეიტინგში.',
-  'The top 10 by rating.': 'საუკეთესო 10 რეიტინგით.',
-  'The whole leaderboard': 'სრული ლიდერბორდი',
-  'Nobody has finished a ranked match yet.': 'რანკედი მატჩი ჯერ არავის დაუსრულებია.',
-  Wins: 'მოგება',
 };
