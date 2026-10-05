@@ -4,7 +4,8 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { CalendarClock, Loader2, Play, ExternalLink } from 'lucide-react';
 import { toast } from 'sonner';
-import { useSchedules, useScheduleRuns, useUpdateSchedule, useRunScheduleNow } from '@/hooks';
+import { useDayBatchBuffers, useDayBatches, useSchedules, useScheduleRuns, useUpdateSchedule, useRunScheduleNow } from '@/hooks';
+import { DailyGameScheduleCard } from '../day-batches-ui';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { JobStatusBadge, formatCents, formatRelativeTime, AgentNav } from '../agent-ui';
@@ -29,7 +30,8 @@ function ScheduleCard({ schedule }: { schedule: AgentSchedule }) {
 
   const p = schedule.params ?? {};
   const isRanked = schedule.jobType !== 'daily_challenge';
-  const savedTypes = (Array.isArray(p.questionTypes) ? p.questionTypes : []) as string[];
+  // image questions were retired: an old schedule's image_mcq is dropped (the pipeline skips it anyway)
+  const savedTypes = ((Array.isArray(p.questionTypes) ? p.questionTypes : []) as string[]).filter((t) => t !== 'image_mcq');
   const savedMix = (p.difficultyMix ?? null) as { easy: number; medium: number; hard: number } | null;
 
   // editable config (count / difficulty / types / categories-per-day)
@@ -180,7 +182,7 @@ function ScheduleCard({ schedule }: { schedule: AgentSchedule }) {
               <div className="mt-1 flex flex-wrap gap-1">
                 {/* ranked matches only support these 4 formats — the other types are
                     daily-challenge game modes and don't belong in the ranked pool */}
-                {['mcq_single', 'image_mcq', 'clue_chain', 'put_in_order'].map((t) => {
+                {['mcq_single', 'clue_chain', 'put_in_order'].map((t) => {
                   const on = selTypes.includes(t);
                   return (
                     <button
@@ -352,6 +354,8 @@ function ConfigTile({ label, value }: { label: string; value: string }) {
 
 export default function DailyChallengesPage() {
   const { data: schedules, isLoading } = useSchedules();
+  const { data: buffers } = useDayBatchBuffers();
+  const { data: batches } = useDayBatches();
 
   return (
     <div className="space-y-6">
@@ -361,7 +365,7 @@ export default function DailyChallengesPage() {
         </div>
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-slate-900">Schedules</h1>
-          <p className="text-sm text-slate-500">Recurring cron jobs that auto-generate questions — config, what they do, history, and manual run.</p>
+          <p className="text-sm text-slate-500">Recurring cron jobs that auto-generate questions and daily-game days — config, what they do, history, and manual run.</p>
         </div>
       </div>
 
@@ -376,8 +380,23 @@ export default function DailyChallengesPage() {
           <CardContent className="py-10 text-center text-sm text-slate-500">No schedules configured.</CardContent>
         </Card>
       ) : (
-        schedules.map((s) => <ScheduleCard key={s.id} schedule={s} />)
+        // daily-game schedules have their own card below (days left instead of question config)
+        schedules.filter((s) => s.jobType !== 'daily_days').map((s) => <ScheduleCard key={s.id} schedule={s} />)
       )}
+
+      {buffers && buffers.length > 0 ? (
+        <div className="space-y-3">
+          <h2 className="text-sm font-semibold text-slate-900">Daily games</h2>
+          {buffers.map((b) => (
+            <DailyGameScheduleCard
+              key={b.game}
+              buffer={b}
+              schedule={(schedules ?? []).find((s) => s.jobType === 'daily_days' && s.params?.game === b.game)}
+              batches={batches ?? []}
+            />
+          ))}
+        </div>
+      ) : null}
     </div>
   );
 }
