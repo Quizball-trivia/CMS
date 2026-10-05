@@ -134,7 +134,7 @@ export const KA_UPLOAD: Record<string, string> = {
   'Pictures (optional)': 'სურათები (არასავალდებულო)',
   'The pictures the file names on its Image lines: JPEG, PNG or WebP, at most 2 MB each. Choose them all at once.': 'სურათები, რომლებსაც ფაილი Image ხაზებში ასახელებს: JPEG, PNG ან WebP, თითო მაქსიმუმ 2 MB. აირჩიეთ ყველა ერთად.',
   Author: 'ავტორი',
-  'For all the pictures of this upload. A card with a picture is approved only once its picture has its author, licence and source.': 'ამ ატვირთვის ყველა სურათისთვის. სურათიანი ბარათი მხოლოდ მაშინ დამტკიცდება, როცა სურათს ავტორი, ლიცენზია და წყარო ექნება.',
+  'For the pictures without a Credit line in the file. A card with a picture is approved only once its picture has its author, licence and source.': 'ფაილში Credit ხაზის გარეშე დარჩენილი სურათებისთვის. სურათიანი ბარათი მხოლოდ მაშინ დამტკიცდება, როცა სურათს ავტორი, ლიცენზია და წყარო ექნება.',
   'Updates the card': 'ბარათს განაახლებს',
   '{count} cards updated': 'განახლდა {count} ბარათი',
   '{count} of them update cards already in the category': 'მათგან {count} კატეგორიაში უკვე არსებულ ბარათს განაახლებს',
@@ -144,4 +144,12 @@ export const KA_UPLOAD: Record<string, string> = {
   'New topic…': 'ახალი თემა…',
   'New topic': 'ახალი თემა',
   'Please select a topic and a category': 'აირჩიეთ თემა და კატეგორია',
+  'A Credit line goes with an Image line that names a picture file (buffon.jpg)': 'Credit ხაზი უნდა ახლდეს Image ხაზს, რომელიც სურათის ფაილს ასახელებს (buffon.jpg)',
+  'A Credit line is “author | licence | source”': 'Credit ხაზი ასეთია: „ავტორი | ლიცენზია | წყარო“',
+  'The author on a Credit line is at most 300 characters': 'Credit ხაზში ავტორი მაქსიმუმ 300 სიმბოლოა',
+  'The licence on a Credit line is at most 200 characters': 'Credit ხაზში ლიცენზია მაქსიმუმ 200 სიმბოლოა',
+  'The source on a Credit line is at most 2048 characters': 'Credit ხაზში წყარო მაქსიმუმ 2048 სიმბოლოა',
+  '“Credit: author | licence | source” after an Image line says whose that picture is; without it the picture takes the Author, Licence and Source given below.':
+    '„Credit: ავტორი | ლიცენზია | წყარო“ Image ხაზის შემდეგ მიუთითებს, ვისია ეს სურათი; მის გარეშე სურათი ქვემოთ მითითებულ ავტორს, ლიცენზიასა და წყაროს იღებს.',
+  'Question {n} credits the same picture differently': 'კითხვა {n} იმავე სურათს სხვა Credit-ით ასახელებს',
 };

@@ -32,7 +32,8 @@ Clue 1: იტალიელი მეკარე
 Clue 2: 2006 წლის მსოფლიო ჩემპიონი
 Answer: ბუფონი | Buffon
 Points: 2
-Image: buffon.jpg`,
+Image: buffon.jpg
+Credit: ავტორის სახელი | CC BY-SA 4.0 | https://commons.wikimedia.org/wiki/File:Buffon.jpg`,
   'whoami-subjects': `1.
 Clue 1: დაცვაში ვთამაშობდი
 Clue 2: ჩემი კარიერა თბილისის „დინამოში“ დაიწყო
@@ -91,7 +92,16 @@ export interface ParsedCard extends ParsedBase {
   imageKey: string | null;
   /** A picture chosen with the file, by its file name: uploaded with the questions. */
   imageFile: string | null;
+  /** Who made that picture, under what licence, from where (the Credit line). */
+  credit: TdPictureCredit | null;
   photo: { id: number; ver: string } | null;
+}
+
+/** The rights an image needs before it can be approved. */
+export interface TdPictureCredit {
+  author: string | null;
+  license: string | null;
+  source: string | null;
 }
 
 export interface ParsedWhoami extends ParsedBase {
@@ -116,6 +126,7 @@ export interface ParsedPractice extends ParsedBase {
   explanation: string | null;
   imageKey: string | null;
   imageFile: string | null;
+  credit: TdPictureCredit | null;
 }
 
 export interface ParsedFootballLogic extends ParsedBase {
@@ -319,6 +330,33 @@ function imageLine(r: Reader, entry: { value: string; line: number } | undefined
   return { imageKey: entry.value, imageFile: null };
 }
 
+const CREDIT_PARTS = [
+  ['author', 300, () => t('The author on a Credit line is at most 300 characters')],
+  ['license', 200, () => t('The licence on a Credit line is at most 200 characters')],
+  ['source', 2048, () => t('The source on a Credit line is at most 2048 characters')],
+] as const;
+
+/** A Credit line: “author | licence | source” of the picture its Image line names. */
+function creditLine(r: Reader, entry: { value: string; line: number } | undefined, imageFile: string | null): TdPictureCredit | null {
+  if (!entry) return null;
+  if (!imageFile) {
+    r.error(t('A Credit line goes with an Image line that names a picture file (buffon.jpg)'), entry.line);
+    return null;
+  }
+  const parts = entry.value.split('|').map((part) => part.trim());
+  if (parts.length > 3) {
+    r.error(t('A Credit line is “author | licence | source”'), entry.line);
+    return null;
+  }
+  const credit: TdPictureCredit = { author: null, license: null, source: null };
+  CREDIT_PARTS.forEach(([field, max, tooLong], index) => {
+    const part = parts[index] ?? '';
+    if (part.length > max) r.error(tooLong(), entry.line);
+    credit[field] = part || null;
+  });
+  return credit;
+}
+
 function photoOf(r: Reader, entry: { value: string; line: number } | undefined): { id: number; ver: string } | null {
   if (!entry) return null;
   const match = /^(\d+)\s*\|\s*(\S(?:.{0,18}\S)?)$/.exec(entry.value);
@@ -353,12 +391,13 @@ function parseClues(block: Block, kind: 'cards' | 'whoami-subjects'): Parsed<Par
       once.take('Answer', answer, line);
       continue;
     }
-    const extra = card ? (['Points', 'Image', 'Photo'] as const).find((name) => labelled(text, name) !== null) : undefined;
+    const extra = card ? (['Points', 'Image', 'Credit', 'Photo'] as const).find((name) => labelled(text, name) !== null) : undefined;
     if (extra) once.take(extra, labelled(text, extra)!, line);
     else ignored(r, entry);
   }
 
   const { imageKey, imageFile } = imageLine(r, once.get('Image'));
+  const credit = creditLine(r, once.get('Credit'), imageFile);
   const photo = photoOf(r, once.get('Photo'));
   if (clues.length === 0 && !(card && (imageKey || imageFile || photo))) r.error(t('Needs at least one clue line'));
   if (clues.length > max) r.error(t('At most {max} clue lines', { max }));
@@ -375,7 +414,7 @@ function parseClues(block: Block, kind: 'cards' | 'whoami-subjects'): Parsed<Par
 
   if (r.failed() || !answer) return { errors: r.errors };
   const base = { questionNumber: block.questionNumber, lineNumber: block.lineNumber, clues: clues.map((clue) => clue.text), display: answer.display, aliases: answer.aliases };
-  return { errors: r.errors, question: card ? { kind: 'cards', ...base, points: points!, imageKey, imageFile, photo } : { kind: 'whoami-subjects', ...base } };
+  return { errors: r.errors, question: card ? { kind: 'cards', ...base, points: points!, imageKey, imageFile, credit, photo } : { kind: 'whoami-subjects', ...base } };
 }
 
 function parseQa(block: Block, kind: 'box-questions' | 'penalty-questions'): Parsed<ParsedQa> {
@@ -424,9 +463,9 @@ function parsePractice(block: Block): Parsed<ParsedPractice> {
       explaining = true;
       continue;
     }
-    const image = labelled(text, 'Image');
-    if (image !== null) {
-      once.take('Image', image, line);
+    const picture = (['Image', 'Credit'] as const).find((name) => labelled(text, name) !== null);
+    if (picture) {
+      once.take(picture, labelled(text, picture)!, line);
       explaining = false;
       continue;
     }
@@ -454,6 +493,7 @@ function parsePractice(block: Block): Parsed<ParsedPractice> {
   else if (/^(?:easy|medium|hard)$/i.test(level.value)) difficulty = level.value.toLowerCase() as ParsedPractice['difficulty'];
   else r.error(t('Difficulty must be Easy, Medium or Hard'), level.line);
   const { imageKey, imageFile } = imageLine(r, once.get('Image'));
+  const credit = creditLine(r, once.get('Credit'), imageFile);
 
   if (r.failed() || !prompt || !difficulty) return { errors: r.errors };
   return {
@@ -468,6 +508,7 @@ function parsePractice(block: Block): Parsed<ParsedPractice> {
       explanation: explanation.join(' ').trim() || null,
       imageKey,
       imageFile,
+      credit,
     },
   };
 }
