@@ -397,6 +397,19 @@ describe('the upload dialog', () => {
     expect((await all()).find((card) => card.data.key === 'buffon')!.data).toMatchObject({ value: 3, lines: ['Italy', 'Parma'] });
   });
 
+  it('does not call an image key missing when the images could not be loaded, and says so instead', async () => {
+    const inner = server;
+    server = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      if ((init?.method ?? 'GET') === 'GET' && String(input).includes('/admin/content/media')) return new Response(JSON.stringify({ error: { code: 'internal', message: 'down' } }), { status: 500, headers: { 'content-type': 'application/json' } });
+      return inner(input, init);
+    }) as typeof fetch;
+    await signIn('editor');
+    await openDialog({ initialType: 'cards', initialCategory: 'legends' });
+    chooseFile(txt('1.\nAnswer: ბუფონი\nPoints: 3\nImage: dinamo-stadium'));
+    expect(await screen.findByText(/The images could not be loaded to check this key\. Close the upload and open it again\.$/)).toBeTruthy();
+    expect(screen.queryByText(/No uploaded image has this key/)).toBeNull();
+  });
+
   it('asks a clue line or a picture of a new card only, flags two questions updating one card, and checks each update before saving anything', async () => {
     const { admin } = await signIn('editor');
     await openDialog({ initialType: 'cards', initialCategory: 'legends' });

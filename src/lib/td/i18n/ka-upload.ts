@@ -156,4 +156,5 @@ export const KA_UPLOAD: Record<string, string> = {
   'A new card needs a clue line or a picture': 'ახალ ბარათს მინიშნება ან სურათი სჭირდება',
   'The picture {name} was saved before with other rights; it keeps them': 'სურათი {name} უკვე შენახულია სხვა უფლებებით; ისინი რჩება',
   'The sign-in changed, so the upload stopped. Check the cards before you upload again.': 'შესვლა შეიცვალა, ამიტომ ატვირთვა შეჩერდა. ხელახლა ატვირთვამდე ბარათები გადაამოწმეთ.',
+  'The images could not be loaded to check this key. Close the upload and open it again.': 'სურათები ვერ ჩაიტვირთა ამ ID-ის შესამოწმებლად. დახურეთ ატვირთვა და ხელახლა გახსენით.',
 };

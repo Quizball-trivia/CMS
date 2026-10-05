@@ -369,7 +369,8 @@ function UploadBody({ initialType, initialCategory, initialPuzzle, onBusy, onClo
           const body = { version: updates.version, data: updatedCard(question, updates, imageKeyIn(question, context)), position: updates.position, note: updates.note };
           problems.push(...contentWriteIssues('cards', 'Card', 'edit', body).map((issue) => ({ code: 'invalid' as const, path: issue.path, message: issue.message })));
           // The import's check finds a new card's missing image; an update's is found here.
-          if (question.imageKey && !mediaByKey.has(question.imageKey)) problems.push({ code: 'missing_reference' as const, path: 'Image', message: t('No uploaded image has this key') });
+          if (question.imageKey && mediaRows.isError) problems.push({ code: 'missing_reference' as const, path: 'Image', message: t('The images could not be loaded to check this key. Close the upload and open it again.') });
+          else if (question.imageKey && mediaRows.isSuccess && !mediaByKey.has(question.imageKey)) problems.push({ code: 'missing_reference' as const, path: 'Image', message: t('No uploaded image has this key') });
           const earlier = updater.get(updates.id);
           if (earlier === undefined) updater.set(updates.id, question.questionNumber);
           else problems.push({ code: 'duplicate_in_batch' as const, path: 'Answer', message: t('Question {n} updates the same card', { n: earlier }) });
@@ -386,7 +387,7 @@ function UploadBody({ initialType, initialCategory, initialPuzzle, onBusy, onClo
           updates,
         };
       });
-  }, [questions, entries, checked, unselected, pictureKeys, credits, pictureOf, context, mediaByKey]);
+  }, [questions, entries, checked, unselected, pictureKeys, credits, pictureOf, context, mediaByKey, mediaRows.isError, mediaRows.isSuccess]);
 
   const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -531,29 +532,33 @@ function UploadBody({ initialType, initialCategory, initialPuzzle, onBusy, onClo
   // would count that import's own rows as duplicates. The API answers with that batch, or imports what the member confirmed.
   useEffect(() => {
     if (read === 0 || replayed === read || replayStarted.current === read || !ready || entries.length === 0) return;
-    replayStarted.current = read;
+    // `read` is the number of the file read; one chosen after it is its own, and this replay touches nothing of it.
     const mine = read;
+    const superseded = () => reading.current !== mine;
+    if (superseded()) return;
+    replayStarted.current = read;
     const operation = readOperation.current;
-    const file = reading.current;
     void (async () => {
       const items = entries.filter((entry) => !entry.updates).map((entry) => entry.item);
       const edits = entries.some((entry) => entry.updates);
       const saved = user && operation && items.length > 0 ? batchKeyFor(user.id, await sha256Hex(canonicalJson(items))) : null;
+      if (superseded()) return;
       if (saved?.sent && operation) {
-        const outcome = await importItems(items, operation, !edits);
-        // Another file chosen meanwhile is its own.
-        if (reading.current !== file) return;
-        if (outcome === 'done' && !edits) return;
+        const outcome = await importItems(items, operation, false);
+        if (superseded()) return;
+        if (outcome === 'done' && !edits) {
+          onClose();
+          return;
+        }
         // The new questions are in; the cards the file updates are still to do.
         if (outcome === 'done') {
           const imported = new Set(questions.filter((_, index) => !entries[index]?.updates).map((question) => question.id));
           setQuestions((prev) => prev.filter((question) => !imported.has(question.id)));
         }
       }
-      if (reading.current !== file) return;
       setReplayed(mine);
     })();
-  }, [read, replayed, ready, entries, questions, user, importItems]);
+  }, [read, replayed, ready, entries, questions, user, importItems, onClose]);
 
   // The check: which of the questions the API would refuse, asked once for each item.
   useEffect(() => {
