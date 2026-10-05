@@ -228,6 +228,8 @@ function UploadBody({ initialType, initialCategory, initialPuzzle, onBusy, onClo
   const [rights, setRights] = useState({ author: '', license: '', source: '' });
   // Counts every choosing of a file: one still being read for an earlier choice is dropped.
   const reading = useRef(0);
+  // Closed, the dialog's pending replay is no longer its own.
+  useEffect(() => () => void (reading.current += 1), []);
   // The choosing the list comes from, and the one whose earlier import has been looked for.
   const [read, setRead] = useState(0);
   const [replayed, setReplayed] = useState(0);
@@ -488,9 +490,11 @@ function UploadBody({ initialType, initialCategory, initialPuzzle, onBusy, onClo
 
   /** Imports the items as drafts, all or none, under the batch key of exactly these items. */
   const importItems = useCallback(
-    async (items: unknown[], replay?: TdOperation, close = true): Promise<'done' | 'spent' | 'failed'> => {
+    async (items: unknown[], replay?: TdOperation, close = true, current: () => boolean = () => true): Promise<'done' | 'spent' | 'failed'> => {
       if (!user) return 'failed';
       const hash = await sha256Hex(canonicalJson(items));
+      // A replay whose file was replaced (or whose dialog closed) meanwhile sends nothing.
+      if (!current()) return 'failed';
       const saved = batchKeyFor(user.id, hash);
       markSent(user.id, hash, true);
       // A replay on its own shows itself as uploading; the upload's own steps do that for all of them.
@@ -544,7 +548,7 @@ function UploadBody({ initialType, initialCategory, initialPuzzle, onBusy, onClo
       const saved = user && operation && items.length > 0 ? batchKeyFor(user.id, await sha256Hex(canonicalJson(items))) : null;
       if (superseded()) return;
       if (saved?.sent && operation) {
-        const outcome = await importItems(items, operation, false);
+        const outcome = await importItems(items, operation, false, () => !superseded());
         if (superseded()) return;
         if (outcome === 'done' && !edits) {
           onClose();
@@ -1092,7 +1096,7 @@ function UploadBody({ initialType, initialCategory, initialPuzzle, onBusy, onClo
           clubs={clubs}
           clubsLoaded={!clubRows.isLoading}
           media={mediaByKey}
-          mediaLoaded={!mediaRows.isLoading}
+          mediaLoaded={mediaRows.isSuccess}
           pictures={pictures}
           onClose={() => setPreviewIndex(null)}
           onNavigate={setPreviewIndex}
