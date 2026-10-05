@@ -24,9 +24,9 @@ interface TdCategoryListProps {
 export function TdCategoryList({ categories, isLoading, error, searching, emptyTitle, showRound = false, countOf, onEditCategory }: TdCategoryListProps) {
   if (isLoading) {
     return (
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-        {[...Array(4)].map((_, i) => (
-          <div key={i} className="h-[200px] w-full bg-gray-100 rounded-[2rem] animate-pulse border border-gray-200/50" />
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+        {[...Array(3)].map((_, i) => (
+          <div key={i} className="h-16 w-full animate-pulse rounded-2xl border border-gray-200/50 bg-gray-100" />
         ))}
       </div>
     );
@@ -42,7 +42,7 @@ export function TdCategoryList({ categories, isLoading, error, searching, emptyT
 
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
         {categories.map((category) => {
           const type = categoryTypeOf(category);
           return <TdCategoryCard key={category.id} category={category} count={countOf(type, category.data.key)} description={showRound ? roundOf(type).label : undefined} onEdit={onEditCategory} />;

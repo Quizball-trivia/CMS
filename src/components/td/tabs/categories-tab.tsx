@@ -93,7 +93,7 @@ export function TdCategoriesTab() {
           </Button>
         </div>
 
-        <div className="space-y-16 pt-4">
+        <div className="space-y-10 pt-2">
           {sections.map((section, index) => (
             <section key={section.type} className="space-y-6">
               <div className="flex items-center gap-3 px-1">
