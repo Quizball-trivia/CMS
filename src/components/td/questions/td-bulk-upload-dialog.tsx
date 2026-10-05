@@ -197,14 +197,14 @@ export function TdBulkUploadDialog({ initialType, initialCategory, initialPuzzle
         </Button>
       </DialogTrigger>
       <DialogContent className="!max-w-6xl overflow-hidden flex flex-col p-6" style={{ maxHeight: '95vh', height: '95vh' }}>
-        <UploadBody initialType={initialType} initialCategory={initialCategory ?? null} initialPuzzle={initialPuzzle ?? null} onBusy={setBusy} onClose={() => setOpen(false)} />
+        <UploadBody open={open} initialType={initialType} initialCategory={initialCategory ?? null} initialPuzzle={initialPuzzle ?? null} onBusy={setBusy} onClose={() => setOpen(false)} />
       </DialogContent>
     </Dialog>
   );
 }
 
 /** Everything inside the dialog; it exists only while the dialog is open, so closing resets it. */
-function UploadBody({ initialType, initialCategory, initialPuzzle, onBusy, onClose }: { initialType?: TdContentType; initialCategory: string | null; initialPuzzle: string | null; onBusy: (busy: boolean) => void; onClose: () => void }) {
+function UploadBody({ open, initialType, initialCategory, initialPuzzle, onBusy, onClose }: { open: boolean; initialType?: TdContentType; initialCategory: string | null; initialPuzzle: string | null; onBusy: (busy: boolean) => void; onClose: () => void }) {
   const { user } = useTdAuth();
   const write = useTdWrite();
   const queryClient = useQueryClient();
@@ -228,7 +228,10 @@ function UploadBody({ initialType, initialCategory, initialPuzzle, onBusy, onClo
   const [rights, setRights] = useState({ author: '', license: '', source: '' });
   // Counts every choosing of a file: one still being read for an earlier choice is dropped.
   const reading = useRef(0);
-  // Closed, the dialog's pending replay is no longer its own.
+  // Closed (it stays drawn while it fades out) or gone, the dialog's pending replay is no longer its own.
+  useEffect(() => {
+    if (!open) reading.current += 1;
+  }, [open]);
   useEffect(() => () => void (reading.current += 1), []);
   // The choosing the list comes from, and the one whose earlier import has been looked for.
   const [read, setRead] = useState(0);
