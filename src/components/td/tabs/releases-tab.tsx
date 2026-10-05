@@ -330,11 +330,10 @@ export function ReleaseReportView({ report }: { report: ReleaseReport }) {
         ))}
       </div>
       <p className="text-xs text-(--td-text-3)">
-        {t('Images: {images} shown ({uploaded} uploaded, {external} by URL) · {missingRights} missing rights · {pending} to make public at publish', {
+        {t('Images: {images} shown ({uploaded} uploaded, {external} by URL) · {pending} to make public at publish', {
           images: media.images,
           uploaded: media.uploaded,
           external: media.external,
-          missingRights: media.missingRights,
           pending: media.pending,
         })}
       </p>

@@ -452,13 +452,14 @@ describe('media', () => {
     expect(await within(dialog).findByText(/Uploaded · 16 × 9 px/)).toBeTruthy();
     // Its ID is made, never typed.
     expect(within(dialog).queryByLabelText('ID')).toBeNull();
-    fireEvent.change(within(dialog).getByLabelText('Licence'), { target: { value: 'CC0' } });
+    // No credit, licence or source is asked.
+    expect(within(dialog).queryByLabelText('Licence')).toBeNull();
     fireEvent.click(within(dialog).getByRole('button', { name: 'Save and use it' }));
     await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Choose an image' })).toBeNull());
-    expect(await screen.findByText('Its author, licence and source need approving with the question.')).toBeTruthy();
+    expect(await screen.findByText('It is approved with the question.')).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Image details' })).toBeTruthy();
     const [image] = (await admin.content('media').list({ q: 'crest-torpedo' })).items;
-    expect(image).toMatchObject({ status: 'draft', data: { key: 'crest-torpedo', width: 16, height: 9, license: 'CC0', author: null } });
+    expect(image).toMatchObject({ status: 'draft', data: { key: 'crest-torpedo', width: 16, height: 9, license: null, author: null, source: null } });
   });
 });
 

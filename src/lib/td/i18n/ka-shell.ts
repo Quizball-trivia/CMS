@@ -44,10 +44,7 @@ export const KA_SHELL: Record<string, string> = {
   'Football Logic, Put in Order and Career Path, each on a calendar with one puzzle per Georgia date.':
     'საფეხბურთო ლოგიკა, დაალაგე სწორად და კარიერის გზა — თითოეული თავის კალენდარზე, საქართველოს ყოველ თარიღზე თითო თავსატეხით.',
   'Clubs and crests used by Career Path, onboarding and cards.': 'კლუბები და ემბლემები, რომლებსაც იყენებს კარიერის გზა, ონბორდინგი და ბარათები.',
-  'Upload and preview images, record their rights (licence, credit, source) and approve them.': 'ატვირთეთ და გადახედეთ სურათებს, მიუთითეთ მათი უფლებები (ლიცენზია, ავტორი, წყარო) და დაამტკიცეთ ისინი.',
   'Upload questions in bulk from a spreadsheet file: check, preview, import as drafts, and undo a batch.': 'ატვირთეთ კითხვები ერთიანად ცხრილის ფაილიდან: შემოწმება, გადახედვა, დრაფტებად ატვირთვა და პაკეტის გაუქმება.',
-  'Changes since the last release, the validation report (pool sizes, missing images, rights, 30 days of dailies), publish and roll back.':
-    'ცვლილებები ბოლო გამოშვების შემდეგ, ვალიდაციის ანგარიში (კონტენტის რაოდენობა, ნაკლული სურათები, უფლებები, ყოველდღიური თამაშების 30 დღე), გამოქვეყნება და უკან დაბრუნება.',
   'Search by nickname or Betsson id, match history and replays, and corrections (void + refund) with a reason.':
     'ძებნა ნიკნეიმით ან Betsson ID-ით, მატჩების ისტორია და გამეორებები, შესწორებები (ანულირება + დაბრუნება) მიზეზის მითითებით.',
   'Standings, frozen snapshots and their export.': 'მიმდინარე ცხრილი, დაფიქსირებული სნეპშოტები და მათი ექსპორტი.',

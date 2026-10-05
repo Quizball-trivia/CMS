@@ -138,8 +138,7 @@ export const KA_PUBLISH: Record<string, string> = {
   '{game}: next {days} days from {date}': '{game}: მომდევნო {days} დღე ({date}-დან)',
   '/ {days} covered': '/ {days} დაფარულია',
   'Missing: {days}': 'აკლია: {days}',
-  'Images: {images} shown ({uploaded} uploaded, {external} by URL) · {missingRights} missing rights · {pending} to make public at publish':
-    'სურათები: ნაჩვენებია {images} ({uploaded} ატვირთული, {external} URL-ით) · {missingRights} უფლებების მონაცემების გარეშე · {pending} გასაჯაროვდება გამოქვეყნებისას',
+  'Images: {images} shown ({uploaded} uploaded, {external} by URL) · {pending} to make public at publish': 'სურათები: ნაჩვენებია {images} ({uploaded} ატვირთული, {external} URL-ით) · {pending} გასაჯაროვდება გამოქვეყნებისას',
   'No changes since the current release.': 'მიმდინარე გამოშვების შემდეგ ცვლილება არ არის.',
   'Changes since the current release': 'ცვლილებები მიმდინარე გამოშვების შემდეგ',
   'Changes since the current release ({release})': 'ცვლილებები მიმდინარე გამოშვების ({release}) შემდეგ',

@@ -334,7 +334,7 @@ function EditorBody({
     );
   };
 
-  // The image a form names opens over it, for its rights and its approval.
+  // The image a form names opens over it, for its approval.
   const [image, setImage] = useState<TdEditorTarget | null>(null);
   const openImage = useCallback(async (key: string) => {
     const found = await findImage(key);

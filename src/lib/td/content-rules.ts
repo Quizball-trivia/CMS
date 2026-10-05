@@ -29,7 +29,7 @@ export const TD_FIXED_FIELDS: Record<TdContentType, readonly string[]> = {
 /**
  * Data fields that only make sense together, merged as one unit when an edit
  * conflicts (merge.ts): a question with its answer and options, an answer
- * with its spellings and clues, an image with its size and rights, a round
+ * with its spellings and clues, an image with its size and credits, a round
  * with the order its prompt asks for.
  */
 export const TD_MERGE_UNITS: Record<TdContentType, readonly (readonly string[])[]> = {

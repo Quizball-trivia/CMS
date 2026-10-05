@@ -158,17 +158,6 @@ describe('the question file format', () => {
     expect(practice.questions[0]).toMatchObject({ imageKey: null, imageFile: 'arena.webp' });
   });
 
-  it('reads a Credit line as the author, licence and source of the picture its Image line names', () => {
-    const card = parseTdUpload('1.\nAnswer: x\nPoints: 1\nImage: x.jpg\nCredit: Steffen Prößdorf | CC BY-SA 4.0 | https://commons.wikimedia.org/wiki/File:X.jpg', 'cards');
-    expect(card.errors).toEqual([]);
-    expect(card.questions[0]).toMatchObject({ credit: { author: 'Steffen Prößdorf', license: 'CC BY-SA 4.0', source: 'https://commons.wikimedia.org/wiki/File:X.jpg' } });
-    expect(parseTdUpload('1.\nAnswer: x\nPoints: 1\nImage: x.jpg\nCredit: Club press office', 'cards').questions[0]).toMatchObject({ credit: { author: 'Club press office', license: null, source: null } });
-    const practice = parseTdUpload('1. რომელი სტადიონია?\nA) დინამო არენა*\nB) მესხი\nDifficulty: Easy\nExplanation: თბილისშია.\nImage: arena.jpg\nCredit: A | CC0 | https://example.com', 'practice-questions');
-    expect(practice.questions[0]).toMatchObject({ explanation: 'თბილისშია.', credit: { author: 'A', license: 'CC0', source: 'https://example.com' } });
-    expect(parseTdUpload('1.\nClue 1: a\nAnswer: x\nPoints: 1\nPhoto: 1179 | 20\nCredit: A | B | C', 'cards').errors.map((e) => e.message)).toEqual(['A Credit line goes with an Image line that names a picture file (buffon.jpg)']);
-    expect(parseTdUpload('1.\nAnswer: x\nPoints: 1\nImage: x.jpg\nCredit: A | B | C | D', 'cards').errors.map((e) => e.message)).toEqual(['A Credit line is “author | licence | source”']);
-  });
-
   it('reads a card without clue lines, since a card already in the category keeps its own; Round II still needs them', () => {
     expect(parseTdUpload('1.\nAnswer: x\nPoints: 1', 'cards').errors).toEqual([]);
     expect(parseTdUpload('1.\nAnswer: x', 'whoami-subjects').errors.map((e) => e.message)).toEqual(['Needs at least one clue line']);
@@ -332,9 +321,8 @@ describe('the upload dialog', () => {
     expect(screen.getByText(/Choose the picture buffon\.jpg under Pictures$/)).toBeTruthy();
     choosePictures(png('buffon.jpg'));
     expect(await screen.findByRole('img', { name: 'buffon.jpg' })).toBeTruthy();
-    fireEvent.change(screen.getByLabelText('Author'), { target: { value: 'A. Photographer' } });
-    fireEvent.change(screen.getByLabelText('Licence'), { target: { value: 'CC BY-SA 4.0' } });
-    fireEvent.change(screen.getByLabelText('Source'), { target: { value: 'https://commons.wikimedia.org/wiki/File:Buffon.jpg' } });
+    // No credit, licence or source is asked.
+    expect(screen.queryByLabelText('Licence')).toBeNull();
     await waitFor(() => expect(screen.queryByText(/has a problem/)).toBeNull());
     await waitFor(() => expect(upload.hasAttribute('disabled')).toBe(false));
     fireEvent.click(upload);
@@ -348,9 +336,8 @@ describe('the upload dialog', () => {
     const buffon = (await admin.content('cards').list({ category: 'legends', status: 'draft,ready,approved', limit: 200 })).items.find((card) => card.data.key === 'buffon')!;
     expect(buffon.data).toMatchObject({ display: 'Gianluigi Buffon', value: 2, photo: null, lines: ['იტალიელი მეკარე', '2006 წლის მსოფლიო ჩემპიონი'] });
     expect(buffon.data.imageKey).toMatch(/^pic-[0-9a-f]{24}$/);
-    // The picture's Credit line, not the fields of the dialog, says whose it is.
     const image = (await admin.content('media').list({ status: 'draft,ready,approved', limit: 200 })).items.find((row) => row.data.key === buffon.data.imageKey);
-    expect(image!.data).toMatchObject({ key: buffon.data.imageKey, author: 'ავტორის სახელი', license: 'CC BY-SA 4.0', source: 'https://commons.wikimedia.org/wiki/File:Buffon.jpg' });
+    expect(image!.data).toMatchObject({ key: buffon.data.imageKey, author: null, license: null, source: null });
     expect(image!.data.uploadId).toBeTruthy();
   });
 
@@ -452,62 +439,30 @@ describe('the upload dialog', () => {
     expect(cards.find((card) => card.data.key === 'buffon')!.data.value).toBe(2);
   });
 
-  it('treats two names of the same picture as one image: one credit, and rights it lacked filled in when it comes again', async () => {
+  it('saves two names of the same picture as one image, and a picture saved before is used again', async () => {
     const { admin } = await signIn('editor');
     await openDialog({ initialType: 'cards', initialCategory: 'legends' });
-    chooseFile(txt('1.\nClue 1: ა\nAnswer: პირველი\nPoints: 1\nImage: a.png\nCredit: Ann | CC0 | https://example.com/a\n2.\nClue 1: ბ\nAnswer: მეორე\nPoints: 1\nImage: b.png\nCredit: Bob | CC BY 4.0 | https://example.com/b'));
-    choosePictures(png('a.png'), png('b.png'));
-    expect(await screen.findByText(/Question 1 credits the same picture differently$/)).toBeTruthy();
-    cleanup();
-
-    // Saved once without rights, the picture takes those of a later Credit line.
-    await openDialog({ initialType: 'cards', initialCategory: 'legends' });
-    chooseFile(txt('1.\nClue 1: ა\nAnswer: პირველი\nPoints: 1\nImage: a.png'));
-    choosePictures(png('a.png'));
-    let upload = await uploadButton(1);
+    chooseFile(txt('1.\nClue 1: ა\nAnswer: პირველი\nPoints: 1\nImage: one.png\n2.\nClue 1: ბ\nAnswer: მეორე\nPoints: 1\nImage: two.png\n3.\nClue 1: გ\nAnswer: მესამე\nPoints: 1\nImage: same.png'));
+    choosePictures(png('one.png'), png('two.png', RED), png('same.png'));
+    let upload = await uploadButton(3);
     await waitFor(() => expect(upload.hasAttribute('disabled')).toBe(false));
     fireEvent.click(upload);
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
     cleanup();
     await openDialog({ initialType: 'cards', initialCategory: 'legends' });
-    chooseFile(txt('1.\nClue 1: ბ\nAnswer: მეორე\nPoints: 1\nImage: again.png\nCredit: Ann | CC0 | https://example.com/a'));
-    choosePictures(png('again.png'));
+    chooseFile(txt('1.\nClue 1: დ\nAnswer: მეოთხე\nPoints: 1\nImage: again.png'));
+    choosePictures(png('again.png', RED));
     upload = await uploadButton(1);
-    await waitFor(() => expect(upload.hasAttribute('disabled')).toBe(false));
-    fireEvent.click(upload);
-    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
-    const images = (await admin.content('media').list({ status: 'draft,ready,approved', limit: 200 })).items.filter((row) => row.data.key.startsWith('pic-'));
-    expect(images).toHaveLength(1);
-    expect(images[0]!.data).toMatchObject({ author: 'Ann', license: 'CC0', source: 'https://example.com/a' });
-  });
-
-  it('saves each picture with its own Credit line, the others with the rights typed, and flags a picture credited two ways', async () => {
-    const { admin } = await signIn('editor');
-    const file = (credit: string) =>
-      `1.\nClue 1: ა\nAnswer: პირველი\nPoints: 1\nImage: one.png\nCredit: Ann | CC0 | https://example.com/one\n2.\nClue 1: ბ\nAnswer: მეორე\nPoints: 1\nImage: two.png\n3.\nClue 1: გ\nAnswer: მესამე\nPoints: 1\nImage: one.png${credit}`;
-    await openDialog({ initialType: 'cards', initialCategory: 'legends' });
-    chooseFile(txt(file('\nCredit: Bob | CC BY 4.0 | https://example.com/other')));
-    choosePictures(png('one.png'), png('two.png', RED));
-    expect(await screen.findByText(/Question 1 credits the same picture differently$/)).toBeTruthy();
-    expect((await uploadButton(3)).hasAttribute('disabled')).toBe(true);
-
-    // The same picture with the same credit, or none, is fine.
-    chooseFile(txt(file('')));
-    choosePictures(png('one.png'), png('two.png', RED));
-    fireEvent.change(screen.getByLabelText('Author'), { target: { value: 'Club press office' } });
-    fireEvent.change(screen.getByLabelText('Licence'), { target: { value: 'All rights reserved, used with permission' } });
-    fireEvent.change(screen.getByLabelText('Source'), { target: { value: 'https://example.com/press' } });
-    const upload = await uploadButton(3);
     await waitFor(() => expect(upload.hasAttribute('disabled')).toBe(false));
     fireEvent.click(upload);
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
     const images = (await admin.content('media').list({ status: 'draft,ready,approved', limit: 200 })).items.filter((row) => row.data.key.startsWith('pic-'));
     expect(images).toHaveLength(2);
     const cards = await uploaded(admin, 'cards');
-    const imageOf = (answer: string) => images.find((image) => image.data.key === cards.find((card) => card.data.display === answer)!.data.imageKey)!.data;
-    expect(imageOf('პირველი')).toMatchObject({ author: 'Ann', license: 'CC0', source: 'https://example.com/one' });
-    expect(imageOf('მესამე')).toBe(imageOf('პირველი'));
-    expect(imageOf('მეორე')).toMatchObject({ author: 'Club press office', license: 'All rights reserved, used with permission', source: 'https://example.com/press' });
+    const keyOf = (answer: string) => cards.find((card) => card.data.display === answer)!.data.imageKey;
+    expect(keyOf('მესამე')).toBe(keyOf('პირველი'));
+    expect(keyOf('მეოთხე')).toBe(keyOf('მეორე'));
+    expect(keyOf('პირველი')).not.toBe(keyOf('მეორე'));
   });
 
   it('updates a card already in the category instead of adding another: its picture, points and spellings, keeping its clues', async () => {

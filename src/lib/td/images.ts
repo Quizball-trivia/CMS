@@ -13,8 +13,8 @@ export function imageKeysOf(type: TdContentType, rows: readonly TdContentRow[]):
 
 /** The images questions show move with them, as a category's cards move with
  *  it: marked ready with a question marked ready, approved with a question
- *  approved (there is no Media page). A step an image cannot take (no rights
- *  yet, the approver uploaded it) is left to the question's own refusal,
+ *  approved (there is no Media page). A step an image cannot take (the
+ *  approver uploaded it) is left to the question's own refusal,
  *  which names the image. */
 /** The image row of a key, read page by page until it is found. */
 export async function findImage(key: string, options?: TdOperation): Promise<TdContentRow<'media'> | null> {

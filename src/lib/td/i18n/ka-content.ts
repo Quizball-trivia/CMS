@@ -73,7 +73,6 @@ export const KA_CONTENT: Record<string, string> = {
   'It changed meanwhile ({name}, {time}); this is the row as it is now. Check it and try again.': 'ამასობაში ჩანაწერი შეიცვალა ({name}, {time}); აქ მისი ახლანდელი ვერსიაა. გადაამოწმეთ და სცადეთ ხელახლა.',
   'Merged onto the newer version. Review it, then save.': 'ცვლილებები ახალ ვერსიას შეუერთდა. გადახედეთ და შეინახეთ.',
   'The order in a release. Changing it is a change to the content.': 'რიგი გამოშვებაში. მისი შეცვლა კონტენტის ცვლილებად ითვლება.',
-  'For the team: sources, checks, questions. Changing only the note keeps the row’s status.': 'გუნდისთვის: წყაროები, შემოწმებები, კითხვები. მხოლოდ შენიშვნის შეცვლისას ჩანაწერის სტატუსი არ იცვლება.',
   'A number in the form is not valid: fix it to save.': 'ფორმაში ერთ-ერთი რიცხვი არასწორია: შესანახად გაასწორეთ.',
   'Waiting for the upload to finish.': 'ველოდებით ატვირთვის დასრულებას.',
   'Unsaved changes. Save before changing the status.': 'ცვლილებები შენახული არ არის. სტატუსის შეცვლამდე შეინახეთ.',

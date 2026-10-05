@@ -2,7 +2,6 @@
 
 import { TdMediaPicker, TdMediaThumb, TdUploadButton } from '@/components/td/media/td-media';
 import { t } from '@/lib/td/i18n';
-import { cn } from '@/lib/utils';
 import { issuesAt, TdField, TdIssueText, TdListField, TdOptionalTextField, TdSelectField, TdSwitchField, TdTextField, type TdListChange } from '../td-form';
 import { KeyField, type TdEditorProps } from './rounds';
 
@@ -62,7 +61,6 @@ export function PracticeEditor({ value, onChange, issues, creating }: TdEditorPr
 }
 
 export function MediaEditor({ value, onChange, issues, creating }: TdEditorProps<'media'>) {
-  const rights = !value.author?.trim() || !value.license?.trim() || !value.source?.trim();
   return (
     <>
       <KeyField value={value.key} onChange={(key) => onChange({ ...value, key })} issues={issues} creating={creating} />
@@ -86,12 +84,6 @@ export function MediaEditor({ value, onChange, issues, creating }: TdEditorProps
           />
         </div>
       </TdField>
-      <p className={cn('rounded-lg px-3 py-2 text-xs', rights ? 'bg-amber-50 text-amber-800' : 'bg-(--td-new)/10 text-(--td-new)')}>
-        {rights ? t('A publisher approves an image only with its licence, credit and source.') : t('Rights recorded: a publisher can approve it.')}
-      </p>
-      <TdOptionalTextField label={t('Credit (author)')} value={value.author} onChange={(author) => onChange({ ...value, author })} issues={issuesAt(issues, 'data.author')} placeholder={t('Photographer or agency')} />
-      <TdOptionalTextField label={t('Licence')} value={value.license} onChange={(license) => onChange({ ...value, license })} issues={issuesAt(issues, 'data.license')} placeholder={t('e.g. CC BY-SA 4.0, or the agreement')} />
-      <TdOptionalTextField label={t('Source')} value={value.source} onChange={(source) => onChange({ ...value, source })} issues={issuesAt(issues, 'data.source')} placeholder={t('Where it comes from (a link or a reference)')} />
     </>
   );
 }

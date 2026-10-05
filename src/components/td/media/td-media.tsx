@@ -14,7 +14,7 @@ import { tdAdmin } from '@/lib/td/client';
 import { contentWriteIssues } from '@/lib/td/content-rules';
 import type { MediaUpload, SchemaIssue } from '@/lib/td/contract';
 import { t } from '@/lib/td/i18n';
-import { TdIssueText, TdTextField } from '@/components/td/content/td-form';
+import { TdIssueText } from '@/components/td/content/td-form';
 import { TdOpenImageContext } from '@/components/td/content/td-open-row';
 import { useTdUploadingReport } from '@/components/td/content/td-uploading';
 import { cn } from '@/lib/utils';
@@ -24,13 +24,12 @@ export const TD_UPLOAD_MAX_BYTES = 2 * 1024 * 1024;
 
 type MediaRow = TdContentRow<'media'>;
 
-/** Whether an image counts for approving what shows it: approved with its rights and not archived (a pending edit does not matter). */
+/** Whether an image counts for approving what shows it: approved and not archived (a pending edit does not matter). */
 export function mediaUsable(row: MediaRow): boolean {
-  const approved = row.approved;
-  return Boolean(row.status !== 'archived' && row.approvedVersion !== null && approved?.author?.trim() && approved.license?.trim() && approved.source?.trim());
+  return row.status !== 'archived' && row.approvedVersion !== null;
 }
 
-/** The image a release carries (the approved version, with its rights), or the working one when nothing is approved yet. */
+/** The image a release carries (the approved version), or the working one when nothing is approved yet. */
 export function releasedImage(row: MediaRow): TdContentRow<'media'>['data'] {
   return row.approved && row.status !== 'archived' ? row.approved : row.data;
 }
@@ -137,11 +136,11 @@ export function TdMediaPicker({
             chosen ? (
               mediaUsable(chosen) ? (
                 <p className="text-xs font-medium text-emerald-600">
-                  {t('Approved with its rights')}
+                  {t('Approved')}
                   {replacementPending(chosen) && <span className="text-amber-700"> · {t('a replacement waits for approval; releases show the one here')}</span>}
                 </p>
               ) : (
-                <p className="text-xs font-medium text-amber-700">{t('Its author, licence and source need approving with the question.')}</p>
+                <p className="text-xs font-medium text-amber-700">{t('It is approved with the question.')}</p>
               )
             ) : (
               media.isSuccess && <p className="text-xs font-medium text-red-600">{t('This image no longer exists')}</p>
@@ -199,14 +198,14 @@ function TdMediaPickerDialog({
   const [uploaded, setUploaded] = useState<MediaUpload | null>(null);
   const shown = useMemo(() => {
     const needle = q.trim().toLowerCase();
-    return rows.filter((row) => !needle || [row.data.key, row.data.author, row.data.source].some((text) => text?.toLowerCase().includes(needle)));
+    return rows.filter((row) => !needle || row.data.key.toLowerCase().includes(needle));
   }, [rows, q]);
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[85vh] overflow-hidden bg-(--td-surface-2) sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>{t('Choose an image')}</DialogTitle>
-          <DialogDescription>{t('Images are approved with their licence, credit and source before anything showing them can be approved.')}</DialogDescription>
+          <DialogDescription>{t('An image is approved with the question that shows it.')}</DialogDescription>
         </DialogHeader>
         {uploaded ? (
           <NewImageForm
@@ -223,7 +222,7 @@ function TdMediaPickerDialog({
         )}
         <div className="relative">
           <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-(--td-text-3)" />
-          <Input value={q} onChange={(event) => setQ(event.target.value)} placeholder={t('Search by key, credit or source')} className="h-10 rounded-full bg-(--td-input) pl-9" />
+          <Input value={q} onChange={(event) => setQ(event.target.value)} placeholder={t('Search by key')} className="h-10 rounded-full bg-(--td-input) pl-9" />
         </div>
         <ul className="-mx-2 grid max-h-[50vh] gap-1 overflow-y-auto px-2 sm:grid-cols-2">
           {loading && <li className="text-sm text-(--td-text-3)">{t('Loading…')}</li>}
@@ -234,9 +233,6 @@ function TdMediaPickerDialog({
                 <TdMediaThumb uploadId={releasedImage(row).uploadId} url={releasedImage(row).url} alt={row.data.key} />
                 <span className="min-w-0 flex-1">
                   <span className="block truncate font-mono text-xs">{row.data.key}</span>
-                  <span className="block truncate text-xs text-(--td-text-3)">
-                    {releasedImage(row).author ?? t('No credit')} · {releasedImage(row).license ?? t('No licence')}
-                  </span>
                   {replacementPending(row) && <span className="block text-xs text-amber-800">{t('Replacement waits for approval')}</span>}
                 </span>
                 <TdStatusChip status={row.status} />
@@ -249,18 +245,16 @@ function TdMediaPickerDialog({
   );
 }
 
-/** Saves an upload as an image (a media draft) so it can be picked; a publisher approves it with its rights later. */
+/** Saves an upload as an image (a media draft) so it can be picked; a publisher approves it later. */
 function NewImageForm({ upload, suggestedKey, onCancel, onSaved }: { upload: MediaUpload; suggestedKey?: string; onCancel: () => void; onSaved: (key: string) => void }) {
   const write = useTdWrite();
   const reportBusy = useTdUploadingReport();
   const [key] = useState(suggestedKey ?? `img-${upload.id.slice(0, 8)}`);
-  const [rights, setRights] = useState({ author: '', license: '', source: '' });
   const [issues, setIssues] = useState<SchemaIssue[]>([]);
   const [error, setError] = useState<unknown>(null);
   const [busy, setBusy] = useState(false);
-  const orNull = (text: string) => (text.trim() ? text.trim() : null);
   const save = async () => {
-    const data = { key: key.trim(), url: null, uploadId: upload.id, width: upload.width, height: upload.height, author: orNull(rights.author), license: orNull(rights.license), source: orNull(rights.source) };
+    const data = { key: key.trim(), url: null, uploadId: upload.id, width: upload.width, height: upload.height, author: null, license: null, source: null };
     const found = contentWriteIssues('media', 'Media', 'create', { data });
     setIssues(found);
     if (found.length) return;
@@ -283,13 +277,8 @@ function NewImageForm({ upload, suggestedKey, onCancel, onSaved }: { upload: Med
       <div className="flex items-center gap-3">
         <TdMediaThumb uploadId={upload.id} alt={t('New upload')} className="h-14 w-20" />
         <p className="text-xs text-(--td-text-3)">
-          {t('Uploaded · {width} × {height} px. Save it as an image to use it; approving it needs its licence, credit and source.', { width: upload.width, height: upload.height })}
+          {t('Uploaded · {width} × {height} px. Save it as an image to use it.', { width: upload.width, height: upload.height })}
         </p>
-      </div>
-      <div className="grid gap-2 sm:grid-cols-2">
-        <TdTextField label={t('Credit (author)')} value={rights.author} onChange={(author) => setRights({ ...rights, author })} />
-        <TdTextField label={t('Licence')} value={rights.license} onChange={(license) => setRights({ ...rights, license })} />
-        <TdTextField label={t('Source')} value={rights.source} onChange={(source) => setRights({ ...rights, source })} />
       </div>
       <TdIssueText issues={issues} />
       <TdErrorPanel error={error} />

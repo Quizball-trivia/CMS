@@ -42,7 +42,6 @@ import {
   type TdClubRef,
   type TdParseError,
   type TdParsedQuestion,
-  type TdPictureCredit,
   type TdUploadContext,
   type TdUploadType,
 } from '@/lib/td/upload-format';
@@ -102,13 +101,9 @@ const FORMAT_NOTES: Partial<Record<UploadQuestionType, string[]>> = {
   cards: [
     t('Answer: the first name is what the card shows. Add others only for nicknames or a very different spelling: the game already forgives typos, accents, capitals and Georgian or Latin letters, and the surname alone counts.'),
     t('Points is 1, 2 or 3. The picture, optional: “Photo: 158023 | 24” is the player’s SoFIFA number and version (from the player’s address on sofifa.com), or “Image: buffon.jpg” the file name of a picture chosen below under Pictures.'),
-    t('“Credit: author | licence | source” after an Image line says whose that picture is; without it the picture takes the Author, Licence and Source given below.'),
     t('A card whose answer is already in the category updates that card (its picture, points and clues) instead of adding a second one. Clue lines may then be left out to keep the card’s own.'),
   ],
-  'practice-questions': [
-    t('Optional: “Image: stadium.jpg” is the file name of a picture chosen below under Pictures, or the key of an image already uploaded.'),
-    t('“Credit: author | licence | source” after an Image line says whose that picture is; without it the picture takes the Author, Licence and Source given below.'),
-  ],
+  'practice-questions': [t('Optional: “Image: stadium.jpg” is the file name of a picture chosen below under Pictures, or the key of an image already uploaded.')],
   'football-logic': [t('Image A and Image B are optional. Each is a web address starting with https:// or a path starting with /.')],
   'put-in-order': [t('The items are listed in the order they are shown; the Answer lists them in the right order.')],
   'career-path': [
@@ -150,8 +145,6 @@ const ISSUE_TITLES: Record<RowIssue['code'], string> = {
   missing_reference: t('Refers to something that does not exist'),
   rule: t('Not allowed'),
 };
-
-const CREDIT_FIELDS = ['author', 'license', 'source'] as const;
 
 /** What a card the file names again becomes: the file's points, its clues if it gives any, its spellings added to the card's
  *  own, and its picture (a SoFIFA photo or a picture file) in place of the card's. */
@@ -225,7 +218,6 @@ function UploadBody({ open, initialType, initialCategory, initialPuzzle, onBusy,
   const [previewIndex, setPreviewIndex] = useState<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [pictures, setPictures] = useState<Picture[]>([]);
-  const [rights, setRights] = useState({ author: '', license: '', source: '' });
   // Counts every choosing of a file: one still being read for an earlier choice is dropped.
   const reading = useRef(0);
   // Closed (it stays drawn while it fades out) or gone, the dialog's pending replay is no longer its own.
@@ -338,18 +330,6 @@ function UploadBody({ open, initialType, initialCategory, initialPuzzle, onBusy,
   // A question that updates a card is not imported, so it is not checked as an import either.
   const pending = useMemo(() => (tooMany ? [] : entries.filter((entry) => !entry.updates && !checked.has(entry.signature))), [tooMany, entries, checked]);
 
-  // The Credit line of each picture, by the picture itself (two names of the same bytes are one image): the first that names it.
-  const pictureOf = useCallback((name: string) => pictureKeys.get(name.toLowerCase()) ?? `file:${name.toLowerCase()}`, [pictureKeys]);
-  const credits = useMemo(() => {
-    const byPicture = new Map<string, { credit: TdPictureCredit; questionNumber: number }>();
-    for (const question of questions) {
-      if (!('credit' in question) || !question.credit || !question.imageFile) continue;
-      const picture = pictureOf(question.imageFile);
-      if (!byPicture.has(picture)) byPicture.set(picture, { credit: question.credit, questionNumber: question.questionNumber });
-    }
-    return byPicture;
-  }, [questions, pictureOf]);
-
   const rows = useMemo<QuestionWithSelection[]>(() => {
     // The first question of the file that updates each card.
     const updater = new Map<string, number>();
@@ -361,13 +341,9 @@ function UploadBody({ open, initialType, initialCategory, initialPuzzle, onBusy,
         const isDuplicate = issues.some((issue) => issue.code === 'duplicate');
         // A picture the file names must be among those chosen.
         const missingPicture = 'imageFile' in question && question.imageFile && !pictureKeys.has(question.imageFile.toLowerCase());
-        // One picture is one image: two questions may not credit it differently.
-        const first = 'credit' in question && question.credit && question.imageFile ? credits.get(pictureOf(question.imageFile)) : undefined;
-        const otherCredit = first && canonicalJson(first.credit) !== canonicalJson((question as { credit: TdPictureCredit }).credit) ? first : undefined;
         const problems: RowIssue[] = [
           ...(isDuplicate ? [] : issues),
           ...(missingPicture ? [{ code: 'missing_reference' as const, path: 'Image', message: t('Choose the picture {name} under Pictures', { name: question.imageFile! }) }] : []),
-          ...(otherCredit ? [{ code: 'invalid' as const, path: 'Credit', message: t('Question {n} credits the same picture differently', { n: otherCredit.questionNumber }) }] : []),
         ];
         if (question.kind === 'cards' && updates) {
           // What the card would become is checked as the edit it is, before anything is saved.
@@ -392,7 +368,7 @@ function UploadBody({ open, initialType, initialCategory, initialPuzzle, onBusy,
           updates,
         };
       });
-  }, [questions, entries, checked, unselected, pictureKeys, credits, pictureOf, context, mediaByKey, mediaRows.isError, mediaRows.isSuccess]);
+  }, [questions, entries, checked, unselected, pictureKeys, context, mediaByKey, mediaRows.isError, mediaRows.isSuccess]);
 
   const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -661,29 +637,14 @@ function UploadBody({ open, initialType, initialCategory, initialPuzzle, onBusy,
     }
   };
 
-  /** Uploads each picture and saves it as an image with its Credit line, or the rights given. One saved before (the same
-   *  bytes) is used again, and given the rights it lacks; rights it has are kept. */
+  /** Uploads each picture and saves it as an image; one saved before (the same bytes) is used again. */
   const savePictures = async (chosen: Picture[], operation: TdOperation): Promise<boolean> => {
-    const orNull = (text: string) => (text.trim() ? text.trim() : null);
-    const shared: TdPictureCredit = { author: orNull(rights.author), license: orNull(rights.license), source: orNull(rights.source) };
     for (const picture of chosen) {
       try {
-        const credit = credits.get(picture.key)?.credit ?? shared;
-        const existing = await findImage(picture.key, operation);
-        if (existing) {
-          const lacking = CREDIT_FIELDS.filter((field) => !existing.data[field] && credit[field]);
-          if (CREDIT_FIELDS.some((field) => existing.data[field] && credit[field] && existing.data[field] !== credit[field])) {
-            toast.warning(t('The picture {name} was saved before with other rights; it keeps them', { name: picture.name }));
-          }
-          if (lacking.length > 0) {
-            const data = { ...existing.data, ...Object.fromEntries(lacking.map((field) => [field, credit[field]])) };
-            await write((op) => tdAdmin.content('media').edit(existing.id, { version: existing.version, data, position: existing.position, note: existing.note }, op), [tdKeys.content], operation);
-          }
-          continue;
-        }
+        if (await findImage(picture.key, operation)) continue;
         await write(async (op) => {
           const upload = await tdAdmin.media.upload(picture.file, picture.file.type, op);
-          return tdAdmin.content('media').create({ data: { key: picture.key, url: null, uploadId: upload.id, width: upload.width, height: upload.height, ...credit } }, op);
+          return tdAdmin.content('media').create({ data: { key: picture.key, url: null, uploadId: upload.id, width: upload.width, height: upload.height, author: null, license: null, source: null } }, op);
         }, undefined, operation);
       } catch (caught) {
         toast.error(t('The picture {name} could not be saved: {error}', { name: picture.name, error: tdErrorText(caught) }));
@@ -876,7 +837,7 @@ function UploadBody({ open, initialType, initialCategory, initialPuzzle, onBusy,
               />
               <p className="text-sm text-muted-foreground">{t('The pictures the file names on its Image lines: JPEG, PNG or WebP, at most 2 MB each. Choose them all at once.')}</p>
               {pictures.length > 0 && (
-                <div className="space-y-3 rounded-lg border p-3">
+                <div className="rounded-lg border p-3">
                   <div className="flex flex-wrap gap-2">
                     {pictures.map((picture) => (
                       <figure key={picture.name} className="w-16">
@@ -888,21 +849,6 @@ function UploadBody({ open, initialType, initialCategory, initialPuzzle, onBusy,
                       </figure>
                     ))}
                   </div>
-                  <div className="grid gap-3 sm:grid-cols-3">
-                    <div className="space-y-1">
-                      <Label htmlFor="picture-author">{t('Author')}</Label>
-                      <Input id="picture-author" value={rights.author} onChange={(event) => setRights({ ...rights, author: event.target.value })} />
-                    </div>
-                    <div className="space-y-1">
-                      <Label htmlFor="picture-license">{t('Licence')}</Label>
-                      <Input id="picture-license" value={rights.license} onChange={(event) => setRights({ ...rights, license: event.target.value })} />
-                    </div>
-                    <div className="space-y-1">
-                      <Label htmlFor="picture-source">{t('Source')}</Label>
-                      <Input id="picture-source" value={rights.source} onChange={(event) => setRights({ ...rights, source: event.target.value })} />
-                    </div>
-                  </div>
-                  <p className="text-xs text-muted-foreground">{t('For the pictures without a Credit line in the file. A card with a picture is approved only once its picture has its author, licence and source.')}</p>
                 </div>
               )}
             </div>
@@ -1156,7 +1102,7 @@ function PreviewImage({ label, reference, media, mediaLoaded }: { label: string;
 }
 
 /** A picture the file names, as chosen under Pictures (or a note that it is not). */
-function ChosenPicture({ name, credit, pictures }: { name: string; credit: TdPictureCredit | null; pictures: Picture[] }) {
+function ChosenPicture({ name, pictures }: { name: string; pictures: Picture[] }) {
   const picture = pictures.find((p) => p.name.toLowerCase() === name.toLowerCase());
   return (
     <div>
@@ -1168,12 +1114,7 @@ function ChosenPicture({ name, credit, pictures }: { name: string; credit: TdPic
         ) : (
           <p className="text-xs text-destructive">{t('Choose the picture {name} under Pictures', { name })}</p>
         )}
-        {picture && (
-          <div className="min-w-0 space-y-1 text-xs">
-            <p className="break-all font-mono">{name}</p>
-            {credit && <p className="break-all text-muted-foreground">{[credit.author, credit.license, credit.source].filter(Boolean).join(' · ')}</p>}
-          </div>
-        )}
+        {picture && <p className="break-all font-mono text-xs">{name}</p>}
       </div>
     </div>
   );
@@ -1285,7 +1226,7 @@ function ParsedQuestionPreviewDialog({ row, currentIndex, totalQuestions, clubs,
                 </div>
               </div>
               {question.kind === 'cards' && question.imageKey && <PreviewImage label={t('Image')} reference={question.imageKey} media={media} mediaLoaded={mediaLoaded} />}
-              {question.kind === 'cards' && question.imageFile && <ChosenPicture name={question.imageFile} credit={question.credit} pictures={pictures} />}
+              {question.kind === 'cards' && question.imageFile && <ChosenPicture name={question.imageFile} pictures={pictures} />}
               {question.kind === 'cards' && question.photo && (
                 <div>
                   <Label className="text-xs text-muted-foreground">{t('SoFIFA face')}</Label>
@@ -1305,7 +1246,7 @@ function ParsedQuestionPreviewDialog({ row, currentIndex, totalQuestions, clubs,
           {question.kind === 'practice-questions' && (
             <>
               {question.imageKey && <PreviewImage label={t('Image')} reference={question.imageKey} media={media} mediaLoaded={mediaLoaded} />}
-              {question.imageFile && <ChosenPicture name={question.imageFile} credit={question.credit} pictures={pictures} />}
+              {question.imageFile && <ChosenPicture name={question.imageFile} pictures={pictures} />}
 
               <div>
                 <Label className="text-xs text-muted-foreground">{WORDS.options}</Label>
