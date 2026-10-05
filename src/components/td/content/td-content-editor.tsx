@@ -14,6 +14,7 @@ import { contentWriteIssues, TD_MERGE_UNITS } from '@/lib/td/content-rules';
 import type { SchemaIssue } from '@/lib/td/contract';
 import { describeTdError } from '@/lib/td/errors';
 import { formatGeorgiaTime } from '@/lib/td/georgia';
+import { withShownAnswer } from '@/lib/td/answers';
 import { findImage, moveImagesAlong } from '@/lib/td/images';
 import { t, tc, TD_LANG, tn } from '@/lib/td/i18n';
 import { mergeDrafts, resolveConflicts, sameDraft, type TdDraft, type TdFieldConflict } from '@/lib/td/merge';
@@ -288,9 +289,11 @@ function EditorBody({
 
   const save = async () => {
     if (held) return;
+    // The shown answer always counts (Rounds I–III compare a guess with the accepted spellings only).
+    const data = withShownAnswer(type, draft.data);
     const body = creating
-      ? { data: draft.data, ...(draft.note ? { note: draft.note } : {}) }
-      : { version: row.version, data: draft.data, position: draft.position, note: draft.note };
+      ? { data, ...(draft.note ? { note: draft.note } : {}) }
+      : { version: row.version, data, position: draft.position, note: draft.note };
     const found = contentWriteIssues(type, schemaName, creating ? 'create' : 'edit', body);
     setIssues(found);
     if (found.length) {

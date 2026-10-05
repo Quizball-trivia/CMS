@@ -14,9 +14,11 @@ import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
 import { getDifficultyVariant } from '@/components/ui/difficulty-signal';
-import { releasedImage, TdMediaThumb } from '@/components/td/media/td-media';
+import { releasedImage, TdMediaThumb, uploadProblem } from '@/components/td/media/td-media';
 import { tdKeys, useTdAllRows, useTdWrite } from '@/hooks/use-td-content';
-import type { TdContentType } from '@/lib/td/admin-api';
+import type { TdContentRow, TdContentType } from '@/lib/td/admin-api';
+import { withShownAnswer } from '@/lib/td/answers';
+import { findImage } from '@/lib/td/images';
 import { TdApiError } from '@/lib/td/api-client';
 import { tdAdmin, tdTokens } from '@/lib/td/client';
 import type { ContentImportReport } from '@/lib/td/contract';
@@ -28,6 +30,7 @@ import { batchKeyFor, markSent, retireBatchKey } from '@/lib/td/import-keys';
 import { beginOperation, type TdOperation } from '@/lib/td/operation';
 import {
   careerClubs,
+  imageKeyIn,
   parseTdUpload,
   TD_UPLOAD_EXAMPLES,
   TD_UPLOAD_TYPES,
@@ -61,7 +64,19 @@ interface QuestionWithSelection {
   problems: RowIssue[];
   /** The check has answered for the import item this question becomes. */
   checked: boolean;
+  /** A card already in the category with this answer: the question updates it instead of adding another. */
+  updates: TdContentRow<'cards'> | null;
 }
+
+/** A picture chosen with the file: saved as an image under a key made from its bytes, so the same picture is one image. */
+interface Picture {
+  name: string;
+  file: File;
+  key: string;
+  url: string;
+}
+
+const plainName = (text: string) => text.normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
 
 const NEW = '__new__';
 const MAX_MB = TD_IMPORT_MAX_BYTES / 1024 / 1024;
@@ -81,9 +96,11 @@ const TYPE_OPTIONS: Array<{ value: UploadQuestionType; label: string }> = [
 
 const FORMAT_NOTES: Partial<Record<UploadQuestionType, string[]>> = {
   cards: [
-    t('Points is 1, 2 or 3. Optional: “Image: messi-portrait” gives the key of an image already uploaded, and “Photo: 158023 | 25_1” a SoFIFA player id and version. Images are not uploaded here.'),
+    t('Answer: the first name is what the card shows. Add others only for nicknames or a very different spelling: the game already forgives typos, accents, capitals and Georgian or Latin letters, and the surname alone counts.'),
+    t('Points is 1, 2 or 3. The picture, optional: “Photo: 158023 | 24” is the player’s SoFIFA number and version (from the player’s address on sofifa.com), or “Image: buffon.jpg” the file name of a picture chosen below under Pictures.'),
+    t('A card whose answer is already in the category updates that card (its picture, points and clues) instead of adding a second one. Clue lines may then be left out to keep the card’s own.'),
   ],
-  'practice-questions': [t('Optional: “Image: dinamo-stadium” gives the key of an image already uploaded. Images are not uploaded here.')],
+  'practice-questions': [t('Optional: “Image: stadium.jpg” is the file name of a picture chosen below under Pictures, or the key of an image already uploaded.')],
   'football-logic': [t('Image A and Image B are optional. Each is a web address starting with https:// or a path starting with /.')],
   'put-in-order': [t('The items are listed in the order they are shown; the Answer lists them in the right order.')],
   'career-path': [
@@ -133,9 +150,11 @@ export interface TdBulkUploadDialogProps {
   initialType?: TdContentType;
   /** A category's key (Round I, Round III) or label (Practice, Football Logic) to open on. */
   initialCategory?: string | null;
+  /** The daily games: the category (puzzle key) the list is filtered by. */
+  initialPuzzle?: string | null;
 }
 
-export function TdBulkUploadDialog({ initialType, initialCategory }: TdBulkUploadDialogProps) {
+export function TdBulkUploadDialog({ initialType, initialCategory, initialPuzzle }: TdBulkUploadDialogProps) {
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
 
@@ -155,21 +174,21 @@ export function TdBulkUploadDialog({ initialType, initialCategory }: TdBulkUploa
         </Button>
       </DialogTrigger>
       <DialogContent className="!max-w-6xl overflow-hidden flex flex-col p-6" style={{ maxHeight: '95vh', height: '95vh' }}>
-        <UploadBody initialType={initialType} initialCategory={initialCategory ?? null} onBusy={setBusy} onClose={() => setOpen(false)} />
+        <UploadBody initialType={initialType} initialCategory={initialCategory ?? null} initialPuzzle={initialPuzzle ?? null} onBusy={setBusy} onClose={() => setOpen(false)} />
       </DialogContent>
     </Dialog>
   );
 }
 
 /** Everything inside the dialog; it exists only while the dialog is open, so closing resets it. */
-function UploadBody({ initialType, initialCategory, onBusy, onClose }: { initialType?: TdContentType; initialCategory: string | null; onBusy: (busy: boolean) => void; onClose: () => void }) {
+function UploadBody({ initialType, initialCategory, initialPuzzle, onBusy, onClose }: { initialType?: TdContentType; initialCategory: string | null; initialPuzzle: string | null; onBusy: (busy: boolean) => void; onClose: () => void }) {
   const { user } = useTdAuth();
   const write = useTdWrite();
   const [selectedQuestionType, setSelectedQuestionType] = useState<UploadQuestionType>(isUploadType(initialType) ? initialType : TYPE_OPTIONS[0]!.value);
   // The category's key (Round I, Round III) or label (Practice, Football Logic); NEW: the one typed below.
   const [selectedCategory, setSelectedCategory] = useState<string>(initialCategory ?? '');
   const [newCategory, setNewCategory] = useState('');
-  const [selectedPuzzle, setSelectedPuzzle] = useState('');
+  const [selectedPuzzle, setSelectedPuzzle] = useState(initialPuzzle ?? '');
   const [newPuzzle, setNewPuzzle] = useState('');
   const uploadInFlightRef = useRef(false);
   const [state, setState] = useState<UploadState>({ parseErrors: [], isUploading: false });
@@ -181,6 +200,8 @@ function UploadBody({ initialType, initialCategory, onBusy, onClose }: { initial
   const [page, setPage] = useState(1);
   const [previewIndex, setPreviewIndex] = useState<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [pictures, setPictures] = useState<Picture[]>([]);
+  const [rights, setRights] = useState({ author: '', license: '', source: '' });
   // Counts every choosing of a file: one still being read for an earlier choice is dropped.
   const reading = useRef(0);
   // The choosing the list comes from, and the one whose earlier import has been looked for.
@@ -194,6 +215,8 @@ function UploadBody({ initialType, initialCategory, onBusy, onClose }: { initial
   const keyCategory = type === 'cards' || type === 'box-questions';
   const labelCategory = type === 'practice-questions' || type === 'football-logic';
   const daily = type === 'football-logic' || type === 'put-in-order' || type === 'career-path';
+  // Football Logic's own label, shown above its question in the game; its category is the puzzle.
+  const topic = type === 'football-logic';
 
   const categoryRows = useTdAllRows(type === 'cards' ? 'card-categories' : 'box-categories', { status: STATUSES }, keyCategory);
   const practiceRows = useTdAllRows('practice-questions', { status: STATUSES }, type === 'practice-questions');
@@ -202,6 +225,7 @@ function UploadBody({ initialType, initialCategory, onBusy, onClose }: { initial
   const careerRows = useTdAllRows('career-path', { status: STATUSES }, type === 'career-path');
   const clubRows = useTdAllRows('clubs', { status: STATUSES }, type === 'career-path');
   const mediaRows = useTdAllRows('media', { status: STATUSES }, type === 'cards' || type === 'practice-questions');
+  const takesPictures = type === 'cards' || type === 'practice-questions';
 
   const categoryOptions = useMemo(() => {
     if (keyCategory) return (categoryRows.data?.rows ?? []).map((row) => ({ value: row.data.key, label: 'prompt' in row.data ? row.data.prompt : row.data.title }));
@@ -246,45 +270,70 @@ function UploadBody({ initialType, initialCategory, onBusy, onClose }: { initial
   const puzzle = selectedPuzzle === NEW ? newPuzzle.trim() : selectedPuzzle;
   const categoryProblem = selectedCategory === NEW && newCategory !== '' && (category.length === 0 || category.length > 200) ? t('At most {max} characters, with no spaces at the start or end', { max: 200 }) : null;
   const puzzleProblem = selectedPuzzle === NEW && newPuzzle !== '' && !KEY_PATTERN.test(puzzle) ? t('Lower-case letters, digits, - and _ (starting with a letter or digit), at most 64') : null;
+  // The cards already in the category: a question with one's answer updates it.
+  const categoryCards = useTdAllRows('cards', { category, status: STATUSES }, type === 'cards' && category !== '');
   const ready =
     (!keyCategory && !labelCategory ? true : keyCategory ? category !== '' : category !== '' && category.length <= 200) &&
     (!daily || KEY_PATTERN.test(puzzle)) &&
-    (type !== 'career-path' || !clubRows.isLoading);
+    (type !== 'career-path' || !clubRows.isLoading) &&
+    (type !== 'cards' || !categoryCards.isLoading);
+  const pictureKeys = useMemo(() => new Map(pictures.map((picture) => [picture.name.toLowerCase(), picture.key])), [pictures]);
+  const existingCard = useCallback(
+    (question: TdParsedQuestion): TdContentRow<'cards'> | null => {
+      if (question.kind !== 'cards') return null;
+      const wanted = plainName(question.display);
+      return ((categoryCards.data?.rows ?? []) as TdContentRow<'cards'>[]).find((row) => plainName(row.data.display) === wanted || row.data.aliases.some((alias) => plainName(alias) === wanted)) ?? null;
+    },
+    [categoryCards.data],
+  );
 
   const context = useMemo<TdUploadContext>(
-    () => ({ categoryKey: keyCategory ? category : '', category: labelCategory ? category : '', puzzle: daily ? puzzle : '', clubs }),
-    [keyCategory, labelCategory, daily, category, puzzle, clubs],
+    () => ({ categoryKey: keyCategory ? category : '', category: labelCategory ? category : '', puzzle: daily ? puzzle : '', clubs, pictures: pictureKeys }),
+    [keyCategory, labelCategory, daily, category, puzzle, clubs, pictureKeys],
   );
+  // `item` is what is imported; the check is asked of `checked` (a picture's image does not exist before the upload saves it).
   const entries = useMemo(
     () =>
       ready
         ? questions.map((question) => {
             const item = toTdImportItem(question, context);
-            return { item, signature: canonicalJson(item) };
+            const pictured = 'imageFile' in question && question.imageFile !== null;
+            const asked = pictured ? { ...item, data: { ...(item.data as Record<string, unknown>), imageKey: null } } : item;
+            return { item, asked, signature: canonicalJson(asked), updates: existingCard(question) };
           })
         : [],
-    [ready, questions, context],
+    [ready, questions, context, existingCard],
   );
   // More than an import takes is not checked: it is shortened first.
   const tooMany = entries.length > TD_IMPORT_MAX_ITEMS;
-  const pending = useMemo(() => (tooMany ? [] : entries.filter((entry) => !checked.has(entry.signature))), [tooMany, entries, checked]);
+  // A question that updates a card is not imported, so it is not checked as an import either.
+  const pending = useMemo(() => (tooMany ? [] : entries.filter((entry) => !entry.updates && !checked.has(entry.signature))), [tooMany, entries, checked]);
 
   const rows = useMemo<QuestionWithSelection[]>(
     () =>
       questions.map((question, index) => {
-        const signature = entries[index]?.signature ?? null;
-        const issues = signature ? (checked.get(signature) ?? []) : [];
+        const entry = entries[index];
+        const updates = entry?.updates ?? null;
+        const signature = entry?.signature ?? null;
+        const issues = signature && !updates ? (checked.get(signature) ?? []) : [];
         const isDuplicate = issues.some((issue) => issue.code === 'duplicate');
+        // A picture the file names must be among those chosen.
+        const missingPicture = 'imageFile' in question && question.imageFile && !pictureKeys.has(question.imageFile.toLowerCase());
+        const problems: RowIssue[] = [
+          ...(isDuplicate ? [] : issues),
+          ...(missingPicture ? [{ code: 'missing_reference' as const, path: 'Image', message: t('Choose the picture {name} under Pictures', { name: question.imageFile! }) }] : []),
+        ];
         return {
           question,
           // A question that already exists cannot be uploaded, so it is never selected.
           isSelected: !unselected.has(question.id) && !isDuplicate,
           isDuplicate,
-          problems: isDuplicate ? [] : issues,
-          checked: signature !== null && checked.has(signature),
+          problems,
+          checked: updates !== null || (signature !== null && checked.has(signature)),
+          updates,
         };
       }),
-    [questions, entries, checked, unselected],
+    [questions, entries, checked, unselected, pictureKeys],
   );
 
   const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -349,29 +398,54 @@ function UploadBody({ initialType, initialCategory, onBusy, onClose }: { initial
     }
   };
 
+  // The object URLs of the pictures shown go when they do.
+  useEffect(() => () => pictures.forEach((picture) => URL.revokeObjectURL(picture.url)), [pictures]);
+
+  const handlePictures = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = [...(event.target.files ?? [])];
+    const chosen: Picture[] = [];
+    for (const file of files) {
+      const problem = uploadProblem(file);
+      if (problem) {
+        toast.error(`${file.name}: ${problem}`);
+        continue;
+      }
+      const key = `pic-${(await sha256Hex(await file.arrayBuffer())).slice(0, 24)}`;
+      chosen.push({ name: file.name, file, key, url: URL.createObjectURL(file) });
+    }
+    setPictures(chosen);
+  };
+
   const handleRemoveQuestion = (id: string) => {
     setQuestions((prev) => prev.filter((q) => q.id !== id));
   };
 
-  /** The answers of a refused import, row by row, for the items it was sent. */
-  const absorb = useCallback((items: unknown[], report: ContentImportReport) => {
-    setChecked((prev) => {
-      const next = new Map(prev);
-      items.forEach((item, index) => next.set(canonicalJson(item), report.rows.find((row) => row.index === index)?.issues ?? []));
-      return next;
-    });
-  }, []);
+  /** The answers of a refused import, row by row, filed under the check of each item it was sent. */
+  const absorb = useCallback(
+    (items: unknown[], report: ContentImportReport) => {
+      const askedOf = new Map(entries.map((entry) => [canonicalJson(entry.item), entry.signature]));
+      setChecked((prev) => {
+        const next = new Map(prev);
+        items.forEach((item, index) => next.set(askedOf.get(canonicalJson(item)) ?? canonicalJson(item), report.rows.find((row) => row.index === index)?.issues ?? []));
+        return next;
+      });
+    },
+    [entries],
+  );
 
   /** Imports the items as drafts, all or none, under the batch key of exactly these items. */
   const importItems = useCallback(
-    async (items: unknown[], replay?: TdOperation): Promise<'done' | 'spent' | 'failed'> => {
+    async (items: unknown[], replay?: TdOperation, close = true): Promise<'done' | 'spent' | 'failed'> => {
       if (!user) return 'failed';
       const hash = await sha256Hex(canonicalJson(items));
       const saved = batchKeyFor(user.id, hash);
       markSent(user.id, hash, true);
-      setUploadCount(items.length);
-      setState((prev) => ({ ...prev, isUploading: true }));
-      onBusy(true);
+      // A replay on its own shows itself as uploading; the upload's own steps do that for all of them.
+      if (close) {
+        setUploadCount(items.length);
+        setState((prev) => ({ ...prev, isUploading: true }));
+        onBusy(true);
+      }
       try {
         const out = await write((operation) => tdAdmin.imports.apply(saved.key, items, operation), [tdKeys.content, tdKeys.releases, tdKeys.imports], replay);
         if (!out.created && out.batch.status !== 'applied') {
@@ -380,7 +454,7 @@ function UploadBody({ initialType, initialCategory, onBusy, onClose }: { initial
           return 'spent';
         }
         toast.success(out.created ? t('{n} drafts imported', { n: out.batch.rows.length }) : t('These items were imported already; nothing was added'));
-        onClose();
+        if (close) onClose();
         return 'done';
       } catch (caught) {
         // Refused, so nothing was imported under this key.
@@ -392,8 +466,10 @@ function UploadBody({ initialType, initialCategory, onBusy, onClose }: { initial
         toast.error(tdErrorText(caught));
         return 'failed';
       } finally {
-        onBusy(false);
-        setState((prev) => ({ ...prev, isUploading: false }));
+        if (close) {
+          onBusy(false);
+          setState((prev) => ({ ...prev, isUploading: false }));
+        }
       }
     },
     [user, write, onBusy, onClose, absorb],
@@ -407,8 +483,8 @@ function UploadBody({ initialType, initialCategory, onBusy, onClose }: { initial
     const mine = read;
     const operation = readOperation.current;
     void (async () => {
-      const items = entries.map((entry) => entry.item);
-      const saved = user && operation ? batchKeyFor(user.id, await sha256Hex(canonicalJson(items))) : null;
+      const items = entries.filter((entry) => !entry.updates).map((entry) => entry.item);
+      const saved = user && operation && items.length > 0 ? batchKeyFor(user.id, await sha256Hex(canonicalJson(items))) : null;
       if (saved?.sent && operation) {
         const outcome = await importItems(items, operation);
         if (outcome === 'done') return;
@@ -424,7 +500,7 @@ function UploadBody({ initialType, initialCategory, onBusy, onClose }: { initial
     const asked = pending;
     void (async () => {
       try {
-        const report = await write((operation) => tdAdmin.imports.preview(asked.map((entry) => entry.item), operation), []);
+        const report = await write((operation) => tdAdmin.imports.preview(asked.map((entry) => entry.asked), operation), []);
         checking.current = false;
         setChecked((prev) => {
           const next = new Map(prev);
@@ -457,11 +533,13 @@ function UploadBody({ initialType, initialCategory, onBusy, onClose }: { initial
     }
 
     if (!ready) {
-      toast.error(keyCategory || labelCategory ? t('Please select a category') : t('Please select a puzzle'));
+      toast.error(topic ? t('Please select a topic and a category') : t('Please select a category'));
       return;
     }
 
-    const items = selectedRows.map((index) => entries[index]!.item);
+    const creates = selectedRows.filter((index) => !rows[index]!.updates);
+    const updates = selectedRows.filter((index) => rows[index]!.updates);
+    const items = creates.map((index) => entries[index]!.item);
     const tooBig = tdImportLimits(items);
     if (tooBig.length > 0) {
       toast.error(tooBig[0]!.message);
@@ -469,14 +547,79 @@ function UploadBody({ initialType, initialCategory, onBusy, onClose }: { initial
     }
 
     uploadInFlightRef.current = true;
+    setUploadCount(selectedRows.length);
+    setState((prev) => ({ ...prev, isUploading: true }));
+    onBusy(true);
     try {
-      let outcome = await importItems(items);
-      // These very items were imported once and that import was undone: its key is spent, so they are imported anew under a fresh one.
-      if (outcome === 'spent') outcome = await importItems(items);
-      if (outcome === 'spent') toast.error(t('These items were imported before and that import was undone. Read the file again to import them anew.'));
+      // 1. The pictures the chosen questions name, saved as images first: the questions refer to them.
+      const named = new Set(selectedRows.flatMap((index) => {
+        const question = rows[index]!.question;
+        return 'imageFile' in question && question.imageFile ? [question.imageFile.toLowerCase()] : [];
+      }));
+      const saved = await savePictures(pictures.filter((picture) => named.has(picture.name.toLowerCase())));
+      if (!saved) return;
+      // 2. The new questions, all or none, as one import.
+      if (items.length > 0) {
+        let outcome = await importItems(items, undefined, false);
+        // These very items were imported once and that import was undone: its key is spent, so they are imported anew under a fresh one.
+        if (outcome === 'spent') outcome = await importItems(items, undefined, false);
+        if (outcome === 'spent') toast.error(t('These items were imported before and that import was undone. Read the file again to import them anew.'));
+        if (outcome !== 'done') return;
+      }
+      // 3. The cards already in the category: their picture, points, clues and spellings, from the file.
+      const updated = await updateCards(updates.map((index) => ({ question: rows[index]!.question, card: rows[index]!.updates! })));
+      if (updates.length > 0) toast.success(tn(updated, '{count} card updated', '{count} cards updated'));
+      if (updated === updates.length) onClose();
     } finally {
       uploadInFlightRef.current = false;
+      onBusy(false);
+      setState((prev) => ({ ...prev, isUploading: false }));
     }
+  };
+
+  /** Uploads each picture and saves it as an image with the rights given; one saved before (the same bytes) is used again. */
+  const savePictures = async (chosen: Picture[]): Promise<boolean> => {
+    const orNull = (text: string) => (text.trim() ? text.trim() : null);
+    for (const picture of chosen) {
+      try {
+        if (await findImage(picture.key)) continue;
+        await write(async (operation) => {
+          const upload = await tdAdmin.media.upload(picture.file, picture.file.type, operation);
+          return tdAdmin.content('media').create(
+            { data: { key: picture.key, url: null, uploadId: upload.id, width: upload.width, height: upload.height, author: orNull(rights.author), license: orNull(rights.license), source: orNull(rights.source) } },
+            operation,
+          );
+        });
+      } catch (caught) {
+        toast.error(t('The picture {name} could not be saved: {error}', { name: picture.name, error: tdErrorText(caught) }));
+        return false;
+      }
+    }
+    return true;
+  };
+
+  /** Each card the file names again: what the file gives replaces what the card had; spellings are added to its own. */
+  const updateCards = async (pairs: Array<{ question: TdParsedQuestion; card: TdContentRow<'cards'> }>): Promise<number> => {
+    let done = 0;
+    for (const { question, card } of pairs) {
+      if (question.kind !== 'cards') continue;
+      const imageKey = imageKeyIn(question, context);
+      const data = withShownAnswer('cards', {
+        ...card.data,
+        value: question.points,
+        lines: question.clues.length > 0 ? question.clues : card.data.lines,
+        aliases: [...card.data.aliases, ...question.aliases].filter((alias, index, all) => all.findIndex((other) => plainName(other) === plainName(alias)) === index),
+        photo: question.photo ?? (imageKey ? null : card.data.photo),
+        imageKey: imageKey ?? (question.photo ? null : card.data.imageKey),
+      });
+      try {
+        await write((operation) => tdAdmin.content('cards').edit(card.id, { version: card.version, data, position: card.position, note: card.note }, operation), [tdKeys.content, tdKeys.releases]);
+        done++;
+      } catch (caught) {
+        toast.error(t('The card {name} was not updated: {error}', { name: card.data.display, error: tdErrorText(caught) }));
+      }
+    }
+    return done;
   };
 
   const clearFile = () => {
@@ -504,6 +647,7 @@ function UploadBody({ initialType, initialCategory, onBusy, onClose }: { initial
 
   // Computed values
   const selectedCount = rows.filter((row) => row.isSelected).length;
+  const updateCount = rows.filter((row) => row.isSelected && row.updates).length;
   const duplicateCount = rows.filter((row) => row.isDuplicate).length;
   const problemCount = rows.filter((row) => row.problems.length > 0).length;
   const selectedProblemCount = rows.filter((row) => row.isSelected && row.problems.length > 0).length;
@@ -558,10 +702,10 @@ function UploadBody({ initialType, initialCategory, onBusy, onClose }: { initial
             {/* Category Selection */}
             {(keyCategory || labelCategory) && (
               <div className="space-y-2">
-                <Label htmlFor="category">{t('Category')} *</Label>
+                <Label htmlFor="category">{topic ? t('Topic') : t('Category')} *</Label>
                 <Select value={selectedCategory} onValueChange={setSelectedCategory}>
                   <SelectTrigger id="category" className="max-w-full">
-                    <SelectValue placeholder={t('Select a category')} />
+                    <SelectValue placeholder={topic ? t('Select a topic') : t('Select a category')} />
                   </SelectTrigger>
                   <SelectContent>
                     {categoryOptions.map((option) => (
@@ -569,7 +713,7 @@ function UploadBody({ initialType, initialCategory, onBusy, onClose }: { initial
                         {option.label}
                       </SelectItem>
                     ))}
-                    {labelCategory && <SelectItem value={NEW}>{t('New category…')}</SelectItem>}
+                    {labelCategory && <SelectItem value={NEW}>{topic ? t('New topic…') : t('New category…')}</SelectItem>}
                     {keyCategory && categoryOptions.length === 0 && (
                       <SelectItem value="none" disabled>
                         {categoryRows.isLoading ? t('Loading categories...') : t('No categories available')}
@@ -577,18 +721,18 @@ function UploadBody({ initialType, initialCategory, onBusy, onClose }: { initial
                     )}
                   </SelectContent>
                 </Select>
-                {selectedCategory === NEW && <Input aria-label={t('New category')} value={newCategory} onChange={(event) => setNewCategory(event.target.value)} placeholder={t('Category')} />}
+                {selectedCategory === NEW && <Input aria-label={topic ? t('New topic') : t('New category')} value={newCategory} onChange={(event) => setNewCategory(event.target.value)} placeholder={topic ? t('Topic') : t('Category')} />}
                 {categoryProblem && <p className="text-sm text-destructive">{categoryProblem}</p>}
               </div>
             )}
 
-            {/* Puzzle (set) Selection */}
+            {/* A daily's category: its puzzle key */}
             {daily && (
               <div className="space-y-2">
-                <Label htmlFor="puzzle">{t('Puzzle (set)')} *</Label>
+                <Label htmlFor="puzzle">{t('Category')} *</Label>
                 <Select value={selectedPuzzle} onValueChange={setSelectedPuzzle}>
                   <SelectTrigger id="puzzle" className="max-w-full">
-                    <SelectValue placeholder={t('Select a puzzle')} />
+                    <SelectValue placeholder={t('Select a category')} />
                   </SelectTrigger>
                   <SelectContent>
                     {puzzleOptions.map((option) => (
@@ -596,10 +740,10 @@ function UploadBody({ initialType, initialCategory, onBusy, onClose }: { initial
                         {option.label}
                       </SelectItem>
                     ))}
-                    <SelectItem value={NEW}>{t('New puzzle…')}</SelectItem>
+                    <SelectItem value={NEW}>{t('New category…')}</SelectItem>
                   </SelectContent>
                 </Select>
-                {selectedPuzzle === NEW && <Input aria-label={t('New puzzle key')} value={newPuzzle} onChange={(event) => setNewPuzzle(event.target.value)} placeholder="fl-12" />}
+                {selectedPuzzle === NEW && <Input aria-label={t('New category key')} value={newPuzzle} onChange={(event) => setNewPuzzle(event.target.value)} placeholder="fl-12" />}
                 {puzzleProblem && <p className="text-sm text-destructive">{puzzleProblem}</p>}
               </div>
             )}
@@ -621,6 +765,45 @@ function UploadBody({ initialType, initialCategory, onBusy, onClose }: { initial
               <p className="text-sm text-muted-foreground">{t('Upload a .txt file (max {mb} MB)', { mb: Math.round(MAX_MB) })}</p>
             </div>
           </div>
+
+          {/* Pictures the file names on its Image lines */}
+          {takesPictures && (
+            <div className="space-y-2">
+              <Label htmlFor="pictures">{t('Pictures (optional)')}</Label>
+              <Input id="pictures" type="file" multiple accept="image/jpeg,image/png,image/webp" onChange={(event) => void handlePictures(event)} />
+              <p className="text-sm text-muted-foreground">{t('The pictures the file names on its Image lines: JPEG, PNG or WebP, at most 2 MB each. Choose them all at once.')}</p>
+              {pictures.length > 0 && (
+                <div className="space-y-3 rounded-lg border p-3">
+                  <div className="flex flex-wrap gap-2">
+                    {pictures.map((picture) => (
+                      <figure key={picture.name} className="w-16">
+                        {/* eslint-disable-next-line @next/next/no-img-element -- an object URL of a file chosen here */}
+                        <img src={picture.url} alt={picture.name} className="h-20 w-16 rounded-md border object-cover" />
+                        <figcaption className="mt-1 truncate text-[10px] text-muted-foreground" title={picture.name}>
+                          {picture.name}
+                        </figcaption>
+                      </figure>
+                    ))}
+                  </div>
+                  <div className="grid gap-3 sm:grid-cols-3">
+                    <div className="space-y-1">
+                      <Label htmlFor="picture-author">{t('Author')}</Label>
+                      <Input id="picture-author" value={rights.author} onChange={(event) => setRights({ ...rights, author: event.target.value })} />
+                    </div>
+                    <div className="space-y-1">
+                      <Label htmlFor="picture-license">{t('Licence')}</Label>
+                      <Input id="picture-license" value={rights.license} onChange={(event) => setRights({ ...rights, license: event.target.value })} />
+                    </div>
+                    <div className="space-y-1">
+                      <Label htmlFor="picture-source">{t('Source')}</Label>
+                      <Input id="picture-source" value={rights.source} onChange={(event) => setRights({ ...rights, source: event.target.value })} />
+                    </div>
+                  </div>
+                  <p className="text-xs text-muted-foreground">{t('For all the pictures of this upload. A card with a picture is approved only once its picture has its author, licence and source.')}</p>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Format Instructions */}
           <Card>
@@ -676,6 +859,7 @@ function UploadBody({ initialType, initialCategory, onBusy, onClose }: { initial
                 <AlertDescription>
                   <div className="space-y-1">
                     <p className="font-semibold">{tn(selectedCount, '{count} question selected for upload', '{count} questions selected for upload')}</p>
+                    {updateCount > 0 && <p className="text-sm text-muted-foreground">{tn(updateCount, '{count} of them updates a card already in the category', '{count} of them update cards already in the category')}</p>}
                     {duplicateCount > 0 && <p className="text-sm text-muted-foreground">{tn(duplicateCount, '{count} duplicate found and unselected', '{count} duplicates found and unselected')}</p>}
                     {problemCount > 0 && (
                       <p className="text-sm text-muted-foreground">{tn(problemCount, '{count} question has a problem: remove it or fix the file', '{count} questions have problems: remove them or fix the file')}</p>
@@ -763,6 +947,10 @@ function UploadBody({ initialType, initialCategory, onBusy, onClose }: { initial
                                 {issueText(q.problems[0]!)}
                               </p>
                             </div>
+                          ) : q.updates ? (
+                            <Badge variant="outline" className="border-blue-600 text-blue-600">
+                              {t('Updates the card')}
+                            </Badge>
                           ) : ready && !tooMany && !q.checked ? (
                             <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
                           ) : (
@@ -809,6 +997,7 @@ function UploadBody({ initialType, initialCategory, onBusy, onClose }: { initial
           clubsLoaded={!clubRows.isLoading}
           media={mediaByKey}
           mediaLoaded={!mediaRows.isLoading}
+          pictures={pictures}
           onClose={() => setPreviewIndex(null)}
           onNavigate={setPreviewIndex}
         />
@@ -834,6 +1023,7 @@ interface ParsedQuestionPreviewDialogProps {
   clubsLoaded: boolean;
   media: Map<string, { uploadId: string | null; url: string | null }>;
   mediaLoaded: boolean;
+  pictures: Picture[];
   onClose: () => void;
   onNavigate: (index: number) => void;
 }
@@ -862,7 +1052,26 @@ function PreviewImage({ label, reference, media, mediaLoaded }: { label: string;
   );
 }
 
-function ParsedQuestionPreviewDialog({ row, currentIndex, totalQuestions, clubs, clubsLoaded, media, mediaLoaded, onClose, onNavigate }: ParsedQuestionPreviewDialogProps) {
+/** A picture the file names, as chosen under Pictures (or a note that it is not). */
+function ChosenPicture({ name, pictures }: { name: string; pictures: Picture[] }) {
+  const picture = pictures.find((p) => p.name.toLowerCase() === name.toLowerCase());
+  return (
+    <div>
+      <Label className="text-xs text-muted-foreground">{t('Image')}</Label>
+      <div className="mt-1 flex items-center gap-3">
+        {picture ? (
+          // eslint-disable-next-line @next/next/no-img-element -- an object URL of a file chosen here
+          <img src={picture.url} alt={name} className="h-32 w-24 rounded-md border object-cover" />
+        ) : (
+          <p className="text-xs text-destructive">{t('Choose the picture {name} under Pictures', { name })}</p>
+        )}
+        {picture && <p className="break-all font-mono text-xs">{name}</p>}
+      </div>
+    </div>
+  );
+}
+
+function ParsedQuestionPreviewDialog({ row, currentIndex, totalQuestions, clubs, clubsLoaded, media, mediaLoaded, pictures, onClose, onNavigate }: ParsedQuestionPreviewDialogProps) {
   const hasPrevious = currentIndex > 0;
   const hasNext = currentIndex < totalQuestions - 1;
   const question = row.question;
@@ -968,6 +1177,7 @@ function ParsedQuestionPreviewDialog({ row, currentIndex, totalQuestions, clubs,
                 </div>
               </div>
               {question.kind === 'cards' && question.imageKey && <PreviewImage label={t('Image')} reference={question.imageKey} media={media} mediaLoaded={mediaLoaded} />}
+              {question.kind === 'cards' && question.imageFile && <ChosenPicture name={question.imageFile} pictures={pictures} />}
               {question.kind === 'cards' && question.photo && (
                 <div>
                   <Label className="text-xs text-muted-foreground">{t('SoFIFA face')}</Label>
@@ -987,6 +1197,7 @@ function ParsedQuestionPreviewDialog({ row, currentIndex, totalQuestions, clubs,
           {question.kind === 'practice-questions' && (
             <>
               {question.imageKey && <PreviewImage label={t('Image')} reference={question.imageKey} media={media} mediaLoaded={mediaLoaded} />}
+              {question.imageFile && <ChosenPicture name={question.imageFile} pictures={pictures} />}
 
               <div>
                 <Label className="text-xs text-muted-foreground">{WORDS.options}</Label>

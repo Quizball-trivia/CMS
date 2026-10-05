@@ -23,14 +23,12 @@ export const KA_EDITORS: Record<string, string> = {
   'Keep it short: the shoot-out gives a few seconds per question.': 'დაწერეთ მოკლედ: პენალტების სერიაში თითო კითხვაზე რამდენიმე წამია.',
 
   // content/editors/dailies.tsx
-  'Puzzle (set)': 'თავსატეხი (ნაკრები)',
-  'Choose a puzzle': 'აირჩიეთ თავსატეხი',
   '{puzzle} (no questions)': '{puzzle} (კითხვების გარეშე)',
   '{puzzle} · {count} questions': '{puzzle} · {count} კითხვა',
   '{puzzle} · {count} questions · none approved': '{puzzle} · {count} კითხვა · დამტკიცებული არცერთია',
   '{puzzle} · none approved': '{puzzle} · დამტკიცებული არცერთია',
-  'A date plays one puzzle; only puzzles with an approved question can be scheduled.': 'ერთ თარიღზე ერთი თავსატეხი თამაშდება; დაგეგმვა მხოლოდ იმ თავსატეხის შეიძლება, რომელშიც დამტკიცებული კითხვაა.',
-  'Questions with the same puzzle key are played together on a date. A new key starts a new puzzle.': 'ერთი და იმავე თავსატეხის ID-ის მქონე კითხვები ერთ თარიღზე ერთად თამაშდება. ახალი ID ახალ თავსატეხს იწყებს.',
+  'A day plays one category; only categories with an approved question can be scheduled.': 'ერთ დღეს ერთი კატეგორია თამაშდება; დაგეგმვა მხოლოდ იმ კატეგორიის შეიძლება, რომელშიც დამტკიცებული კითხვაა.',
+  'Questions of the same category are played together on a day. A new key starts a new category.': 'ერთი კატეგორიის კითხვები ერთ დღეს ერთად თამაშდება. ახალი გასაღები ახალ კატეგორიას იწყებს.',
   'Prompt (optional)': 'დავალება (არასავალდებულო)',
   'Image A': 'სურათი A',
   'Image B': 'სურათი B',
@@ -58,13 +56,12 @@ export const KA_EDITORS: Record<string, string> = {
   'Seconds per question': 'წამი თითო კითხვაზე',
   'Seconds per round': 'წამი თითო რაუნდზე',
   '1 to 600 seconds.': '1-დან 600 წამამდე.',
-  'Cycle of puzzles': 'თავსატეხების ციკლი',
-  'Dates without a puzzle of their own play these in turn, one a day, the anchor date playing the first.':
-    'თარიღებზე, რომლებსაც საკუთარი თავსატეხი არ აქვთ, ეს თავსატეხები რიგრიგობით თამაშდება, დღეში თითო; საწყის თარიღზე — პირველი.',
+  'Days without a category of their own play these in turn, one a day, the anchor date playing the first.':
+    'დღეებში, რომლებსაც საკუთარი კატეგორია არ აქვთ, ეს კატეგორიები რიგრიგობით თამაშდება, დღეში თითო; საწყის თარიღზე — პირველი.',
   'Anchor date (Georgia)': 'საწყისი თარიღი (საქართველოს დროით)',
-  'Puzzles, in turn': 'თავსატეხები, რიგრიგობით',
-  'Cycle puzzle {n}': 'ციკლის თავსატეხი {n}',
-  'Add a puzzle': 'თავსატეხის დამატება',
+  'Categories, in turn': 'კატეგორიები, რიგრიგობით',
+  'Rotation category {n}': 'რიგრიგობის კატეგორია {n}',
+  'Add a category': 'კატეგორიის დამატება',
 
   // content/editors/library.tsx
   'A run opens with 5 easy, then 10 medium, then hard.': 'ვარჯიში იწყება 5 მარტივი კითხვით, შემდეგ მოდის 10 საშუალო, მერე კი — რთული.',
@@ -180,4 +177,5 @@ export const KA_EDITORS: Record<string, string> = {
   Rights: 'უფლებები',
   '{width} × {height} · by URL': '{width} × {height} · URL-ით',
   'Missing {rights}': 'აკლია: {rights}',
+  'Shown above the question in the game.': 'თამაშში კითხვის თავზე ჩანს.',
 };

@@ -32,7 +32,7 @@ export const KA_PUBLISH: Record<string, string> = {
   'Crest file under /assets/clubs': 'ემბლემის ფაილი /assets/clubs საქაღალდეში',
   'An uploaded crest’s image key (optional)': 'ატვირთული ემბლემის სურათის ID (არასავალდებულო)',
   'yes to hide from the club picker': 'yes — კლუბების ასარჩევ სიაში რომ არ გამოჩნდეს',
-  'The puzzle (set) key': 'თავსატეხის (ნაკრების) ID',
+  'The category key': 'კატეგორიის ID',
   'Prompt (may be empty)': 'დავალება (შეიძლება ცარიელი იყოს)',
   'Image A: /path or https:// URL (optional)': 'სურათი A: /-ით დაწყებული მისამართი ან https:// URL (არასავალდებულო)',
   'Image B (optional)': 'სურათი B (არასავალდებულო)',
@@ -42,7 +42,6 @@ export const KA_PUBLISH: Record<string, string> = {
   'The career in order: Name or Name=clubKey, separated by |': 'კარიერა თანმიმდევრობით: კლუბის სახელი ან სახელი=clubKey, გამოყოფილი | სიმბოლოთი',
   'footballLogic, putInOrder or careerPath': 'footballLogic, putInOrder ან careerPath',
   'The Georgia date (YYYY-MM-DD)': 'თარიღი საქართველოს დროით (YYYY-MM-DD)',
-  'The puzzle key': 'თავსატეხის ID',
 
   // lib/td/import-format.ts: what could not be read
   'not a JSON array': 'JSON მასივი არ არის',
@@ -222,4 +221,5 @@ export const KA_PUBLISH: Record<string, string> = {
   'Category for the rows': 'კატეგორია ატვირთული სტრიქონებისთვის',
   'As the file says (categoryKey column)': 'როგორც ფაილშია (სვეტი categoryKey)',
   'An example file': 'ფაილის ნიმუში',
+  'Topic shown above the question': 'კითხვის თავზე ნაჩვენები თემა',
 };

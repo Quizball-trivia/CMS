@@ -75,8 +75,8 @@ export const TD_IMPORT_COLUMNS: Record<TdContentType, TdImportColumn[]> = {
   ],
   'football-logic': [
     KEY,
-    col('puzzle', 'text', t('The puzzle (set) key'), 'fl-3'),
-    col('category', 'text', t('Category'), 'Clubs'),
+    col('puzzle', 'text', t('The category key'), 'fl-3'),
+    col('category', 'text', t('Topic shown above the question'), 'Clubs'),
     col('prompt', 'custom', t('Prompt (may be empty)'), 'What links these?', false),
     col('imageA', 'optional', t('Image A: /path or https:// URL (optional)'), ''),
     col('imageB', 'optional', t('Image B (optional)'), ''),
@@ -85,19 +85,19 @@ export const TD_IMPORT_COLUMNS: Record<TdContentType, TdImportColumn[]> = {
   ],
   'put-in-order': [
     KEY,
-    col('puzzle', 'text', t('The puzzle (set) key'), 'pio-3'),
+    col('puzzle', 'text', t('The category key'), 'pio-3'),
     col('prompt', 'text', t('The prompt'), 'Earliest to latest'),
     col('items', 'custom', t('Items in the order shown: label=sortValue, separated by | (or a JSON array of {key,label,sortValue})'), 'Italy=2006|Spain=2010|Germany=2014'),
   ],
   'career-path': [
     KEY,
-    col('puzzle', 'text', t('The puzzle (set) key'), 'cp-3'),
+    col('puzzle', 'text', t('The category key'), 'cp-3'),
     col('prompt', 'text', t('The prompt'), 'Whose career is this?'),
     col('displayAnswer', 'text', t('The answer as shown'), 'Khvicha Kvaratskhelia'),
     ALIASES('acceptedAnswers'),
     col('clubs', 'custom', t('The career in order: Name or Name=clubKey, separated by |'), 'Dinamo Tbilisi=dinamo-tbilisi|Rubin Kazan|Napoli=napoli'),
   ],
-  'daily-schedule': [col('game', 'text', t('footballLogic, putInOrder or careerPath'), 'footballLogic'), col('date', 'text', t('The Georgia date (YYYY-MM-DD)'), '2026-11-01'), col('puzzle', 'text', t('The puzzle key'), 'fl-3')],
+  'daily-schedule': [col('game', 'text', t('footballLogic, putInOrder or careerPath'), 'footballLogic'), col('date', 'text', t('The Georgia date (YYYY-MM-DD)'), '2026-11-01'), col('puzzle', 'text', t('The category key'), 'fl-3')],
   'daily-settings': [],
 };
 

@@ -106,13 +106,13 @@ beforeEach(() => {
 afterEach(() => cleanup());
 
 describe('the Daily Challenges page', () => {
-  it('lists the three daily games with their sets and seconds, and a dot for approved and covered', async () => {
+  it('lists the three daily games with their categories and seconds, and a dot for approved and covered', async () => {
     await signIn('publisher');
     renderTd(<TdDailiesTab />);
     expect(await gameButton('Football Logic')).toBeTruthy();
     expect(screen.getByRole('button', { name: /Put in Order/ })).toBeTruthy();
     expect(screen.getByRole('button', { name: /Career Path/ })).toBeTruthy();
-    expect(within(screen.getByRole('button', { name: /Football Logic/ })).getByText('2 sets')).toBeTruthy();
+    expect(within(screen.getByRole('button', { name: /Football Logic/ })).getByText('2 categories')).toBeTruthy();
     expect(within(screen.getByRole('button', { name: /Football Logic/ })).getByText('30 s')).toBeTruthy();
     expect(within(screen.getByRole('button', { name: /Put in Order/ })).getByText('60 s')).toBeTruthy();
     // Career Path has no seconds.
@@ -120,13 +120,13 @@ describe('the Daily Challenges page', () => {
     await waitFor(() => expect(screen.getAllByRole('img', { name: 'Approved, and the next 30 days are covered' })).toHaveLength(3));
   });
 
-  it('shows the selected game’s settings and its sets with their approved questions', async () => {
+  it('shows the selected game’s settings and its categories with their approved questions', async () => {
     const { admin } = await signIn('publisher');
     await admin.content('football-logic').create({ data: { key: 'fl-3-a', puzzle: 'fl-3', category: 'Clubs', prompt: '', imageA: null, imageB: null, displayAnswer: 'Roma', acceptedAnswers: ['roma'] } });
     renderTd(<TdDailiesTab />);
     expect(await screen.findByRole('heading', { name: 'Football Logic' })).toBeTruthy();
     expect(screen.getByText('Approved', { selector: '[data-slot="badge"]' })).toBeTruthy();
-    expect(screen.getByText('2 sets', { selector: '[data-slot="badge"]' })).toBeTruthy();
+    expect(screen.getByText('2 categories', { selector: '[data-slot="badge"]' })).toBeTruthy();
     expect((screen.getByLabelText('Seconds / Question') as HTMLInputElement).value).toBe('30');
     expect(setBox('fl-1').closest('label')!.textContent).toContain('Day 1 · 2 approved · 2 total');
     expect(setBox('fl-2').closest('label')!.textContent).toContain('Day 2 · 1 approved · 1 total');
@@ -141,10 +141,10 @@ describe('the Daily Challenges page', () => {
     expect((screen.getByRole('button', { name: 'Select all' }) as HTMLButtonElement).disabled).toBe(true);
     expect((screen.getByLabelText('Cycle starts') as HTMLInputElement).value).toBe('2026-09-01');
 
-    fireEvent.change(screen.getByPlaceholderText('Search sets...'), { target: { value: 'fl-3' } });
+    fireEvent.change(screen.getByPlaceholderText('Search categories...'), { target: { value: 'fl-3' } });
     expect(screen.queryByRole('checkbox', { name: /^fl-1\b/ })).toBeNull();
-    fireEvent.change(screen.getByPlaceholderText('Search sets...'), { target: { value: 'zzz' } });
-    expect(screen.getByText('No sets match this search.')).toBeTruthy();
+    fireEvent.change(screen.getByPlaceholderText('Search categories...'), { target: { value: 'zzz' } });
+    expect(screen.getByText('No categories match this search.')).toBeTruthy();
   });
 
   it('Career Path has no seconds, Put in Order has them per round, and what is typed stays while another game is open', async () => {
@@ -176,7 +176,7 @@ describe('the Daily Challenges page', () => {
     expect((screen.getByRole('button', { name: 'Save' }) as HTMLButtonElement).disabled).toBe(false);
   });
 
-  it('an editor changes the seconds and the sets in turn, saves and marks ready; another publisher approves', async () => {
+  it('an editor changes the seconds and the categories in turn, saves and marks ready; another publisher approves', async () => {
     await signIn('editor');
     renderTd(<TdDailiesTab />);
     fireEvent.change(await screen.findByLabelText('Seconds / Question'), { target: { value: '45' } });
@@ -267,14 +267,14 @@ describe('the Daily Challenges page', () => {
     await waitFor(async () => expect((await settingsOf('footballLogic')).data.seconds).toBe(30));
   });
 
-  it('lists the days that play a set of their own, and a publisher sends them back to the rotation', async () => {
+  it('lists the days that play a category of their own, and a publisher sends them back to the rotation', async () => {
     const day = addDays(georgiaToday(), 3);
     await approved('daily-schedule', { game: 'footballLogic', date: day, puzzle: 'fl-2' });
     await signIn('publisher');
     renderTd(<TdDailiesTab />);
-    expect(await screen.findByText(new RegExp(`1 day has a set of its own.*${formatDay(day)} \\(fl-2\\)`))).toBeTruthy();
+    expect(await screen.findByText(new RegExp(`1 day has a category of its own.*${formatDay(day)} \\(fl-2\\)`))).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: 'Play the rotation on those days' }));
-    await waitFor(() => expect(screen.queryByText(/has a set of its own/)).toBeNull());
+    await waitFor(() => expect(screen.queryByText(/has a category of its own/)).toBeNull());
   });
 
   it('a publisher’s own edit waits for another publisher', async () => {
@@ -305,7 +305,7 @@ describe('the Daily Challenges page', () => {
     expect(screen.getByText('Ready for a publisher to approve.')).toBeTruthy();
   });
 
-  it('refuses to approve a cycle that names a set with nothing approved, and says which', async () => {
+  it('refuses to approve a rotation that names a category with nothing approved, and says which', async () => {
     const { admin } = await signIn('editor');
     await admin.content('football-logic').create({ data: { key: 'fl-3-a', puzzle: 'fl-3', category: 'Clubs', prompt: '', imageA: null, imageB: null, displayAnswer: 'Roma', acceptedAnswers: ['roma'] } });
     renderTd(<TdDailiesTab />);
@@ -325,10 +325,10 @@ describe('the Daily Challenges page', () => {
     expect((await settingsOf('footballLogic')).status).toBe('ready');
   });
 
-  it('says that each of the next 30 days has a playable set, and which days have none once the rotation is gone', async () => {
+  it('says that each of the next 30 days has a playable category, and which days have none once the rotation is gone', async () => {
     await signIn('publisher');
     renderTd(<TdDailiesTab />);
-    expect(await screen.findByText('The next 30 days all have a playable set.')).toBeTruthy();
+    expect(await screen.findByText('The next 30 days all have a playable category.')).toBeTruthy();
     cleanup();
 
     // A cycle cleared and approved: only a date's own entry plays.
@@ -337,12 +337,12 @@ describe('the Daily Challenges page', () => {
     await signIn('publisher');
     renderTd(<TdDailiesTab />);
     const first = formatDay(georgiaToday());
-    expect(await screen.findByText(`30 of the next 30 days have no playable set (from ${first}). A release needs all 30.`)).toBeTruthy();
+    expect(await screen.findByText(`30 of the next 30 days have no playable category (from ${first}). A release needs all 30.`)).toBeTruthy();
     expect(screen.getByText('0 selected')).toBeTruthy();
-    expect(within(screen.getByRole('button', { name: /Football Logic/ })).getByText('0 sets')).toBeTruthy();
+    expect(within(screen.getByRole('button', { name: /Football Logic/ })).getByText('0 categories')).toBeTruthy();
     // Not approved with a cycle any more: the dot goes grey; the other games keep theirs.
     expect(screen.getAllByRole('img', { name: 'Approved, and the next 30 days are covered' })).toHaveLength(2);
-    expect(screen.getByRole('img', { name: 'Not approved, or some of the next 30 days have no playable set' })).toBeTruthy();
+    expect(screen.getByRole('img', { name: 'Not approved, or some of the next 30 days have no playable category' })).toBeTruthy();
     cleanup();
 
     // Dates with their own approved entry count, though the page shows no calendar.
@@ -351,7 +351,7 @@ describe('the Daily Challenges page', () => {
     await approved('daily-schedule', { game: 'footballLogic', date: addDays(today, 1), puzzle: 'fl-2' });
     await signIn('publisher');
     renderTd(<TdDailiesTab />);
-    expect(await screen.findByText(`28 of the next 30 days have no playable set (from ${formatDay(addDays(today, 2))}). A release needs all 30.`)).toBeTruthy();
+    expect(await screen.findByText(`28 of the next 30 days have no playable category (from ${formatDay(addDays(today, 2))}). A release needs all 30.`)).toBeTruthy();
   });
 
   it('a game without settings starts from the defaults, and Save creates them', async () => {
@@ -363,7 +363,7 @@ describe('the Daily Challenges page', () => {
     renderTd(<TdDailiesTab />);
     fireEvent.click(await gameButton('Career Path'));
     expect(await screen.findByText('No settings yet', { selector: '[data-slot="badge"]' })).toBeTruthy();
-    expect(screen.getByText('30 of the next 30 days have no playable set', { exact: false })).toBeTruthy();
+    expect(screen.getByText('30 of the next 30 days have no playable category', { exact: false })).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: 'Save' }));
     await waitFor(() => expect(create).toHaveBeenCalledTimes(1));
     expect(create.mock.calls[0][0]).toMatchObject({ data: { game: 'careerPath', seconds: null, cycle: null } });

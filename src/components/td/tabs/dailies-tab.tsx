@@ -219,7 +219,7 @@ function DailySets({
           <Input
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            placeholder={t('Search sets...')}
+            placeholder={t('Search categories...')}
             className="h-9 bg-white pl-9"
           />
         </div>
@@ -267,8 +267,8 @@ function DailySets({
         {filtered.length === 0 ? (
           <div className="rounded-xl border border-dashed border-slate-300 bg-white p-6 text-center text-sm text-slate-500">
             {options.length === 0
-              ? t('No sets yet. Give questions a set on the Questions page or in an upload.')
-              : t('No sets match this search.')}
+              ? t('No categories yet. Give questions a category on the Questions page or in an upload.')
+              : t('No categories match this search.')}
           </div>
         ) : null}
       </div>
@@ -276,7 +276,7 @@ function DailySets({
       {coverage}
 
       <p className="mt-3 text-xs text-slate-500">
-        {t('One set a day, in this order, the first on the day the cycle starts. With none selected, no set is played in turn.')}
+        {t('One category a day, in this order, the first on the day the rotation starts. With none selected, nothing is played in turn.')}
       </p>
     </div>
   );
@@ -372,11 +372,11 @@ function DailyEditor({ game, edit, onEdit }: { game: TdDailyGame; edit: Form | u
         {missing.length > 0
           ? tn(
               missing.length,
-              '{missing} of the next {days} days has no playable set (from {date}). A release needs all {days}.',
-              '{missing} of the next {days} days have no playable set (from {date}). A release needs all {days}.',
+              '{missing} of the next {days} days has no playable category (from {date}). A release needs all {days}.',
+              '{missing} of the next {days} days have no playable category (from {date}). A release needs all {days}.',
               { missing: missing.length, days: COVERAGE_DAYS, date: formatDay(missing[0].date) },
             )
-          : t('The next {days} days all have a playable set.', { days: COVERAGE_DAYS })}
+          : t('The next {days} days all have a playable category.', { days: COVERAGE_DAYS })}
         {waiting && ` ${t('Settings waiting for approval are not counted.')}`}
       </div>
     );
@@ -393,7 +393,7 @@ function DailyEditor({ game, edit, onEdit }: { game: TdDailyGame; edit: Form | u
               <div className="flex flex-wrap items-center gap-2">
                 <h2 className="text-xl font-bold tracking-tight text-slate-950">{info.label}</h2>
                 <Badge variant="outline" className="border-slate-300 text-slate-600">
-                  {tn(form.sets.length, '{count} set', '{count} sets')}
+                  {tn(form.sets.length, '{count} category', '{count} categories')}
                 </Badge>
                 <Badge variant="outline" className="border-slate-300 text-slate-600">
                   {row ? TD_STATUS_LABELS[row.status] : t('No settings yet')}
@@ -451,9 +451,9 @@ function DailyEditor({ game, edit, onEdit }: { game: TdDailyGame; edit: Form | u
           <div className="space-y-2">
             <div className="flex items-end justify-between gap-3">
               <div>
-                <Label className="text-[10px] font-black uppercase tracking-widest text-slate-400">{t('Sets in turn')}</Label>
+                <Label className="text-[10px] font-black uppercase tracking-widest text-slate-400">{t('Question pool categories')}</Label>
                 <p className="mt-1 text-xs text-slate-500">
-                  {t('Pick the sets this game plays in turn, one a day.')}
+                  {t('Pick the categories this game plays, one a day, in turn.')}
                 </p>
               </div>
               <span className={cn('shrink-0 text-xs font-semibold', form.sets.length > 0 ? 'text-slate-600' : 'text-amber-600')}>
@@ -473,7 +473,7 @@ function DailyEditor({ game, edit, onEdit }: { game: TdDailyGame; edit: Form | u
         {own.length > 0 && (
           <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800">
             <span>
-              {tn(own.length, '{count} day has a set of its own, which plays instead of the rotation: {dates}.', '{count} days have a set of their own, which play instead of the rotation: {dates}.', {
+              {tn(own.length, '{count} day has a category of its own, which plays instead of the rotation: {dates}.', '{count} days have a category of their own, which play instead of the rotation: {dates}.', {
                 dates: own.map((day) => `${formatDay(day.date)} (${day.planned})`).join(', '),
               })}
             </span>
@@ -515,13 +515,13 @@ function DailyGameButton({ game, isSelected, edit, onSelect }: { game: TdDailyGa
             <div className="truncate text-sm font-bold">{dailyGame(game).label}</div>
             <div
               role="img"
-              aria-label={good ? t('Approved, and the next {days} days are covered', { days: COVERAGE_DAYS }) : t('Not approved, or some of the next {days} days have no playable set', { days: COVERAGE_DAYS })}
-              title={good ? t('Approved, and the next {days} days are covered', { days: COVERAGE_DAYS }) : t('Not approved, or some of the next {days} days have no playable set', { days: COVERAGE_DAYS })}
+              aria-label={good ? t('Approved, and the next {days} days are covered', { days: COVERAGE_DAYS }) : t('Not approved, or some of the next {days} days have no playable category', { days: COVERAGE_DAYS })}
+              title={good ? t('Approved, and the next {days} days are covered', { days: COVERAGE_DAYS }) : t('Not approved, or some of the next {days} days have no playable category', { days: COVERAGE_DAYS })}
               className={cn('h-2 w-2 rounded-full', good ? 'bg-emerald-500' : 'bg-slate-300')}
             />
           </div>
           <div className={cn('mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px]', isSelected ? 'text-slate-300' : 'text-slate-500')}>
-            <span>{tn(form.sets.length, '{count} set', '{count} sets')}</span>
+            <span>{tn(form.sets.length, '{count} category', '{count} categories')}</span>
             {seconds !== '' && (
               <>
                 <span>·</span>

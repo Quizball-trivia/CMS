@@ -37,7 +37,7 @@ const { createMockTdApi, MOCK_PASSWORD, MOCK_STAFF } = await import('@/lib/td/mo
 const { createOrigin, MemoryStorage, put } = await import('@/lib/td/__tests__/helpers');
 const { checkContract } = await import('@/lib/td/contract');
 const { parseSheet } = await import('@/lib/td/import-format');
-const { careerClubs, matchClub, parseTdUpload, TD_UPLOAD_EXAMPLES, TD_UPLOAD_TYPES, toTdImportItem } = await import('@/lib/td/upload-format');
+const { careerClubs, imageKeyIn, matchClub, parseTdUpload, TD_UPLOAD_EXAMPLES, TD_UPLOAD_TYPES, toTdImportItem } = await import('@/lib/td/upload-format');
 const { TdBulkUploadDialog } = await import('../questions/td-bulk-upload-dialog');
 
 type UploadType = (typeof TD_UPLOAD_TYPES)[number];
@@ -92,6 +92,11 @@ const dataOf = <T,>(item: unknown) => (item as { data: T }).data;
 
 const txt = (text: string, name = 'questions.txt') => new File([text], name, { type: 'text/plain' });
 
+// A 16×9 PNG the mock API decodes.
+const PNG = Uint8Array.from(atob('iVBORw0KGgoAAAANSUhEUgAAABAAAAAJCAIAAAC0SDtlAAAAFElEQVR42mP4GKVEEmIY1TAoNAAAV/DNUSF4ln8AAAAASUVORK5CYII='), (c) => c.charCodeAt(0));
+const png = (name: string) => new File([PNG], name, { type: 'image/png' });
+const choosePictures = (...files: File[]) => fireEvent.change(screen.getByLabelText(/Pictures/), { target: { files } });
+
 /** The questions of a type that an upload made (their IDs are made up: `row-…`). */
 async function uploaded<T extends TdContentType>(admin: TdAdminApi, type: T) {
   const out = await admin.content(type).list({ status: 'draft,ready,approved,archived', limit: 200 });
@@ -120,10 +125,12 @@ describe('the question file format', () => {
     for (const type of TD_UPLOAD_TYPES) {
       const parsed = parseTdUpload(TD_UPLOAD_EXAMPLES[type], type);
       expect(parsed.errors, type).toEqual([]);
-      expect(parsed.questions, type).toHaveLength(1);
-      const item = toTdImportItem(parsed.questions[0]!, context);
-      expect(item.type).toBe(type);
-      expect(checkContract('ContentImportItem', item), type).toEqual([]);
+      expect(parsed.questions, type).toHaveLength(type === 'cards' ? 2 : 1);
+      for (const question of parsed.questions) {
+        const item = toTdImportItem(question, { ...context, pictures: new Map([['buffon.jpg', 'pic-buffon']]) });
+        expect(item.type).toBe(type);
+        expect(checkContract('ContentImportItem', item), type).toEqual([]);
+      }
     }
   });
 
@@ -133,6 +140,25 @@ describe('the question file format', () => {
     expect(parsed.questions[0]).toMatchObject({ kind: 'cards', clues: ['პირველი', 'მეორე'], display: 'ლიონელ მესი', aliases: ['ლიონელ მესი', 'მესი', 'Messi'], points: 2, imageKey: 'messi-face', photo: { id: 158023, ver: '25_1' } });
     const item = toTdImportItem(parsed.questions[0]!, { categoryKey: 'legends', category: '', puzzle: '', clubs: [] });
     expect(item).toMatchObject({ type: 'cards', data: { categoryKey: 'legends', value: 2, lines: ['პირველი', 'მეორე'], photo: { id: 158023, ver: '25_1' }, imageKey: 'messi-face' } });
+  });
+
+  it('reads an Image line that names a picture file, and gives the card the key of the picture chosen by that name', () => {
+    const parsed = parseTdUpload('1.\nAnswer: ჯანლუიჯი ბუფონი | Buffon\nPoints: 2\nImage: Buffon.JPG', 'cards');
+    expect(parsed.errors).toEqual([]);
+    const card = parsed.questions[0]!;
+    expect(card).toMatchObject({ kind: 'cards', imageKey: null, imageFile: 'Buffon.JPG', photo: null, clues: [] });
+    if (card.kind !== 'cards') throw new Error('not a card');
+    const context = { categoryKey: 'legends', category: '', puzzle: '', clubs: [], pictures: new Map([['buffon.jpg', 'pic-123']]) };
+    expect(imageKeyIn(card, context)).toBe('pic-123');
+    expect(dataOf<{ imageKey: string | null }>(toTdImportItem(card, context)).imageKey).toBe('pic-123');
+    expect(imageKeyIn(card, { ...context, pictures: new Map() })).toBeNull();
+    const practice = parseTdUpload('1. რომელი სტადიონია?\nA) დინამო არენა*\nB) მესხი\nDifficulty: Easy\nImage: arena.webp', 'practice-questions');
+    expect(practice.questions[0]).toMatchObject({ imageKey: null, imageFile: 'arena.webp' });
+  });
+
+  it('needs a clue line on a card only when it has no picture', () => {
+    expect(parseTdUpload('1.\nAnswer: x\nPoints: 1', 'cards').errors.map((e) => e.message)).toEqual(['Needs at least one clue line']);
+    expect(parseTdUpload('1.\nAnswer: x\nPoints: 1\nPhoto: 1179 | 20', 'cards').errors).toEqual([]);
   });
 
   it('reads Round II clues in the order given, and Round III and Penalties as a question and an answer', () => {
@@ -277,17 +303,62 @@ describe('the upload dialog', () => {
     expect((await admin.imports.list()).items).toHaveLength(1);
   });
 
-  it('uploads cards into the category the page was showing', async () => {
+  it('uploads cards into the category the page was showing, with a SoFIFA photo and a picture chosen with the file', async () => {
     const { admin } = await signIn('editor');
     await openDialog({ initialType: 'cards', initialCategory: 'legends' });
     chooseFile(txt(TD_UPLOAD_EXAMPLES.cards));
-    const upload = await uploadButton(1);
+    const upload = await uploadButton(2);
+    await waitFor(() => expect(screen.getByText('1 question has a problem: remove it or fix the file')).toBeTruthy());
+    expect(screen.getByText('1 of them updates a card already in the category')).toBeTruthy();
+    expect(screen.getByText(/Choose the picture buffon\.jpg under Pictures$/)).toBeTruthy();
+    expect(upload.hasAttribute('disabled')).toBe(true);
+
+    // A picture of another name does not do; the one the file names does, whatever its type.
+    choosePictures(png('buffon.png'));
+    expect(await screen.findByRole('img', { name: 'buffon.png' })).toBeTruthy();
+    expect(screen.getByText(/Choose the picture buffon\.jpg under Pictures$/)).toBeTruthy();
+    choosePictures(png('buffon.jpg'));
+    expect(await screen.findByRole('img', { name: 'buffon.jpg' })).toBeTruthy();
+    fireEvent.change(screen.getByLabelText('Author'), { target: { value: 'A. Photographer' } });
+    fireEvent.change(screen.getByLabelText('Licence'), { target: { value: 'CC BY-SA 4.0' } });
+    fireEvent.change(screen.getByLabelText('Source'), { target: { value: 'https://commons.wikimedia.org/wiki/File:Buffon.jpg' } });
+    await waitFor(() => expect(screen.queryByText(/has a problem/)).toBeNull());
     await waitFor(() => expect(upload.hasAttribute('disabled')).toBe(false));
     fireEvent.click(upload);
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
-    const [card] = await uploaded(admin, 'cards');
-    expect(card!.data).toMatchObject({ categoryKey: 'legends', value: 1, display: 'ლიონელ მესი', imageKey: null, photo: null });
-    expect(card!.data.lines).toHaveLength(3);
+
+    // Messi is new; Buffon is in the category already, so his card takes the picture.
+    const [messi] = await uploaded(admin, 'cards');
+    expect(messi!.data).toMatchObject({ categoryKey: 'legends', value: 1, display: 'ლიონელ მესი', imageKey: null, photo: { id: 158023, ver: '24' } });
+    expect(messi!.data.aliases).toEqual(['ლიონელ მესი', 'Lionel Messi']);
+    expect(messi!.data.lines).toHaveLength(3);
+    const buffon = (await admin.content('cards').list({ category: 'legends', status: 'draft,ready,approved', limit: 200 })).items.find((card) => card.data.key === 'buffon')!;
+    expect(buffon.data).toMatchObject({ display: 'Gianluigi Buffon', value: 2, photo: null, lines: ['იტალიელი მეკარე', '2006 წლის მსოფლიო ჩემპიონი'] });
+    expect(buffon.data.imageKey).toMatch(/^pic-[0-9a-f]{24}$/);
+    const image = (await admin.content('media').list({ status: 'draft,ready,approved', limit: 200 })).items.find((row) => row.data.key === buffon.data.imageKey);
+    expect(image!.data).toMatchObject({ key: buffon.data.imageKey, author: 'A. Photographer', license: 'CC BY-SA 4.0', source: 'https://commons.wikimedia.org/wiki/File:Buffon.jpg' });
+    expect(image!.data.uploadId).toBeTruthy();
+  });
+
+  it('updates a card already in the category instead of adding another: its picture, points and spellings, keeping its clues', async () => {
+    const { admin } = await signIn('editor');
+    const said = vi.spyOn(toast, 'success');
+    await openDialog({ initialType: 'cards', initialCategory: 'legends' });
+    chooseFile(txt('1.\nAnswer: Guruli | Aleksandre Guruli | გურული\nPoints: 2\nPhoto: 210257 | 20\n2.\nClue 1: ახალი\nAnswer: ახალი მეკარე\nPoints: 1'));
+    expect(await screen.findByText('Updates the card')).toBeTruthy();
+    expect(screen.getByText('1 of them updates a card already in the category')).toBeTruthy();
+    const upload = await uploadButton(2);
+    await waitFor(() => expect(upload.hasAttribute('disabled')).toBe(false));
+    fireEvent.click(upload);
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    expect(said).toHaveBeenCalledWith('1 card updated');
+
+    const all = (await admin.content('cards').list({ category: 'legends', status: 'draft,ready,approved,archived', limit: 200 })).items;
+    const guruli = all.filter((card) => card.data.display === 'Aleksandre Guruli');
+    expect(guruli).toHaveLength(1);
+    expect(guruli[0]!.data).toMatchObject({ key: 'guruli', value: 2, lines: ['Georgia', 'Dinamo Tbilisi'], photo: { id: 210257, ver: '20' }, imageKey: null });
+    expect(guruli[0]!.data.aliases).toEqual(['guruli', 'Aleksandre Guruli', 'გურული']);
+    expect((await uploaded(admin, 'cards')).map((card) => card.data.display)).toEqual(['ახალი მეკარე']);
   });
 
   it('takes a category for Practice from the labels on file, or one typed', async () => {
@@ -318,17 +389,17 @@ describe('the upload dialog', () => {
     expect((await uploaded(admin, 'practice-questions')).map((row) => row.data.category).sort()).toEqual(['Clubs', 'Tournaments 2026']);
   });
 
-  it('puts a daily’s questions in a new puzzle named for the upload, or in one that exists', async () => {
+  it('puts a daily’s questions in a new category named for the upload, or in one that exists', async () => {
     const { admin } = await signIn('editor');
     await openDialog({ initialType: 'put-in-order' });
     chooseFile(txt(TD_UPLOAD_EXAMPLES['put-in-order']));
     expect(await screen.findByText('Parsed Questions (1)')).toBeTruthy();
-    const puzzle = screen.getByRole('combobox', { name: /Puzzle \(set\)/ });
-    await pick(puzzle, 'New puzzle…');
-    fireEvent.change(screen.getByLabelText('New puzzle key'), { target: { value: 'Not A Key' } });
+    const puzzle = screen.getByRole('combobox', { name: /Category/ });
+    await pick(puzzle, 'New category…');
+    fireEvent.change(screen.getByLabelText('New category key'), { target: { value: 'Not A Key' } });
     expect(await screen.findByText(/^Lower-case letters, digits/)).toBeTruthy();
     expect((await uploadButton(1)).hasAttribute('disabled')).toBe(true);
-    fireEvent.change(screen.getByLabelText('New puzzle key'), { target: { value: 'pio-world-cups' } });
+    fireEvent.change(screen.getByLabelText('New category key'), { target: { value: 'pio-world-cups' } });
     const upload = await uploadButton(1);
     await waitFor(() => expect(upload.hasAttribute('disabled')).toBe(false));
     fireEvent.click(upload);
@@ -340,7 +411,7 @@ describe('the upload dialog', () => {
     // An existing puzzle shows how many questions it has.
     cleanup();
     await openDialog({ initialType: 'put-in-order' });
-    await pick(screen.getByRole('combobox', { name: /Puzzle \(set\)/ }), /^pio-1 · 1 question/);
+    await pick(screen.getByRole('combobox', { name: /Category/ }), /^pio-1 · 1 question/);
     chooseFile(txt('1. Next?\nItems:\n- a\n- b\nAnswer:\n1. b\n2. a'));
     const next = await uploadButton(1);
     await waitFor(() => expect(next.hasAttribute('disabled')).toBe(false));
@@ -352,8 +423,8 @@ describe('the upload dialog', () => {
   it('gives a Career Path club the crest of the club on file by that name, and shows which in the preview', async () => {
     const { admin } = await signIn('editor');
     await openDialog({ initialType: 'career-path' });
-    await pick(screen.getByRole('combobox', { name: /Puzzle \(set\)/ }), 'New puzzle…');
-    fireEvent.change(screen.getByLabelText('New puzzle key'), { target: { value: 'cp-new' } });
+    await pick(screen.getByRole('combobox', { name: /Category/ }), 'New category…');
+    fireEvent.change(screen.getByLabelText('New category key'), { target: { value: 'cp-new' } });
     chooseFile(txt('1. Question: Dinamo Tbilisi ➔ Unknown FC ➔ Napoli\nAnswer: ვიღაც'));
     const upload = await uploadButton(1);
     await waitFor(() => expect(upload.hasAttribute('disabled')).toBe(false));
@@ -561,20 +632,24 @@ describe('the upload dialog', () => {
     const example = (type: UploadType) => screen.getByText((_, element) => element?.tagName === 'PRE' && element.textContent === TD_UPLOAD_EXAMPLES[type]);
     expect(example('penalty-questions')).toBeTruthy();
     expect(screen.queryByRole('combobox', { name: /Category/ })).toBeNull();
-    expect(screen.queryByRole('combobox', { name: /Puzzle/ })).toBeNull();
+    expect(screen.queryByRole('combobox', { name: /Topic/ })).toBeNull();
+    expect(screen.queryByLabelText(/Pictures/)).toBeNull();
     await pick(screen.getByRole('combobox', { name: /Question Type/ }), 'Daily · Football Logic');
     expect(example('football-logic')).toBeTruthy();
     expect(screen.getByRole('combobox', { name: /Category/ })).toBeTruthy();
-    expect(screen.getByRole('combobox', { name: /Puzzle/ })).toBeTruthy();
+    expect(screen.getByRole('combobox', { name: /Topic/ })).toBeTruthy();
     await pick(screen.getByRole('combobox', { name: /Question Type/ }), 'Round III · პაპა კარლოს ყუთი');
     expect(example('box-questions')).toBeTruthy();
-    expect(screen.queryByRole('combobox', { name: /Puzzle/ })).toBeNull();
+    expect(screen.getByRole('combobox', { name: /Category/ })).toBeTruthy();
+    expect(screen.queryByRole('combobox', { name: /Topic/ })).toBeNull();
+    await pick(screen.getByRole('combobox', { name: /Question Type/ }), 'Round I · ბარათონი');
+    expect(screen.getByLabelText(/Pictures/)).toBeTruthy();
   });
 
-  it('uploads Football Logic into an existing puzzle, with a category of those on file and an https image', async () => {
+  it('uploads Football Logic into an existing category, with a topic of those on file and an https image', async () => {
     const { admin } = await signIn('editor');
     await openDialog({ initialType: 'football-logic', initialCategory: 'Clubs' });
-    await pick(screen.getByRole('combobox', { name: /Puzzle \(set\)/ }), /^fl-2 · 1 question/);
+    await pick(screen.getByRole('combobox', { name: /Category/ }), /^fl-2 · 1 question/);
     chooseFile(txt(TD_UPLOAD_EXAMPLES['football-logic']));
     const upload = await uploadButton(1);
     await waitFor(() => expect(upload.hasAttribute('disabled')).toBe(false));

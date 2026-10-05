@@ -14,9 +14,7 @@ export const KA_UPLOAD: Record<string, string> = {
   'New category…': 'ახალი კატეგორია…',
   'Loading categories...': 'კატეგორიები იტვირთება…',
   'No categories available': 'კატეგორიები არ არის',
-  'Select a puzzle': 'აირჩიეთ თავსატეხი',
-  'New puzzle…': 'ახალი თავსატეხი…',
-  'New puzzle key': 'ახალი თავსატეხის ID',
+  'New category key': 'ახალი კატეგორიის გასაღები',
   'Question File': 'ფაილი კითხვებით',
   'Upload a .txt file (max {mb} MB)': 'ატვირთეთ .txt ფაილი (მაქსიმუმ {mb} MB)',
   'File Format': 'ფაილის ფორმატი',
@@ -68,7 +66,6 @@ export const KA_UPLOAD: Record<string, string> = {
   'Failed to check the questions. You can still proceed with upload.': 'კითხვების შემოწმება ვერ მოხერხდა. ატვირთვის გაგრძელება მაინც შეგიძლიათ.',
   'No questions selected for upload': 'ასატვირთად კითხვა არ არის მონიშნული',
   'Please select a category': 'აირჩიეთ კატეგორია',
-  'Please select a puzzle': 'აირჩიეთ თავსატეხი',
 
   // The preview of one question
   'Question Preview': 'კითხვის გადახედვა',
@@ -121,4 +118,30 @@ export const KA_UPLOAD: Record<string, string> = {
   'Answer item “{item}” does not match any listed item': 'Answer-ის ელემენტი „{item}“ არც ერთ ჩამოწერილ ელემენტს არ ემთხვევა',
   'Career Path questions need at least 2 clubs separated by arrows': '„კარიერის გზის“ კითხვაში უნდა იყოს მინიმუმ 2 კლუბი, ისრებით გამოყოფილი',
   'At most {max} clubs': 'მაქსიმუმ {max} კლუბი',
+
+  // Pictures and cards already in the category
+  'Answer: the first name is what the card shows. Add others only for nicknames or a very different spelling: the game already forgives typos, accents, capitals and Georgian or Latin letters, and the surname alone counts.':
+    'Answer: პირველი სახელი ბარათზე ჩანს. სხვები დაამატეთ მხოლოდ მეტსახელისთვის ან სულ სხვა დაწერილობისთვის: თამაში ისედაც ითმენს შეცდომებს, აქცენტებს, დიდ ასოებს და ქართულ ან ლათინურ ასოებს, გვარიც საკმარისია.',
+  'Points is 1, 2 or 3. The picture, optional: “Photo: 158023 | 24” is the player’s SoFIFA number and version (from the player’s address on sofifa.com), or “Image: buffon.jpg” the file name of a picture chosen below under Pictures.':
+    'Points არის 1, 2 ან 3. სურათი არასავალდებულოა: „Photo: 158023 | 24“ მოთამაშის SoFIFA-ს ნომერი და ვერსიაა (მოთამაშის მისამართიდან sofifa.com-ზე), ხოლო „Image: buffon.jpg“ ქვემოთ, სურათებში არჩეული ფაილის სახელი.',
+  'A card whose answer is already in the category updates that card (its picture, points and clues) instead of adding a second one. Clue lines may then be left out to keep the card’s own.':
+    'ბარათი, რომლის პასუხიც კატეგორიაში უკვე არის, ახალს არ ამატებს — არსებულს განაახლებს (სურათს, ქულას და მინიშნებებს). მინიშნების ხაზები მაშინ შეიძლება გამოტოვოთ და ბარათის საკუთარი დარჩება.',
+  'Optional: “Image: stadium.jpg” is the file name of a picture chosen below under Pictures, or the key of an image already uploaded.':
+    'არასავალდებულო: „Image: stadium.jpg“ ქვემოთ, სურათებში არჩეული ფაილის სახელია, ან უკვე ატვირთული სურათის გასაღები.',
+  'Choose the picture {name} under Pictures': 'სურათებში აირჩიეთ {name}',
+  'The picture {name} could not be saved: {error}': 'სურათი {name} ვერ შეინახა: {error}',
+  'The card {name} was not updated: {error}': 'ბარათი {name} ვერ განახლდა: {error}',
+  'Pictures (optional)': 'სურათები (არასავალდებულო)',
+  'The pictures the file names on its Image lines: JPEG, PNG or WebP, at most 2 MB each. Choose them all at once.': 'სურათები, რომლებსაც ფაილი Image ხაზებში ასახელებს: JPEG, PNG ან WebP, თითო მაქსიმუმ 2 MB. აირჩიეთ ყველა ერთად.',
+  Author: 'ავტორი',
+  'For all the pictures of this upload. A card with a picture is approved only once its picture has its author, licence and source.': 'ამ ატვირთვის ყველა სურათისთვის. სურათიანი ბარათი მხოლოდ მაშინ დამტკიცდება, როცა სურათს ავტორი, ლიცენზია და წყარო ექნება.',
+  'Updates the card': 'ბარათს განაახლებს',
+  '{count} cards updated': 'განახლდა {count} ბარათი',
+  '{count} of them update cards already in the category': 'მათგან {count} კატეგორიაში უკვე არსებულ ბარათს განაახლებს',
+  'An image is the file name of a picture chosen with the file (buffon.jpg), or the key of an image already uploaded': 'სურათი არის ფაილთან ერთად არჩეული სურათის სახელი (buffon.jpg), ან უკვე ატვირთული სურათის გასაღები',
+  'Topic': 'თემა',
+  'Select a topic': 'აირჩიეთ თემა',
+  'New topic…': 'ახალი თემა…',
+  'New topic': 'ახალი თემა',
+  'Please select a topic and a category': 'აირჩიეთ თემა და კატეგორია',
 };

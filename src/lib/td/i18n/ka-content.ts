@@ -121,7 +121,7 @@ export const KA_CONTENT: Record<string, string> = {
   Remove: 'წაშლა',
   'Remove {value}': 'წაშლა: {value}',
   'Accepted spellings': 'მისაღები ვარიანტები',
-  'Press Enter or type a comma after each spelling. Players’ answers are compared with these.': 'ყოველი ვარიანტის შემდეგ დააჭირეთ Enter-ს ან დაწერეთ მძიმე. მოთამაშის პასუხი ამ ვარიანტებს დარდება.',
+  'Only other names that count: nicknames, a different spelling. The shown answer always counts, and the game already forgives typos, accents, capitals and Georgian or Latin letters. Press Enter after each.': 'მხოლოდ სხვა სახელები, რომლებიც ითვლება: მეტსახელი, განსხვავებული დაწერილობა. ნაჩვენები პასუხი ყოველთვის ითვლება, თამაში კი ისედაც ითმენს შეცდომებს, აქცენტებს, დიდ ასოებს და ქართულ ან ლათინურ ასოებს. ყოველის შემდეგ დააჭირეთ Enter-ს.',
   'e.g. messi, lionel messi': 'მაგ. მესი, ლიონელ მესი',
 
   // content/td-category-approval.tsx

@@ -23,8 +23,16 @@ export const TD_UPLOAD_EXAMPLES: Record<TdUploadType, string> = {
 Clue 1: დავიბადე არგენტინაში 1987 წელს
 Clue 2: ბარსელონაში 21 წელი გავატარე
 Clue 3: 2022 წელს მსოფლიო ჩემპიონი გავხდი
-Answer: ლიონელ მესი | მესი | Lionel Messi | Messi
-Points: 1`,
+Answer: ლიონელ მესი | Lionel Messi
+Points: 1
+Photo: 158023 | 24
+
+2.
+Clue 1: იტალიელი მეკარე
+Clue 2: 2006 წლის მსოფლიო ჩემპიონი
+Answer: ბუფონი | Buffon
+Points: 2
+Image: buffon.jpg`,
   'whoami-subjects': `1.
 Clue 1: დაცვაში ვთამაშობდი
 Clue 2: ჩემი კარიერა თბილისის „დინამოში“ დაიწყო
@@ -81,6 +89,8 @@ export interface ParsedCard extends ParsedBase {
   aliases: string[];
   points: 1 | 2 | 3;
   imageKey: string | null;
+  /** A picture chosen with the file, by its file name: uploaded with the questions. */
+  imageFile: string | null;
   photo: { id: number; ver: string } | null;
 }
 
@@ -105,6 +115,7 @@ export interface ParsedPractice extends ParsedBase {
   difficulty: 'easy' | 'medium' | 'hard';
   explanation: string | null;
   imageKey: string | null;
+  imageFile: string | null;
 }
 
 export interface ParsedFootballLogic extends ParsedBase {
@@ -294,13 +305,18 @@ function answerOf(r: Reader, entry: { value: string; line: number } | undefined)
   return answer;
 }
 
-function imageKeyOf(r: Reader, entry: { value: string; line: number } | undefined): string | null {
-  if (!entry) return null;
+/** A picture file's name, as the Image line gives it. */
+const PICTURE_FILE = /\.(?:jpe?g|png|webp)$/i;
+
+/** An Image line: a picture chosen with the file (by its name), or an image already uploaded (by its key). */
+function imageLine(r: Reader, entry: { value: string; line: number } | undefined): { imageKey: string | null; imageFile: string | null } {
+  if (!entry) return { imageKey: null, imageFile: null };
+  if (PICTURE_FILE.test(entry.value)) return { imageKey: null, imageFile: entry.value.trim() };
   if (!KEY_PATTERN.test(entry.value)) {
-    r.error(t('An image is given by the key of an uploaded image: lower-case letters, digits, - and _'), entry.line);
-    return null;
+    r.error(t('An image is the file name of a picture chosen with the file (buffon.jpg), or the key of an image already uploaded'), entry.line);
+    return { imageKey: null, imageFile: null };
   }
-  return entry.value;
+  return { imageKey: entry.value, imageFile: null };
 }
 
 function photoOf(r: Reader, entry: { value: string; line: number } | undefined): { id: number; ver: string } | null {
@@ -342,9 +358,9 @@ function parseClues(block: Block, kind: 'cards' | 'whoami-subjects'): Parsed<Par
     else ignored(r, entry);
   }
 
-  const imageKey = imageKeyOf(r, once.get('Image'));
+  const { imageKey, imageFile } = imageLine(r, once.get('Image'));
   const photo = photoOf(r, once.get('Photo'));
-  if (clues.length === 0 && !(card && (imageKey || photo))) r.error(t('Needs at least one clue line'));
+  if (clues.length === 0 && !(card && (imageKey || imageFile || photo))) r.error(t('Needs at least one clue line'));
   if (clues.length > max) r.error(t('At most {max} clue lines', { max }));
   if (clues.some((clue, index) => clue.number !== index + 1)) r.error(t('Clues must be numbered sequentially starting from 1'));
   const answer = answerOf(r, once.get('Answer'));
@@ -359,7 +375,7 @@ function parseClues(block: Block, kind: 'cards' | 'whoami-subjects'): Parsed<Par
 
   if (r.failed() || !answer) return { errors: r.errors };
   const base = { questionNumber: block.questionNumber, lineNumber: block.lineNumber, clues: clues.map((clue) => clue.text), display: answer.display, aliases: answer.aliases };
-  return { errors: r.errors, question: card ? { kind: 'cards', ...base, points: points!, imageKey, photo } : { kind: 'whoami-subjects', ...base } };
+  return { errors: r.errors, question: card ? { kind: 'cards', ...base, points: points!, imageKey, imageFile, photo } : { kind: 'whoami-subjects', ...base } };
 }
 
 function parseQa(block: Block, kind: 'box-questions' | 'penalty-questions'): Parsed<ParsedQa> {
@@ -437,7 +453,7 @@ function parsePractice(block: Block): Parsed<ParsedPractice> {
   if (!level) r.error(t('Missing difficulty level (use “Difficulty: Easy/Medium/Hard”)'));
   else if (/^(?:easy|medium|hard)$/i.test(level.value)) difficulty = level.value.toLowerCase() as ParsedPractice['difficulty'];
   else r.error(t('Difficulty must be Easy, Medium or Hard'), level.line);
-  const imageKey = imageKeyOf(r, once.get('Image'));
+  const { imageKey, imageFile } = imageLine(r, once.get('Image'));
 
   if (r.failed() || !prompt || !difficulty) return { errors: r.errors };
   return {
@@ -451,6 +467,7 @@ function parsePractice(block: Block): Parsed<ParsedPractice> {
       difficulty,
       explanation: explanation.join(' ').trim() || null,
       imageKey,
+      imageFile,
     },
   };
 }
@@ -654,6 +671,13 @@ export interface TdUploadContext {
   /** The three dailies: the puzzle's key. */
   puzzle: string;
   clubs: readonly TdClubRef[];
+  /** The pictures chosen with the file: lower-cased file name → the key its image is saved under. */
+  pictures?: ReadonlyMap<string, string>;
+}
+
+/** The image key a question's Image line comes to: its picture's (once chosen), or the uploaded image it names. */
+export function imageKeyIn(question: { imageKey: string | null; imageFile: string | null }, context: Pick<TdUploadContext, 'pictures'>): string | null {
+  return question.imageFile ? (context.pictures?.get(question.imageFile.toLowerCase()) ?? null) : question.imageKey;
 }
 
 const clubName = (value: string) =>
@@ -686,7 +710,7 @@ function columnValues(question: TdParsedQuestion, context: TdUploadContext): Rec
         lines: question.clues,
         photoId: question.photo?.id ?? null,
         photoVer: question.photo?.ver ?? null,
-        imageKey: question.imageKey,
+        imageKey: imageKeyIn(question, context),
       };
     case 'whoami-subjects':
       return { display: question.display, aliases: question.aliases, clues: question.clues };
@@ -702,7 +726,7 @@ function columnValues(question: TdParsedQuestion, context: TdUploadContext): Rec
         options: question.options.map((option) => option.text),
         answer: question.options.findIndex((option) => option.isCorrect) + 1,
         explanation: question.explanation,
-        imageKey: question.imageKey,
+        imageKey: imageKeyIn(question, context),
       };
     case 'football-logic':
       return {

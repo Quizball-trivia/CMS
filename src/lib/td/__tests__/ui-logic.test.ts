@@ -12,6 +12,7 @@ import { daysFrom } from '../georgia';
 import { mergeDrafts, resolveConflicts } from '../merge';
 import { TD_FIXED_FIELDS, TD_MERGE_UNITS } from '../content-rules';
 import { contentActions } from '../workflow';
+import { withShownAnswer } from '../answers';
 import type { TdStaff } from '@/types/td';
 
 const EDITOR: TdStaff = { id: 'e1', email: 'e@x.test', name: 'Editor', role: 'editor' };
@@ -248,5 +249,24 @@ describe('practice: the right option follows its option', () => {
     expect(followAnswer(2, { kind: 'remove', index: 0 })).toBe(1);
     expect(followAnswer(1, { kind: 'remove', index: 3 })).toBe(1);
     expect(followAnswer(1, { kind: 'edit' })).toBe(1);
+  });
+});
+
+describe('withShownAnswer', () => {
+  it('puts the shown answer first among the spellings of the types whose rounds count only those', () => {
+    expect(withShownAnswer('cards', { display: 'Lionel Messi', aliases: ['Messi'] })).toEqual({ display: 'Lionel Messi', aliases: ['Lionel Messi', 'Messi'] });
+    expect(withShownAnswer('box-questions', { display: ' Mbappé ', aliases: [] }).aliases).toEqual(['Mbappé']);
+  });
+
+  it('leaves the spellings alone when the shown answer is among them already, whatever its case or accents', () => {
+    const data = { display: 'Luka Modrić', aliases: ['luka modric', 'Modric'] };
+    expect(withShownAnswer('cards', data)).toBe(data);
+  });
+
+  it('leaves the types that match the shown answer themselves, and an empty answer, alone', () => {
+    const daily = { displayAnswer: 'Lewandowski', aliases: [] };
+    expect(withShownAnswer('football-logic', daily)).toBe(daily);
+    const empty = { display: '', aliases: [] };
+    expect(withShownAnswer('cards', empty)).toBe(empty);
   });
 });

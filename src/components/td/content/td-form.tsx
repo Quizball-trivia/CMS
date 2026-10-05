@@ -377,7 +377,7 @@ export function TdSpellingsField({
   onChange,
   issues = [],
   path,
-  hint = t('Press Enter or type a comma after each spelling. Players’ answers are compared with these.'),
+  hint = t('Only other names that count: nicknames, a different spelling. The shown answer always counts, and the game already forgives typos, accents, capitals and Georgian or Latin letters. Press Enter after each.'),
   max = 40,
 }: {
   label?: string;

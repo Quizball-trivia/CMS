@@ -81,6 +81,11 @@ function renderTd(ui: ReactNode) {
 const penalty = (key: string) => ({ key, q: 'Who won Euro 2024?', display: 'Spain', aliases: ['spain'] });
 
 beforeAll(() => {
+  // What Radix's Select asks of a browser and jsdom lacks.
+  Element.prototype.scrollIntoView = () => {};
+  Element.prototype.hasPointerCapture = () => false;
+  Element.prototype.setPointerCapture = () => {};
+  Element.prototype.releasePointerCapture = () => {};
   URL.createObjectURL = vi.fn(() => 'blob:td-test');
   URL.revokeObjectURL = vi.fn();
 });
@@ -128,6 +133,20 @@ describe('content editor', () => {
     renderTd(<TdContentEditorDialog target={{ type: 'penalty-questions', row: ready }} onClose={() => {}} startOn="preview" />);
     expect(await screen.findByText('You made the last edit, so another publisher approves it.')).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Approve' })).toBeNull();
+  });
+
+  it('saves the shown answer among the accepted spellings, once, as the rounds count only those', async () => {
+    const { admin } = await signIn('editor');
+    renderTd(<TdContentEditorDialog target={{ type: 'penalty-questions', row: null }} onClose={() => {}} />);
+    fireEvent.change(screen.getByLabelText('Question'), { target: { value: 'Who captained Georgia at Euro 2024?' } });
+    fireEvent.change(screen.getByLabelText('Answer (as shown)'), { target: { value: 'Guram Kashia' } });
+    const spellings = screen.getByLabelText('Accepted spellings');
+    fireEvent.change(spellings, { target: { value: 'Kashia' } });
+    fireEvent.keyDown(spellings, { key: 'Enter' });
+    fireEvent.click(screen.getByRole('button', { name: 'Create Question' }));
+    expect(await screen.findByRole('heading', { name: 'Question Preview' })).toBeTruthy();
+    const [row] = (await admin.content('penalty-questions').list({ q: 'captained Georgia' })).items;
+    expect(row!.data.aliases).toEqual(['Guram Kashia', 'Kashia']);
   });
 
   it('shows what the API would refuse before sending, by field', async () => {
@@ -377,6 +396,21 @@ describe('stepping through a list', () => {
     expect(screen.getByRole('button', { name: 'Next' }).hasAttribute('disabled')).toBe(true);
     fireEvent.keyDown(document.body, { key: 'ArrowRight' });
     expect(onGo).not.toHaveBeenCalled();
+  });
+
+  it('filters a daily game’s questions by category, as the Quizball list filters by category', async () => {
+    await signIn('editor');
+    window.history.replaceState(null, '', '?mode=put-in-order');
+    renderTd(<TdQuestionsTab />);
+    expect(await screen.findByText('Order these World Cup winners from earliest to latest')).toBeTruthy();
+    expect(screen.getByText('Order these stadiums by capacity, smallest first')).toBeTruthy();
+    const category = screen.getByRole('combobox', { name: 'Category' });
+    fireEvent.keyDown(category, { key: 'ArrowDown' });
+    fireEvent.click(await screen.findByRole('option', { name: 'pio-2' }));
+    await waitFor(() => expect(screen.queryByText('Order these World Cup winners from earliest to latest')).toBeNull());
+    expect(await screen.findByText('Order these stadiums by capacity, smallest first')).toBeTruthy();
+    expect(screen.getByText('Category: pio-2')).toBeTruthy();
+    window.history.replaceState(null, '', window.location.pathname);
   });
 
   it('a row opens from the keyboard', async () => {

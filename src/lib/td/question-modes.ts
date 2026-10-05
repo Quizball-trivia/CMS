@@ -12,6 +12,8 @@ export interface TdQuestionMode {
   type: TdContentType;
   noun: TdQuestionNoun;
   categoryType?: TdCategoryType;
+  /** A daily game: its questions' categories are their puzzle keys. */
+  puzzles?: true;
 }
 
 /** The game modes a question belongs to: the Questions page's Type filter, as
@@ -22,9 +24,9 @@ export const TD_QUESTION_MODES: readonly TdQuestionMode[] = [
   { key: 'round-3', label: t('Round III · პაპა კარლოს ყუთი'), type: 'box-questions', noun: 'question', categoryType: 'box-categories' },
   { key: 'penalties', label: t('Penalties'), type: 'penalty-questions', noun: 'question' },
   { key: 'practice', label: t('Practice · ივარჯიშე'), type: 'practice-questions', noun: 'question' },
-  { key: 'football-logic', label: t('Daily · Football Logic'), type: 'football-logic', noun: 'question' },
-  { key: 'put-in-order', label: t('Daily · Put in Order'), type: 'put-in-order', noun: 'round' },
-  { key: 'career-path', label: t('Daily · Career Path'), type: 'career-path', noun: 'question' },
+  { key: 'football-logic', label: t('Daily · Football Logic'), type: 'football-logic', noun: 'question', puzzles: true },
+  { key: 'put-in-order', label: t('Daily · Put in Order'), type: 'put-in-order', noun: 'round', puzzles: true },
+  { key: 'career-path', label: t('Daily · Career Path'), type: 'career-path', noun: 'question', puzzles: true },
 ];
 
 /** The page of the question list that holds rows of this type (links from the release report). */

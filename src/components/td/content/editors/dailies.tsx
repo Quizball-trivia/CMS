@@ -45,7 +45,7 @@ export function useTdPuzzles(game: TdDailyGame) {
   return { puzzles, isLoading: rows.isLoading };
 }
 
-function PuzzleField({ game, value, onChange, issues, path, label = t('Puzzle (set)') }: { game: TdDailyGame; value: string; onChange: (key: string) => void; issues: ReturnType<typeof issuesAt>; path: string; label?: string }) {
+function PuzzleField({ game, value, onChange, issues, path, label = t('Category') }: { game: TdDailyGame; value: string; onChange: (key: string) => void; issues: ReturnType<typeof issuesAt>; path: string; label?: string }) {
   const { puzzles, isLoading } = useTdPuzzles(game);
   const known = puzzles.some((p) => p.key === value);
   return (
@@ -55,7 +55,7 @@ function PuzzleField({ game, value, onChange, issues, path, label = t('Puzzle (s
       onChange={onChange}
       issues={issuesAt(issues, path)}
       options={[
-        { value: '', label: isLoading ? t('Loading…') : t('Choose a puzzle') },
+        { value: '', label: isLoading ? t('Loading…') : t('Choose a category') },
         ...(!known && value ? [{ value, label: t('{puzzle} (no questions)', { puzzle: value }) }] : []),
         ...puzzles.map((p) => ({
           value: p.key,
@@ -64,14 +64,14 @@ function PuzzleField({ game, value, onChange, issues, path, label = t('Puzzle (s
             : tn(p.questions, '{puzzle} · {count} question · none approved', '{puzzle} · {count} questions · none approved', { puzzle: p.key }),
         })),
       ]}
-      hint={t('A date plays one puzzle; only puzzles with an approved question can be scheduled.')}
+      hint={t('A day plays one category; only categories with an approved question can be scheduled.')}
     />
   );
 }
 
 function PuzzleKeyField({ value, onChange, issues }: { value: string; onChange: (puzzle: string) => void; issues: ReturnType<typeof issuesAt> }) {
   return (
-    <TdTextField label={t('Puzzle (set)')} value={value} onChange={onChange} issues={issuesAt(issues, 'data.puzzle')} hint={t('Questions with the same puzzle key are played together on a date. A new key starts a new puzzle.')} />
+    <TdTextField label={t('Category')} value={value} onChange={onChange} issues={issuesAt(issues, 'data.puzzle')} hint={t('Questions of the same category are played together on a day. A new key starts a new category.')} />
   );
 }
 
@@ -81,7 +81,7 @@ export function FootballLogicEditor({ value, onChange, issues, creating }: TdEdi
       <KeyField value={value.key} onChange={(key) => onChange({ ...value, key })} issues={issues} creating={creating} />
       <div className="grid gap-3 sm:grid-cols-2">
         <PuzzleKeyField value={value.puzzle} onChange={(puzzle) => onChange({ ...value, puzzle })} issues={issues} />
-        <TdTextField label={t('Category')} value={value.category} onChange={(category) => onChange({ ...value, category })} issues={issuesAt(issues, 'data.category')} />
+        <TdTextField label={t('Topic')} value={value.category} onChange={(category) => onChange({ ...value, category })} issues={issuesAt(issues, 'data.category')} hint={t('Shown above the question in the game.')} />
       </div>
       <TdTextField label={t('Prompt (optional)')} multiline value={value.prompt} onChange={(prompt) => onChange({ ...value, prompt })} issues={issuesAt(issues, 'data.prompt')} />
       <div className="grid gap-3 sm:grid-cols-2">
@@ -230,20 +230,20 @@ export function DailySettingsEditor({ value, onChange, issues, creating }: TdEdi
         <TdNumberField label={value.game === 'footballLogic' ? t('Seconds per question') : t('Seconds per round')} value={value.seconds} onChange={(seconds) => onChange({ ...value, seconds })} issues={issuesAt(issues, 'data.seconds')} hint={t('1 to 600 seconds.')} />
       )}
       <TdSwitchField
-        label={t('Cycle of puzzles')}
+        label={t('Question pool categories')}
         checked={cycle !== null}
         onChange={(on) => onChange({ ...value, cycle: on ? { anchor: georgiaToday(), sets: puzzles.slice(0, 1).map((p) => p.key) } : null })}
-        hint={t('Dates without a puzzle of their own play these in turn, one a day, the anchor date playing the first.')}
+        hint={t('Days without a category of their own play these in turn, one a day, the anchor date playing the first.')}
       />
       {cycle && (
         <div className="flex flex-col gap-3 rounded-lg border border-border p-3">
           <TdTextField label={t('Anchor date (Georgia)')} type="date" value={cycle.anchor} onChange={(anchor) => onChange({ ...value, cycle: { ...cycle, anchor } })} issues={issuesAt(issues, 'data.cycle.anchor')} />
-          <TdField label={t('Puzzles, in turn')} issues={issuesAt(issues, 'data.cycle.sets')}>
+          <TdField label={t('Categories, in turn')} issues={issuesAt(issues, 'data.cycle.sets')}>
             <ol className="flex flex-col gap-1.5">
               {cycle.sets.map((set, index) => (
                 <li key={index} className="flex items-center gap-2">
                   <span className="w-5 text-right text-xs tabular-nums text-(--td-text-3)">{index + 1}</span>
-                  <select aria-label={t('Cycle puzzle {n}', { n: index + 1 })} value={set} onChange={(event) => onChange({ ...value, cycle: { ...cycle, sets: cycle.sets.map((s, i) => (i === index ? event.target.value : s)) } })} className={cn(tdInputClass, 'flex-1 border px-3')}>
+                  <select aria-label={t('Rotation category {n}', { n: index + 1 })} value={set} onChange={(event) => onChange({ ...value, cycle: { ...cycle, sets: cycle.sets.map((s, i) => (i === index ? event.target.value : s)) } })} className={cn(tdInputClass, 'flex-1 border px-3')}>
                     {!puzzles.some((p) => p.key === set) && <option value={set}>{t('{puzzle} (no questions)', { puzzle: set })}</option>}
                     {puzzles.map((p) => (
                       <option key={p.key} value={p.key}>
@@ -259,7 +259,7 @@ export function DailySettingsEditor({ value, onChange, issues, creating }: TdEdi
             </ol>
             <Button type="button" variant="secondary" size="sm" className="w-fit rounded-lg" disabled={puzzles.length === 0} onClick={() => onChange({ ...value, cycle: { ...cycle, sets: [...cycle.sets, puzzles[0]?.key ?? ''] } })}>
               <Plus />
-              {t('Add a puzzle')}
+              {t('Add a category')}
             </Button>
           </TdField>
         </div>

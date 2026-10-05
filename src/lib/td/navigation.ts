@@ -70,7 +70,7 @@ export const TD_TABS: readonly TdTab[] = [
     key: 'dailies',
     href: `${TD_ROOT}/dailies`,
     label: t('Daily Challenges'),
-    description: t('Football Logic, Put in Order and Career Path: their timing and the question sets they play.'),
+    description: t('Football Logic, Put in Order and Career Path: their timing and the question categories they play.'),
     group: 'competitions',
     roles: ALL,
   },
