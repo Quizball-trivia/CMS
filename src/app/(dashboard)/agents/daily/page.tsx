@@ -4,7 +4,8 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { CalendarClock, Loader2, Play, ExternalLink } from 'lucide-react';
 import { toast } from 'sonner';
-import { useSchedules, useScheduleRuns, useUpdateSchedule, useRunScheduleNow } from '@/hooks';
+import { useDayBatchBuffers, useDayBatches, useSchedules, useScheduleRuns, useUpdateSchedule, useRunScheduleNow } from '@/hooks';
+import { DailyGameScheduleCard } from '../day-batches-ui';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { JobStatusBadge, formatCents, formatRelativeTime, AgentNav } from '../agent-ui';
@@ -352,6 +353,8 @@ function ConfigTile({ label, value }: { label: string; value: string }) {
 
 export default function DailyChallengesPage() {
   const { data: schedules, isLoading } = useSchedules();
+  const { data: buffers } = useDayBatchBuffers();
+  const { data: batches } = useDayBatches();
 
   return (
     <div className="space-y-6">
@@ -361,7 +364,7 @@ export default function DailyChallengesPage() {
         </div>
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-slate-900">Schedules</h1>
-          <p className="text-sm text-slate-500">Recurring cron jobs that auto-generate questions — config, what they do, history, and manual run.</p>
+          <p className="text-sm text-slate-500">Recurring cron jobs that auto-generate questions and daily-game days — config, what they do, history, and manual run.</p>
         </div>
       </div>
 
@@ -376,8 +379,23 @@ export default function DailyChallengesPage() {
           <CardContent className="py-10 text-center text-sm text-slate-500">No schedules configured.</CardContent>
         </Card>
       ) : (
-        schedules.map((s) => <ScheduleCard key={s.id} schedule={s} />)
+        // daily-game schedules have their own card below (days left instead of question config)
+        schedules.filter((s) => s.jobType !== 'daily_days').map((s) => <ScheduleCard key={s.id} schedule={s} />)
       )}
+
+      {buffers && buffers.length > 0 ? (
+        <div className="space-y-3">
+          <h2 className="text-sm font-semibold text-slate-900">Daily games</h2>
+          {buffers.map((b) => (
+            <DailyGameScheduleCard
+              key={b.game}
+              buffer={b}
+              schedule={(schedules ?? []).find((s) => s.jobType === 'daily_days' && s.params?.game === b.game)}
+              batches={batches ?? []}
+            />
+          ))}
+        </div>
+      ) : null}
     </div>
   );
 }

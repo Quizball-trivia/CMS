@@ -25,6 +25,11 @@ import type {
   AgentSchedule,
   AgentStats,
   AgentTask,
+  DailyGame,
+  DailyGameBuffer,
+  DayBatchDetail,
+  DayBatchStatus,
+  DayBatchSummary,
   ListAgentJobsParams,
   SaveAgentPromptRequest,
   SpawnAgentJobRequest,
@@ -106,8 +111,8 @@ export const agentsApi = {
     return apiClient.get<AgentReviewQueue>(`${BASE}/review`);
   },
 
-  getReviewCount(): Promise<{ count: number }> {
-    return apiClient.get<{ count: number }>(`${BASE}/review/count`);
+  getReviewCount(): Promise<{ count: number; dayBatches?: number }> {
+    return apiClient.get<{ count: number; dayBatches?: number }>(`${BASE}/review/count`);
   },
 
   approveQuestion(questionId: string): Promise<void> {
@@ -171,5 +176,34 @@ export const agentsApi = {
 
   activatePromptVersion(promptId: string): Promise<AgentPrompt> {
     return apiClient.post<AgentPrompt>(`${BASE}/prompts/${promptId}/activate`);
+  },
+
+  // ── daily-game day batches ──
+  listDayBatches(params?: { game?: DailyGame; status?: DayBatchStatus; limit?: number }): Promise<DayBatchSummary[]> {
+    return apiClient.get<DayBatchSummary[]>(`${BASE}/day-batches`, params);
+  },
+
+  getDayBatchBuffers(): Promise<DailyGameBuffer[]> {
+    return apiClient.get<DailyGameBuffer[]>(`${BASE}/day-batches/buffers`);
+  },
+
+  getDayBatch(batchId: string): Promise<DayBatchDetail> {
+    return apiClient.get<DayBatchDetail>(`${BASE}/day-batches/${batchId}`);
+  },
+
+  approveDayBatch(batchId: string): Promise<DayBatchSummary> {
+    return apiClient.post<DayBatchSummary>(`${BASE}/day-batches/${batchId}/approve`);
+  },
+
+  rejectDayBatch(batchId: string, reason: string): Promise<DayBatchSummary> {
+    return apiClient.post<DayBatchSummary>(`${BASE}/day-batches/${batchId}/reject`, { reason });
+  },
+
+  setDayBatchHold(game: DailyGame, hold: boolean): Promise<void> {
+    return apiClient.put<void>(`${BASE}/day-batches/settings/${game}`, { hold });
+  },
+
+  spawnDayBatch(game: DailyGame, days: number): Promise<{ jobId: string }> {
+    return apiClient.post<{ jobId: string }>(`${BASE}/day-batches`, { game, days });
   },
 };

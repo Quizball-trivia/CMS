@@ -25,6 +25,8 @@ const AGENT_TABS = [
 export function AgentNav() {
   const pathname = usePathname();
   const { data: reviewCount } = useReviewCount();
+  // the backend's count covers draft questions and daily-game batches: both are on Review
+  const badgeFor = (href: string) => (href === '/agents/review' ? reviewCount?.count ?? 0 : 0);
   const isActive = (href: string) => {
     if (href === '/agents') {
       // Jobs tab: active on /agents and job-detail (/agents/<id>), but not the other tabs
@@ -51,9 +53,9 @@ export function AgentNav() {
           >
             <Icon className="h-4 w-4" />
             {tab.label}
-            {tab.href === '/agents/review' && reviewCount && reviewCount.count > 0 ? (
+            {badgeFor(tab.href) > 0 ? (
               <span className="ml-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-amber-500 px-1.5 text-[11px] font-bold text-white">
-                {reviewCount.count}
+                {badgeFor(tab.href)}
               </span>
             ) : null}
           </Link>
