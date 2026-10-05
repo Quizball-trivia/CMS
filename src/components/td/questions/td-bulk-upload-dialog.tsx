@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
+import { useQueryClient } from '@tanstack/react-query';
 import { AlertCircle, CheckCircle2, ChevronLeft, ChevronRight, Info, Loader2, Trash2, Upload } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -206,6 +207,7 @@ export function TdBulkUploadDialog({ initialType, initialCategory, initialPuzzle
 function UploadBody({ initialType, initialCategory, initialPuzzle, onBusy, onClose }: { initialType?: TdContentType; initialCategory: string | null; initialPuzzle: string | null; onBusy: (busy: boolean) => void; onClose: () => void }) {
   const { user } = useTdAuth();
   const write = useTdWrite();
+  const queryClient = useQueryClient();
   const [selectedQuestionType, setSelectedQuestionType] = useState<UploadQuestionType>(isUploadType(initialType) ? initialType : TYPE_OPTIONS[0]!.value);
   // The category's key (Round I, Round III) or label (Practice, Football Logic); NEW: the one typed below.
   const [selectedCategory, setSelectedCategory] = useState<string>(initialCategory ?? '');
@@ -298,7 +300,7 @@ function UploadBody({ initialType, initialCategory, initialPuzzle, onBusy, onClo
     (!keyCategory && !labelCategory ? true : keyCategory ? category !== '' : category !== '' && category.length <= 200) &&
     (!daily || KEY_PATTERN.test(puzzle)) &&
     (type !== 'career-path' || !clubRows.isLoading) &&
-    (type !== 'cards' || !categoryCards.isLoading);
+    (type !== 'cards' || (!categoryCards.isLoading && !mediaRows.isLoading));
   const pictureKeys = useMemo(() => new Map(pictures.map((picture) => [picture.name.toLowerCase(), picture.key])), [pictures]);
   const existingCard = useCallback(
     (question: TdParsedQuestion): TdContentRow<'cards'> | null => {
@@ -366,6 +368,8 @@ function UploadBody({ initialType, initialCategory, initialPuzzle, onBusy, onClo
           // What the card would become is checked as the edit it is, before anything is saved.
           const body = { version: updates.version, data: updatedCard(question, updates, imageKeyIn(question, context)), position: updates.position, note: updates.note };
           problems.push(...contentWriteIssues('cards', 'Card', 'edit', body).map((issue) => ({ code: 'invalid' as const, path: issue.path, message: issue.message })));
+          // The import's check finds a new card's missing image; an update's is found here.
+          if (question.imageKey && !mediaByKey.has(question.imageKey)) problems.push({ code: 'missing_reference' as const, path: 'Image', message: t('No uploaded image has this key') });
           const earlier = updater.get(updates.id);
           if (earlier === undefined) updater.set(updates.id, question.questionNumber);
           else problems.push({ code: 'duplicate_in_batch' as const, path: 'Answer', message: t('Question {n} updates the same card', { n: earlier }) });
@@ -382,7 +386,7 @@ function UploadBody({ initialType, initialCategory, initialPuzzle, onBusy, onClo
           updates,
         };
       });
-  }, [questions, entries, checked, unselected, pictureKeys, credits, pictureOf, context]);
+  }, [questions, entries, checked, unselected, pictureKeys, credits, pictureOf, context, mediaByKey]);
 
   const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -530,12 +534,15 @@ function UploadBody({ initialType, initialCategory, initialPuzzle, onBusy, onClo
     replayStarted.current = read;
     const mine = read;
     const operation = readOperation.current;
+    const file = reading.current;
     void (async () => {
       const items = entries.filter((entry) => !entry.updates).map((entry) => entry.item);
       const edits = entries.some((entry) => entry.updates);
       const saved = user && operation && items.length > 0 ? batchKeyFor(user.id, await sha256Hex(canonicalJson(items))) : null;
       if (saved?.sent && operation) {
         const outcome = await importItems(items, operation, !edits);
+        // Another file chosen meanwhile is its own.
+        if (reading.current !== file) return;
         if (outcome === 'done' && !edits) return;
         // The new questions are in; the cards the file updates are still to do.
         if (outcome === 'done') {
@@ -543,6 +550,7 @@ function UploadBody({ initialType, initialCategory, initialPuzzle, onBusy, onClo
           setQuestions((prev) => prev.filter((question) => !imported.has(question.id)));
         }
       }
+      if (reading.current !== file) return;
       setReplayed(mine);
     })();
   }, [read, replayed, ready, entries, questions, user, importItems]);
@@ -630,9 +638,10 @@ function UploadBody({ initialType, initialCategory, initialPuzzle, onBusy, onClo
         onClose();
         return;
       }
-      // Only the cards not updated stay, to try again on the cards as they are now (the lists refresh after a write).
+      // Only the cards not updated stay, to try again on the cards as they are now.
       const done = new Set([...creates.map((index) => rows[index]!.question.id), ...updated]);
       setQuestions((prev) => prev.filter((question) => !done.has(question.id)));
+      await queryClient.invalidateQueries({ queryKey: tdKeys.content });
     } finally {
       uploadInFlightRef.current = false;
       onBusy(false);

@@ -377,6 +377,26 @@ describe('the upload dialog', () => {
     expect((await all()).find((card) => card.data.key === 'buffon')!.data).toMatchObject({ value: 3, lines: ['Italy', 'Parma'], photo: { id: 1179, ver: '26' } });
   });
 
+  it('reads a card again after its update was refused, so asking again goes out on the card as it is now', async () => {
+    const { admin } = await signIn('editor');
+    await openDialog({ initialType: 'cards', initialCategory: 'legends' });
+    chooseFile(txt('1.\nAnswer: ბუფონი\nPoints: 3\nImage: no-such-image\n2.\nAnswer: ბუფონი\nPoints: 3'));
+    expect(await screen.findByText(/No uploaded image has this key$/)).toBeTruthy();
+    fireEvent.click(screen.getAllByRole('button', { name: 'Remove' })[0]!);
+    const all = async () => (await admin.content('cards').list({ category: 'legends', status: 'draft,ready,approved', limit: 200 })).items;
+    const buffon = (await all()).find((card) => card.data.key === 'buffon')!;
+    await admin.content('cards').edit(buffon.id, { version: buffon.version, data: { ...buffon.data, lines: ['Italy', 'Parma'] }, position: buffon.position, note: buffon.note });
+    const failed = vi.spyOn(toast, 'error');
+    const upload = await uploadButton(1);
+    await waitFor(() => expect(upload.hasAttribute('disabled')).toBe(false));
+    fireEvent.click(upload);
+    await waitFor(() => expect(failed).toHaveBeenCalledWith(expect.stringMatching(/^The card Gianluigi Buffon was not updated/)));
+    await waitFor(() => expect(upload.hasAttribute('disabled')).toBe(false));
+    fireEvent.click(upload);
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    expect((await all()).find((card) => card.data.key === 'buffon')!.data).toMatchObject({ value: 3, lines: ['Italy', 'Parma'] });
+  });
+
   it('asks a clue line or a picture of a new card only, flags two questions updating one card, and checks each update before saving anything', async () => {
     const { admin } = await signIn('editor');
     await openDialog({ initialType: 'cards', initialCategory: 'legends' });
