@@ -1,8 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, type KeyboardEvent } from 'react';
 import { FileText } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { TdCardImage } from '@/components/td/content/td-card-image';
 import { TdContentEditorDialog, type TdEditorTarget } from '@/components/td/content/td-content-editor';
 import { TD_STATUS_WORDS } from '@/components/td/content/td-status';
 import { useTdAllRows } from '@/hooks/use-td-content';
@@ -62,6 +63,59 @@ export function TdCategoryQuestions({ type, categoryKey }: { type: TdCategoryTyp
         <Alert className="rounded-xl bg-gray-50 border-gray-100">
           <AlertDescription className="text-xs text-gray-500">{type === 'card-categories' ? t('No cards in this category yet.') : t('No questions in this category yet.')}</AlertDescription>
         </Alert>
+      </div>
+    );
+  }
+
+  const open = (row: ChildRow) => setOpened(row);
+  const keys = (row: ChildRow) => (event: KeyboardEvent) => {
+    if (event.key !== 'Enter' && event.key !== ' ') return;
+    event.preventDefault();
+    open(row);
+  };
+
+  // ბარათონი is guessing cards: its cards show as the cards they are, with their pictures.
+  if (type === 'card-categories') {
+    const cards = rows as TdContentRow<'cards'>[];
+    return (
+      <div className="space-y-2">
+        <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider ml-1">{heading(type, rows.length)}</div>
+        <div className="grid max-h-[420px] grid-cols-3 gap-3 overflow-y-auto pr-1 sm:grid-cols-4">
+          {cards.map((card) => (
+            <div
+              key={card.id}
+              role="button"
+              tabIndex={0}
+              aria-label={card.data.display}
+              onClick={() => open(card)}
+              onKeyDown={keys(card)}
+              className="group cursor-pointer overflow-hidden rounded-xl border border-gray-100 bg-white transition-all hover:border-gray-200 hover:shadow-md"
+            >
+              <div className="relative aspect-[3/4] w-full overflow-hidden bg-slate-50">
+                <TdCardImage card={card.data} className="transition-transform duration-300 group-hover:scale-105" />
+                <span className={cn('absolute left-1.5 top-1.5 h-2 w-2 rounded-full', card.status === 'approved' ? 'bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.6)]' : card.status === 'ready' ? 'bg-amber-400' : 'bg-gray-300')} />
+              </div>
+              <div className="space-y-1 px-2 py-1.5">
+                <p title={card.data.display} className="truncate text-xs font-bold text-gray-900">
+                  {card.data.display}
+                </p>
+                <div className="flex items-center justify-between gap-1">
+                  <div className="flex items-center gap-1">
+                    <PointDots points={card.data.value} />
+                    <span className="text-[9px] font-bold uppercase text-gray-400">{tn(card.data.value, '{count} point', '{count} points')}</span>
+                  </div>
+                  <span className={cn('rounded px-1 py-0.5 text-[8px] font-black uppercase tracking-wider', BADGES[card.status])}>{TD_STATUS_WORDS[card.status]}</span>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+        <TdContentEditorDialog
+          target={opened ? ({ type: childType, row: opened } as TdEditorTarget) : null}
+          onClose={() => setOpened(null)}
+          startOn="preview"
+          nav={openIndex >= 0 ? { index: openIndex, total: rows.length, more: false, onGo: (index) => rows[index] && setOpened(rows[index]) } : null}
+        />
       </div>
     );
   }

@@ -13,7 +13,7 @@ import { isTdPublisher } from '@/lib/td/workflow';
 import { cn } from '@/lib/utils';
 import { useTdAuth } from '@/providers/td-auth-provider';
 import { TdCategoryDeleteModal } from './td-category-delete-modal';
-import { categoryName, categoryTypeOf, countLabel, TD_STATUS_ICONS, type TdCategoryRow } from './td-category-data';
+import { categoryName, categoryTypeOf, countLabel, TD_STATUS_ICONS, TD_STATUS_PILL, type TdCategoryRow } from './td-category-data';
 
 export interface TdCategoryCardProps {
   category: TdCategoryRow;
@@ -25,14 +25,7 @@ export interface TdCategoryCardProps {
 }
 
 /** A category as one compact row: Table Derby categories have no image, so Quizball's picture card would be
- *  empty space. The status colours are the Questions list's. */
-const STATUS_PILL: Record<TdCategoryRow['status'], string> = {
-  draft: 'bg-slate-100 text-slate-400',
-  ready: 'bg-amber-50 text-amber-600',
-  approved: 'bg-emerald-50 text-emerald-600',
-  archived: 'bg-slate-100 text-slate-300',
-};
-
+ *  empty space. */
 export function TdCategoryCard({ category, count, description, onEdit }: TdCategoryCardProps) {
   const { user } = useTdAuth();
   const write = useTdWrite();
@@ -88,7 +81,7 @@ export function TdCategoryCard({ category, count, description, onEdit }: TdCateg
               <CountIcon className="h-3.5 w-3.5 text-slate-300" />
               {countLabel(type, count)}
             </span>
-            <span className={cn('flex min-w-0 items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-black uppercase tracking-wide', STATUS_PILL[category.status])}>
+            <span className={cn('flex min-w-0 items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-black uppercase tracking-wide', TD_STATUS_PILL[category.status])}>
               <StatusIcon className="h-3 w-3 shrink-0" />
               <span className="truncate">{TD_STATUS_LABELS[category.status]}</span>
             </span>

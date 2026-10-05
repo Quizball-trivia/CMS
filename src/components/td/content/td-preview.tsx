@@ -3,6 +3,7 @@
 import type { ReactNode } from 'react';
 import { CheckCircle2, ImageOff, Loader2 } from 'lucide-react';
 import { releasedImage } from '@/components/td/media/td-media';
+import { TdCardImage } from './td-card-image';
 import { useTdAllRows, useTdUploadUrl } from '@/hooks/use-td-content';
 import type { TdContentData, TdContentType } from '@/lib/td/admin-api';
 import { t } from '@/lib/td/i18n';
@@ -130,9 +131,11 @@ export function TdPreview({ type, data }: { type: TdContentType; data: Record<st
       const d = data as TdContentData<'cards'>;
       return (
         <div className="space-y-4">
-          {d.imageKey && (
+          {(d.imageKey || d.photo) && (
             <Section label={t('Image')}>
-              <TdQuestionImage imageKey={d.imageKey} />
+              <div className="mx-auto aspect-[3/4] w-48 overflow-hidden rounded-xl border border-slate-200 bg-slate-50">
+                <TdCardImage card={d} />
+              </div>
             </Section>
           )}
           <Section label={t('Clue lines')}>

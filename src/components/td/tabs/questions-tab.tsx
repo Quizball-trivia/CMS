@@ -11,6 +11,7 @@ import { DifficultySignal, getDifficultyTextColor } from '@/components/ui/diffic
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { TdCardImage } from '@/components/td/content/td-card-image';
 import { TdContentEditorDialog, type TdEditorTarget } from '@/components/td/content/td-content-editor';
 import { TdErrorPanel } from '@/components/td/td-error-panel';
 import { TD_STATUS_LABELS, TD_STATUS_WORDS } from '@/components/td/content/td-status';
@@ -535,6 +536,12 @@ export function TdQuestionsTab() {
                         onClick={(event) => event.stopPropagation()}
                       />
                       <div className={cn('h-2.5 w-2.5 shrink-0 rounded-full transition-all duration-500', STATUS_DOT[row.status])} />
+                      {/* ბარათონი is guessing cards: a card shows its picture. */}
+                      {mode.type === 'cards' && (
+                        <div className="h-14 w-11 shrink-0 overflow-hidden rounded-lg border border-slate-100 bg-slate-50">
+                          <TdCardImage card={(row as TdContentRow<'cards'>).data} />
+                        </div>
+                      )}
                       <div className="flex min-w-0 flex-col">
                         <span className="truncate text-[16px] font-semibold leading-tight text-slate-900">{shown.title || '—'}</span>
                         <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1">

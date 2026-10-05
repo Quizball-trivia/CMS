@@ -52,3 +52,11 @@ export function useTdCategoryCounts() {
     };
   }, [cardRows, questionRows]);
 }
+
+/** The status colours of the Questions list, for a category and its cards or questions. */
+export const TD_STATUS_PILL: Record<TdContentStatus, string> = {
+  draft: 'bg-slate-100 text-slate-400',
+  ready: 'bg-amber-50 text-amber-600',
+  approved: 'bg-emerald-50 text-emerald-600',
+  archived: 'bg-slate-100 text-slate-300',
+};

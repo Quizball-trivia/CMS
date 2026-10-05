@@ -9,6 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { newKey } from '@/components/td/content/content-types';
 import { TdCategoryApproval } from '@/components/td/content/td-category-approval';
+import { TD_STATUS_LABELS } from '@/components/td/content/td-status';
 import { TdErrorPanel } from '@/components/td/td-error-panel';
 import { useTdContentRow, useTdWrite } from '@/hooks/use-td-content';
 import { TD_CONTENT_SCHEMA_NAMES, type TdContentRow } from '@/lib/td/admin-api';
@@ -22,8 +23,7 @@ import { t, tc } from '@/lib/td/i18n';
 import { contentActions } from '@/lib/td/workflow';
 import { cn } from '@/lib/utils';
 import { useTdAuth } from '@/providers/td-auth-provider';
-import { categoryText, categoryTypeOf, TD_CATEGORY_ROUNDS, useTdCategoryCounts, type TdCategoryRow, type TdCategoryType } from './td-category-data';
-import { TdCategoryPreview } from './td-category-preview';
+import { categoryText, categoryTypeOf, countLabel, roundOf, TD_CATEGORY_ROUNDS, TD_STATUS_PILL, useTdCategoryCounts, type TdCategoryRow, type TdCategoryType } from './td-category-data';
 import { TdCategoryQuestions } from './td-category-questions';
 
 interface TdCategoryFormProps {
@@ -174,7 +174,11 @@ export function TdCategoryForm({ category, leaveRef, onSuccess }: TdCategoryForm
       }}
       className="space-y-4"
     >
-      <TdCategoryPreview name={name} type={type} status={row?.status ?? 'draft'} count={creating ? 0 : countOf(type, row.data.key)} />
+      {row && (
+        <p className="flex items-center gap-2 text-xs font-medium text-slate-400">
+          {roundOf(type).label} · {countLabel(type, countOf(type, row.data.key))} · <span className={cn('rounded-md px-1.5 py-0.5 text-[10px] font-black uppercase tracking-wide', TD_STATUS_PILL[row.status])}>{TD_STATUS_LABELS[row.status]}</span>
+        </p>
+      )}
 
       <div className="grid grid-cols-2 gap-x-4 gap-y-3">
         {creating && (

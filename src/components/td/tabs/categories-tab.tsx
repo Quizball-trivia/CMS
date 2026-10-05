@@ -123,7 +123,7 @@ export function TdCategoriesTab() {
       </div>
 
       <Dialog open={dialogOpen} onOpenChange={(open) => (open ? setDialogOpen(true) : leaveRef.current() && handleClose())}>
-        <DialogContent className="sm:max-w-[600px] max-h-[90vh] p-0 overflow-hidden border-none shadow-2xl rounded-[2rem] flex flex-col">
+        <DialogContent className="sm:max-w-[760px] max-h-[90vh] p-0 overflow-hidden border-none shadow-2xl rounded-[2rem] flex flex-col">
           <DialogHeader className="p-8 pb-4 shrink-0">
             <DialogTitle className="text-2xl font-bold tracking-tight">{isEditing ? t('Edit Category') : t('Create Category')}</DialogTitle>
             <DialogDescription className="text-gray-500 font-medium">{isEditing ? t('Update the category details below.') : t('Define a new content bucket for your questions.')}</DialogDescription>
