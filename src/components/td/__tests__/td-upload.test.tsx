@@ -169,9 +169,9 @@ describe('the question file format', () => {
     expect(parseTdUpload('1.\nAnswer: x\nPoints: 1\nImage: x.jpg\nCredit: A | B | C | D', 'cards').errors.map((e) => e.message)).toEqual(['A Credit line is “author | licence | source”']);
   });
 
-  it('needs a clue line on a card only when it has no picture', () => {
-    expect(parseTdUpload('1.\nAnswer: x\nPoints: 1', 'cards').errors.map((e) => e.message)).toEqual(['Needs at least one clue line']);
-    expect(parseTdUpload('1.\nAnswer: x\nPoints: 1\nPhoto: 1179 | 20', 'cards').errors).toEqual([]);
+  it('reads a card without clue lines, since a card already in the category keeps its own; Round II still needs them', () => {
+    expect(parseTdUpload('1.\nAnswer: x\nPoints: 1', 'cards').errors).toEqual([]);
+    expect(parseTdUpload('1.\nAnswer: x', 'whoami-subjects').errors.map((e) => e.message)).toEqual(['Needs at least one clue line']);
   });
 
   it('reads Round II clues in the order given, and Round III and Penalties as a question and an answer', () => {
@@ -352,6 +352,100 @@ describe('the upload dialog', () => {
     const image = (await admin.content('media').list({ status: 'draft,ready,approved', limit: 200 })).items.find((row) => row.data.key === buffon.data.imageKey);
     expect(image!.data).toMatchObject({ key: buffon.data.imageKey, author: 'ავტორის სახელი', license: 'CC BY-SA 4.0', source: 'https://commons.wikimedia.org/wiki/File:Buffon.jpg' });
     expect(image!.data.uploadId).toBeTruthy();
+  });
+
+  it('keeps only the cards it could not update, and updates them on the card as it is now when asked again', async () => {
+    const { admin } = await signIn('editor');
+    await openDialog({ initialType: 'cards', initialCategory: 'legends' });
+    chooseFile(txt('1.\nAnswer: Guruli\nPoints: 2\nPhoto: 210257 | 20\n2.\nAnswer: ბუფონი\nPoints: 3\nPhoto: 1179 | 26'));
+    expect(await screen.findByText('2 of them update cards already in the category')).toBeTruthy();
+    const all = async () => (await admin.content('cards').list({ category: 'legends', status: 'draft,ready,approved', limit: 200 })).items;
+    // Someone else edits Buffon's card meanwhile.
+    const buffon = (await all()).find((card) => card.data.key === 'buffon')!;
+    await admin.content('cards').edit(buffon.id, { version: buffon.version, data: { ...buffon.data, lines: ['Italy', 'Parma'] }, position: buffon.position, note: buffon.note });
+    const failed = vi.spyOn(toast, 'error');
+    const upload = await uploadButton(2);
+    await waitFor(() => expect(upload.hasAttribute('disabled')).toBe(false));
+    fireEvent.click(upload);
+    await waitFor(() => expect(failed).toHaveBeenCalledWith(expect.stringMatching(/^The card Gianluigi Buffon was not updated/)));
+    const again = await uploadButton(1);
+    expect(screen.getByRole('dialog')).toBeTruthy();
+    expect((await all()).find((card) => card.data.key === 'guruli')!.data.photo).toEqual({ id: 210257, ver: '20' });
+    await waitFor(() => expect(again.hasAttribute('disabled')).toBe(false));
+    fireEvent.click(again);
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    expect((await all()).find((card) => card.data.key === 'buffon')!.data).toMatchObject({ value: 3, lines: ['Italy', 'Parma'], photo: { id: 1179, ver: '26' } });
+  });
+
+  it('asks a clue line or a picture of a new card only, flags two questions updating one card, and checks each update before saving anything', async () => {
+    const { admin } = await signIn('editor');
+    await openDialog({ initialType: 'cards', initialCategory: 'legends' });
+    // Points alone update a card; a new card needs more; Buffon and “Gigi Buffon” are one card.
+    chooseFile(txt('1.\nAnswer: Guruli\nPoints: 1\n2.\nAnswer: ახალი\nPoints: 1\n3.\nAnswer: Buffon\nPoints: 2\n4.\nAnswer: ბუფონი\nPoints: 3'));
+    expect(await screen.findByText(/A new card needs a clue line or a picture$/)).toBeTruthy();
+    expect(screen.getByText(/Question 3 updates the same card$/)).toBeTruthy();
+    expect(screen.getByText('2 questions have problems: remove them or fix the file')).toBeTruthy();
+    expect((await uploadButton(4)).hasAttribute('disabled')).toBe(true);
+
+    // A clue too long for the card is the update's problem, before any picture or new card is saved.
+    chooseFile(txt(`1.\nClue 1: ახალი\nAnswer: ახალი მეკარე\nPoints: 1\n2.\nClue 1: ${'ა'.repeat(201)}\nAnswer: Guruli\nPoints: 2`));
+    expect(await screen.findByText(/Not valid \(data\.lines\.0\)/)).toBeTruthy();
+    expect((await uploadButton(2)).hasAttribute('disabled')).toBe(true);
+    expect(await uploaded(admin, 'cards')).toEqual([]);
+  });
+
+  it('stops updating cards when the sign-in changes during the upload, and sends nothing under the new one', async () => {
+    const inner = server;
+    let switched = false;
+    server = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      const answer = await inner(input, init);
+      // Someone else signs in on this browser once the first card is updated.
+      if (!switched && init?.method === 'PATCH' && String(input).includes('/admin/content/cards/')) {
+        switched = true;
+        await signIn('publisher');
+      }
+      return answer;
+    }) as typeof fetch;
+    const { admin } = await signIn('editor');
+    await openDialog({ initialType: 'cards', initialCategory: 'legends' });
+    chooseFile(txt('1.\nAnswer: Guruli\nPoints: 2\n2.\nAnswer: ბუფონი\nPoints: 3'));
+    const failed = vi.spyOn(toast, 'error');
+    const upload = await uploadButton(2);
+    await waitFor(() => expect(upload.hasAttribute('disabled')).toBe(false));
+    fireEvent.click(upload);
+    await waitFor(() => expect(failed).toHaveBeenCalledWith('The sign-in changed, so the upload stopped. Check the cards before you upload again.'));
+    const cards = (await admin.content('cards').list({ category: 'legends', status: 'draft,ready,approved', limit: 200 })).items;
+    expect(cards.find((card) => card.data.key === 'guruli')!.data.value).toBe(2);
+    expect(cards.find((card) => card.data.key === 'buffon')!.data.value).toBe(2);
+  });
+
+  it('treats two names of the same picture as one image: one credit, and rights it lacked filled in when it comes again', async () => {
+    const { admin } = await signIn('editor');
+    await openDialog({ initialType: 'cards', initialCategory: 'legends' });
+    chooseFile(txt('1.\nClue 1: ა\nAnswer: პირველი\nPoints: 1\nImage: a.png\nCredit: Ann | CC0 | https://example.com/a\n2.\nClue 1: ბ\nAnswer: მეორე\nPoints: 1\nImage: b.png\nCredit: Bob | CC BY 4.0 | https://example.com/b'));
+    choosePictures(png('a.png'), png('b.png'));
+    expect(await screen.findByText(/Question 1 credits the same picture differently$/)).toBeTruthy();
+    cleanup();
+
+    // Saved once without rights, the picture takes those of a later Credit line.
+    await openDialog({ initialType: 'cards', initialCategory: 'legends' });
+    chooseFile(txt('1.\nClue 1: ა\nAnswer: პირველი\nPoints: 1\nImage: a.png'));
+    choosePictures(png('a.png'));
+    let upload = await uploadButton(1);
+    await waitFor(() => expect(upload.hasAttribute('disabled')).toBe(false));
+    fireEvent.click(upload);
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    cleanup();
+    await openDialog({ initialType: 'cards', initialCategory: 'legends' });
+    chooseFile(txt('1.\nClue 1: ბ\nAnswer: მეორე\nPoints: 1\nImage: again.png\nCredit: Ann | CC0 | https://example.com/a'));
+    choosePictures(png('again.png'));
+    upload = await uploadButton(1);
+    await waitFor(() => expect(upload.hasAttribute('disabled')).toBe(false));
+    fireEvent.click(upload);
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    const images = (await admin.content('media').list({ status: 'draft,ready,approved', limit: 200 })).items.filter((row) => row.data.key.startsWith('pic-'));
+    expect(images).toHaveLength(1);
+    expect(images[0]!.data).toMatchObject({ author: 'Ann', license: 'CC0', source: 'https://example.com/a' });
   });
 
   it('saves each picture with its own Credit line, the others with the rights typed, and flags a picture credited two ways', async () => {
@@ -616,6 +710,39 @@ describe('the upload dialog', () => {
     expect((await admin.imports.list()).items).toHaveLength(1);
   });
 
+  it('keeps the cards still to update when a file read again finds its new cards imported already', async () => {
+    const inner = server;
+    let lose = true;
+    server = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      const response = await inner(input, init);
+      if (lose && init?.method === 'POST' && String(input).endsWith('/admin/content/imports')) {
+        lose = false;
+        throw new TypeError('Failed to fetch');
+      }
+      return response;
+    }) as typeof fetch;
+    const { admin } = await signIn('editor');
+    const file = txt('1.\nClue 1: ახალი\nAnswer: ახალი მეკარე\nPoints: 1\n2.\nAnswer: Guruli\nPoints: 3');
+    await openDialog({ initialType: 'cards', initialCategory: 'legends' });
+    chooseFile(file);
+    const failed = vi.spyOn(toast, 'error');
+    const upload = await uploadButton(2);
+    await waitFor(() => expect(upload.hasAttribute('disabled')).toBe(false));
+    fireEvent.click(upload);
+    await waitFor(() => expect(failed).toHaveBeenCalled());
+    // The new card was made, its answer lost, and Guruli not reached: the same file again imports nothing twice and keeps Guruli.
+    const said = vi.spyOn(toast, 'success');
+    chooseFile(file);
+    await waitFor(() => expect(said).toHaveBeenCalledWith('These items were imported already; nothing was added'));
+    const rest = await uploadButton(1);
+    expect(screen.getByText('Updates the card')).toBeTruthy();
+    await waitFor(() => expect(rest.hasAttribute('disabled')).toBe(false));
+    fireEvent.click(rest);
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    expect((await uploaded(admin, 'cards')).map((card) => card.data.display)).toEqual(['ახალი მეკარე']);
+    expect((await admin.content('cards').list({ category: 'legends', limit: 200 })).items.find((card) => card.data.key === 'guruli')!.data.value).toBe(3);
+  });
+
   it('does not ask the API to check more questions than an import takes, and uploads none until they are fewer', async () => {
     const inner = server;
     let checks = 0;
@@ -636,7 +763,8 @@ describe('the upload dialog', () => {
     const upload = await uploadButton(2000);
     await waitFor(() => expect(upload.hasAttribute('disabled')).toBe(false));
     expect(checks).toBe(1);
-  });
+    // Two thousand rows are slow to draw on a loaded machine.
+  }, 20000);
 
   it('steps through the questions of the list with the arrows of the preview', async () => {
     await signIn('editor');

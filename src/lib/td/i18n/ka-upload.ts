@@ -152,4 +152,8 @@ export const KA_UPLOAD: Record<string, string> = {
   '“Credit: author | licence | source” after an Image line says whose that picture is; without it the picture takes the Author, Licence and Source given below.':
     '„Credit: ავტორი | ლიცენზია | წყარო“ Image ხაზის შემდეგ მიუთითებს, ვისია ეს სურათი; მის გარეშე სურათი ქვემოთ მითითებულ ავტორს, ლიცენზიასა და წყაროს იღებს.',
   'Question {n} credits the same picture differently': 'კითხვა {n} იმავე სურათს სხვა Credit-ით ასახელებს',
+  'Question {n} updates the same card': 'კითხვა {n} იმავე ბარათს ანახლებს',
+  'A new card needs a clue line or a picture': 'ახალ ბარათს მინიშნება ან სურათი სჭირდება',
+  'The picture {name} was saved before with other rights; it keeps them': 'სურათი {name} უკვე შენახულია სხვა უფლებებით; ისინი რჩება',
+  'The sign-in changed, so the upload stopped. Check the cards before you upload again.': 'შესვლა შეიცვალა, ამიტომ ატვირთვა შეჩერდა. ხელახლა ატვირთვამდე ბარათები გადაამოწმეთ.',
 };

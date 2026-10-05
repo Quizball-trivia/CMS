@@ -19,9 +19,10 @@ import { tdKeys, useTdAllRows, useTdWrite } from '@/hooks/use-td-content';
 import type { TdContentRow, TdContentType } from '@/lib/td/admin-api';
 import { withShownAnswer } from '@/lib/td/answers';
 import { findImage } from '@/lib/td/images';
-import { TdApiError } from '@/lib/td/api-client';
+import { SESSION_CHANGED, TdApiError } from '@/lib/td/api-client';
 import { tdAdmin, tdTokens } from '@/lib/td/client';
 import type { ContentImportReport } from '@/lib/td/contract';
+import { contentWriteIssues } from '@/lib/td/content-rules';
 import { tdErrorText } from '@/lib/td/errors';
 import { canonicalJson, sha256Hex } from '@/lib/td/hash';
 import { t, tc, tn } from '@/lib/td/i18n';
@@ -36,6 +37,7 @@ import {
   TD_UPLOAD_TYPES,
   tdQuestionSummary,
   toTdImportItem,
+  type ParsedCard,
   type TdClubRef,
   type TdParseError,
   type TdParsedQuestion,
@@ -147,6 +149,21 @@ const ISSUE_TITLES: Record<RowIssue['code'], string> = {
   missing_reference: t('Refers to something that does not exist'),
   rule: t('Not allowed'),
 };
+
+const CREDIT_FIELDS = ['author', 'license', 'source'] as const;
+
+/** What a card the file names again becomes: the file's points, its clues if it gives any, its spellings added to the card's
+ *  own, and its picture (a SoFIFA photo or a picture file) in place of the card's. */
+function updatedCard(question: ParsedCard, card: TdContentRow<'cards'>, imageKey: string | null): TdContentRow<'cards'>['data'] {
+  return withShownAnswer('cards', {
+    ...card.data,
+    value: question.points,
+    lines: question.clues.length > 0 ? question.clues : card.data.lines,
+    aliases: [...card.data.aliases, ...question.aliases].filter((alias, index, all) => all.findIndex((other) => plainName(other) === plainName(alias)) === index),
+    photo: question.photo ?? (imageKey ? null : card.data.photo),
+    imageKey: imageKey ?? (question.photo ? null : card.data.imageKey),
+  });
+}
 
 const issueText = (issue: RowIssue) => `${ISSUE_TITLES[issue.code]}${issue.path ? ` (${issue.path})` : ''}: ${issue.message}`;
 
@@ -314,20 +331,22 @@ function UploadBody({ initialType, initialCategory, initialPuzzle, onBusy, onClo
   // A question that updates a card is not imported, so it is not checked as an import either.
   const pending = useMemo(() => (tooMany ? [] : entries.filter((entry) => !entry.updates && !checked.has(entry.signature))), [tooMany, entries, checked]);
 
-  // The Credit line of each picture, by file name: the first that names it.
+  // The Credit line of each picture, by the picture itself (two names of the same bytes are one image): the first that names it.
+  const pictureOf = useCallback((name: string) => pictureKeys.get(name.toLowerCase()) ?? `file:${name.toLowerCase()}`, [pictureKeys]);
   const credits = useMemo(() => {
-    const byName = new Map<string, { credit: TdPictureCredit; questionNumber: number }>();
+    const byPicture = new Map<string, { credit: TdPictureCredit; questionNumber: number }>();
     for (const question of questions) {
       if (!('credit' in question) || !question.credit || !question.imageFile) continue;
-      const name = question.imageFile.toLowerCase();
-      if (!byName.has(name)) byName.set(name, { credit: question.credit, questionNumber: question.questionNumber });
+      const picture = pictureOf(question.imageFile);
+      if (!byPicture.has(picture)) byPicture.set(picture, { credit: question.credit, questionNumber: question.questionNumber });
     }
-    return byName;
-  }, [questions]);
+    return byPicture;
+  }, [questions, pictureOf]);
 
-  const rows = useMemo<QuestionWithSelection[]>(
-    () =>
-      questions.map((question, index) => {
+  const rows = useMemo<QuestionWithSelection[]>(() => {
+    // The first question of the file that updates each card.
+    const updater = new Map<string, number>();
+    return questions.map((question, index) => {
         const entry = entries[index];
         const updates = entry?.updates ?? null;
         const signature = entry?.signature ?? null;
@@ -336,13 +355,23 @@ function UploadBody({ initialType, initialCategory, initialPuzzle, onBusy, onClo
         // A picture the file names must be among those chosen.
         const missingPicture = 'imageFile' in question && question.imageFile && !pictureKeys.has(question.imageFile.toLowerCase());
         // One picture is one image: two questions may not credit it differently.
-        const first = 'credit' in question && question.credit && question.imageFile ? credits.get(question.imageFile.toLowerCase()) : undefined;
+        const first = 'credit' in question && question.credit && question.imageFile ? credits.get(pictureOf(question.imageFile)) : undefined;
         const otherCredit = first && canonicalJson(first.credit) !== canonicalJson((question as { credit: TdPictureCredit }).credit) ? first : undefined;
         const problems: RowIssue[] = [
           ...(isDuplicate ? [] : issues),
           ...(missingPicture ? [{ code: 'missing_reference' as const, path: 'Image', message: t('Choose the picture {name} under Pictures', { name: question.imageFile! }) }] : []),
           ...(otherCredit ? [{ code: 'invalid' as const, path: 'Credit', message: t('Question {n} credits the same picture differently', { n: otherCredit.questionNumber }) }] : []),
         ];
+        if (question.kind === 'cards' && updates) {
+          // What the card would become is checked as the edit it is, before anything is saved.
+          const body = { version: updates.version, data: updatedCard(question, updates, imageKeyIn(question, context)), position: updates.position, note: updates.note };
+          problems.push(...contentWriteIssues('cards', 'Card', 'edit', body).map((issue) => ({ code: 'invalid' as const, path: issue.path, message: issue.message })));
+          const earlier = updater.get(updates.id);
+          if (earlier === undefined) updater.set(updates.id, question.questionNumber);
+          else problems.push({ code: 'duplicate_in_batch' as const, path: 'Answer', message: t('Question {n} updates the same card', { n: earlier }) });
+        } else if (question.kind === 'cards' && question.clues.length === 0 && !question.photo && !question.imageKey && !question.imageFile) {
+          problems.push({ code: 'invalid' as const, path: 'Clue 1', message: t('A new card needs a clue line or a picture') });
+        }
         return {
           question,
           // A question that already exists cannot be uploaded, so it is never selected.
@@ -352,9 +381,8 @@ function UploadBody({ initialType, initialCategory, initialPuzzle, onBusy, onClo
           checked: updates !== null || (signature !== null && checked.has(signature)),
           updates,
         };
-      }),
-    [questions, entries, checked, unselected, pictureKeys, credits],
-  );
+      });
+  }, [questions, entries, checked, unselected, pictureKeys, credits, pictureOf, context]);
 
   const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -504,14 +532,20 @@ function UploadBody({ initialType, initialCategory, initialPuzzle, onBusy, onClo
     const operation = readOperation.current;
     void (async () => {
       const items = entries.filter((entry) => !entry.updates).map((entry) => entry.item);
+      const edits = entries.some((entry) => entry.updates);
       const saved = user && operation && items.length > 0 ? batchKeyFor(user.id, await sha256Hex(canonicalJson(items))) : null;
       if (saved?.sent && operation) {
-        const outcome = await importItems(items, operation);
-        if (outcome === 'done') return;
+        const outcome = await importItems(items, operation, !edits);
+        if (outcome === 'done' && !edits) return;
+        // The new questions are in; the cards the file updates are still to do.
+        if (outcome === 'done') {
+          const imported = new Set(questions.filter((_, index) => !entries[index]?.updates).map((question) => question.id));
+          setQuestions((prev) => prev.filter((question) => !imported.has(question.id)));
+        }
       }
       setReplayed(mine);
     })();
-  }, [read, replayed, ready, entries, user, importItems]);
+  }, [read, replayed, ready, entries, questions, user, importItems]);
 
   // The check: which of the questions the API would refuse, asked once for each item.
   useEffect(() => {
@@ -566,6 +600,9 @@ function UploadBody({ initialType, initialCategory, initialPuzzle, onBusy, onClo
       return;
     }
 
+    // Every step of the upload goes out under the sign-in it started with, or not at all.
+    if (!user || tdTokens.read()?.staffId !== user.id) return;
+    const operation = beginOperation(tdTokens);
     uploadInFlightRef.current = true;
     setUploadCount(selectedRows.length);
     setState((prev) => ({ ...prev, isUploading: true }));
@@ -576,20 +613,26 @@ function UploadBody({ initialType, initialCategory, initialPuzzle, onBusy, onClo
         const question = rows[index]!.question;
         return 'imageFile' in question && question.imageFile ? [question.imageFile.toLowerCase()] : [];
       }));
-      const saved = await savePictures(pictures.filter((picture) => named.has(picture.name.toLowerCase())));
+      const saved = await savePictures(pictures.filter((picture) => named.has(picture.name.toLowerCase())), operation);
       if (!saved) return;
       // 2. The new questions, all or none, as one import.
       if (items.length > 0) {
-        let outcome = await importItems(items, undefined, false);
+        let outcome = await importItems(items, operation, false);
         // These very items were imported once and that import was undone: its key is spent, so they are imported anew under a fresh one.
-        if (outcome === 'spent') outcome = await importItems(items, undefined, false);
+        if (outcome === 'spent') outcome = await importItems(items, operation, false);
         if (outcome === 'spent') toast.error(t('These items were imported before and that import was undone. Read the file again to import them anew.'));
         if (outcome !== 'done') return;
       }
       // 3. The cards already in the category: their picture, points, clues and spellings, from the file.
-      const updated = await updateCards(updates.map((index) => ({ question: rows[index]!.question, card: rows[index]!.updates! })));
-      if (updates.length > 0) toast.success(tn(updated, '{count} card updated', '{count} cards updated'));
-      if (updated === updates.length) onClose();
+      const updated = await updateCards(updates.map((index) => ({ question: rows[index]!.question, card: rows[index]!.updates! })), operation);
+      if (updated.size > 0) toast.success(tn(updated.size, '{count} card updated', '{count} cards updated'));
+      if (updated.size === updates.length) {
+        onClose();
+        return;
+      }
+      // Only the cards not updated stay, to try again on the cards as they are now (the lists refresh after a write).
+      const done = new Set([...creates.map((index) => rows[index]!.question.id), ...updated]);
+      setQuestions((prev) => prev.filter((question) => !done.has(question.id)));
     } finally {
       uploadInFlightRef.current = false;
       onBusy(false);
@@ -597,18 +640,30 @@ function UploadBody({ initialType, initialCategory, initialPuzzle, onBusy, onClo
     }
   };
 
-  /** Uploads each picture and saves it as an image with its Credit line, or the rights given; one saved before (the same bytes) is used again. */
-  const savePictures = async (chosen: Picture[]): Promise<boolean> => {
+  /** Uploads each picture and saves it as an image with its Credit line, or the rights given. One saved before (the same
+   *  bytes) is used again, and given the rights it lacks; rights it has are kept. */
+  const savePictures = async (chosen: Picture[], operation: TdOperation): Promise<boolean> => {
     const orNull = (text: string) => (text.trim() ? text.trim() : null);
     const shared: TdPictureCredit = { author: orNull(rights.author), license: orNull(rights.license), source: orNull(rights.source) };
     for (const picture of chosen) {
       try {
-        if (await findImage(picture.key)) continue;
-        const credit = credits.get(picture.name.toLowerCase())?.credit ?? shared;
-        await write(async (operation) => {
-          const upload = await tdAdmin.media.upload(picture.file, picture.file.type, operation);
-          return tdAdmin.content('media').create({ data: { key: picture.key, url: null, uploadId: upload.id, width: upload.width, height: upload.height, ...credit } }, operation);
-        });
+        const credit = credits.get(picture.key)?.credit ?? shared;
+        const existing = await findImage(picture.key, operation);
+        if (existing) {
+          const lacking = CREDIT_FIELDS.filter((field) => !existing.data[field] && credit[field]);
+          if (CREDIT_FIELDS.some((field) => existing.data[field] && credit[field] && existing.data[field] !== credit[field])) {
+            toast.warning(t('The picture {name} was saved before with other rights; it keeps them', { name: picture.name }));
+          }
+          if (lacking.length > 0) {
+            const data = { ...existing.data, ...Object.fromEntries(lacking.map((field) => [field, credit[field]])) };
+            await write((op) => tdAdmin.content('media').edit(existing.id, { version: existing.version, data, position: existing.position, note: existing.note }, op), [tdKeys.content], operation);
+          }
+          continue;
+        }
+        await write(async (op) => {
+          const upload = await tdAdmin.media.upload(picture.file, picture.file.type, op);
+          return tdAdmin.content('media').create({ data: { key: picture.key, url: null, uploadId: upload.id, width: upload.width, height: upload.height, ...credit } }, op);
+        }, undefined, operation);
       } catch (caught) {
         toast.error(t('The picture {name} could not be saved: {error}', { name: picture.name, error: tdErrorText(caught) }));
         return false;
@@ -617,24 +672,22 @@ function UploadBody({ initialType, initialCategory, initialPuzzle, onBusy, onClo
     return true;
   };
 
-  /** Each card the file names again: what the file gives replaces what the card had; spellings are added to its own. */
-  const updateCards = async (pairs: Array<{ question: TdParsedQuestion; card: TdContentRow<'cards'> }>): Promise<number> => {
-    let done = 0;
+  /** Each card the file names again, as updatedCard makes it. A changed sign-in stops them all. */
+  const updateCards = async (pairs: Array<{ question: ParsedRow; card: TdContentRow<'cards'> }>, operation: TdOperation): Promise<Set<string>> => {
+    const done = new Set<string>();
     for (const { question, card } of pairs) {
+      const { id } = question;
       if (question.kind !== 'cards') continue;
-      const imageKey = imageKeyIn(question, context);
-      const data = withShownAnswer('cards', {
-        ...card.data,
-        value: question.points,
-        lines: question.clues.length > 0 ? question.clues : card.data.lines,
-        aliases: [...card.data.aliases, ...question.aliases].filter((alias, index, all) => all.findIndex((other) => plainName(other) === plainName(alias)) === index),
-        photo: question.photo ?? (imageKey ? null : card.data.photo),
-        imageKey: imageKey ?? (question.photo ? null : card.data.imageKey),
-      });
+      const data = updatedCard(question, card, imageKeyIn(question, context));
       try {
-        await write((operation) => tdAdmin.content('cards').edit(card.id, { version: card.version, data, position: card.position, note: card.note }, operation), [tdKeys.content, tdKeys.releases]);
-        done++;
+        await write((op) => tdAdmin.content('cards').edit(card.id, { version: card.version, data, position: card.position, note: card.note }, op), [tdKeys.content, tdKeys.releases], operation);
+        done.add(id);
       } catch (caught) {
+        // The last edit may have gone out before the sign-in changed; nothing more does.
+        if (caught instanceof TdApiError && caught.code === SESSION_CHANGED) {
+          toast.error(t('The sign-in changed, so the upload stopped. Check the cards before you upload again.'));
+          break;
+        }
         toast.error(t('The card {name} was not updated: {error}', { name: card.data.display, error: tdErrorText(caught) }));
       }
     }
@@ -789,7 +842,17 @@ function UploadBody({ initialType, initialCategory, initialPuzzle, onBusy, onClo
           {takesPictures && (
             <div className="space-y-2">
               <Label htmlFor="pictures">{t('Pictures (optional)')}</Label>
-              <Input id="pictures" type="file" multiple accept="image/jpeg,image/png,image/webp" onChange={(event) => void handlePictures(event)} />
+              <Input
+                id="pictures"
+                type="file"
+                multiple
+                accept="image/jpeg,image/png,image/webp"
+                onChange={(event) => void handlePictures(event)}
+                // Chosen again, the same pictures are read again.
+                onClick={(event) => {
+                  event.currentTarget.value = '';
+                }}
+              />
               <p className="text-sm text-muted-foreground">{t('The pictures the file names on its Image lines: JPEG, PNG or WebP, at most 2 MB each. Choose them all at once.')}</p>
               {pictures.length > 0 && (
                 <div className="space-y-3 rounded-lg border p-3">

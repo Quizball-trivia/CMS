@@ -399,7 +399,8 @@ function parseClues(block: Block, kind: 'cards' | 'whoami-subjects'): Parsed<Par
   const { imageKey, imageFile } = imageLine(r, once.get('Image'));
   const credit = creditLine(r, once.get('Credit'), imageFile);
   const photo = photoOf(r, once.get('Photo'));
-  if (clues.length === 0 && !(card && (imageKey || imageFile || photo))) r.error(t('Needs at least one clue line'));
+  // A card may leave its clues out: one already in the category keeps its own (the dialog asks them of a new card).
+  if (clues.length === 0 && !card) r.error(t('Needs at least one clue line'));
   if (clues.length > max) r.error(t('At most {max} clue lines', { max }));
   if (clues.some((clue, index) => clue.number !== index + 1)) r.error(t('Clues must be numbered sequentially starting from 1'));
   const answer = answerOf(r, once.get('Answer'));
