@@ -30,7 +30,8 @@ function ScheduleCard({ schedule }: { schedule: AgentSchedule }) {
 
   const p = schedule.params ?? {};
   const isRanked = schedule.jobType !== 'daily_challenge';
-  const savedTypes = (Array.isArray(p.questionTypes) ? p.questionTypes : []) as string[];
+  // image questions were retired: an old schedule's image_mcq is dropped (the pipeline skips it anyway)
+  const savedTypes = ((Array.isArray(p.questionTypes) ? p.questionTypes : []) as string[]).filter((t) => t !== 'image_mcq');
   const savedMix = (p.difficultyMix ?? null) as { easy: number; medium: number; hard: number } | null;
 
   // editable config (count / difficulty / types / categories-per-day)
@@ -181,7 +182,7 @@ function ScheduleCard({ schedule }: { schedule: AgentSchedule }) {
               <div className="mt-1 flex flex-wrap gap-1">
                 {/* ranked matches only support these 4 formats — the other types are
                     daily-challenge game modes and don't belong in the ranked pool */}
-                {['mcq_single', 'image_mcq', 'clue_chain', 'put_in_order'].map((t) => {
+                {['mcq_single', 'clue_chain', 'put_in_order'].map((t) => {
                   const on = selTypes.includes(t);
                   return (
                     <button
