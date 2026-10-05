@@ -158,6 +158,12 @@ describe('the question file format', () => {
     expect(practice.questions[0]).toMatchObject({ imageKey: null, imageFile: 'arena.webp' });
   });
 
+  it('ignores a Credit line, with a warning, instead of reading it as more explanation', () => {
+    const practice = parseTdUpload('1. რომელი სტადიონია?\nA) დინამო არენა*\nB) მესხი\nDifficulty: Easy\nExplanation: თბილისშია.\nCredit: A | CC0 | https://example.com\nImage: arena.jpg', 'practice-questions');
+    expect(practice.questions[0]).toMatchObject({ explanation: 'თბილისშია.', imageFile: 'arena.jpg' });
+    expect(practice.errors).toEqual([expect.objectContaining({ severity: 'warning', message: 'This line is not part of the format and is ignored: Credit: A | CC0 | https://example.com' })]);
+  });
+
   it('reads a card without clue lines, since a card already in the category keeps its own; Round II still needs them', () => {
     expect(parseTdUpload('1.\nAnswer: x\nPoints: 1', 'cards').errors).toEqual([]);
     expect(parseTdUpload('1.\nAnswer: x', 'whoami-subjects').errors.map((e) => e.message)).toEqual(['Needs at least one clue line']);

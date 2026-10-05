@@ -431,6 +431,12 @@ function parsePractice(block: Block): Parsed<ParsedPractice> {
       explaining = false;
       continue;
     }
+    // A Credit line (no longer used) is not read as more explanation.
+    if (labelled(text, 'Credit') !== null) {
+      ignored(r, entry);
+      explaining = false;
+      continue;
+    }
     // Lines after the explanation belong to it until another labelled line, as in the Quizball CMS.
     if (explaining) {
       explanation.push(text);
