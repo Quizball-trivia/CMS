@@ -18,7 +18,6 @@ export const KA_EDITORS: Record<string, string> = {
   'Uploaded photo': 'ატვირთული ფოტო',
   'Clues, in the order they are read': 'მინიშნებები, წაკითხვის თანმიმდევრობით',
   'Add a clue': 'მინიშნების დამატება',
-  '1 to 20 clues, hardest first; a match reads 5.': '1-დან 20 მინიშნებამდე, ჯერ ყველაზე რთული; მატჩში 5 იკითხება.',
   Title: 'სათაური',
   'Keep it short: the shoot-out gives a few seconds per question.': 'დაწერეთ მოკლედ: პენალტების სერიაში თითო კითხვაზე რამდენიმე წამია.',
 
@@ -165,4 +164,5 @@ export const KA_EDITORS: Record<string, string> = {
   Rights: 'უფლებები',
   '{width} × {height} · by URL': '{width} × {height} · URL-ით',
   'Shown above the question in the game.': 'თამაშში კითხვის თავზე ჩანს.',
+  '5 clues, hardest first: a match shows the first 5, one every few seconds.': '5 მინიშნება, ყველაზე რთულით დაწყებული: მატჩში პირველი 5 ჩანს, რამდენიმე წამში ერთი.',
 };

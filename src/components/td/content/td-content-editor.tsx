@@ -10,7 +10,7 @@ import { useTdAllRows, useTdContentRow, useTdHistory, useTdWrite } from '@/hooks
 import { TD_CONTENT_SCHEMA_NAMES, type TdContentData, type TdContentRow, type TdContentType } from '@/lib/td/admin-api';
 import { TdApiError } from '@/lib/td/api-client';
 import { tdAdmin } from '@/lib/td/client';
-import { contentWriteIssues, TD_MERGE_UNITS } from '@/lib/td/content-rules';
+import { contentWriteIssues, editorialIssues, TD_MERGE_UNITS } from '@/lib/td/content-rules';
 import type { SchemaIssue } from '@/lib/td/contract';
 import { describeTdError } from '@/lib/td/errors';
 import { formatGeorgiaTime } from '@/lib/td/georgia';
@@ -294,7 +294,7 @@ function EditorBody({
     const body = creating
       ? { data, ...(draft.note ? { note: draft.note } : {}) }
       : { version: row.version, data, position: draft.position, note: draft.note };
-    const found = contentWriteIssues(type, schemaName, creating ? 'create' : 'edit', body);
+    const found = [...contentWriteIssues(type, schemaName, creating ? 'create' : 'edit', body), ...editorialIssues(type, data)];
     setIssues(found);
     if (found.length) {
       setError(null);

@@ -103,6 +103,7 @@ const FORMAT_NOTES: Partial<Record<UploadQuestionType, string[]>> = {
     t('Points is 1, 2 or 3. The picture, optional: “Photo: 158023 | 24” is the player’s SoFIFA number and version (from the player’s address on sofifa.com), or “Image: buffon.jpg” the file name of a picture chosen below under Pictures.'),
     t('A card whose answer is already in the category updates that card (its picture, points and clues) instead of adding a second one. Clue lines may then be left out to keep the card’s own.'),
   ],
+  'whoami-subjects': [t('Five clues per player, hardest first: a match shows the first 5, one every few seconds, and the first to buzz answers. No points and no pictures in this round.')],
   'practice-questions': [t('Optional: “Image: stadium.jpg” is the file name of a picture chosen below under Pictures, or the key of an image already uploaded.')],
   'football-logic': [t('Image A and Image B are optional. Each is a web address starting with https:// or a path starting with /.')],
   'put-in-order': [t('The items are listed in the order they are shown; the Answer lists them in the right order.')],

@@ -104,7 +104,7 @@ export function WhoamiEditor({ value, onChange, issues, creating }: TdEditorProp
         addLabel={t('Add a clue')}
         numbered
         multiline
-        hint={t('1 to 20 clues, hardest first; a match reads 5.')}
+        hint={t('5 clues, hardest first: a match shows the first 5, one every few seconds.')}
       />
     </>
   );

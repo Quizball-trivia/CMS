@@ -151,4 +151,6 @@ export const KA_UPLOAD: Record<string, string> = {
   'Pictures': 'სურათები',
   'The pictures the file names on its Image lines: JPEG, PNG or WebP, at most 2 MB each. Pictures chosen again are added.': 'სურათები, რომლებსაც ფაილი Image ხაზებზე ასახელებს: JPEG, PNG ან WebP, თითო მაქსიმუმ 2 MB. ხელახლა არჩეული სურათები ემატება.',
   'The file names {count} pictures not chosen yet: {names}. Choose them here.': 'ფაილი ასახელებს {count} სურათს, რომლებიც ჯერ არ არის არჩეული: {names}. აირჩიეთ აქ.',
+  'Round II needs at least 5 clues: a match shows the first 5': 'II ტურს მინიმუმ 5 მინიშნება სჭირდება: მატჩში პირველი 5 ჩანს',
+  'Five clues per player, hardest first: a match shows the first 5, one every few seconds, and the first to buzz answers. No points and no pictures in this round.': 'თითო მოთამაშეზე ხუთი მინიშნება, ყველაზე რთულით დაწყებული: მატჩში პირველი 5 ჩანს, რამდენიმე წამში ერთი, და ვინც პირველი დააჭერს, ის პასუხობს. ამ ტურში ქულები და სურათები არ არის.',
 };

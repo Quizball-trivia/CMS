@@ -72,6 +72,14 @@ export function contentRuleIssues(type: TdContentType, data: Data): SchemaIssue[
   }
 }
 
+/** What the CMS asks of content beyond what the API refuses (the mock API, which mirrors the API, does not ask it):
+ *  a Round II subject with fewer than five clues is never played (game-core MATCH_SIZES.buzzerClues). */
+export function editorialIssues(type: TdContentType, data: Data): SchemaIssue[] {
+  if (type === 'whoami-subjects' && !(Array.isArray(data.clues) && data.clues.length >= 5))
+    return [{ path: 'data.clues', message: t('Round II needs at least 5 clues: a match shows the first 5') }];
+  return [];
+}
+
 /** Everything the API would refuse in a create or edit body, by path (`data.aliases.0`), before it is sent. */
 export function contentWriteIssues(
   type: TdContentType,

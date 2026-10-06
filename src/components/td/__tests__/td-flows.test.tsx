@@ -149,6 +149,20 @@ describe('content editor', () => {
     expect(row!.data.aliases).toEqual(['Guram Kashia', 'Kashia']);
   });
 
+  it('asks five clues of a Round II subject, as a match plays only those', async () => {
+    const { admin } = await signIn('editor');
+    renderTd(<TdContentEditorDialog target={{ type: 'whoami-subjects', row: null }} onClose={() => {}} />);
+    fireEvent.change(screen.getByLabelText('Answer (as shown)'), { target: { value: 'ანდრეი შევჩენკო' } });
+    const add = screen.getByRole('button', { name: 'Add a clue' });
+    for (const [i, clue] of ['კიევის „დინამოში“ დავიწყე', 'ოქროს ბურთი 2004 წელს'].entries()) {
+      fireEvent.click(add);
+      fireEvent.change(await screen.findByLabelText(`Clues, in the order they are read ${i + 1}`), { target: { value: clue } });
+    }
+    fireEvent.click(screen.getByRole('button', { name: 'Create Question' }));
+    expect(await screen.findByText(/Round II needs at least 5 clues: a match shows the first 5/)).toBeTruthy();
+    expect((await admin.content('whoami-subjects').list({ q: 'შევჩენკო' })).items).toEqual([]);
+  });
+
   it('shows what the API would refuse before sending, by field', async () => {
     const { admin } = await signIn('editor');
     const before = (await admin.content('penalty-questions').list({ limit: 200 })).items.length;

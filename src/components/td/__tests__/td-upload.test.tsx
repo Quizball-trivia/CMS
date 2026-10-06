@@ -170,8 +170,10 @@ describe('the question file format', () => {
   });
 
   it('reads Round II clues in the order given, and Round III and Penalties as a question and an answer', () => {
-    const who = parseTdUpload('1.\nClue 1: ა\nClue 2: ბ\nAnswer: გიორგი', 'whoami-subjects');
-    expect(who.questions[0]).toMatchObject({ clues: ['ა', 'ბ'], display: 'გიორგი', aliases: ['გიორგი'] });
+    const who = parseTdUpload('1.\nClue 1: ა\nClue 2: ბ\nClue 3: გ\nClue 4: დ\nClue 5: ე\nAnswer: გიორგი', 'whoami-subjects');
+    expect(who.questions[0]).toMatchObject({ clues: ['ა', 'ბ', 'გ', 'დ', 'ე'], display: 'გიორგი', aliases: ['გიორგი'] });
+    // Fewer than five clues: a match would never play it.
+    expect(parseTdUpload('1.\nClue 1: ა\nClue 2: ბ\nAnswer: გიორგი', 'whoami-subjects').errors.map((e) => e.message)).toEqual(['Round II needs at least 5 clues: a match shows the first 5']);
     for (const type of ['box-questions', 'penalty-questions'] as const) {
       const parsed = parseTdUpload('1. რომელი ქვეყანა?\nAnswer: საქართველო | Georgia\n2. Question: Two?\nAnswer: Two', type);
       expect(parsed.errors, type).toEqual([]);

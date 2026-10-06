@@ -330,6 +330,9 @@ function photoOf(r: Reader, entry: { value: string; line: number } | undefined):
   return { id, ver: match[2]! };
 }
 
+/** The clues a match reads of a Round II subject (game-core MATCH_SIZES.buzzerClues). */
+export const WHOAMI_CLUES = 5;
+
 type Parsed<K extends TdParsedQuestion> = { question?: K; errors: TdParseError[] };
 
 function parseClues(block: Block, kind: 'cards' | 'whoami-subjects'): Parsed<ParsedCard | ParsedWhoami> {
@@ -362,6 +365,8 @@ function parseClues(block: Block, kind: 'cards' | 'whoami-subjects'): Parsed<Par
   const photo = photoOf(r, once.get('Photo'));
   // A card may leave its clues out: one already in the category keeps its own (the dialog asks them of a new card).
   if (clues.length === 0 && !card) r.error(t('Needs at least one clue line'));
+  // A match plays only subjects with five clues, and reads the first five.
+  else if (!card && clues.length < WHOAMI_CLUES) r.error(t('Round II needs at least 5 clues: a match shows the first 5'));
   if (clues.length > max) r.error(t('At most {max} clue lines', { max }));
   if (clues.some((clue, index) => clue.number !== index + 1)) r.error(t('Clues must be numbered sequentially starting from 1'));
   const answer = answerOf(r, once.get('Answer'));
