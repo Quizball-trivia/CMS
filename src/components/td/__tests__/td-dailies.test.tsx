@@ -209,6 +209,19 @@ describe('the Daily page', () => {
     expect(screen.getByRole('button', { name: 'Archived question (1)', hidden: true }).getAttribute('aria-expanded')).toBe('true');
   });
 
+  it('opens a linked live question even when the archived list cannot be read', async () => {
+    const inner = server;
+    server = (input, init) =>
+      String(input).includes('status=archived')
+        ? Promise.resolve(new Response(JSON.stringify({ code: 'busy', message: 'Try again in a moment' }), { status: 503, headers: { 'content-type': 'application/json' } }))
+        : inner(input, init);
+    const { admin } = await signIn('publisher');
+    const [linked] = (await admin.content('football-logic').list({ status: 'draft,ready,approved' })).items;
+    window.history.replaceState(null, '', `?game=footballLogic&q=${linked!.data.key}`);
+    renderTd(<TdDailiesTab />);
+    expect(within(await screen.findByRole('dialog')).getByText(String(linked!.data.displayAnswer))).toBeTruthy();
+  });
+
   it('publishes only the chosen days that are still whole', async () => {
     const { admin } = await signIn('publisher');
     const { client } = renderTd(<TdDailiesTab />);

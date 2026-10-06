@@ -147,24 +147,30 @@ export function TdDailiesTab() {
   // A link to one question (the release report): its day opens, and it does.
   const [linked, setLinked] = useState(() => (typeof window === 'undefined' ? null : new URLSearchParams(window.location.search).get('q')));
   useEffect(() => {
-    if (!linked || !questions.data || !archived.data) return;
+    if (!linked || !questions.data) return;
     const rows = (questions.data.rows ?? []) as QuestionRow[];
     const found = rows.find((row) => String(row.data.key) === linked) ?? null;
     const inDay = found ? String(found.data.puzzle) : rows.some((row) => String(row.data.puzzle) === linked) ? linked : null;
-    if (inDay) setOpenDay(inDay);
-    const list = days.find((d) => d.key === inDay)?.questions ?? [];
-    if (found && list.length) setEditing({ list, index: Math.max(0, list.findIndex((row) => row.id === found.id)) });
-    else if (!inDay) {
-      // An archived question: the archived list opens, and it does.
-      const gone = (archived.data.rows ?? []) as QuestionRow[];
-      const index = gone.findIndex((row) => String(row.data.key) === linked);
-      if (index >= 0) {
-        setShowArchived(true);
-        setEditing({ list: gone, index });
-      }
+    if (inDay) {
+      setOpenDay(inDay);
+      const list = days.find((d) => d.key === inDay)?.questions ?? [];
+      if (found && list.length) setEditing({ list, index: Math.max(0, list.findIndex((row) => row.id === found.id)) });
+      setLinked(null);
+      return;
+    }
+    // Not a live one: an archived question opens in the archived list, once that list is read.
+    if (!archived.data) {
+      if (archived.error) setLinked(null);
+      return;
+    }
+    const gone = (archived.data.rows ?? []) as QuestionRow[];
+    const index = gone.findIndex((row) => String(row.data.key) === linked);
+    if (index >= 0) {
+      setShowArchived(true);
+      setEditing({ list: gone, index });
     }
     setLinked(null);
-  }, [linked, questions.data, archived.data, days]);
+  }, [linked, questions.data, archived.data, archived.error, days]);
   const readError = questions.error ?? archived.error ?? schedule.error ?? settings.error ?? null;
 
   const publishable = days.filter((day) => day.status === 'ready' || day.status === 'changes');
