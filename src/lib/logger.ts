@@ -23,6 +23,7 @@ export type LogModule =
   | 'auction'
   | 'agents'
   | 'bot-tuning'
+  | 'freecroco'
   | 'general';
 
 interface LogEntry {
