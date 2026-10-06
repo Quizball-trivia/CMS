@@ -986,7 +986,7 @@ function UploadBody({ open, initialType, initialCategory, initialPuzzle, onBusy,
                         })()}
                       </TableHead>
                       <TableHead className="w-12">#</TableHead>
-                      <TableHead>{t('Question')}</TableHead>
+                      <TableHead>{type === 'cards' || type === 'whoami-subjects' ? t('Answer') : t('Question')}</TableHead>
                       {showsLevel && <TableHead className="w-24">{type === 'cards' ? t('Points') : t('Difficulty')}</TableHead>}
                       <TableHead className="w-32">{t('Status')}</TableHead>
                       <TableHead className="w-12"></TableHead>
@@ -1247,11 +1247,18 @@ function ParsedQuestionPreviewDialog({ row, currentIndex, totalQuestions, clubs,
             {row.isSelected ? <Badge variant="default">{WORDS.selected}</Badge> : <Badge variant="secondary">{t('Not Selected')}</Badge>}
           </div>
 
-          {/* Question Prompt */}
-          <div>
-            <Label className="text-xs text-muted-foreground">{t('Question #{n}', { n: question.questionNumber })}</Label>
-            <p className="text-sm font-medium mt-1">{tdQuestionSummary(question)}</p>
-          </div>
+          {/* The question, or for a card or a Round II subject its answer */}
+          {question.kind === 'cards' || question.kind === 'whoami-subjects' ? (
+            <div>
+              <Label className="text-xs text-muted-foreground">{t('Answer (question {n})', { n: question.questionNumber })}</Label>
+              <p className="mt-1 text-lg font-semibold">{question.display}</p>
+            </div>
+          ) : (
+            <div>
+              <Label className="text-xs text-muted-foreground">{t('Question #{n}', { n: question.questionNumber })}</Label>
+              <p className="text-sm font-medium mt-1">{tdQuestionSummary(question)}</p>
+            </div>
+          )}
 
           {(question.kind === 'cards' || question.kind === 'whoami-subjects') && (
             <>

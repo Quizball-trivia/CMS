@@ -650,9 +650,10 @@ export function parseTdUpload(content: string, type: TdUploadType): TdParseResul
 /** The line that stands for a question in a list (Quizball's summary: the first clue, the prompt, or the club chain). */
 export function tdQuestionSummary(question: TdParsedQuestion): string {
   switch (question.kind) {
+    // A card or a Round II subject is named by its answer: the clues are what lead to it.
     case 'cards':
     case 'whoami-subjects':
-      return question.clues[0] || question.display;
+      return question.display;
     case 'box-questions':
     case 'penalty-questions':
       return question.q;

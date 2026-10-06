@@ -785,6 +785,19 @@ describe('the upload dialog', () => {
     // Two thousand rows are slow to draw on a loaded machine.
   }, 20000);
 
+  it('names a Round II subject by its answer in the list and the preview, its clues below', async () => {
+    await signIn('editor');
+    await openDialog({ initialType: 'whoami-subjects' });
+    chooseFile(txt('1.\nClue 1: პირველი მინიშნება\nClue 2: მეორე\nClue 3: მესამე\nClue 4: მეოთხე\nClue 5: მეხუთე\nAnswer: შევჩენკო | Shevchenko'));
+    expect(await screen.findByRole('columnheader', { name: 'Answer' })).toBeTruthy();
+    fireEvent.click(await screen.findByText('შევჩენკო'));
+    const preview = await screen.findByRole('dialog', { name: 'Question Preview' });
+    expect(within(preview).getByText('Answer (question 1)')).toBeTruthy();
+    expect(within(preview).getByText('შევჩენკო')).toBeTruthy();
+    expect(within(preview).getByText('Clues (5)')).toBeTruthy();
+    expect(within(preview).getAllByText(/პირველი მინიშნება/)).toHaveLength(1);
+  });
+
   it('steps through the questions of the list with the arrows of the preview', async () => {
     await signIn('editor');
     await openDialog({ initialType: 'penalty-questions' });
