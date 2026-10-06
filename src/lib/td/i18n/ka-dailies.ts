@@ -46,4 +46,5 @@ export const KA_DAILIES: Record<string, string> = {
   'Saved; a publisher approves it': 'შენახულია; გამომქვეყნებელი დაამტკიცებს',
   'Today · {date}': 'დღეს · {date}',
   'How long a player has for each question of this game.': 'რამდენი დრო აქვს მოთამაშეს ამ თამაშის თითო კითხვაზე.',
+  'Archived questions ({count})': 'დაარქივებული კითხვები ({count})',
 };

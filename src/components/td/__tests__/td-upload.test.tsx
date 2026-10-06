@@ -564,6 +564,16 @@ describe('the upload dialog', () => {
     for (const row of made) days.set(row.data.puzzle, [...(days.get(row.data.puzzle) ?? []), row.data.prompt]);
     expect([...days.values()].map((prompts) => prompts.length).sort()).toEqual([1, 4]);
     for (const key of days.keys()) expect(key).toMatch(/^put-in-order-[0-9a-f]{8}$/);
+
+    // The same file again: the same days, imported already, nothing added.
+    cleanup();
+    const said = vi.spyOn(toast, 'success');
+    await openDialog({ initialType: 'put-in-order' });
+    chooseFile(txt(rounds));
+    await waitFor(() => expect(said).toHaveBeenCalledWith('These items were imported already; nothing was added'));
+    const again = (await admin.content('put-in-order').list({ status: 'draft' })).items.filter((row) => row.data.prompt.startsWith('Round '));
+    expect(again).toHaveLength(5);
+    expect(new Set(again.map((row) => row.data.puzzle))).toEqual(new Set(days.keys()));
   });
 
   it('gives a Career Path club the crest of the club on file by that name, and shows which in the preview', async () => {

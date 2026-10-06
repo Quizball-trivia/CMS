@@ -184,6 +184,24 @@ describe('the Daily page', () => {
     expect(screen.queryByRole('button', { name: /Publish/ })).toBeNull();
   });
 
+  it('lists archived questions to open (and restore) them, and opens a question a link names', async () => {
+    const { admin } = await signIn('publisher');
+    const [first] = (await admin.content('football-logic').list({ status: 'draft,ready,approved' })).items;
+    await admin.content('football-logic').archive(first!.id, first!.version);
+    renderTd(<TdDailiesTab />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Archived question (1)' }));
+    fireEvent.click(await screen.findByText(String(first!.data.prompt || first!.data.displayAnswer)));
+    expect(await screen.findByRole('dialog')).toBeTruthy();
+    cleanup();
+
+    // From the release report: /td/dailies?game=…&q=<key> opens that question in its day.
+    const [linked] = (await admin.content('football-logic').list({ status: 'draft,ready,approved' })).items;
+    window.history.replaceState(null, '', `?game=footballLogic&q=${linked!.data.key}`);
+    renderTd(<TdDailiesTab />);
+    const dialog = await screen.findByRole('dialog');
+    expect(within(dialog).getByText(String(linked!.data.displayAnswer))).toBeTruthy();
+  });
+
   it('opens a day’s questions, and changes the seconds per question from the gear', async () => {
     const { admin } = await signIn('publisher');
     renderTd(<TdDailiesTab />);

@@ -193,7 +193,7 @@ describe('the days of a daily game', () => {
     ({ ...row({ id: `q${++n}`, status: 'approved', createdAt: `2026-10-0${n % 9}T00:00:00Z`, ...over }), data: { puzzle, prompt: `Question ${n}?`, displayAnswer: 'x' } }) as unknown as TdContentRow<'football-logic'>;
   const tenOf = (puzzle: string, over: Partial<TdContentRow<'cards'>> = {}) => Array.from({ length: 10 }, () => question(puzzle, over));
   const schedule = (date: string, puzzle: string, over: Partial<TdContentRow<'daily-schedule'>> = {}) =>
-    ({ ...row(), id: date, status: 'approved', data: { game: 'footballLogic', date, puzzle }, ...over }) as unknown as TdContentRow<'daily-schedule'>;
+    ({ ...row(), id: date, status: 'approved', approvedVersion: 1, data: { game: 'footballLogic', date, puzzle }, approved: { game: 'footballLogic', date, puzzle }, ...over }) as unknown as TdContentRow<'daily-schedule'>;
 
   it('groups questions by day: dated days by date, then the rest; whole days only can be published', () => {
     const days = buildDays(
@@ -209,6 +209,13 @@ describe('the days of a daily game', () => {
       ['fl-edited', 'published', [], 10],
       ['fl-short', 'incomplete', [], 1],
     ]);
+  });
+
+  it('dates a day by approved calendar entries only: a draft entry is not on the calendar yet', () => {
+    const draft = schedule('2026-10-10', 'fl-x', { status: 'draft', approvedVersion: null, approved: null });
+    expect(buildDays('footballLogic', tenOf('fl-x', { status: 'draft' }), [draft], [])[0]!).toMatchObject({ dates: [], status: 'ready' });
+    const moved = schedule('2026-10-11', 'fl-y', { status: 'draft', approvedVersion: 1, approved: { game: 'footballLogic', date: '2026-10-11', puzzle: 'fl-x' } } as never);
+    expect(buildDays('footballLogic', tenOf('fl-x'), [moved], [])[0]!.dates).toEqual(['2026-10-11']);
   });
 
   it('a published day with a question changed since has changes to publish', () => {

@@ -37,7 +37,7 @@ export const TD_DAILY_MODES: readonly TdQuestionMode[] = [
 /** The page of the question list that holds rows of this type (links from the release report). */
 export function questionsHref(type: TdContentType, q?: string): string | null {
   const game = gameOfType(type);
-  if (game) return `/td/dailies?game=${game}`;
+  if (game) return `/td/dailies?game=${game}${q ? `&q=${encodeURIComponent(q)}` : ''}`;
   const mode = TD_QUESTION_MODES.find((m) => m.type === type);
   if (!mode) return null;
   return `/td/questions?mode=${mode.key}${q ? `&q=${encodeURIComponent(q)}` : ''}`;

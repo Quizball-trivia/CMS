@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { CalendarCheck, Image as ImageIcon, List, Plus, Route, Settings2, type LucideIcon } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
@@ -27,6 +27,8 @@ import { cn } from '@/lib/utils';
 import { useTdAuth } from '@/providers/td-auth-provider';
 
 const LIVE = 'draft,ready,approved';
+/** Days per publish request (DailyPublishRequest). */
+const PUBLISH_BATCH = 60;
 const ICONS: Record<TdDailyGame, LucideIcon> = { footballLogic: ImageIcon, putInOrder: List, careerPath: Route };
 
 type QuestionRow = TdContentRow<'football-logic'> | TdContentRow<'put-in-order'> | TdContentRow<'career-path'>;
@@ -59,9 +61,12 @@ export function buildDays(game: TdDailyGame, questions: readonly QuestionRow[], 
     const key = String(row.data.puzzle);
     byKey.set(key, [...(byKey.get(key) ?? []), row]);
   }
+  // The calendar as releases read it: approved entries (a pending change to one is not on it yet).
   const datesOf = new Map<string, string[]>();
-  for (const row of schedule)
-    if (row.status !== 'archived' && row.data.game === game) datesOf.set(row.data.puzzle, [...(datesOf.get(row.data.puzzle) ?? []), row.data.date].sort());
+  for (const row of schedule) {
+    const entry = row.status !== 'archived' && row.approvedVersion !== null ? row.approved : null;
+    if (entry && entry.game === game) datesOf.set(entry.puzzle, [...(datesOf.get(entry.puzzle) ?? []), entry.date].sort());
+  }
   return [...byKey.entries()]
     .map(([key, rows]) => {
       const dates = datesOf.get(key) ?? [];
@@ -123,6 +128,7 @@ export function TdDailiesTab() {
   const { type, label } = dailyGame(game);
   const size = TD_DAILY_DAY_SIZES[game];
   const questions = useTdAllRows(type, { status: LIVE });
+  const archived = useTdAllRows(type, { status: 'archived' });
   const schedule = useTdAllRows('daily-schedule', { game, status: LIVE });
   const settings = useTdAllRows('daily-settings', { status: LIVE });
   const settingsRow = settings.data?.rows.find((row) => row.data.game === game) ?? null;
@@ -137,6 +143,20 @@ export function TdDailiesTab() {
   const [target, setTarget] = useState<TdEditorTarget | null>(null);
   const [editing, setEditing] = useState<{ list: QuestionRow[]; index: number } | null>(null);
   const [seconds, setSeconds] = useState(false);
+  const [showArchived, setShowArchived] = useState(false);
+  // A link to one question (the release report): its day opens, and it does.
+  const [linked, setLinked] = useState(() => (typeof window === 'undefined' ? null : new URLSearchParams(window.location.search).get('q')));
+  useEffect(() => {
+    if (!linked || !questions.data) return;
+    const rows = (questions.data.rows ?? []) as QuestionRow[];
+    const found = rows.find((row) => String(row.data.key) === linked) ?? null;
+    const inDay = found ? String(found.data.puzzle) : rows.some((row) => String(row.data.puzzle) === linked) ? linked : null;
+    if (inDay) setOpenDay(inDay);
+    const list = days.find((d) => d.key === inDay)?.questions ?? [];
+    if (found && list.length) setEditing({ list, index: Math.max(0, list.findIndex((row) => row.id === found.id)) });
+    setLinked(null);
+  }, [linked, questions.data, days]);
+  const readError = questions.error ?? schedule.error ?? settings.error ?? null;
 
   const publishable = days.filter((day) => day.status === 'ready' || day.status === 'changes');
   const day = days.find((d) => d.key === openDay) ?? null;
@@ -155,11 +175,16 @@ export function TdDailiesTab() {
     setBusy(true);
     setError(null);
     try {
-      const out = await write((operation) => tdAdmin.dailies.publish(game, keys, operation), [tdKeys.content, tdKeys.releases]);
+      const published: { puzzle: string; date: string }[] = [];
+      for (let start = 0; start < keys.length; start += PUBLISH_BATCH) {
+        const out = await write((operation) => tdAdmin.dailies.publish(game, keys.slice(start, start + PUBLISH_BATCH), operation), [tdKeys.content, tdKeys.releases]);
+        published.push(...out.days);
+      }
       setChosen([]);
+      const dates = published.map((d) => formatDay(d.date));
       toast.success(
-        tn(out.days.length, 'Published {count} day: {dates}. Players get it with the next release.', 'Published {count} days: {dates}. Players get them with the next release.', {
-          dates: out.days.map((d) => formatDay(d.date)).join(', '),
+        tn(published.length, 'Published {count} day: {dates}. Players get it with the next release.', 'Published {count} days: {dates}. Players get them with the next release.', {
+          dates: dates.length > 5 ? `${dates.slice(0, 5).join(', ')}…` : dates.join(', '),
         }),
       );
     } catch (caught) {
@@ -215,7 +240,7 @@ export function TdDailiesTab() {
               {tn(ahead, '{count} day planned after today.', '{count} days planned after today.')} {t('Published days reach players with the next release.')}
             </p>
           </div>
-          {game !== 'careerPath' && (
+          {game !== 'careerPath' && settingsRow && (
             <Button variant="ghost" size="icon" aria-label={t('Seconds per question')} onClick={() => setSeconds(true)}>
               <Settings2 className="size-4" />
             </Button>
@@ -234,9 +259,10 @@ export function TdDailiesTab() {
         </div>
 
         {error !== null && <TdErrorPanel error={error} className="mt-3" />}
+        {readError !== null && <TdErrorPanel error={readError} className="mt-3" />}
 
         {(questions.isLoading || schedule.isLoading) && <p className="mt-4 text-sm text-slate-500">{t('Loading…')}</p>}
-        {!questions.isLoading && days.length === 0 && (
+        {!questions.isLoading && readError === null && days.length === 0 && (
           <p className="mt-4 rounded-xl border border-dashed border-slate-300 p-6 text-center text-sm text-slate-500">{t('No questions yet: upload a file or write one.')}</p>
         )}
 
@@ -290,6 +316,26 @@ export function TdDailiesTab() {
               );
             })}
           </ul>
+        )}
+
+        {(archived.data?.rows.length ?? 0) > 0 && (
+          <div className="mt-4">
+            <button type="button" className="text-xs font-semibold text-slate-500 hover:text-slate-900" aria-expanded={showArchived} onClick={() => setShowArchived((on) => !on)}>
+              {tn(archived.data!.rows.length, 'Archived question ({count})', 'Archived questions ({count})')}
+            </button>
+            {showArchived && (
+              <ul className="mt-2 space-y-1">
+                {(archived.data!.rows as QuestionRow[]).map((row, index, all) => (
+                  <li key={row.id}>
+                    <button type="button" onClick={() => setEditing({ list: all, index })} className="flex w-full items-center gap-3 rounded-lg bg-slate-50 px-3 py-2 text-left text-sm text-slate-500 hover:bg-slate-100">
+                      <span className="min-w-0 flex-1 truncate">{questionText(row)}</span>
+                      <span className={cn('rounded-md px-2 py-0.5 text-[10px] font-black uppercase tracking-widest', TD_STATUS_PILL[row.status])}>{TD_STATUS_WORDS[row.status]}</span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
         )}
 
         {publisher && chosen.length > 0 && (

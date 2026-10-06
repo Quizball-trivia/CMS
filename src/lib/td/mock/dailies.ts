@@ -40,7 +40,8 @@ export function publishDays(ctx: MockContext, game: TdDailyGameKey, puzzles: str
     approve(ctx, 'daily-schedule', made.id, made.version);
   };
 
-  // Today keeps the day the current release plays.
+  // Today keeps the day the current release plays (the API looks at today's assignment first; the mock has none: no
+  // player starts a daily here).
   const current = db.releases.find((r) => r.id === db.pointer.releaseId)?.dailies?.[game];
   const playing = current ? scheduledSet(current.dates[today], current.cycle, today) : null;
   if (playing && !schedule().some((row) => row.data.date === today) && hasApproved(playing)) addDay(today, playing);
