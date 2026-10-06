@@ -412,21 +412,6 @@ describe('stepping through a list', () => {
     expect(onGo).not.toHaveBeenCalled();
   });
 
-  it('filters a daily game’s questions by category, as the Quizball list filters by category', async () => {
-    await signIn('editor');
-    window.history.replaceState(null, '', '?mode=put-in-order');
-    renderTd(<TdQuestionsTab />);
-    expect(await screen.findByText('Order these World Cup winners from earliest to latest')).toBeTruthy();
-    expect(screen.getByText('Order these stadiums by capacity, smallest first')).toBeTruthy();
-    const category = screen.getByRole('combobox', { name: 'Category' });
-    fireEvent.keyDown(category, { key: 'ArrowDown' });
-    fireEvent.click(await screen.findByRole('option', { name: 'pio-2' }));
-    await waitFor(() => expect(screen.queryByText('Order these World Cup winners from earliest to latest')).toBeNull());
-    expect(await screen.findByText('Order these stadiums by capacity, smallest first')).toBeTruthy();
-    expect(screen.getByText('Category: pio-2')).toBeTruthy();
-    window.history.replaceState(null, '', window.location.pathname);
-  });
-
   it('a row opens from the keyboard', async () => {
     await signIn('editor');
     window.history.replaceState(null, '', '?mode=penalties');

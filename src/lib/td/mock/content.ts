@@ -68,7 +68,7 @@ export function audit(
   });
 }
 
-const rowsOf = (db: MockDb, type: TdContentType) => db.rows.filter((row) => row.type === type);
+export const rowsOf = (db: MockDb, type: TdContentType) => db.rows.filter((row) => row.type === type);
 const live = (row: MockRow) => row.status !== 'archived';
 
 export function findRow(db: MockDb, type: TdContentType, id: string): MockRow {

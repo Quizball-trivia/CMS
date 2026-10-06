@@ -36,9 +36,7 @@ export const KA_SHELL: Record<string, string> = {
   Competitions: 'შეჯიბრებები',
   Users: 'მომხმარებლები',
   'Daily Challenges': 'ყოველდღიური',
-  'Football Logic, Put in Order and Career Path: their timing and the question categories they play.': 'საფეხბურთო ლოგიკა, დაალაგე სწორად და კარიერის გზა: დრო და კითხვების კატეგორიები, რომლებსაც თამაშობენ.',
   'Players, matches and dailies played: today, yesterday, the last 7 and the last 30 days.': 'მოთამაშეები, მატჩები და ყოველდღიური თამაშები: დღეს, გუშინ, ბოლო 7 და ბოლო 30 დღეში.',
-  'The cards and questions of every game mode: search, edit, upload, approve.': 'თამაშის ყველა რეჟიმის ბარათები და კითხვები: ძებნა, რედაქტირება, ატვირთვა, დამტკიცება.',
   'The categories of Round I (ბარათონი) and Round III (პაპა კარლოს ყუთი). A category is approved with its questions.':
     'I ტურის (ბარათონი) და III ტურის (პაპა კარლოს ყუთი) კატეგორიები. კატეგორია თავის კითხვებთან ერთად მტკიცდება.',
   'Football Logic, Put in Order and Career Path, each on a calendar with one puzzle per Georgia date.':
@@ -214,4 +212,6 @@ export const KA_SHELL: Record<string, string> = {
   'cards: none approved yet': 'ბარათები: ჯერ არცერთი არ არის დამტკიცებული',
   'box questions: none approved yet': 'ყუთის კითხვები: ჯერ არცერთი არ არის დამტკიცებული',
   // The statuses (draft, ready, approved, archived) and the types' own names are in ka-content.
+  'Football Logic, Put in Order and Career Path: their days, their questions, and publishing them.': 'საფეხბურთო ლოგიკა, დაალაგე სწორად და კარიერის გზა: მათი დღეები, კითხვები და გამოქვეყნება.',
+  'The cards and questions of the match rounds and practice: search, edit, upload, approve.': 'მატჩის ტურებისა და ვარჯიშის ბარათები და კითხვები: ძებნა, რედაქტირება, ატვირთვა, დამტკიცება.',
 };

@@ -28,6 +28,7 @@ import { tdErrorText } from '@/lib/td/errors';
 import { canonicalJson, sha256Hex } from '@/lib/td/hash';
 import { t, tc, tn } from '@/lib/td/i18n';
 import { TD_IMPORT_MAX_BYTES, TD_IMPORT_MAX_ITEMS, tdImportLimits } from '@/lib/td/import-format';
+import { gameOfType, TD_DAILY_DAY_SIZES, uploadDays, type TdDailyGameKey } from '@/lib/td/dailies';
 import { batchKeyFor, markSent, retireBatchKey } from '@/lib/td/import-keys';
 import { beginOperation, type TdOperation } from '@/lib/td/operation';
 import {
@@ -128,8 +129,6 @@ const DIFFICULTY_LABELS: Record<string, string> = { easy: t('Easy'), medium: t('
 
 const isUploadType = (type: TdContentType | undefined): type is UploadQuestionType => TD_UPLOAD_TYPES.includes(type as UploadQuestionType);
 
-const KEY_PATTERN = /^[a-z0-9][a-z0-9_-]{0,63}$/;
-
 function readFile(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -162,6 +161,20 @@ function updatedCard(question: ParsedCard, card: TdContentRow<'cards'>, imageKey
 
 const PICTURE_NAME = /\.(?:jpe?g|png|webp)$/i;
 
+/** How many days a daily file makes, and whether its last one is short of a whole day. */
+function DaysSummary({ game, count }: { game: TdDailyGameKey; count: number }) {
+  const size = TD_DAILY_DAY_SIZES[game];
+  const whole = Math.floor(count / size);
+  const rest = count % size;
+  return (
+    <p className="mt-1 text-sm text-muted-foreground">
+      {tn(Math.ceil(count / size), 'These make {count} new day of {size}.', 'These make {count} new days of {size}.', { size })}{' '}
+      {rest > 0 && <span className="text-amber-700">{t('The last day has {n} of {size}: it stays a draft until it has {size}.', { n: rest, size })}</span>}
+      {whole > 0 && rest === 0 && t('Each day is published as a whole on the Daily page.')}
+    </p>
+  );
+}
+
 const issueText = (issue: RowIssue) => `${ISSUE_TITLES[issue.code]}${issue.path ? ` (${issue.path})` : ''}: ${issue.message}`;
 
 export interface TdBulkUploadDialogProps {
@@ -169,11 +182,11 @@ export interface TdBulkUploadDialogProps {
   initialType?: TdContentType;
   /** A category's key (Round I, Round III) or label (Practice, Football Logic) to open on. */
   initialCategory?: string | null;
-  /** The daily games: the category (puzzle key) the list is filtered by. */
-  initialPuzzle?: string | null;
+  /** The game modes it offers (all by default); with one, no choice is shown. */
+  types?: readonly TdContentType[];
 }
 
-export function TdBulkUploadDialog({ initialType, initialCategory, initialPuzzle }: TdBulkUploadDialogProps) {
+export function TdBulkUploadDialog({ initialType, initialCategory, types }: TdBulkUploadDialogProps) {
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
 
@@ -193,23 +206,22 @@ export function TdBulkUploadDialog({ initialType, initialCategory, initialPuzzle
         </Button>
       </DialogTrigger>
       <DialogContent className="!max-w-6xl overflow-hidden flex flex-col p-6" style={{ maxHeight: '95vh', height: '95vh' }}>
-        <UploadBody open={open} initialType={initialType} initialCategory={initialCategory ?? null} initialPuzzle={initialPuzzle ?? null} onBusy={setBusy} onClose={() => setOpen(false)} />
+        <UploadBody open={open} initialType={initialType} initialCategory={initialCategory ?? null} types={types} onBusy={setBusy} onClose={() => setOpen(false)} />
       </DialogContent>
     </Dialog>
   );
 }
 
 /** Everything inside the dialog; it exists only while the dialog is open, so closing resets it. */
-function UploadBody({ open, initialType, initialCategory, initialPuzzle, onBusy, onClose }: { open: boolean; initialType?: TdContentType; initialCategory: string | null; initialPuzzle: string | null; onBusy: (busy: boolean) => void; onClose: () => void }) {
+function UploadBody({ open, initialType, initialCategory, types, onBusy, onClose }: { open: boolean; initialType?: TdContentType; initialCategory: string | null; types?: readonly TdContentType[]; onBusy: (busy: boolean) => void; onClose: () => void }) {
   const { user } = useTdAuth();
   const write = useTdWrite();
   const queryClient = useQueryClient();
-  const [selectedQuestionType, setSelectedQuestionType] = useState<UploadQuestionType>(isUploadType(initialType) ? initialType : TYPE_OPTIONS[0]!.value);
+  const typeOptions = types ? TYPE_OPTIONS.filter((option) => types.includes(option.value)) : TYPE_OPTIONS;
+  const [selectedQuestionType, setSelectedQuestionType] = useState<UploadQuestionType>(isUploadType(initialType) && typeOptions.some((o) => o.value === initialType) ? initialType : typeOptions[0]!.value);
   // The category's key (Round I, Round III) or label (Practice, Football Logic); NEW: the one typed below.
   const [selectedCategory, setSelectedCategory] = useState<string>(initialCategory ?? '');
   const [newCategory, setNewCategory] = useState('');
-  const [selectedPuzzle, setSelectedPuzzle] = useState(initialPuzzle ?? '');
-  const [newPuzzle, setNewPuzzle] = useState('');
   const uploadInFlightRef = useRef(false);
   const [state, setState] = useState<UploadState>({ parseErrors: [], isUploading: false });
   const [questions, setQuestions] = useState<ParsedRow[]>([]);
@@ -238,15 +250,12 @@ function UploadBody({ open, initialType, initialCategory, initialPuzzle, onBusy,
   const type = selectedQuestionType;
   const keyCategory = type === 'cards' || type === 'box-questions';
   const labelCategory = type === 'practice-questions' || type === 'football-logic';
-  const daily = type === 'football-logic' || type === 'put-in-order' || type === 'career-path';
   // Football Logic's own label, shown above its question in the game; its category is the puzzle.
   const topic = type === 'football-logic';
 
   const categoryRows = useTdAllRows(type === 'cards' ? 'card-categories' : 'box-categories', { status: STATUSES }, keyCategory);
   const practiceRows = useTdAllRows('practice-questions', { status: STATUSES }, type === 'practice-questions');
   const logicRows = useTdAllRows('football-logic', { status: STATUSES }, type === 'football-logic');
-  const orderRows = useTdAllRows('put-in-order', { status: STATUSES }, type === 'put-in-order');
-  const careerRows = useTdAllRows('career-path', { status: STATUSES }, type === 'career-path');
   const clubRows = useTdAllRows('clubs', { status: STATUSES }, type === 'career-path');
   const mediaRows = useTdAllRows('media', { status: STATUSES }, type === 'cards' || type === 'practice-questions');
   const takesPictures = type === 'cards' || type === 'practice-questions';
@@ -259,27 +268,6 @@ function UploadBody({ open, initialType, initialCategory, initialPuzzle, onBusy,
     return [...labels].sort((a, b) => a.localeCompare(b)).map((label) => ({ value: label, label }));
   }, [keyCategory, type, categoryRows.data, practiceRows.data, logicRows.data, selectedCategory]);
 
-  const puzzleOptions = useMemo(() => {
-    const rows = type === 'football-logic' ? logicRows.data?.rows : type === 'put-in-order' ? orderRows.data?.rows : type === 'career-path' ? careerRows.data?.rows : undefined;
-    const byKey = new Map<string, { questions: number; playable: boolean }>();
-    for (const row of rows ?? []) {
-      const add = (key: string, playable: boolean, counts: boolean) => {
-        const found = byKey.get(key) ?? { questions: 0, playable: false };
-        byKey.set(key, { questions: found.questions + (counts ? 1 : 0), playable: found.playable || playable });
-      };
-      add(String(row.data.puzzle), false, true);
-      if (row.approvedVersion !== null && row.approved) add(String(row.approved.puzzle), true, false);
-    }
-    return [...byKey.entries()]
-      .sort(([a], [b]) => a.localeCompare(b))
-      .map(([puzzle, found]) => ({
-        value: puzzle,
-        label: found.playable
-          ? tn(found.questions, '{puzzle} · {count} question', '{puzzle} · {count} questions', { puzzle })
-          : tn(found.questions, '{puzzle} · {count} question · none approved', '{puzzle} · {count} questions · none approved', { puzzle }),
-      }));
-  }, [type, logicRows.data, orderRows.data, careerRows.data]);
-
   const clubs = useMemo<TdClubRef[]>(() => (clubRows.data?.rows ?? []).map((row) => ({ key: row.data.key, label: row.data.label, value: row.data.value })), [clubRows.data]);
   const mediaByKey = useMemo(() => {
     const found = new Map<string, { uploadId: string | null; url: string | null }>();
@@ -291,14 +279,11 @@ function UploadBody({ open, initialType, initialCategory, initialPuzzle, onBusy,
   }, [mediaRows.data]);
 
   const category = selectedCategory === NEW ? newCategory.trim() : selectedCategory;
-  const puzzle = selectedPuzzle === NEW ? newPuzzle.trim() : selectedPuzzle;
   const categoryProblem = selectedCategory === NEW && newCategory !== '' && (category.length === 0 || category.length > 200) ? t('At most {max} characters, with no spaces at the start or end', { max: 200 }) : null;
-  const puzzleProblem = selectedPuzzle === NEW && newPuzzle !== '' && !KEY_PATTERN.test(puzzle) ? t('Lower-case letters, digits, - and _ (starting with a letter or digit), at most 64') : null;
   // The cards already in the category: a question with one's answer updates it.
   const categoryCards = useTdAllRows('cards', { category, status: STATUSES }, type === 'cards' && category !== '');
   const ready =
     (!keyCategory && !labelCategory ? true : keyCategory ? category !== '' : category !== '' && category.length <= 200) &&
-    (!daily || KEY_PATTERN.test(puzzle)) &&
     (type !== 'career-path' || !clubRows.isLoading) &&
     (type !== 'cards' || (!categoryCards.isLoading && !mediaRows.isLoading));
   const pictureKeys = useMemo(() => new Map(pictures.map((picture) => [picture.name.toLowerCase(), picture.key])), [pictures]);
@@ -316,21 +301,24 @@ function UploadBody({ open, initialType, initialCategory, initialPuzzle, onBusy,
   );
 
   const context = useMemo<TdUploadContext>(
-    () => ({ categoryKey: keyCategory ? category : '', category: labelCategory ? category : '', puzzle: daily ? puzzle : '', clubs, pictures: pictureKeys }),
-    [keyCategory, labelCategory, daily, category, puzzle, clubs, pictureKeys],
+    () => ({ categoryKey: keyCategory ? category : '', category: labelCategory ? category : '', puzzle: '', clubs, pictures: pictureKeys }),
+    [keyCategory, labelCategory, category, clubs, pictureKeys],
   );
+  // A daily game's file is cut into days of its size, each a new day (its key made from its questions).
+  const game = gameOfType(type);
+  const days = useMemo(() => (game ? uploadDays(game, questions, (question) => canonicalJson({ ...question, id: undefined, questionNumber: undefined, lineNumber: undefined })) : null), [game, questions]);
   // `item` is what is imported; the check is asked of `checked` (a picture's image does not exist before the upload saves it).
   const entries = useMemo(
     () =>
       ready
-        ? questions.map((question) => {
-            const item = toTdImportItem(question, context);
+        ? questions.map((question, index) => {
+            const item = toTdImportItem(question, days ? { ...context, puzzle: days[index]!.key } : context);
             const pictured = 'imageFile' in question && question.imageFile !== null;
             const asked = pictured ? { ...item, data: { ...(item.data as Record<string, unknown>), imageKey: null } } : item;
             return { item, asked, signature: canonicalJson(asked), updates: existingCard(question) };
           })
         : [],
-    [ready, questions, context, existingCard],
+    [ready, questions, context, days, existingCard],
   );
   // More than an import takes is not checked: it is shortened first.
   const tooMany = entries.length > TD_IMPORT_MAX_ITEMS;
@@ -721,8 +709,6 @@ function UploadBody({ open, initialType, initialCategory, initialPuzzle, onBusy,
     setSelectedQuestionType(next);
     setSelectedCategory('');
     setNewCategory('');
-    setSelectedPuzzle('');
-    setNewPuzzle('');
     clearFile();
   };
 
@@ -762,14 +748,14 @@ function UploadBody({ open, initialType, initialCategory, initialPuzzle, onBusy,
       ) : (
         <div className="flex-1 overflow-y-auto space-y-4 pr-2">
           {/* Question Type Selection */}
-          <div className="space-y-2">
+          <div className={cn('space-y-2', typeOptions.length === 1 && 'hidden')}>
             <Label htmlFor="question-type">{t('Question Type')} *</Label>
             <Select value={selectedQuestionType} onValueChange={(value: UploadQuestionType) => handleTypeChange(value)}>
               <SelectTrigger id="question-type">
                 <SelectValue placeholder={t('Select a question type')} />
               </SelectTrigger>
               <SelectContent>
-                {TYPE_OPTIONS.map((option) => (
+                {typeOptions.map((option) => (
                   <SelectItem key={option.value} value={option.value}>
                     {option.label}
                   </SelectItem>
@@ -804,28 +790,6 @@ function UploadBody({ open, initialType, initialCategory, initialPuzzle, onBusy,
                 </Select>
                 {selectedCategory === NEW && <Input aria-label={topic ? t('New topic') : t('New category')} value={newCategory} onChange={(event) => setNewCategory(event.target.value)} placeholder={topic ? t('Topic') : t('Category')} />}
                 {categoryProblem && <p className="text-sm text-destructive">{categoryProblem}</p>}
-              </div>
-            )}
-
-            {/* A daily's category: its puzzle key */}
-            {daily && (
-              <div className="space-y-2">
-                <Label htmlFor="puzzle">{t('Category')} *</Label>
-                <Select value={selectedPuzzle} onValueChange={setSelectedPuzzle}>
-                  <SelectTrigger id="puzzle" className="max-w-full">
-                    <SelectValue placeholder={t('Select a category')} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {puzzleOptions.map((option) => (
-                      <SelectItem key={option.value} value={option.value}>
-                        {option.label}
-                      </SelectItem>
-                    ))}
-                    <SelectItem value={NEW}>{t('New category…')}</SelectItem>
-                  </SelectContent>
-                </Select>
-                {selectedPuzzle === NEW && <Input aria-label={t('New category key')} value={newPuzzle} onChange={(event) => setNewPuzzle(event.target.value)} placeholder="fl-12" />}
-                {puzzleProblem && <p className="text-sm text-destructive">{puzzleProblem}</p>}
               </div>
             )}
 
@@ -963,7 +927,10 @@ function UploadBody({ open, initialType, initialCategory, initialPuzzle, onBusy,
           {rows.length > 0 && (
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <Label className="text-base font-semibold">{t('Parsed Questions ({n})', { n: rows.length })}</Label>
+                <div>
+                  <Label className="text-base font-semibold">{t('Parsed Questions ({n})', { n: rows.length })}</Label>
+                  {game && days && days.length > 0 && <DaysSummary game={game} count={days.length} />}
+                </div>
                 {rows.length > TD_IMPORT_MAX_ITEMS && <Badge variant="destructive">{t('Maximum {max} questions allowed', { max: TD_IMPORT_MAX_ITEMS })}</Badge>}
               </div>
               <div className="border rounded-lg max-h-[500px] overflow-y-auto">
@@ -987,6 +954,7 @@ function UploadBody({ open, initialType, initialCategory, initialPuzzle, onBusy,
                       </TableHead>
                       <TableHead className="w-12">#</TableHead>
                       <TableHead>{type === 'cards' || type === 'whoami-subjects' ? t('Answer') : t('Question')}</TableHead>
+                      {days && <TableHead className="w-20">{t('Day')}</TableHead>}
                       {showsLevel && <TableHead className="w-24">{type === 'cards' ? t('Points') : t('Difficulty')}</TableHead>}
                       <TableHead className="w-32">{t('Status')}</TableHead>
                       <TableHead className="w-12"></TableHead>
@@ -1012,6 +980,7 @@ function UploadBody({ open, initialType, initialCategory, initialPuzzle, onBusy,
                         </TableCell>
                         <TableCell className="font-medium">{q.question.questionNumber}</TableCell>
                         <TableCell className="max-w-md truncate">{tdQuestionSummary(q.question)}</TableCell>
+                        {days && <TableCell className="text-sm text-muted-foreground">{t('Day {n}', { n: days[pageStart + rowIndex]?.day ?? 0 })}</TableCell>}
                         {showsLevel && (
                           <TableCell>
                             <Badge variant="outline">

@@ -461,4 +461,23 @@ export function apiScenarios(h: () => Harness) {
     expect(secondDecomposed).not.toBe(second);
     expect((await h().anon('POST', '/admin/auth/login', { email, password: secondDecomposed })).status).toBe(200);
   });
+
+  it('dailies: whole days are published onto the next free dates, a short one is refused, publishers only', async () => {
+    const day = `fld-${run}`;
+    for (let i = 0; i < 10; i++) await create('editor', 'football-logic', { ...sample('football-logic'), key: `fld-${run}-${i}`, puzzle: day });
+    const short = `fls-${run}`;
+    await create('editor', 'football-logic', { ...sample('football-logic'), key: `fls-${run}-0`, puzzle: short });
+    expect(await h().call('editor', 'POST', '/admin/dailies/footballLogic/publish', { body: { puzzles: [day] } })).toMatchObject({ status: 403 });
+    expect(await h().call('publisher', 'POST', '/admin/dailies/footballLogic/publish', { body: { puzzles: [day, short] } })).toMatchObject({
+      status: 422,
+      body: { code: 'validation', details: { issues: [{ path: short, message: '1 of 10 questions' }] } },
+    });
+    const published = await h().call('publisher', 'POST', '/admin/dailies/footballLogic/publish', { body: { puzzles: [day] } });
+    expect(published.status, JSON.stringify(published.body)).toBe(200);
+    const body = published.body as { days: { puzzle: string; date: string }[]; cycle: { sets: string[] } | null };
+    expect(body.days.map((d) => d.puzzle)).toEqual([day]);
+    expect(body.cycle?.sets).toContain(day);
+    // Again: nothing moves.
+    expect((await h().call('publisher', 'POST', '/admin/dailies/footballLogic/publish', { body: { puzzles: [day] } })).body).toMatchObject({ days: body.days });
+  });
 }

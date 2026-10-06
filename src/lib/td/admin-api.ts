@@ -125,6 +125,11 @@ export function createTdAdminApi(api: TdApiClient) {
         api.request<Blob>('GET', `/admin/media/uploads/${segment(id)}/file`, { ...options, responseType: 'blob' }),
       remove: (id: string, options?: TdRequestOptions) => api.delete(`/admin/media/uploads/${segment(id)}`, options),
     },
+    dailies: {
+      /** Whole days of a daily game, approved and put on the next free dates in one step. */
+      publish: (game: C.DailyPublishResponse['game'], puzzles: string[], options?: TdRequestOptions) =>
+        api.post<C.DailyPublishResponse>(`/admin/dailies/${segment(game)}/publish`, { puzzles }, options),
+    },
     releases: {
       validate: (options?: TdRequestOptions) => api.post<C.ReleaseReport>('/admin/releases/validate', undefined, options),
       publish: (idemKey: string, options?: TdRequestOptions) =>

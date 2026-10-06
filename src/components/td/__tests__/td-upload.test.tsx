@@ -545,42 +545,30 @@ describe('the upload dialog', () => {
     expect((await uploaded(admin, 'practice-questions')).map((row) => row.data.category).sort()).toEqual(['Clubs', 'Tournaments 2026']);
   });
 
-  it('puts a daily’s questions in a new category named for the upload, or in one that exists', async () => {
+  it('cuts a daily file into days of the game’s size, each a new day, the same days when read again', async () => {
     const { admin } = await signIn('editor');
     await openDialog({ initialType: 'put-in-order' });
-    chooseFile(txt(TD_UPLOAD_EXAMPLES['put-in-order']));
-    expect(await screen.findByText('Parsed Questions (1)')).toBeTruthy();
-    const puzzle = screen.getByRole('combobox', { name: /Category/ });
-    await pick(puzzle, 'New category…');
-    fireEvent.change(screen.getByLabelText('New category key'), { target: { value: 'Not A Key' } });
-    expect(await screen.findByText(/^Lower-case letters, digits/)).toBeTruthy();
-    expect((await uploadButton(1)).hasAttribute('disabled')).toBe(true);
-    fireEvent.change(screen.getByLabelText('New category key'), { target: { value: 'pio-world-cups' } });
-    const upload = await uploadButton(1);
+    const rounds = Array.from({ length: 5 }, (_, i) => `${i + 1}. Round ${i + 1}?\nItems:\n- a${i}\n- b${i}\nAnswer:\n1. b${i}\n2. a${i}`).join('\n');
+    chooseFile(txt(rounds));
+    expect(await screen.findByText('Parsed Questions (5)')).toBeTruthy();
+    expect(screen.queryByRole('combobox', { name: /Category/ })).toBeNull();
+    expect(screen.getByText(/These make 2 new days of 4\./)).toBeTruthy();
+    expect(screen.getAllByText('Day 1')).toHaveLength(4);
+    expect(screen.getAllByText('Day 2')).toHaveLength(1);
+    const upload = await uploadButton(5);
     await waitFor(() => expect(upload.hasAttribute('disabled')).toBe(false));
     fireEvent.click(upload);
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
-    const [round] = (await admin.content('put-in-order').list({ puzzle: 'pio-world-cups' })).items;
-    expect(round!.status).toBe('draft');
-    expect([...round!.data.items].sort((a, b) => a.sortValue - b.sortValue).map((item) => item.label)).toEqual(['გერმანია 2006', 'სამხრეთ აფრიკა 2010', 'ბრაზილია 2014', 'რუსეთი 2018']);
-
-    // An existing puzzle shows how many questions it has.
-    cleanup();
-    await openDialog({ initialType: 'put-in-order' });
-    await pick(screen.getByRole('combobox', { name: /Category/ }), /^pio-1 · 1 question/);
-    chooseFile(txt('1. Next?\nItems:\n- a\n- b\nAnswer:\n1. b\n2. a'));
-    const next = await uploadButton(1);
-    await waitFor(() => expect(next.hasAttribute('disabled')).toBe(false));
-    fireEvent.click(next);
-    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
-    expect((await admin.content('put-in-order').list({ puzzle: 'pio-1' })).items).toHaveLength(2);
+    const made = (await admin.content('put-in-order').list({ status: 'draft' })).items.filter((row) => row.data.prompt.startsWith('Round '));
+    const days = new Map<string, string[]>();
+    for (const row of made) days.set(row.data.puzzle, [...(days.get(row.data.puzzle) ?? []), row.data.prompt]);
+    expect([...days.values()].map((prompts) => prompts.length).sort()).toEqual([1, 4]);
+    for (const key of days.keys()) expect(key).toMatch(/^put-in-order-[0-9a-f]{8}$/);
   });
 
   it('gives a Career Path club the crest of the club on file by that name, and shows which in the preview', async () => {
     const { admin } = await signIn('editor');
     await openDialog({ initialType: 'career-path' });
-    await pick(screen.getByRole('combobox', { name: /Category/ }), 'New category…');
-    fireEvent.change(screen.getByLabelText('New category key'), { target: { value: 'cp-new' } });
     chooseFile(txt('1. Question: Dinamo Tbilisi ➔ Unknown FC ➔ Napoli\nAnswer: ვიღაც'));
     const upload = await uploadButton(1);
     await waitFor(() => expect(upload.hasAttribute('disabled')).toBe(false));
@@ -593,7 +581,8 @@ describe('the upload dialog', () => {
     await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Question Preview' })).toBeNull());
     fireEvent.click(upload);
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
-    const [row] = (await admin.content('career-path').list({ puzzle: 'cp-new' })).items;
+    const [row] = (await admin.content('career-path').list({ q: 'ვიღაც', status: 'draft' })).items;
+    expect(row!.data.puzzle).toMatch(/^career-path-[0-9a-f]{8}$/);
     expect(row!.data.clubs).toEqual([
       { name: 'Dinamo Tbilisi', clubKey: 'dinamo-tbilisi' },
       { name: 'Unknown FC', clubKey: null },
@@ -839,7 +828,8 @@ describe('the upload dialog', () => {
     expect(screen.queryByLabelText(/Pictures/)).toBeNull();
     await pick(screen.getByRole('combobox', { name: /Question Type/ }), 'Daily · Football Logic');
     expect(example('football-logic')).toBeTruthy();
-    expect(screen.getByRole('combobox', { name: /Category/ })).toBeTruthy();
+    // A daily file is cut into days: no category to choose, only Football Logic's topic.
+    expect(screen.queryByRole('combobox', { name: /Category/ })).toBeNull();
     expect(screen.getByRole('combobox', { name: /Topic/ })).toBeTruthy();
     await pick(screen.getByRole('combobox', { name: /Question Type/ }), 'Round III · პაპა კარლოს ყუთი');
     expect(example('box-questions')).toBeTruthy();
@@ -849,18 +839,18 @@ describe('the upload dialog', () => {
     expect(screen.getByLabelText(/Pictures/)).toBeTruthy();
   });
 
-  it('uploads Football Logic into an existing category, with a topic of those on file and an https image', async () => {
+  it('uploads Football Logic into a new day, with a topic of those on file and an https image', async () => {
     const { admin } = await signIn('editor');
     await openDialog({ initialType: 'football-logic', initialCategory: 'Clubs' });
-    await pick(screen.getByRole('combobox', { name: /Category/ }), /^fl-2 · 1 question/);
     chooseFile(txt(TD_UPLOAD_EXAMPLES['football-logic']));
     const upload = await uploadButton(1);
     await waitFor(() => expect(upload.hasAttribute('disabled')).toBe(false));
     fireEvent.click(upload);
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
-    const made = (await admin.content('football-logic').list({ puzzle: 'fl-2' })).items.filter((row) => row.data.key.startsWith('row-'));
+    const made = (await admin.content('football-logic').list({ status: 'draft' })).items.filter((row) => row.data.key.startsWith('row-'));
     expect(made).toHaveLength(1);
-    expect(made[0]!.data).toMatchObject({ puzzle: 'fl-2', category: 'Clubs', imageA: 'https://example.com/stopwatch-9-minutes.png', imageB: '/assets/football-logic/five-fingers.png', displayAnswer: 'რობერტ ლევანდოვსკი' });
+    expect(made[0]!.data.puzzle).toMatch(/^football-logic-[0-9a-f]{8}$/);
+    expect(made[0]!.data).toMatchObject({ category: 'Clubs', imageA: 'https://example.com/stopwatch-9-minutes.png', imageB: '/assets/football-logic/five-fingers.png', displayAnswer: 'რობერტ ლევანდოვსკი' });
   });
 
   it('uploads Round III questions into the category the page was showing', async () => {

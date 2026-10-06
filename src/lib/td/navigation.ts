@@ -13,7 +13,7 @@ export type TdTabKey =
   | 'team'
   | 'settings';
 
-export type TdTabGroup = 'analytics' | 'content' | 'competitions' | 'users' | 'settings';
+export type TdTabGroup = 'analytics' | 'content' | 'users' | 'settings';
 
 export interface TdTab {
   key: TdTabKey;
@@ -36,7 +36,6 @@ const OPS: readonly TdRole[] = ['ops'];
 export const TD_TAB_GROUP_LABELS: Record<TdTabGroup, string> = {
   analytics: t('Analytics'),
   content: t('Content'),
-  competitions: t('Competitions'),
   users: t('Users'),
   settings: t('Settings'),
 };
@@ -62,7 +61,7 @@ export const TD_TABS: readonly TdTab[] = [
     key: 'questions',
     href: `${TD_ROOT}/questions`,
     label: t('Questions'),
-    description: t('The cards and questions of every game mode: search, edit, upload, approve.'),
+    description: t('The cards and questions of the match rounds and practice: search, edit, upload, approve.'),
     group: 'content',
     roles: ALL,
   },
@@ -70,8 +69,8 @@ export const TD_TABS: readonly TdTab[] = [
     key: 'dailies',
     href: `${TD_ROOT}/dailies`,
     label: t('Daily Challenges'),
-    description: t('Football Logic, Put in Order and Career Path: their timing and the question categories they play.'),
-    group: 'competitions',
+    description: t('Football Logic, Put in Order and Career Path: their days, their questions, and publishing them.'),
+    group: 'content',
     roles: ALL,
   },
   {

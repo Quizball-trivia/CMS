@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { ChevronRight, CircleGauge, FolderKanban, Settings2, Trophy, Users, type LucideIcon } from 'lucide-react';
+import { ChevronRight, CircleGauge, FolderKanban, Settings2, Users, type LucideIcon } from 'lucide-react';
 import { TD_TAB_GROUP_LABELS, tabsForRole, type TdTab, type TdTabGroup, type TdTabKey } from '@/lib/td/navigation';
 import { cn } from '@/lib/utils';
 import type { TdRole } from '@/types/td';
@@ -10,7 +10,6 @@ import { TD_TAB_ICONS } from './td-tab-icons';
 const GROUP_ICONS: Record<TdTabGroup, LucideIcon> = {
   analytics: CircleGauge,
   content: FolderKanban,
-  competitions: Trophy,
   users: Users,
   settings: Settings2,
 };

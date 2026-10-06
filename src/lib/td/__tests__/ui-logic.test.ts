@@ -2,13 +2,12 @@ import { describe, expect, it } from 'vitest';
 import type { TdStaffMember } from '@/types/td';
 import type { WebhookEventDetail } from '@/lib/td/contract';
 import { reviewCategory } from '@/components/td/content/td-category-approval';
-import { planDays } from '@/components/td/tabs/dailies-tab';
+import { buildDays } from '@/components/td/tabs/dailies-tab';
 import { replaySteps } from '@/components/td/tabs/players-tab';
 import { pollInterval } from '@/components/td/tabs/integration-tab';
 import { canMakeResetLink } from '@/components/td/td-team';
 import { followAnswer } from '@/components/td/content/editors/library';
 import type { TdContentRow } from '../admin-api';
-import { daysFrom } from '../georgia';
 import { mergeDrafts, resolveConflicts } from '../merge';
 import { TD_FIXED_FIELDS, TD_MERGE_UNITS } from '../content-rules';
 import { contentActions } from '../workflow';
@@ -188,36 +187,34 @@ describe('category approval review', () => {
   });
 });
 
-describe('dailies calendar projection', () => {
+describe('the days of a daily game', () => {
+  let n = 0;
+  const question = (puzzle: string, over: Partial<TdContentRow<'cards'>> = {}) =>
+    ({ ...row({ id: `q${++n}`, status: 'approved', createdAt: `2026-10-0${n % 9}T00:00:00Z`, ...over }), data: { puzzle, prompt: `Question ${n}?`, displayAnswer: 'x' } }) as unknown as TdContentRow<'football-logic'>;
+  const tenOf = (puzzle: string, over: Partial<TdContentRow<'cards'>> = {}) => Array.from({ length: 10 }, () => question(puzzle, over));
   const schedule = (date: string, puzzle: string, over: Partial<TdContentRow<'daily-schedule'>> = {}) =>
-    ({ ...row(), id: date, data: { game: 'footballLogic', date, puzzle }, approved: null, approvedVersion: null, ...over }) as unknown as TdContentRow<'daily-schedule'>;
-  const settings = { ...row(), status: 'approved', approvedVersion: 1, data: { game: 'footballLogic', seconds: 30, cycle: { anchor: '2026-10-01', sets: ['a', 'b'] } }, approved: { game: 'footballLogic', seconds: 30, cycle: { anchor: '2026-10-01', sets: ['a', 'b'] } } } as unknown as TdContentRow<'daily-settings'>;
-  const puzzles = [
-    { key: 'a', questions: 1, playable: true },
-    { key: 'b', questions: 1, playable: true },
-    { key: 'c', questions: 1, playable: false },
-  ];
+    ({ ...row(), id: date, status: 'approved', data: { game: 'footballLogic', date, puzzle }, ...over }) as unknown as TdContentRow<'daily-schedule'>;
 
-  it('plays approved dates, else the approved cycle; drafts are pending changes; archived rows count for nothing', () => {
-    const rows = [
-      schedule('2026-10-02', 'c'),
-      schedule('2026-10-03', 'a', { status: 'approved', approvedVersion: 1, approved: { game: 'footballLogic', date: '2026-10-03', puzzle: 'a' } }),
-      schedule('2026-10-04', 'b', { status: 'archived', approvedVersion: 1, approved: { game: 'footballLogic', date: '2026-10-04', puzzle: 'b' } }),
-    ];
-    const days = planDays(daysFrom('2026-10-01', 4), '2026-10-01', rows, settings, puzzles);
-    expect(days.map((d) => [d.date, d.planned, d.source, d.pending])).toEqual([
-      ['2026-10-01', 'a', 'cycle', null],
-      ['2026-10-02', 'b', 'cycle', 'c'],
-      ['2026-10-03', 'a', 'date', null],
-      ['2026-10-04', 'b', 'cycle', null],
+  it('groups questions by day: dated days by date, then the rest; whole days only can be published', () => {
+    const days = buildDays(
+      'footballLogic',
+      [...tenOf('fl-later'), ...tenOf('fl-ready', { status: 'draft' }), ...tenOf('fl-first'), ...tenOf('fl-edited'), question('fl-short'), question('fl-gone', { status: 'archived' })],
+      [schedule('2026-10-08', 'fl-later'), schedule('2026-10-06', 'fl-first'), schedule('2026-10-09', 'fl-archived', { status: 'archived' })],
+      ['fl-first', 'fl-later', 'fl-edited'],
+    );
+    expect(days.map((d) => [d.key, d.status, d.dates, d.questions.length])).toEqual([
+      ['fl-first', 'published', ['2026-10-06'], 10],
+      ['fl-later', 'published', ['2026-10-08'], 10],
+      ['fl-ready', 'ready', [], 10],
+      ['fl-edited', 'published', [], 10],
+      ['fl-short', 'incomplete', [], 1],
     ]);
-    expect(days[3].row?.status).toBe('archived');
   });
 
-  it('flags days of the next 30 with no playable puzzle', () => {
-    const days = planDays(daysFrom('2026-10-01', 31), '2026-10-01', [], null, puzzles);
-    expect(days.filter((d) => d.missing)).toHaveLength(30);
-    expect(days[30].inWindow).toBe(false);
+  it('a published day with a question changed since has changes to publish', () => {
+    const rows = tenOf('fl-a');
+    rows[3] = { ...rows[3]!, status: 'draft' };
+    expect(buildDays('footballLogic', rows, [schedule('2026-10-07', 'fl-a')], [])[0]!.status).toBe('changes');
   });
 });
 

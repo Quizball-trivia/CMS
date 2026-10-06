@@ -1,4 +1,5 @@
 import type { TdContentType } from '@/lib/td/admin-api';
+import { gameOfType } from '@/lib/td/dailies';
 import { t } from '@/lib/td/i18n';
 
 export type TdCategoryType = 'card-categories' | 'box-categories';
@@ -24,6 +25,10 @@ export const TD_QUESTION_MODES: readonly TdQuestionMode[] = [
   { key: 'round-3', label: t('Round III · პაპა კარლოს ყუთი'), type: 'box-questions', noun: 'question', categoryType: 'box-categories' },
   { key: 'penalties', label: t('Penalties'), type: 'penalty-questions', noun: 'question' },
   { key: 'practice', label: t('Practice · ივარჯიშე'), type: 'practice-questions', noun: 'question' },
+];
+
+/** The daily games, on the Daily page (their questions come in days, not in the Questions list). */
+export const TD_DAILY_MODES: readonly TdQuestionMode[] = [
   { key: 'football-logic', label: t('Daily · Football Logic'), type: 'football-logic', noun: 'question', puzzles: true },
   { key: 'put-in-order', label: t('Daily · Put in Order'), type: 'put-in-order', noun: 'round', puzzles: true },
   { key: 'career-path', label: t('Daily · Career Path'), type: 'career-path', noun: 'question', puzzles: true },
@@ -31,6 +36,8 @@ export const TD_QUESTION_MODES: readonly TdQuestionMode[] = [
 
 /** The page of the question list that holds rows of this type (links from the release report). */
 export function questionsHref(type: TdContentType, q?: string): string | null {
+  const game = gameOfType(type);
+  if (game) return `/td/dailies?game=${game}`;
   const mode = TD_QUESTION_MODES.find((m) => m.type === type);
   if (!mode) return null;
   return `/td/questions?mode=${mode.key}${q ? `&q=${encodeURIComponent(q)}` : ''}`;

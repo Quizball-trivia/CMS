@@ -154,4 +154,9 @@ export const KA_UPLOAD: Record<string, string> = {
   'Round II needs at least 5 clues: a match shows the first 5': 'II ტურს მინიმუმ 5 მინიშნება სჭირდება: მატჩში პირველი 5 ჩანს',
   'Five clues per player, hardest first: a match shows the first 5, one every few seconds, and the first to buzz answers. No points and no pictures in this round.': 'თითო მოთამაშეზე ხუთი მინიშნება, ყველაზე რთულით დაწყებული: მატჩში პირველი 5 ჩანს, რამდენიმე წამში ერთი, და ვინც პირველი დააჭერს, ის პასუხობს. ამ ტურში ქულები და სურათები არ არის.',
   'Answer (question {n})': 'პასუხი (კითხვა №{n})',
+  'Day {n}': 'დღე {n}',
+  'Day': 'დღე',
+  'Each day is published as a whole on the Daily page.': 'თითო დღე ყოველდღიურის გვერდზე მთლიანად ქვეყნდება.',
+  'The last day has {n} of {size}: it stays a draft until it has {size}.': 'ბოლო დღეს {size}-დან {n} აქვს: მონახაზად დარჩება, სანამ {size} არ ექნება.',
+  'These make {count} new days of {size}.': 'ესენი {count} ახალ დღეს ქმნის, თითოში {size}.',
 };

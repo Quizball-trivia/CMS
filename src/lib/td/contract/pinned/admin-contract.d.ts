@@ -3485,6 +3485,25 @@ export type ReleaseDetail = {
   } | null;
 };
 
+/** POST /admin/dailies/:game/publish: whole days (puzzles) to publish. Each must have exactly the day size of its game (footballLogic 10, putInOrder 4, careerPath 10) live questions. */
+export type DailyPublishRequest = {
+  puzzles: string[];
+};
+
+/** In one transaction (publisher and up): the days’ questions are approved; today keeps the day players get now (a schedule entry pins it); each day that never had a date gets the next free one after the last; the cycle becomes every dated day in date order, then the days it repeated already (none drops out), anchored the day after the last date, so after the calendar the days repeat from the first. Days already dated never move. Running it again changes nothing. Players get it with the next release. */
+export type DailyPublishResponse = {
+  game: "footballLogic" | "putInOrder" | "careerPath";
+  today: string;
+  days: {
+    puzzle: string;
+    date: string;
+  }[];
+  cycle: {
+    anchor: string;
+    sets: string[];
+  } | null;
+};
+
 /** GET /admin/integration/webhooks query: q (an event id, a partner session id, the partner’s player id or a Table Derby player id), status, cursor, limit. */
 export type WebhookListQuery = {
   q?: string;

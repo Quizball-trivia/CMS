@@ -11556,6 +11556,73 @@
       }
     },
     {
+      "name": "publish two days of Football Logic",
+      "method": "POST",
+      "path": "/admin/dailies/footballLogic/publish",
+      "headers": {
+        "authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleGFtcGxlIjp0cnVlfQ.c2lnbmF0dXJl"
+      },
+      "body": {
+        "puzzles": [
+          "football-logic-2",
+          "football-logic-3"
+        ]
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "game": "footballLogic",
+          "today": "2026-10-06",
+          "days": [
+            {
+              "puzzle": "football-logic-2",
+              "date": "2026-10-07"
+            },
+            {
+              "puzzle": "football-logic-3",
+              "date": "2026-10-08"
+            }
+          ],
+          "cycle": {
+            "anchor": "2026-10-09",
+            "sets": [
+              "football-logic-1",
+              "football-logic-2",
+              "football-logic-3"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "publish a day that is not whole",
+      "method": "POST",
+      "path": "/admin/dailies/footballLogic/publish",
+      "headers": {
+        "authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleGFtcGxlIjp0cnVlfQ.c2lnbmF0dXJl"
+      },
+      "body": {
+        "puzzles": [
+          "football-logic-4"
+        ]
+      },
+      "response": {
+        "status": 422,
+        "body": {
+          "code": "validation",
+          "message": "A day has 10 questions",
+          "details": {
+            "issues": [
+              {
+                "path": "football-logic-4",
+                "message": "6 of 10 questions"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
       "name": "publish (runs on the server: poll the publication)",
       "method": "POST",
       "path": "/admin/releases/publish",

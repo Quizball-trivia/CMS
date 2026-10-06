@@ -6032,6 +6032,50 @@
     },
     {
       "method": "POST",
+      "path": "/admin/dailies/:game/publish",
+      "auth": "staff",
+      "roles": [
+        "publisher",
+        "betsson_admin",
+        "ops"
+      ],
+      "request": "DailyPublishRequest",
+      "responses": {
+        "200": "DailyPublishResponse"
+      },
+      "errors": {
+        "400": [
+          "invalid_request"
+        ],
+        "401": [
+          "unauthorized"
+        ],
+        "403": [
+          "forbidden"
+        ],
+        "404": [
+          "not_found"
+        ],
+        "409": [
+          "dependency_unapproved",
+          "conflict_retry"
+        ],
+        "422": [
+          "validation"
+        ],
+        "429": [
+          "rate_limited"
+        ],
+        "500": [
+          "internal"
+        ],
+        "503": [
+          "busy"
+        ]
+      }
+    },
+    {
+      "method": "POST",
       "path": "/admin/releases/:id/rollback",
       "auth": "staff",
       "roles": [
@@ -27398,6 +27442,122 @@
         "manifest",
         "members",
         "diff"
+      ],
+      "additionalProperties": false
+    },
+    "DailyPublishRequest": {
+      "description": "POST /admin/dailies/:game/publish: whole days (puzzles) to publish. Each must have exactly the day size of its game (footballLogic 10, putInOrder 4, careerPath 10) live questions.",
+      "type": "object",
+      "properties": {
+        "puzzles": {
+          "minItems": 1,
+          "maxItems": 60,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$"
+          }
+        }
+      },
+      "required": [
+        "puzzles"
+      ],
+      "additionalProperties": false
+    },
+    "DailyPublishResponse": {
+      "description": "In one transaction (publisher and up): the days’ questions are approved; today keeps the day players get now (a schedule entry pins it); each day that never had a date gets the next free one after the last; the cycle becomes every dated day in date order, then the days it repeated already (none drops out), anchored the day after the last date, so after the calendar the days repeat from the first. Days already dated never move. Running it again changes nothing. Players get it with the next release.",
+      "type": "object",
+      "properties": {
+        "game": {
+          "type": "string",
+          "enum": [
+            "footballLogic",
+            "putInOrder",
+            "careerPath"
+          ]
+        },
+        "today": {
+          "type": "string",
+          "allOf": [
+            {
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+            },
+            {
+              "pattern": "^(?!0000)"
+            }
+          ]
+        },
+        "days": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "puzzle": {
+                "type": "string",
+                "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$"
+              },
+              "date": {
+                "type": "string",
+                "allOf": [
+                  {
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+                  },
+                  {
+                    "pattern": "^(?!0000)"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "puzzle",
+              "date"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "cycle": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "anchor": {
+                  "type": "string",
+                  "allOf": [
+                    {
+                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+                    },
+                    {
+                      "pattern": "^(?!0000)"
+                    }
+                  ]
+                },
+                "sets": {
+                  "minItems": 1,
+                  "maxItems": 400,
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$"
+                  }
+                }
+              },
+              "required": [
+                "anchor",
+                "sets"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "game",
+        "today",
+        "days",
+        "cycle"
       ],
       "additionalProperties": false
     },

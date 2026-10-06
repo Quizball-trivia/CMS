@@ -316,7 +316,7 @@ export function TdQuestionsTab() {
             <Rocket className="mr-2 h-4 w-4" />
             {t('Publish')}
           </Button>
-          <TdBulkUploadDialog key={`${mode.type}:${category}`} initialType={mode.type} initialCategory={mode.categoryType ? filtered : null} initialPuzzle={mode.puzzles ? filtered : null} />
+          <TdBulkUploadDialog key={`${mode.type}:${category}`} initialType={mode.type} initialCategory={mode.categoryType ? filtered : null} types={TD_QUESTION_MODES.map((m) => m.type)} />
           <Button
             onClick={() => open({ type: mode.type, row: null, preset: filtered === undefined ? undefined : mode.puzzles ? { puzzle: filtered } : { categoryKey: filtered } })}
             className="flex h-11 items-center gap-2 rounded-xl bg-gray-900 px-6 text-sm font-bold text-white shadow-lg shadow-gray-200 transition-all hover:bg-gray-800 active:scale-95"

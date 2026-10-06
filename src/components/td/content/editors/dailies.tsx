@@ -69,10 +69,9 @@ function PuzzleField({ game, value, onChange, issues, path, label = t('Category'
   );
 }
 
-function PuzzleKeyField({ value, onChange, issues }: { value: string; onChange: (puzzle: string) => void; issues: ReturnType<typeof issuesAt> }) {
-  return (
-    <TdTextField label={t('Category')} value={value} onChange={onChange} issues={issuesAt(issues, 'data.puzzle')} hint={t('Questions of the same category are played together on a day. A new key starts a new category.')} />
-  );
+/** A question's day is where it was added on the Daily page (a day is a whole set); only a problem with it shows. */
+function PuzzleKeyField({ issues }: { value: string; onChange: (puzzle: string) => void; issues: ReturnType<typeof issuesAt> }) {
+  return <TdIssueText issues={issuesAt(issues, 'data.puzzle')} />;
 }
 
 export function FootballLogicEditor({ value, onChange, issues, creating }: TdEditorProps<'football-logic'>) {

@@ -17797,6 +17797,72 @@
       }
     },
     {
+      "schema": "DailyPublishRequest",
+      "valid": true,
+      "why": "two days",
+      "value": {
+        "puzzles": [
+          "football-logic-2",
+          "football-logic-3"
+        ]
+      }
+    },
+    {
+      "schema": "DailyPublishRequest",
+      "valid": false,
+      "why": "no day",
+      "value": {
+        "puzzles": []
+      }
+    },
+    {
+      "schema": "DailyPublishRequest",
+      "valid": false,
+      "why": "a key that is not one",
+      "value": {
+        "puzzles": [
+          "Football Logic"
+        ]
+      }
+    },
+    {
+      "schema": "DailyPublishResponse",
+      "valid": true,
+      "why": "dates and the cycle",
+      "value": {
+        "game": "careerPath",
+        "today": "2026-10-06",
+        "days": [
+          {
+            "puzzle": "career-path-2",
+            "date": "2026-10-07"
+          }
+        ],
+        "cycle": {
+          "anchor": "2026-10-08",
+          "sets": [
+            "career-path-1",
+            "career-path-2"
+          ]
+        }
+      }
+    },
+    {
+      "schema": "DailyPublishResponse",
+      "valid": false,
+      "why": "a day without its date",
+      "value": {
+        "game": "careerPath",
+        "today": "2026-10-06",
+        "days": [
+          {
+            "puzzle": "career-path-2"
+          }
+        ],
+        "cycle": null
+      }
+    },
+    {
       "schema": "PublicationRequest",
       "valid": true,
       "why": "a UUID key",
