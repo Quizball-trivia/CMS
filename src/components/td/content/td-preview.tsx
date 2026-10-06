@@ -8,6 +8,7 @@ import { useTdAllRows, useTdUploadUrl } from '@/hooks/use-td-content';
 import type { TdContentData, TdContentType } from '@/lib/td/admin-api';
 import { t } from '@/lib/td/i18n';
 import { cn } from '@/lib/utils';
+import { legacyImageSrc } from '@/lib/td/legacy-images';
 
 /** The types a player meets as a question or a card. */
 const PREVIEWED = new Set<TdContentType>([
@@ -113,7 +114,15 @@ export function TdQuestionImage({ imageKey, src }: { imageKey?: string | null; s
       );
   }
   if (!src) return null;
-  // Images kept by URL or by a path of the game are not loaded here (the CMS loads its own files only): the link opens them.
+  const legacy = legacyImageSrc(src);
+  if (legacy)
+    return (
+      <div className={FRAME}>
+        {/* eslint-disable-next-line @next/next/no-img-element -- served from this origin by /td/legacy-image */}
+        <img src={legacy} alt={imageKey ?? ''} className="h-full w-full object-contain" />
+      </div>
+    );
+  // Other images kept by URL or by a path of the game are not loaded here (the CMS loads its own files only): the link opens them.
   return (
     <a href={src} target="_blank" rel="noreferrer noopener" className={cn(FRAME, 'flex-col gap-2 px-4 text-center text-sm text-slate-500 hover:text-slate-900')}>
       <ImageOff className="h-6 w-6" />

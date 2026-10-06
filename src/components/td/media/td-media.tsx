@@ -17,6 +17,7 @@ import { t } from '@/lib/td/i18n';
 import { TdIssueText } from '@/components/td/content/td-form';
 import { TdOpenImageContext } from '@/components/td/content/td-open-row';
 import { useTdUploadingReport } from '@/components/td/content/td-uploading';
+import { legacyImageSrc } from '@/lib/td/legacy-images';
 import { cn } from '@/lib/utils';
 
 export const TD_UPLOAD_TYPES = ['image/jpeg', 'image/png', 'image/webp'] as const;
@@ -56,7 +57,12 @@ export function TdMediaThumb({ uploadId, url, alt, className }: { uploadId?: str
         <Loader2 className="size-4 animate-spin" />
       ) : url ? (
         <a href={url} target="_blank" rel="noreferrer noopener" title={t('Kept by URL: opens in a new tab')} className="grid size-full place-items-center hover:text-foreground">
-          <ExternalLink className="size-4" />
+          {legacyImageSrc(url) ? (
+            // eslint-disable-next-line @next/next/no-img-element -- served from this origin by /td/legacy-image
+            <img src={legacyImageSrc(url)!} alt={alt} loading="lazy" className="size-full object-cover" />
+          ) : (
+            <ExternalLink className="size-4" />
+          )}
         </a>
       ) : uploadId ? (
         <ImageOff className="size-4" />
