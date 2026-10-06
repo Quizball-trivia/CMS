@@ -38,6 +38,7 @@ import {
   TD_UPLOAD_EXAMPLES,
   TD_UPLOAD_TYPES,
   tdQuestionSummary,
+  questionKey,
   toTdImportItem,
   type ParsedCard,
   type TdClubRef,
@@ -307,7 +308,7 @@ function UploadBody({ open, initialType, initialCategory, types, onBusy, onClose
   // A daily game's file is cut into days of its size, each a new day (its key made from its questions).
   const game = gameOfType(type);
   // What is imported (the topic included), so the same questions under another topic are another day.
-  const days = useMemo(() => (game ? uploadDays(game, questions, (question) => canonicalJson(toTdImportItem(question, context))) : null), [game, questions, context]);
+  const days = useMemo(() => (game ? uploadDays(game, questions, (question) => questionKey(question, context)) : null), [game, questions, context]);
   // `item` is what is imported; the check is asked of `checked` (a picture's image does not exist before the upload saves it).
   const entries = useMemo(
     () =>

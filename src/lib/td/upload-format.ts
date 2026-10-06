@@ -772,8 +772,13 @@ function columnValues(question: TdParsedQuestion, context: TdUploadContext): Rec
 
 /** The import item of a question: a draft of its mode's type, under the ID its content makes. */
 export function toTdImportItem(question: TdParsedQuestion, context: TdUploadContext) {
+  return toItem(question.kind, { key: questionKey(question, context), ...columnValues(question, context) });
+}
+
+/** The ID a question's content makes, from what the file says: a club found in the clubs list later must not make
+ *  the same row a new one. */
+export function questionKey(question: TdParsedQuestion, context: TdUploadContext): string {
   const values = columnValues(question, context);
-  // The ID comes from what the file says: a club found in the clubs list later must not make the same row a new one.
   const said = question.kind === 'career-path' ? { ...values, clubs: (values.clubs as Array<{ name: string }>).map((club) => ({ name: club.name, clubKey: null })) } : values;
-  return toItem(question.kind, { key: madeKey(question.kind, said), ...values });
+  return madeKey(question.kind, said);
 }

@@ -147,18 +147,29 @@ export function TdDailiesTab() {
   // A link to one question (the release report): its day opens, and it does.
   const [linked, setLinked] = useState(() => (typeof window === 'undefined' ? null : new URLSearchParams(window.location.search).get('q')));
   useEffect(() => {
-    if (!linked || !questions.data) return;
+    if (!linked || !questions.data || !archived.data) return;
     const rows = (questions.data.rows ?? []) as QuestionRow[];
     const found = rows.find((row) => String(row.data.key) === linked) ?? null;
     const inDay = found ? String(found.data.puzzle) : rows.some((row) => String(row.data.puzzle) === linked) ? linked : null;
     if (inDay) setOpenDay(inDay);
     const list = days.find((d) => d.key === inDay)?.questions ?? [];
     if (found && list.length) setEditing({ list, index: Math.max(0, list.findIndex((row) => row.id === found.id)) });
+    else if (!inDay) {
+      // An archived question: the archived list opens, and it does.
+      const gone = (archived.data.rows ?? []) as QuestionRow[];
+      const index = gone.findIndex((row) => String(row.data.key) === linked);
+      if (index >= 0) {
+        setShowArchived(true);
+        setEditing({ list: gone, index });
+      }
+    }
     setLinked(null);
-  }, [linked, questions.data, days]);
-  const readError = questions.error ?? schedule.error ?? settings.error ?? null;
+  }, [linked, questions.data, archived.data, days]);
+  const readError = questions.error ?? archived.error ?? schedule.error ?? settings.error ?? null;
 
   const publishable = days.filter((day) => day.status === 'ready' || day.status === 'changes');
+  // Only chosen days that can still be published (one may have changed since it was ticked).
+  const chosenDays = publishable.filter((d) => chosen.includes(d.key));
   const day = days.find((d) => d.key === openDay) ?? null;
   const ahead = today ? days.filter((d) => d.dates.some((date) => date > today)).length : 0;
 
@@ -277,7 +288,7 @@ export function TdDailiesTab() {
                       <Checkbox
                         aria-label={t('Choose {day}', { day: whenText(d, today) })}
                         disabled={!canPublish}
-                        checked={chosen.includes(d.key)}
+                        checked={canPublish && chosen.includes(d.key)}
                         onCheckedChange={(on) => setChosen((list) => (on ? [...list, d.key] : list.filter((k) => k !== d.key)))}
                       />
                     )}
@@ -338,10 +349,10 @@ export function TdDailiesTab() {
           </div>
         )}
 
-        {publisher && chosen.length > 0 && (
+        {publisher && chosenDays.length > 0 && (
           <div className="mt-3 flex justify-end">
-            <Button disabled={busy} onClick={() => void publish(days.filter((d) => chosen.includes(d.key)).map((d) => d.key))}>
-              {tn(chosen.length, 'Publish {count} chosen day', 'Publish {count} chosen days')}
+            <Button disabled={busy} onClick={() => void publish(chosenDays.map((d) => d.key))}>
+              {tn(chosenDays.length, 'Publish {count} chosen day', 'Publish {count} chosen days')}
             </Button>
           </div>
         )}

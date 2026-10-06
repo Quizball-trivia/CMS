@@ -64,7 +64,7 @@ async function signIn(role: TdRole) {
 
 function renderTd(ui: ReactNode) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
-  return render(<QueryClientProvider client={client}>{ui}</QueryClientProvider>);
+  return { client, ...render(<QueryClientProvider client={client}>{ui}</QueryClientProvider>) };
 }
 
 
@@ -200,6 +200,37 @@ describe('the Daily page', () => {
     renderTd(<TdDailiesTab />);
     const dialog = await screen.findByRole('dialog');
     expect(within(dialog).getByText(String(linked!.data.displayAnswer))).toBeTruthy();
+    cleanup();
+
+    // A link to an archived question opens it, with the archived list open.
+    window.history.replaceState(null, '', `?game=footballLogic&q=${first!.data.key}`);
+    renderTd(<TdDailiesTab />);
+    expect(within(await screen.findByRole('dialog')).getByText(String(first!.data.displayAnswer))).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Archived question (1)', hidden: true }).getAttribute('aria-expanded')).toBe('true');
+  });
+
+  it('publishes only the chosen days that are still whole', async () => {
+    const { admin } = await signIn('publisher');
+    const { client } = renderTd(<TdDailiesTab />);
+    await screen.findByText('Add 8 more questions');
+    const dialog = await uploadFile(logic(20));
+    const upload = await within(dialog).findByRole('button', { name: 'Upload 20 Questions' });
+    await waitFor(() => expect(upload.hasAttribute('disabled')).toBe(false));
+    fireEvent.click(upload);
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    for (const box of await screen.findAllByRole('checkbox', { name: 'Choose Not published' })) fireEvent.click(box);
+    expect(await screen.findByRole('button', { name: 'Publish 2 chosen days' })).toBeTruthy();
+
+    // Meanwhile one of them loses a question (another tab): it is no longer whole, and is not sent.
+    const gone = (await admin.content('football-logic').list({ q: 'Question 1?', status: 'draft' })).items.find((row) => row.data.prompt === 'Question 1?')!;
+    await admin.content('football-logic').archive(gone.id, gone.version);
+    await client.invalidateQueries();
+    fireEvent.click(await screen.findByRole('button', { name: 'Publish 1 chosen day' }));
+    const today = georgiaToday();
+    await waitFor(async () => expect((await admin.content('daily-schedule').list({ game: 'footballLogic' })).items).toHaveLength(2));
+    const dated = (await admin.content('daily-schedule').list({ game: 'footballLogic' })).items;
+    expect(dated.map((row) => row.data.date)).toEqual([today, addDays(today, 1)]);
+    expect(dated.some((row) => row.data.puzzle === gone.data.puzzle)).toBe(false);
   });
 
   it('opens a day’s questions, and changes the seconds per question from the gear', async () => {

@@ -3,6 +3,8 @@ import type { TdStaffMember } from '@/types/td';
 import type { WebhookEventDetail } from '@/lib/td/contract';
 import { reviewCategory } from '@/components/td/content/td-category-approval';
 import { buildDays } from '@/components/td/tabs/dailies-tab';
+import { uploadDays } from '../dailies';
+import { questionKey, type ParsedCareerPath } from '../upload-format';
 import { replaySteps } from '@/components/td/tabs/players-tab';
 import { pollInterval } from '@/components/td/tabs/integration-tab';
 import { canMakeResetLink } from '@/components/td/td-team';
@@ -222,6 +224,18 @@ describe('the days of a daily game', () => {
     const rows = tenOf('fl-a');
     rows[3] = { ...rows[3]!, status: 'draft' };
     expect(buildDays('footballLogic', rows, [schedule('2026-10-07', 'fl-a')], [])[0]!.status).toBe('changes');
+  });
+
+  it('an upload’s day keys come from what the file says: a club found later makes the same days', () => {
+    const career = (display: string, clubs: string[]): ParsedCareerPath => ({ kind: 'career-path', questionNumber: 1, lineNumber: 1, prompt: null, clubs, display, aliases: [display.toLowerCase()] });
+    const questions = Array.from({ length: 10 }, (_, i) => career(`Player ${i}`, ['Dinamo Tbilisi', 'Rubin Kazan']));
+    const context = { categoryKey: '', category: '', puzzle: '', clubs: [] };
+    const known = { ...context, clubs: [{ key: 'dinamo-tbilisi', label: 'Dinamo Tbilisi', value: 'Dinamo Tbilisi' }] };
+    const before = uploadDays('careerPath', questions, (q) => questionKey(q, context));
+    expect(uploadDays('careerPath', questions, (q) => questionKey(q, known))).toEqual(before);
+    expect(new Set(before.map((d) => d.key)).size).toBe(1);
+    // Another answer is another day.
+    expect(uploadDays('careerPath', [career('Someone else', ['Rubin Kazan']), ...questions.slice(1)], (q) => questionKey(q, context))[0]!.key).not.toBe(before[0]!.key);
   });
 });
 
