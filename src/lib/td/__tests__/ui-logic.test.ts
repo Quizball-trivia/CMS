@@ -57,12 +57,12 @@ describe('workflow actions offered', () => {
       expect(refusedOutright(kept)).toBe(false);
   });
 
-  it('offers ready on drafts, approval to publishers who did not make the last edit', () => {
+  it('offers ready on drafts, approval to publishers, their own last edit included', () => {
     expect(contentActions(row(), EDITOR)).toMatchObject({ save: { allowed: true }, ready: { allowed: true }, approve: { allowed: false }, restore: { allowed: false } });
     const ready = row({ status: 'ready' });
     expect(contentActions(ready, EDITOR).approve).toEqual({ allowed: false, reason: 'Ready for a publisher to approve.' });
     expect(contentActions(ready, PUBLISHER).approve).toEqual({ allowed: true });
-    expect(contentActions({ ...ready, lastEditor: actor(PUBLISHER) }, PUBLISHER).approve.reason).toMatch(/another publisher/);
+    expect(contentActions({ ...ready, lastEditor: actor(PUBLISHER) }, PUBLISHER).approve).toEqual({ allowed: true });
   });
 
   it('lets an editor archive only an own, never approved row nobody else touched (by its trail when known)', () => {
@@ -176,14 +176,15 @@ describe('merge units: fields that only make sense together merge as one', () =>
 describe('category approval review', () => {
   const kid = (id: string, status: TdContentRow['status'], editor = EDITOR) => row({ id, status, lastEditor: actor(editor) });
   it('lists ready rows to approve with it and what holds it up', () => {
-    const review = reviewCategory([kid('a', 'ready'), kid('b', 'approved'), kid('c', 'draft'), kid('d', 'ready', PUBLISHER)], PUBLISHER.id);
-    expect(review.withIt.map((r) => r.id)).toEqual(['a']);
+    // A card the approver edited last goes with the category too.
+    const review = reviewCategory([kid('a', 'ready'), kid('b', 'approved'), kid('c', 'draft'), kid('d', 'ready', PUBLISHER)]);
+    expect(review.withIt.map((r) => r.id)).toEqual(['a', 'd']);
     expect(review.approved.map((r) => r.id)).toEqual(['b']);
-    expect(review.blockers.map((b) => b.row.id)).toEqual(['c', 'd']);
+    expect(review.blockers.map((b) => b.row.id)).toEqual(['c']);
     expect(review.canApprove).toBe(false);
-    expect(reviewCategory([kid('a', 'ready')], PUBLISHER.id).canApprove).toBe(true);
-    expect(reviewCategory([], PUBLISHER.id)).toMatchObject({ canApprove: false, problem: 'A category needs at least one approved row.' });
-    expect(reviewCategory(Array.from({ length: 501 }, (_, i) => kid(`k${i}`, 'ready')), PUBLISHER.id).problem).toMatch(/At most 500/);
+    expect(reviewCategory([kid('a', 'ready')]).canApprove).toBe(true);
+    expect(reviewCategory([])).toMatchObject({ canApprove: false, problem: 'A category needs at least one approved row.' });
+    expect(reviewCategory(Array.from({ length: 501 }, (_, i) => kid(`k${i}`, 'ready'))).problem).toMatch(/At most 500/);
   });
 });
 

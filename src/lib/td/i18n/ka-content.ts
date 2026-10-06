@@ -136,7 +136,6 @@ export const KA_CONTENT: Record<string, string> = {
   '{ready} ready to approve with it · {approved} approved already': 'ერთად დასამტკიცებელი: {ready} · უკვე დამტკიცებული: {approved}',
   '{ready} ready to approve with it · {approved} approved already · {held} holding it up': 'ერთად დასამტკიცებელი: {ready} · უკვე დამტკიცებული: {approved} · ხელს უშლის: {held}',
   'Still a draft: mark it ready (or archive it) first.': 'ისევ დრაფტია: ჯერ მონიშნეთ მზადად (ან დააარქივეთ).',
-  'You made its last edit: another publisher approves it.': 'ბოლო ცვლილება თქვენ შეიტანეთ: მას სხვა გამომქვეყნებელი ამტკიცებს.',
   'At most {max} can be approved with the category in one step; approve some of them on their own first.': 'კატეგორიასთან ერთად ერთ ნაბიჯად მაქსიმუმ {max} ჩანაწერი მტკიცდება; ნაწილი ჯერ ცალ-ცალკე დაამტკიცეთ.',
   'A category needs at least one approved row.': 'კატეგორიას მინიმუმ ერთი დამტკიცებული ჩანაწერი სჭირდება.',
   'A card changed meanwhile. The list is refreshed: check it and approve again.': 'ამასობაში ერთ-ერთი ბარათი შეიცვალა. სია განახლდა: გადაამოწმეთ და ხელახლა დაამტკიცეთ.',
@@ -228,7 +227,6 @@ export const KA_CONTENT: Record<string, string> = {
 
   // lib/td/workflow.ts — why an action is not offered
   'Ready for a publisher to approve.': 'მზადაა: ელოდება გამომქვეყნებლის დამტკიცებას.',
-  'You made the last edit, so another publisher approves it.': 'ბოლო ცვლილება თქვენ შეიტანეთ, ამიტომ მას სხვა გამომქვეყნებელი ამტკიცებს.',
   'Editors archive only their own drafts that nobody else has touched and that were never approved.': 'რედაქტორი მხოლოდ საკუთარ დრაფტს აარქივებს — ისეთს, რომელიც სხვას არ შეუცვლია და არასდროს დამტკიცებულა.',
   'Restore it before editing.': 'რედაქტირებამდე აღადგინეთ.',
   'A publisher restores archived content.': 'დაარქივებულ კონტენტს გამომქვეყნებელი აღადგენს.',

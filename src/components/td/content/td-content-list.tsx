@@ -90,7 +90,7 @@ export function TdContentList<T extends TdContentType>({
   const rows = useMemo(() => list.data?.pages.flatMap((page) => page.items) ?? [], [list.data]);
   const chosen = rows.filter((row) => selected.has(row.id));
   const readyable = chosen.filter((row) => row.status === 'draft');
-  const approvable = user && isTdPublisher(user.role) && !CATEGORY_TYPES.has(type) ? chosen.filter((row) => row.status === 'ready' && row.lastEditor.id !== user.id) : [];
+  const approvable = user && isTdPublisher(user.role) && !CATEGORY_TYPES.has(type) ? chosen.filter((row) => row.status === 'ready') : [];
 
   const resetSelection = () => setSelected(new Set());
   const setFilter = (apply: () => void) => {

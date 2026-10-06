@@ -269,7 +269,6 @@ export function markReady(ctx: MockContext, type: TdContentType, id: string, ver
 function approveRow(ctx: MockContext, row: MockRow) {
   if (row.status !== 'ready')
     throw new MockError(403, 'forbidden_transition', `only a ready row is approved (${row.type} ${row.id} is ${row.status})`);
-  if (row.lastEditor.id === ctx.staff.id) throw new MockError(403, 'self_approval', 'Nobody approves their own last edit');
   const refs = unapprovedRefs(ctx.db, row.type, row.data);
   if (refs.length) throw new MockError(409, 'dependency_unapproved', 'Approve what this refers to first', { refs });
   const moved = row.approved?.puzzle;

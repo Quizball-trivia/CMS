@@ -327,7 +327,7 @@ function EditorBody({
       action,
       () =>
         write(async (operation) => {
-          if (action === 'ready' || action === 'approve') await moveImagesAlong(type, [saved], action, operation, user);
+          if (action === 'ready' || action === 'approve') await moveImagesAlong(type, [saved], action, operation);
           return action === 'approve' ? api.approve(id, version, undefined, operation) : api[action](id, version, operation);
         }),
       done,

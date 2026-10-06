@@ -224,7 +224,7 @@ export function TdQuestionsTab() {
 
   const publisher = user ? isTdPublisher(user.role) : false;
   const canReady = (row: TdContentRow) => row.status === 'draft';
-  const canApprove = (row: TdContentRow) => publisher && row.status === 'ready' && row.lastEditor.id !== user?.id;
+  const canApprove = (row: TdContentRow) => publisher && row.status === 'ready';
   // An editor's archive needs the row's whole history (nobody else touched it): the question dialog checks that.
   const canArchive = (row: TdContentRow) => publisher && row.status !== 'archived';
   const chosen = rows.filter((row) => selected.includes(row.id));
@@ -269,7 +269,7 @@ export function TdQuestionsTab() {
     let failed = 0;
     const results = await runEach(tdTokens, operation, targets, async (row) => {
       try {
-        if ((action === 'ready' || action === 'approve') && user) await moveImagesAlong(mode.type, [row], action, operation, user);
+        if ((action === 'ready' || action === 'approve') && user) await moveImagesAlong(mode.type, [row], action, operation);
         return action === 'approve' ? await api.approve(row.id, row.version, undefined, operation) : await api[action](row.id, row.version, operation);
       } catch (caught) {
         failed++;

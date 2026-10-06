@@ -29,13 +29,11 @@ type Row = Pick<TdContentRow, 'status' | 'version' | 'approvedVersion' | 'lastEd
 export function contentActions(row: Row, me: TdStaff, trail?: { items: ContentHistory['items']; complete: boolean } | null): Record<TdContentAction, TdActionState> {
   const publisher = isTdPublisher(me.role);
   const archived = row.status === 'archived';
-  const ownLastEdit = row.lastEditor.id === me.id;
 
   let approve: TdActionState = { allowed: false };
   if (row.status === 'ready') {
-    if (!publisher) approve = { allowed: false, reason: t('Ready for a publisher to approve.') };
-    else if (ownLastEdit) approve = { allowed: false, reason: t('You made the last edit, so another publisher approves it.') };
-    else approve = { allowed: true };
+    // A publisher approves their own last edit too, as in the Quizball CMS.
+    approve = publisher ? { allowed: true } : { allowed: false, reason: t('Ready for a publisher to approve.') };
   }
 
   let archive: TdActionState = { allowed: !archived && publisher };

@@ -102,7 +102,7 @@ beforeEach(() => {
 afterEach(() => cleanup());
 
 describe('content editor', () => {
-  it('an editor creates a draft and marks it ready; approval is a publisher’s, never the last editor’s', async () => {
+  it('an editor creates a draft and marks it ready; approval is a publisher’s, their own last edit included', async () => {
     await signIn('editor');
     renderTd(<TdContentEditorDialog target={{ type: 'penalty-questions', row: null }} onClose={() => {}} />);
     fireEvent.change(screen.getByLabelText('Question'), { target: { value: 'Capital of Georgia?' } });
@@ -126,13 +126,13 @@ describe('content editor', () => {
     await waitFor(async () => expect((await h.admin.content('penalty-questions').get(row.id)).status).toBe('approved'));
     expect(await screen.findByText('approved')).toBeTruthy();
 
-    // A publisher's own edit waits for another publisher.
+    // As in the Quizball CMS, a publisher approves their own edit.
     const own = await h.admin.content('penalty-questions').create({ data: penalty('own-edit') });
     const ready = await h.admin.content('penalty-questions').ready(own.id, own.version);
     cleanup();
     renderTd(<TdContentEditorDialog target={{ type: 'penalty-questions', row: ready }} onClose={() => {}} startOn="preview" />);
-    expect(await screen.findByText('You made the last edit, so another publisher approves it.')).toBeTruthy();
-    expect(screen.queryByRole('button', { name: 'Approve' })).toBeNull();
+    fireEvent.click(await screen.findByRole('button', { name: 'Approve' }));
+    await waitFor(async () => expect((await h.admin.content('penalty-questions').get(own.id)).status).toBe('approved'));
   });
 
   it('saves the shown answer among the accepted spellings, once, as the rounds count only those', async () => {

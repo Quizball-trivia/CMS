@@ -36,14 +36,13 @@ export interface TdCategoryReview {
  * live card or question approved already or approved with it, at least one,
  * none of those last edited by the approver, at most 500 listed.
  */
-export function reviewCategory(children: Child[], meId: string): TdCategoryReview {
+export function reviewCategory(children: Child[]): TdCategoryReview {
   const withIt: Child[] = [];
   const approved: Child[] = [];
   const blockers: TdCategoryReview['blockers'] = [];
   for (const row of children) {
     if (row.status === 'approved') approved.push(row);
     else if (row.status === 'draft') blockers.push({ row, reason: t('Still a draft: mark it ready (or archive it) first.') });
-    else if (row.status === 'ready' && row.lastEditor.id === meId) blockers.push({ row, reason: t('You made its last edit: another publisher approves it.') });
     else if (row.status === 'ready') withIt.push(row);
   }
   let problem: string | null = null;
@@ -71,7 +70,7 @@ export function TdCategoryApproval({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>(null);
   const [notice, setNotice] = useState<string | null>(null);
-  const review = user && children.data ? reviewCategory(children.data.rows as Child[], user.id) : null;
+  const review = user && children.data ? reviewCategory(children.data.rows as Child[]) : null;
   const cards = childType === 'cards';
 
   const approve = async () => {
@@ -83,7 +82,7 @@ export function TdCategoryApproval({
       const listed = review.withIt.map((row) => ({ id: row.id, version: row.version }));
       const row = await write(async (operation) => {
         // The cards' images go with them, as a question's go with it.
-        await moveImagesAlong(childType, review.withIt as unknown as TdContentRow[], 'approve', operation, user!);
+        await moveImagesAlong(childType, review.withIt as unknown as TdContentRow[], 'approve', operation);
         return tdAdmin.content(type).approve(category.id, category.version, listed, operation);
       });
       onApproved(row);

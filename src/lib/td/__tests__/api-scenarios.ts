@@ -116,10 +116,10 @@ export function apiScenarios(h: () => Harness) {
     const edited = ok(await h().call('publisher', 'PATCH', `/admin/content/penalty-questions/${pen.id}`, { body: { version: pen.version, data: { ...pen.data, display: 'Changed' } } }));
     expect(edited).toMatchObject({ status: 'draft', contentVersion: pen.contentVersion + 1, approvedVersion: pen.contentVersion, approved: { display: 'Answer' } });
     const ready = ok(await step('publisher', 'penalty-questions', edited, 'ready'));
-    expect(await step('publisher', 'penalty-questions', ready, 'approve')).toMatchObject({ status: 403, body: { code: 'self_approval' } });
     expect(await step('editor', 'penalty-questions', ready, 'approve')).toMatchObject({ status: 403, body: { code: 'forbidden' } });
     expect(await step('publisher', 'penalty-questions', ready, 'ready')).toMatchObject({ status: 403, body: { code: 'forbidden_transition' } });
-    made['penalty-questions'] = ok(await step('betsson_admin', 'penalty-questions', ready, 'approve'));
+    // As in the Quizball CMS, a publisher approves their own last edit.
+    made['penalty-questions'] = ok(await step('publisher', 'penalty-questions', ready, 'approve'));
     const taken = await h().call('editor', 'POST', '/admin/content/penalty-questions', { body: { data: sample('penalty-questions') } });
     expect(taken).toMatchObject({ status: 409, body: { code: 'already_exists' } });
   });

@@ -29,14 +29,14 @@ export async function findImage(key: string, options?: TdOperation): Promise<TdC
   return null;
 }
 
-export async function moveImagesAlong(type: TdContentType, rows: readonly TdContentRow[], action: 'ready' | 'approve', operation: TdOperation, me: { id: string }): Promise<void> {
+export async function moveImagesAlong(type: TdContentType, rows: readonly TdContentRow[], action: 'ready' | 'approve', operation: TdOperation): Promise<void> {
   // Approved only for questions still at the revision reviewed. A question changed in the moment between this
   // check and its own approval is refused while its image stays approved: an image never approved before is
   // shown by no approved question, so approving it changes no release.
   if (action === 'approve') {
     for (const row of rows) {
       const now = await tdAdmin.content(type).get(row.id, operation);
-      if (now.version !== row.version || now.status !== 'ready' || now.lastEditor.id === me.id) return;
+      if (now.version !== row.version || now.status !== 'ready') return;
     }
   }
   for (const key of imageKeysOf(type, rows)) {
@@ -47,7 +47,7 @@ export async function moveImagesAlong(type: TdContentType, rows: readonly TdCont
       // question showing it, so it is approved on its own (Image details), never by approving one question.
       if (image.approvedVersion !== null) continue;
       if (action === 'ready' && image.status === 'draft') await tdAdmin.content('media').ready(image.id, image.version, operation);
-      if (action === 'approve' && image.status === 'ready' && image.lastEditor.id !== me.id) await tdAdmin.content('media').approve(image.id, image.version, undefined, operation);
+      if (action === 'approve' && image.status === 'ready') await tdAdmin.content('media').approve(image.id, image.version, undefined, operation);
     } catch {
       // The question's own step says why.
     }

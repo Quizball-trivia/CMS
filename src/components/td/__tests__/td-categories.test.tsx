@@ -257,7 +257,7 @@ describe('the Categories page', () => {
     expect((await rowOf(admin, 'touched')).status).toBe('draft');
   });
 
-  it('approves a category with its ready cards, as a publisher; the last editor cannot', async () => {
+  it('approves a category with its ready cards, as a publisher, their own category too', async () => {
     const editor = await clientFor('editor');
     const category = await editor.admin.content('card-categories').create({ data: { key: 'coaches', prompt: 'Famous coaches' } });
     for (const key of ['ferguson', 'wenger']) {
@@ -282,13 +282,21 @@ describe('the Categories page', () => {
     expect(within(cardOf('Famous coaches')).getByText('Approved')).toBeTruthy();
     cleanup();
 
-    // A category the publisher made the last edit to waits for another publisher.
+    // As in the Quizball CMS, the publisher approves a category (and cards) they made themselves.
     const own = await publisher.admin.content('card-categories').create({ data: { key: 'own', prompt: 'My own category' } });
+    const mineCard = await publisher.admin.content('cards').create({ data: card('mourinho', 'own') });
+    await publisher.admin.content('cards').ready(mineCard.id, mineCard.version);
     await publisher.admin.content('card-categories').ready(own.id, own.version);
     renderPage();
     const mine = await openDialog('My own category');
-    expect(within(mine).queryByRole('button', { name: 'Approve' })).toBeNull();
-    expect(within(mine).getByText('You made the last edit, so another publisher approves it.')).toBeTruthy();
+    expect(await within(mine).findByText('Cards (1)')).toBeTruthy();
+    fireEvent.click(within(mine).getByRole('button', { name: 'Approve' }));
+    const ownApproval = await screen.findByRole('dialog', { name: /Approve the category with its cards/ });
+    await waitFor(() => expect(within(ownApproval).getByRole('button', { name: 'Approve' }).hasAttribute('disabled')).toBe(false));
+    fireEvent.click(within(ownApproval).getByRole('button', { name: 'Approve' }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    expect((await rowOf(publisher.admin, 'own')).status).toBe('approved');
+    expect((await publisher.admin.content('cards').get(mineCard.id)).status).toBe('approved');
   });
 
   it('lists a category’s cards in its dialog', async () => {

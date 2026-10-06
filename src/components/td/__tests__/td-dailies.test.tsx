@@ -277,18 +277,12 @@ describe('the Daily Challenges page', () => {
     await waitFor(() => expect(screen.queryByText(/has a category of its own/)).toBeNull());
   });
 
-  it('a publisher’s own edit waits for another publisher', async () => {
+  it('a publisher approves their own edit, as in the Quizball CMS', async () => {
     await signIn('publisher');
     renderTd(<TdDailiesTab />);
     fireEvent.change(await screen.findByLabelText('Seconds / Question'), { target: { value: '40' } });
     fireEvent.click(screen.getByRole('button', { name: 'Save' }));
     fireEvent.click(await screen.findByRole('button', { name: 'Mark ready' }));
-    expect(await screen.findByText('You made the last edit, so another publisher approves it.')).toBeTruthy();
-    expect(screen.queryByRole('button', { name: 'Approve' })).toBeNull();
-    cleanup();
-
-    await signIn('ops');
-    renderTd(<TdDailiesTab />);
     fireEvent.click(await screen.findByRole('button', { name: 'Approve' }));
     await waitFor(() => expect(screen.getByText('Approved', { selector: '[data-slot="badge"]' })).toBeTruthy());
     expect((await settingsOf('footballLogic')).approved?.seconds).toBe(40);
