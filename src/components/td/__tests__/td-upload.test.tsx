@@ -347,6 +347,29 @@ describe('the upload dialog', () => {
     expect(image!.data.uploadId).toBeTruthy();
   });
 
+  it('takes the file and its pictures chosen together, says which pictures are still missing, and adds pictures chosen later', async () => {
+    const { admin } = await signIn('editor');
+    await openDialog({ initialType: 'cards', initialCategory: 'legends' });
+    const file = txt('1.\nClue 1: ა\nAnswer: პირველი\nPoints: 1\nImage: one.png\n2.\nClue 1: ბ\nAnswer: მეორე\nPoints: 1\nImage: two.png\n3.\nClue 1: გ\nAnswer: მესამე\nPoints: 1\nImage: three.png', 'cards.txt');
+    fireEvent.change(screen.getByLabelText(/Question File/), { target: { files: [file, png('one.png')] } });
+    expect(await screen.findByRole('img', { name: 'one.png' })).toBeTruthy();
+    expect(await screen.findByText('The file names 2 pictures not chosen yet: two.png, three.png. Choose them here.')).toBeTruthy();
+    // Chosen later, a picture joins those already chosen.
+    choosePictures(png('two.png', RED));
+    expect(await screen.findByRole('img', { name: 'two.png' })).toBeTruthy();
+    expect(screen.getByRole('img', { name: 'one.png' })).toBeTruthy();
+    expect(await screen.findByText('The file names a picture not chosen yet: three.png. Choose it here.')).toBeTruthy();
+    choosePictures(png('three.png'));
+    await waitFor(() => expect(screen.queryByText(/not chosen yet/)).toBeNull());
+    const upload = await uploadButton(3);
+    await waitFor(() => expect(upload.hasAttribute('disabled')).toBe(false));
+    fireEvent.click(upload);
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    const cards = await uploaded(admin, 'cards');
+    expect(cards).toHaveLength(3);
+    expect(cards.every((card) => card.data.imageKey?.startsWith('pic-'))).toBe(true);
+  });
+
   it('keeps only the cards it could not update, and updates them on the card as it is now when asked again', async () => {
     const { admin } = await signIn('editor');
     await openDialog({ initialType: 'cards', initialCategory: 'legends' });

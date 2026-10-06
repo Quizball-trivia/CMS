@@ -159,6 +159,8 @@ function updatedCard(question: ParsedCard, card: TdContentRow<'cards'>, imageKey
   });
 }
 
+const PICTURE_NAME = /\.(?:jpe?g|png|webp)$/i;
+
 const issueText = (issue: RowIssue) => `${ISSUE_TITLES[issue.code]}${issue.path ? ` (${issue.path})` : ''}: ${issue.message}`;
 
 export interface TdBulkUploadDialogProps {
@@ -299,6 +301,10 @@ function UploadBody({ open, initialType, initialCategory, initialPuzzle, onBusy,
     (type !== 'career-path' || !clubRows.isLoading) &&
     (type !== 'cards' || (!categoryCards.isLoading && !mediaRows.isLoading));
   const pictureKeys = useMemo(() => new Map(pictures.map((picture) => [picture.name.toLowerCase(), picture.key])), [pictures]);
+  const missingPictures = useMemo(
+    () => [...new Set(questions.flatMap((question) => ('imageFile' in question && question.imageFile && !pictureKeys.has(question.imageFile.toLowerCase()) ? [question.imageFile] : [])))],
+    [questions, pictureKeys],
+  );
   const existingCard = useCallback(
     (question: TdParsedQuestion): TdContentRow<'cards'> | null => {
       if (question.kind !== 'cards') return null;
@@ -371,7 +377,16 @@ function UploadBody({ open, initialType, initialCategory, initialPuzzle, onBusy,
   }, [questions, entries, checked, unselected, pictureKeys, context, mediaByKey, mediaRows.isError, mediaRows.isSuccess]);
 
   const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
+    // The .txt and the pictures it names may be chosen together.
+    const files = [...(event.target.files ?? [])];
+    const images = takesPictures ? files.filter((candidate) => PICTURE_NAME.test(candidate.name)) : [];
+    const texts = files.filter((candidate) => !images.includes(candidate));
+    if (images.length > 0) void addPictures(images);
+    if (texts.length > 1) {
+      toast.error(t('Choose one .txt file, with its pictures if it names any'));
+      return;
+    }
+    const file = texts[0];
     if (!file) return;
 
     // Validate file type
@@ -433,10 +448,13 @@ function UploadBody({ open, initialType, initialCategory, initialPuzzle, onBusy,
   };
 
   // The object URLs of the pictures shown go when they do.
-  useEffect(() => () => pictures.forEach((picture) => URL.revokeObjectURL(picture.url)), [pictures]);
+  // The object URLs of the pictures go with the dialog (one replaced by a picture of the same name goes at once).
+  const shownPictures = useRef(pictures);
+  shownPictures.current = pictures;
+  useEffect(() => () => shownPictures.current.forEach((picture) => URL.revokeObjectURL(picture.url)), []);
 
-  const handlePictures = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const files = [...(event.target.files ?? [])];
+  /** Adds the pictures to those chosen; one of a name already chosen replaces it. */
+  const addPictures = async (files: File[]) => {
     const chosen: Picture[] = [];
     for (const file of files) {
       const problem = uploadProblem(file);
@@ -447,7 +465,15 @@ function UploadBody({ open, initialType, initialCategory, initialPuzzle, onBusy,
       const key = `pic-${(await sha256Hex(await file.arrayBuffer())).slice(0, 24)}`;
       chosen.push({ name: file.name, file, key, url: URL.createObjectURL(file) });
     }
-    setPictures(chosen);
+    setPictures((current) => {
+      const byName = new Map(current.map((picture) => [picture.name.toLowerCase(), picture]));
+      for (const picture of chosen) {
+        const replaced = byName.get(picture.name.toLowerCase());
+        if (replaced) URL.revokeObjectURL(replaced.url);
+        byName.set(picture.name.toLowerCase(), picture);
+      }
+      return [...byName.values()];
+    });
   };
 
   const handleRemoveQuestion = (id: string) => {
@@ -809,33 +835,46 @@ function UploadBody({ open, initialType, initialCategory, initialPuzzle, onBusy,
                 ref={fileInputRef}
                 id="file"
                 type="file"
-                accept=".txt"
+                accept={takesPictures ? '.txt,image/jpeg,image/png,image/webp' : '.txt'}
+                multiple={takesPictures}
                 onChange={handleFileSelect}
                 // Chosen again after a fix, the same file is read again.
                 onClick={(event) => {
                   event.currentTarget.value = '';
                 }}
               />
-              <p className="text-sm text-muted-foreground">{t('Upload a .txt file (max {mb} MB)', { mb: Math.round(MAX_MB) })}</p>
+              <p className="text-sm text-muted-foreground">
+                {takesPictures ? t('The .txt file (max {mb} MB), and the pictures it names: choose them together.', { mb: Math.round(MAX_MB) }) : t('Upload a .txt file (max {mb} MB)', { mb: Math.round(MAX_MB) })}
+              </p>
             </div>
           </div>
 
           {/* Pictures the file names on its Image lines */}
           {takesPictures && (
             <div className="space-y-2">
-              <Label htmlFor="pictures">{t('Pictures (optional)')}</Label>
+              <Label htmlFor="pictures">{t('Pictures')}</Label>
+              {missingPictures.length > 0 && (
+                <Alert className="border-amber-300 bg-amber-50 text-amber-900">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription>
+                    {tn(missingPictures.length, 'The file names a picture not chosen yet: {names}. Choose it here.', 'The file names {count} pictures not chosen yet: {names}. Choose them here.', {
+                      names: missingPictures.length > 4 ? `${missingPictures.slice(0, 4).join(', ')}…` : missingPictures.join(', '),
+                    })}
+                  </AlertDescription>
+                </Alert>
+              )}
               <Input
                 id="pictures"
                 type="file"
                 multiple
                 accept="image/jpeg,image/png,image/webp"
-                onChange={(event) => void handlePictures(event)}
+                onChange={(event) => void addPictures([...(event.target.files ?? [])])}
                 // Chosen again, the same pictures are read again.
                 onClick={(event) => {
                   event.currentTarget.value = '';
                 }}
               />
-              <p className="text-sm text-muted-foreground">{t('The pictures the file names on its Image lines: JPEG, PNG or WebP, at most 2 MB each. Choose them all at once.')}</p>
+              <p className="text-sm text-muted-foreground">{t('The pictures the file names on its Image lines: JPEG, PNG or WebP, at most 2 MB each. Pictures chosen again are added.')}</p>
               {pictures.length > 0 && (
                 <div className="rounded-lg border p-3">
                   <div className="flex flex-wrap gap-2">

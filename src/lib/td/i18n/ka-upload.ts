@@ -130,8 +130,6 @@ export const KA_UPLOAD: Record<string, string> = {
   'Choose the picture {name} under Pictures': 'სურათებში აირჩიეთ {name}',
   'The picture {name} could not be saved: {error}': 'სურათი {name} ვერ შეინახა: {error}',
   'The card {name} was not updated: {error}': 'ბარათი {name} ვერ განახლდა: {error}',
-  'Pictures (optional)': 'სურათები (არასავალდებულო)',
-  'The pictures the file names on its Image lines: JPEG, PNG or WebP, at most 2 MB each. Choose them all at once.': 'სურათები, რომლებსაც ფაილი Image ხაზებში ასახელებს: JPEG, PNG ან WebP, თითო მაქსიმუმ 2 MB. აირჩიეთ ყველა ერთად.',
   Author: 'ავტორი',
   'Updates the card': 'ბარათს განაახლებს',
   '{count} cards updated': 'განახლდა {count} ბარათი',
@@ -148,4 +146,9 @@ export const KA_UPLOAD: Record<string, string> = {
   'A new card needs a clue line or a picture': 'ახალ ბარათს მინიშნება ან სურათი სჭირდება',
   'The sign-in changed, so the upload stopped. Check the cards before you upload again.': 'შესვლა შეიცვალა, ამიტომ ატვირთვა შეჩერდა. ხელახლა ატვირთვამდე ბარათები გადაამოწმეთ.',
   'The images could not be loaded to check this key. Close the upload and open it again.': 'სურათები ვერ ჩაიტვირთა ამ ID-ის შესამოწმებლად. დახურეთ ატვირთვა და ხელახლა გახსენით.',
+  'Choose one .txt file, with its pictures if it names any': 'აირჩიეთ ერთი .txt ფაილი და, თუ ასახელებს, მისი სურათები',
+  'The .txt file (max {mb} MB), and the pictures it names: choose them together.': '.txt ფაილი (მაქს. {mb} MB) და მასში დასახელებული სურათები: აირჩიეთ ერთად.',
+  'Pictures': 'სურათები',
+  'The pictures the file names on its Image lines: JPEG, PNG or WebP, at most 2 MB each. Pictures chosen again are added.': 'სურათები, რომლებსაც ფაილი Image ხაზებზე ასახელებს: JPEG, PNG ან WebP, თითო მაქსიმუმ 2 MB. ხელახლა არჩეული სურათები ემატება.',
+  'The file names {count} pictures not chosen yet: {names}. Choose them here.': 'ფაილი ასახელებს {count} სურათს, რომლებიც ჯერ არ არის არჩეული: {names}. აირჩიეთ აქ.',
 };
