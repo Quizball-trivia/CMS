@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { redirect, useRouter } from 'next/navigation';
 import { ShieldOff } from 'lucide-react';
 import { useAuth } from '@/providers';
 import { Button } from '@/components/ui/button';
@@ -9,6 +9,8 @@ import { cmsRole, homeForRole } from '@/lib/freecroco/access';
 
 /** Signed in, but the account has no CMS role (or lost it): nothing to open here except signing out. */
 export default function NoAccessPage() {
+  // Unreachable in a Table Derby build (the proxy redirects first); this covers prerendering, like the home page.
+  if (process.env.NEXT_PUBLIC_CMS_WORKSPACE === 'table-derby') redirect('/td');
   const { user, isAuthenticated, isLoading, logout } = useAuth();
   const router = useRouter();
   const hasAccess = cmsRole(user?.role) !== 'none';
