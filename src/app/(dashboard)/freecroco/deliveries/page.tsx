@@ -261,7 +261,14 @@ export default function FreecrocoDeliveriesPage() {
               })}
             </TableBody>
           </Table>
-          {deliveries.error && <p className="text-sm text-red-600">Could not load more deliveries. Try again.</p>}
+          {deliveries.error && (
+            <p className="flex items-center gap-2 text-sm text-red-600">
+              Could not refresh deliveries; the rows shown may be out of date.
+              <Button variant="outline" size="sm" onClick={() => deliveries.refetch()} disabled={deliveries.isFetching}>
+                Retry
+              </Button>
+            </p>
+          )}
           {deliveries.hasNextPage && (
             <Button variant="outline" onClick={() => deliveries.fetchNextPage()} disabled={deliveries.isFetchingNextPage}>
               {deliveries.isFetchingNextPage ? 'Loading…' : 'Load more'}
