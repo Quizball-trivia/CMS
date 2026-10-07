@@ -165,7 +165,7 @@ export default function FreecrocoDeliveriesPage() {
 
       {deliveries.isLoading ? (
         <p className="text-sm text-gray-400">Loading…</p>
-      ) : deliveries.error ? (
+      ) : deliveries.error && items.length === 0 ? (
         <div className="space-y-3">
           <p className="text-sm text-red-500">Failed to load deliveries.</p>
           <Button variant="outline" size="sm" disabled={deliveries.isFetching} onClick={() => void deliveries.refetch()}>
@@ -261,6 +261,7 @@ export default function FreecrocoDeliveriesPage() {
               })}
             </TableBody>
           </Table>
+          {deliveries.error && <p className="text-sm text-red-600">Could not load more deliveries. Try again.</p>}
           {deliveries.hasNextPage && (
             <Button variant="outline" onClick={() => deliveries.fetchNextPage()} disabled={deliveries.isFetchingNextPage}>
               {deliveries.isFetchingNextPage ? 'Loading…' : 'Load more'}
