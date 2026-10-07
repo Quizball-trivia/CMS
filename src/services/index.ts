@@ -13,3 +13,4 @@ export { auctionPipelineService } from './auction-pipeline.service';
 export { botTuningService } from './bot-tuning.service';
 export { campaignQuizPagesService } from './campaign-quiz-pages.service';
 export { retentionService } from './retention.service';
+export { freecrocoService, isFreecrocoMock } from './freecroco.service';

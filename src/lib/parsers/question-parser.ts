@@ -536,10 +536,13 @@ function parseCountdownBlock(block: ParsedBlock): { question?: ParsedCountdownQu
   };
 }
 
-function parseClueChainBlock(block: ParsedBlock): { question?: ParsedClueChainQuestion; errors: ParseError[] } {
+function parseClueChainBlock(
+  block: ParsedBlock,
+  options: ParseOptions = {},
+): { question?: ParsedClueChainQuestion; errors: ParseError[] } {
   const metadata = finalizeMetadata(block);
   const errors = [...metadata.errors];
-  const clueLines = metadata.contentLines.filter((line) => /^Clue\s+\d+:/i.test(line));
+  const clueLines = metadata.contentLines.filter((line) => /^Clue\s+\d+\s*:/i.test(line));
   const answerLine = metadata.contentLines.find((line) => /^Answer:/i.test(line));
 
   if (clueLines.length < 2) {
@@ -551,8 +554,12 @@ function parseClueChainBlock(block: ParsedBlock): { question?: ParsedClueChainQu
     });
   }
 
-  const clueNumbers = clueLines.map((line) => Number.parseInt(line.match(/^Clue\s+(\d+):/i)?.[1] ?? '0', 10));
+  // Weekend League editors write the vaguest clue first and number them
+  // 5 → 1 ("Clue 5" is revealed first). In as-listed mode the numbers are
+  // labels only: the order on the page is the order the game reveals.
+  const clueNumbers = clueLines.map((line) => Number.parseInt(line.match(/^Clue\s+(\d+)\s*:/i)?.[1] ?? '0', 10));
   clueNumbers.forEach((number, index) => {
+    if (options.clueOrder === 'as-listed') return;
     if (number !== index + 1) {
       errors.push({
         lineNumber: block.lineNumber,
@@ -581,7 +588,7 @@ function parseClueChainBlock(block: ParsedBlock): { question?: ParsedClueChainQu
     question: {
       kind: 'clue_chain',
       questionNumber: block.questionNumber,
-      clues: clueLines.map((line) => line.replace(/^Clue\s+\d+:\s*/i, '').trim()),
+      clues: clueLines.map((line) => line.replace(/^Clue\s+\d+\s*:\s*/i, '').trim()),
       displayAnswer: parsedAnswer.display,
       acceptedAnswers: parsedAnswer.aliases,
       difficulty: metadata.difficulty!,
@@ -952,7 +959,12 @@ function parseFootballLogicBlock(block: ParsedBlock): { question?: ParsedFootbal
   };
 }
 
-export function parseQuestionFile(content: string, type: UploadQuestionType): ParseResult {
+export interface ParseOptions {
+  /** 'sequential' (default) requires Clue 1..N in order; 'as-listed' keeps file order and ignores the numbers. */
+  clueOrder?: 'sequential' | 'as-listed';
+}
+
+export function parseQuestionFile(content: string, type: UploadQuestionType, options: ParseOptions = {}): ParseResult {
   const { blocks, errors } = splitIntoBlocks(content, type);
   const questions: ParsedBulkQuestion[] = [];
 
@@ -965,7 +977,7 @@ export function parseQuestionFile(content: string, type: UploadQuestionType): Pa
           : type === 'countdown_list'
             ? parseCountdownBlock(block)
             : type === 'clue_chain'
-              ? parseClueChainBlock(block)
+              ? parseClueChainBlock(block, options)
               : type === 'put_in_order'
                 ? parsePutInOrderBlock(block)
                 : type === 'imposter_multi_select'

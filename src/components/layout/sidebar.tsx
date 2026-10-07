@@ -4,8 +4,11 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
+import { useAuth } from '@/providers';
+import { cmsRole, FREECROCO_ROOT, FREECROCO_STAFF, navGroupsForRole, navItemsForRole } from '@/lib/freecroco/access';
 import {
   Activity,
+  ChartColumn,
   Bot,
   CalendarDays,
   ChevronRight,
@@ -14,12 +17,18 @@ import {
   FolderKanban,
   Gamepad2,
   Gavel,
+  Gamepad,
+  Egg,
+  Send,
+  UserSearch,
   Mail,
   Megaphone,
   PanelsTopLeft,
   Settings2,
   SlidersHorizontal,
   Trophy,
+  Upload,
+  UserCog,
   Users,
 } from 'lucide-react';
 
@@ -32,6 +41,8 @@ type NavGroup = {
     title: string;
     href: string;
     icon: typeof Trophy;
+    /** Active only on this exact path, for a child whose href is the group's root. */
+    exact?: boolean;
   }>;
 };
 
@@ -67,8 +78,24 @@ const navGroups: NavGroup[] = [
     routes: ['/weekend-league', '/daily-challenges', '/auction'],
     children: [
       { title: 'Weekend League', href: '/weekend-league', icon: Trophy },
+      { title: 'WL Content', href: '/weekend-league/content', icon: Upload },
       { title: 'Daily Challenges', href: '/daily-challenges', icon: CalendarDays },
       { title: 'Auction Cards', href: '/auction', icon: Gavel },
+    ],
+  },
+  {
+    title: 'Freecroco',
+    href: FREECROCO_ROOT,
+    icon: Egg,
+    routes: [FREECROCO_ROOT],
+    children: [
+      { title: 'Overview', href: FREECROCO_ROOT, icon: ChartColumn, exact: true },
+      { title: 'Games', href: `${FREECROCO_ROOT}/games`, icon: Gamepad },
+      { title: 'Calendar', href: `${FREECROCO_ROOT}/calendar`, icon: CalendarDays },
+      { title: 'Ranked points', href: `${FREECROCO_ROOT}/ranked-points`, icon: Trophy },
+      { title: 'Deliveries', href: `${FREECROCO_ROOT}/deliveries`, icon: Send },
+      { title: 'Players', href: `${FREECROCO_ROOT}/players`, icon: UserSearch },
+      { title: 'Staff', href: FREECROCO_STAFF, icon: UserCog },
     ],
   },
   {
@@ -93,11 +120,16 @@ function matches(pathname: string, route: string): boolean {
 
 export function Sidebar() {
   const pathname = usePathname();
+  const { user } = useAuth();
+  const groups = navGroupsForRole(navGroups, user?.role).map((group) => ({
+    ...group,
+    children: navItemsForRole(group.children, user?.role),
+  }));
 
   return (
     <aside className="sticky top-0 z-[100] flex h-screen w-20 shrink-0 flex-col border-r border-slate-200/80 bg-white lg:w-60">
       <Link
-        href="/stats"
+        href={cmsRole(user?.role) === 'partner_staff' ? FREECROCO_ROOT : '/stats'}
         aria-label="QuizBall CMS home"
         className="flex h-24 items-center justify-center border-b border-slate-100 px-3 lg:justify-start lg:px-6"
       >
@@ -112,7 +144,7 @@ export function Sidebar() {
       </Link>
 
       <nav className="scrollbar-hide flex-1 space-y-1 overflow-y-auto px-3 py-5 lg:px-4" aria-label="CMS navigation">
-        {navGroups.map((group) => {
+        {groups.map((group) => {
           const isGroupActive = group.routes.some((route) => matches(pathname, route));
           const GroupIcon = group.icon;
 
@@ -138,7 +170,7 @@ export function Sidebar() {
               {isGroupActive && (
                 <div className="space-y-1 pb-2 pt-1 lg:hidden">
                   {group.children.map((item) => {
-                    const isActive = matches(pathname, item.href);
+                    const isActive = item.exact ? pathname === item.href : matches(pathname, item.href);
                     const ItemIcon = item.icon;
                     return (
                       <Link
@@ -163,7 +195,7 @@ export function Sidebar() {
               {isGroupActive && (
                 <div className="hidden space-y-1 pb-2 pl-4 pt-1 lg:block">
                   {group.children.map((item) => {
-                    const isActive = matches(pathname, item.href);
+                    const isActive = item.exact ? pathname === item.href : matches(pathname, item.href);
                     const ItemIcon = item.icon;
                     return (
                       <Link

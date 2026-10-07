@@ -1,8 +1,9 @@
 'use client';
 
 import { useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { notFound, useRouter } from 'next/navigation';
 import { useAuth } from '@/providers';
+import { homeForRole } from '@/lib/freecroco/access';
 import { Loader2 } from 'lucide-react';
 
 export default function AuthLayout({
@@ -10,14 +11,17 @@ export default function AuthLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const { isAuthenticated, isLoading } = useAuth();
+  // A Table Derby build still compiles this route group but must never render it. The literal
+  // comparison is folded at build time, so a Quizball build compiles to exactly what it was.
+  if (process.env.NEXT_PUBLIC_CMS_WORKSPACE === 'table-derby') notFound();
+  const { user, isAuthenticated, isLoading } = useAuth();
   const router = useRouter();
 
   useEffect(() => {
     if (!isLoading && isAuthenticated) {
-      router.push('/categories');
+      router.push(homeForRole(user?.role));
     }
-  }, [isAuthenticated, isLoading, router]);
+  }, [isAuthenticated, isLoading, router, user?.role]);
 
   if (isLoading) {
     return (

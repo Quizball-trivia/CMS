@@ -1,0 +1,15 @@
+{
+  "contract": "table-derby-admin",
+  "version": 6,
+  "source": {
+    "repo": "Quizball-trivia/table-derby",
+    "commit": "f76bb294517b442bce1a5fa613cc62dda63dd524"
+  },
+  "files": {
+    "admin-contract.d.ts": "1cb340f7e5fbdbe782eb32b0a886a0d5734661e2e6c6f622956c384be3522d4c",
+    "admin-contract.json": "e974d3d848029422dd3a1e179483daf32192d386c148eb047fde4a6c5393de39",
+    "fixtures/examples.json": "fdc3f5ed507df8ab6ff1d87004617e792ba80acbe39767bf73723cd7c37bd6c0",
+    "fixtures/refresh-scenarios.json": "5b07a333d274b05a95639d1fbc1db89f666d58308448591e727f01d2e52739df",
+    "fixtures/validation-cases.json": "834538b60d0b735777e401e3f0131f8f9e5bdcc7b1f87df2e0fc351b81ba1816"
+  }
+}

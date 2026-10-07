@@ -1,9 +1,10 @@
 'use client';
 
 import { useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { notFound, usePathname, useRouter } from 'next/navigation';
 import { useAuth } from '@/providers';
 import { Sidebar, Header, EnvironmentBanner } from '@/components/layout';
+import { guardRedirect } from '@/lib/freecroco/access';
 import { Loader2 } from 'lucide-react';
 
 export default function DashboardLayout({
@@ -11,14 +12,22 @@ export default function DashboardLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const { isAuthenticated, isLoading } = useAuth();
+  // A Table Derby build still compiles this route group but must never render it. The literal
+  // comparison is folded at build time, so a Quizball build compiles to exactly what it was.
+  if (process.env.NEXT_PUBLIC_CMS_WORKSPACE === 'table-derby') notFound();
+  const { user, isAuthenticated, isLoading } = useAuth();
   const router = useRouter();
+  const pathname = usePathname();
+  // Partner staff may only see the Freecroco section; the server enforces it too.
+  const redirectTo = isAuthenticated ? guardRedirect(user?.role, pathname) : null;
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
       router.push('/login');
+    } else if (redirectTo) {
+      router.replace(redirectTo);
     }
-  }, [isAuthenticated, isLoading, router]);
+  }, [isAuthenticated, isLoading, redirectTo, router]);
 
   if (isLoading) {
     return (
@@ -29,7 +38,8 @@ export default function DashboardLayout({
     );
   }
 
-  if (!isAuthenticated) {
+  // Render nothing while redirecting so a forbidden page never mounts or fires its queries.
+  if (!isAuthenticated || redirectTo) {
     return null;
   }
 
