@@ -85,8 +85,8 @@ export function FootballLogicEditor({ value, onChange, issues, creating }: TdEdi
       </div>
       <TdTextField label={t('Prompt (optional)')} multiline value={value.prompt} onChange={(prompt) => onChange({ ...value, prompt })} issues={issuesAt(issues, 'data.prompt')} />
       <div className="grid gap-3 sm:grid-cols-2">
-        <TdMediaPicker label={t('Picture A')} value={value.imageAKey} onChange={(imageAKey) => onChange((current) => ({ ...current, imageAKey }))} suggestedKey={value.key ? `${value.key}-a` : undefined} hint={t('Upload a picture or choose one. It is shown instead of the path or link below.')} />
-        <TdMediaPicker label={t('Picture B')} value={value.imageBKey} onChange={(imageBKey) => onChange((current) => ({ ...current, imageBKey }))} suggestedKey={value.key ? `${value.key}-b` : undefined} />
+        <TdMediaPicker label={t('Picture A')} value={value.imageAKey} onChange={(imageAKey) => onChange((current) => ({ ...current, imageAKey }))} hint={t('Upload a picture or choose one. It is shown instead of the path or link below.')} />
+        <TdMediaPicker label={t('Picture B')} value={value.imageBKey} onChange={(imageBKey) => onChange((current) => ({ ...current, imageBKey }))} />
       </div>
       <div className="grid gap-3 sm:grid-cols-2">
         <TdOptionalTextField label={t('Image A')} value={value.imageA} onChange={(imageA) => onChange({ ...value, imageA })} issues={issuesAt(issues, 'data.imageA')} placeholder={t('/assets/… or https://…')} />

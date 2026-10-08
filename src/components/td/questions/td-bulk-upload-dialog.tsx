@@ -261,7 +261,8 @@ function UploadBody({ open, initialType, initialCategory, types, onBusy, onClose
   const practiceRows = useTdAllRows('practice-questions', { status: STATUSES }, type === 'practice-questions');
   const logicRows = useTdAllRows('football-logic', { status: STATUSES }, type === 'football-logic');
   const clubRows = useTdAllRows('clubs', { status: STATUSES }, type === 'career-path');
-  const mediaRows = useTdAllRows('media', { status: STATUSES }, type === 'cards' || type === 'practice-questions');
+  // Every type whose questions may name an uploaded image by its key.
+  const mediaRows = useTdAllRows('media', { status: STATUSES }, type === 'cards' || type === 'practice-questions' || type === 'football-logic');
   const takesPictures = type === 'cards' || type === 'practice-questions' || type === 'football-logic';
 
   const categoryOptions = useMemo(() => {

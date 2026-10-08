@@ -1073,6 +1073,21 @@ describe('the upload dialog', () => {
     expect(within(preview).getAllByText(/პირველი მინიშნება/)).toHaveLength(1);
   });
 
+  it('shows a Football Logic image named by the key of an uploaded image in the preview, and says when no image has the key', async () => {
+    await signIn('editor');
+    await openDialog({ initialType: 'football-logic', initialCategory: 'Clubs' });
+    chooseFile(txt('1. Prompt: რომელი სტადიონია?\nImage A: dinamo-stadium\nAnswer: დინამო არენა\n2. Prompt: და ეს?\nImage A: no-such-image\nAnswer: სხვა'));
+    fireEvent.click(await screen.findByText('რომელი სტადიონია?'));
+    const preview = await screen.findByRole('dialog', { name: 'Question Preview' });
+    expect(within(preview).getByText('dinamo-stadium')).toBeTruthy();
+    // Once the images are read, the one on file is known.
+    await waitFor(() => expect(within(preview).getByText('1 of 2')).toBeTruthy());
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(within(preview).queryByText('No uploaded image has this key')).toBeNull();
+    fireEvent.click(within(preview).getByRole('button', { name: 'Next' }));
+    expect(await within(preview).findByText('No uploaded image has this key')).toBeTruthy();
+  });
+
   it('steps through the questions of the list with the arrows of the preview', async () => {
     await signIn('editor');
     await openDialog({ initialType: 'penalty-questions' });
