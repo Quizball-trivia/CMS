@@ -1179,6 +1179,15 @@ describe('the upload dialog', () => {
     expect(second).toMatchObject({ imageAKey: first.imageAKey, imageBKey: null });
   });
 
+  it('refuses a Football Logic question with neither text nor a picture, and takes one with either', async () => {
+    await signIn('editor');
+    await openDialog({ initialType: 'football-logic', initialCategory: 'Clubs' });
+    chooseFile(txt('1.\nAnswer: Milan\n2. Prompt: ვინ?\nAnswer: Inter\n3.\nImage A: /assets/daily/football-logic/juventus-fc.webp\nAnswer: Juventus'));
+    expect(await screen.findAllByText(/A question needs its text or a picture$/)).toHaveLength(1);
+    expect(screen.getByText('1 question has a problem: remove it or fix the file')).toBeTruthy();
+    expect((await uploadButton(3)).hasAttribute('disabled')).toBe(true);
+  });
+
   it('uploads Round III questions into the category the page was showing', async () => {
     const { admin } = await signIn('editor');
     await openDialog({ initialType: 'box-questions', initialCategory: 'world-cups' });

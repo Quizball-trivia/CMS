@@ -96,8 +96,13 @@ function whenText(day: TdDay, today: string | null): string {
   if (next) return next === today ? t('Today · {date}', { date: formatDay(next) }) : formatDay(next);
   const played = day.dates[day.dates.length - 1];
   if (played) return t('Played {date}', { date: formatDay(played) });
-  if (day.repeats) return t('In the repeat order');
+  if (day.repeats) return t('No date');
   return t('Not published');
+}
+
+/** What a day without a date still does, said under it: it is played all the same. */
+function whenNote(day: TdDay): string | null {
+  return day.dates.length === 0 && day.repeats ? t('Played in turn, after the dated days') : null;
 }
 
 function statusText(day: TdDay, size: number): string {
@@ -299,7 +304,10 @@ export function TdDailiesTab() {
                       />
                     )}
                     <button type="button" className="flex min-w-0 flex-1 items-center gap-3 text-left" onClick={() => setOpenDay(openDay === d.key ? null : d.key)} aria-expanded={openDay === d.key}>
-                      <span className="w-32 shrink-0 text-sm font-semibold">{whenText(d, today)}</span>
+                      <span className="w-48 shrink-0 text-sm font-semibold">
+                        {whenText(d, today)}
+                        {whenNote(d) && <span className="block text-xs font-normal leading-snug text-slate-500">{whenNote(d)}</span>}
+                      </span>
                       <span className="min-w-0 flex-1 truncate text-sm text-slate-500">{questionText(d.questions[0]!)}</span>
                       <span className="shrink-0 text-xs text-slate-500">{`${d.questions.length}/${size}`}</span>
                       <span className={cn('shrink-0 rounded-md px-2 py-0.5 text-[11px] font-bold', d.status === 'published' ? 'bg-emerald-50 text-emerald-700' : d.status === 'incomplete' ? 'bg-amber-50 text-amber-700' : 'bg-blue-50 text-blue-700')}>

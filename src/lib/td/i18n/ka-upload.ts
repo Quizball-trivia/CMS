@@ -146,6 +146,7 @@ export const KA_UPLOAD: Record<string, string> = {
   'A Credit line is “author | licence | source”': 'Credit ხაზი ასეთია: „ავტორი | ლიცენზია | წყარო“',
   'Question {n} updates the same card': 'კითხვა {n} იმავე ბარათს ანახლებს',
   'A new card needs a clue line or a picture': 'ახალ ბარათს მინიშნება ან სურათი სჭირდება',
+  'A question needs its text or a picture': 'კითხვას ტექსტი ან სურათი სჭირდება',
   'The sign-in changed, so the upload stopped. Check the cards before you upload again.': 'შესვლა შეიცვალა, ამიტომ ატვირთვა შეჩერდა. ხელახლა ატვირთვამდე ბარათები გადაამოწმეთ.',
   'The images could not be loaded to check this key. Close the upload and open it again.': 'სურათები ვერ ჩაიტვირთა ამ ID-ის შესამოწმებლად. დახურეთ ატვირთვა და ხელახლა გახსენით.',
   'Choose one .txt file, with its pictures if it names any': 'აირჩიეთ ერთი .txt ფაილი და, თუ ასახელებს, მისი სურათები',

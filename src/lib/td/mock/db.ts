@@ -10,7 +10,7 @@ import { MOCK_STAFF } from './staff';
 
 /** Bumped whenever the stored shape or the seed changes: an older store is replaced. */
 // 5: Football Logic's seeded pictures are files the game has (data kept from before named files it never had).
-// 6: Football Logic's rows carry imageAKey and imageBKey (contract v9).
+// 6: Football Logic's rows carry imageAKey and imageBKey (contract v9); no seeded question is without text and pictures.
 export const MOCK_DB_SCHEMA = 6;
 
 export interface Actor {

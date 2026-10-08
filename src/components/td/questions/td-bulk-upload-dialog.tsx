@@ -386,6 +386,8 @@ function UploadBody({ open, initialType, initialCategory, types, onBusy, onClose
           else if (!unselected.has(question.id)) updater.set(updates.id, question.questionNumber);
         } else if (sharedName(question)) {
           problems.push({ code: 'invalid' as const, path: 'Answer', message: t('Two cards in this category have this name: change the one meant on its own page') });
+        } else if (question.kind === 'football-logic' && !question.prompt.trim() && ![question.imageA, question.imageB, question.imageAKey, question.imageBKey, question.imageAFile, question.imageBFile].some(Boolean)) {
+          problems.push({ code: 'invalid' as const, path: 'Prompt', message: t('A question needs its text or a picture') });
         } else if (question.kind === 'cards' && question.clues.length === 0 && !question.photo && !question.imageKey && !question.imageFile) {
           problems.push({ code: 'invalid' as const, path: 'Clue 1', message: t('A new card needs a clue line or a picture') });
         }

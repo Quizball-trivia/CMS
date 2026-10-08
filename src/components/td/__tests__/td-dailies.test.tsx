@@ -112,7 +112,9 @@ describe('the Daily page', () => {
     // The seeded days are short of a whole day (10 questions), and repeat in turn.
     expect(await screen.findByText('Add 8 more questions')).toBeTruthy();
     expect(screen.getByText('Add 9 more questions')).toBeTruthy();
-    expect(screen.getAllByText('In the repeat order')).toHaveLength(2);
+    // A day without a date says so, and that it is played all the same.
+    expect(screen.getAllByText('No date')).toHaveLength(2);
+    expect(screen.getAllByText('Played in turn, after the dated days')).toHaveLength(2);
     fireEvent.click(screen.getByRole('button', { name: /Put in Order/ }));
     expect(await screen.findByRole('heading', { name: 'Put in Order' })).toBeTruthy();
     expect((await screen.findAllByText('Add 3 more questions')).length).toBeGreaterThan(0);
@@ -249,7 +251,7 @@ describe('the Daily page', () => {
   it('opens a day’s questions, and changes the seconds per question from the gear', async () => {
     const { admin } = await signIn('publisher');
     renderTd(<TdDailiesTab />);
-    fireEvent.click((await screen.findAllByRole('button', { name: /In the repeat order/ }))[0]!);
+    fireEvent.click((await screen.findAllByRole('button', { name: /No date/ }))[0]!);
     // Its questions listed under it (the first also names the day in the row).
     await waitFor(() => expect(screen.getAllByText('What links these two images?')).toHaveLength(2));
     fireEvent.click(screen.getByRole('button', { name: 'Seconds per question' }));
