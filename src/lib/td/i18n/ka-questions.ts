@@ -35,6 +35,7 @@ export const KA_QUESTIONS: Record<string, string> = {
   Items: 'ელემენტები',
   'Correct Order': 'სწორი თანმიმდევრობა',
   'No uploaded image is called {name}.': 'ატვირთული სურათი სახელით „{name}“ არ არსებობს.',
+  'The game has no picture at this path.': 'თამაშში ამ მისამართზე სურათი არ არის.',
 
   // The image field of the form (media/td-media.tsx)
   'It is approved with the question.': 'კითხვასთან ერთად დამტკიცდება.',

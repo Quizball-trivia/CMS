@@ -17,6 +17,7 @@ import { t } from '@/lib/td/i18n';
 import { TdIssueText } from '@/components/td/content/td-form';
 import { TdOpenImageContext } from '@/components/td/content/td-open-row';
 import { useTdUploadingReport } from '@/components/td/content/td-uploading';
+import { gameImageSrc } from '@/lib/td/game-images';
 import { legacyImageSrc } from '@/lib/td/legacy-images';
 import { cn } from '@/lib/utils';
 
@@ -45,9 +46,10 @@ export function uploadProblem(file: File): string | null {
   return null;
 }
 
-/** An image by its upload (fetched with the staff token); a legacy URL image is a link, as the CMS may not load foreign images. */
+/** An image by its upload (fetched with the staff token) or by a path of the game; another URL image is a link, as the CMS may not load foreign images. */
 export function TdMediaThumb({ uploadId, url, alt, className }: { uploadId?: string | null; url?: string | null; alt: string; className?: string }) {
   const file = useTdUploadUrl(uploadId);
+  const [failedUrl, setFailedUrl] = useState<string | null>(null);
   return (
     <span className={cn('relative grid shrink-0 place-items-center overflow-hidden rounded-lg bg-(--td-input) text-(--td-text-3)', className ?? 'size-12')}>
       {uploadId && file.url ? (
@@ -55,6 +57,13 @@ export function TdMediaThumb({ uploadId, url, alt, className }: { uploadId?: str
         <img src={file.url} alt={alt} className="size-full object-cover" />
       ) : uploadId && file.isLoading ? (
         <Loader2 className="size-4 animate-spin" />
+      ) : url && gameImageSrc(url) ? (
+        failedUrl === url ? (
+          <ImageOff className="size-4" />
+        ) : (
+          // eslint-disable-next-line @next/next/no-img-element -- served from this origin by /td/game-image
+          <img src={gameImageSrc(url)!} alt={alt} loading="lazy" onError={() => setFailedUrl(url)} className="size-full object-cover" />
+        )
       ) : url ? (
         <a href={url} target="_blank" rel="noreferrer noopener" title={t('Kept by URL: opens in a new tab')} className="grid size-full place-items-center hover:text-foreground">
           {legacyImageSrc(url) ? (

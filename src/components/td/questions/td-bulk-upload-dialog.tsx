@@ -1088,10 +1088,10 @@ interface ParsedQuestionPreviewDialogProps {
   onNavigate: (index: number) => void;
 }
 
-/** An image of a question in the preview: an uploaded one by its key, or one by path or web address (the CMS does not load foreign images, so a web address is a link). */
+/** An image of a question in the preview: an uploaded one by its key, or one by path or web address (a path of the game is shown; the CMS does not load foreign images, so a web address is a link). */
 function PreviewImage({ label, reference, media, mediaLoaded }: { label: string; reference: string | null; media?: ParsedQuestionPreviewDialogProps['media']; mediaLoaded?: boolean }) {
   const uploaded = media && reference ? media.get(reference) : undefined;
-  const isUrl = reference?.startsWith('https://') || reference?.startsWith('http://');
+  const isUrl = reference?.startsWith('https://') || reference?.startsWith('http://') || reference?.startsWith('/');
   return (
     <div>
       <Label className="text-xs text-muted-foreground">{label}</Label>

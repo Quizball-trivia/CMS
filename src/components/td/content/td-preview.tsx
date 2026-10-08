@@ -1,6 +1,6 @@
 'use client';
 
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { CheckCircle2, ImageOff, Loader2 } from 'lucide-react';
 import { releasedImage } from '@/components/td/media/td-media';
 import { TdCardImage } from './td-card-image';
@@ -8,6 +8,7 @@ import { useTdAllRows, useTdUploadUrl } from '@/hooks/use-td-content';
 import type { TdContentData, TdContentType } from '@/lib/td/admin-api';
 import { t } from '@/lib/td/i18n';
 import { cn } from '@/lib/utils';
+import { gameImageSrc } from '@/lib/td/game-images';
 import { legacyImageSrc } from '@/lib/td/legacy-images';
 
 /** The types a player meets as a question or a card. */
@@ -94,6 +95,25 @@ function UploadedImage({ uploadId, alt }: { uploadId: string; alt: string }) {
   return <div className={cn(FRAME, 'text-slate-400')}>{file.isLoading ? <Loader2 className="h-6 w-6 animate-spin" /> : <ImageOff className="h-6 w-6" />}</div>;
 }
 
+/** An image of the game by its path, fetched through /td/game-image; one that is not there shows its path. */
+function GameImage({ src, path }: { src: string; path: string }) {
+  const [failed, setFailed] = useState(false);
+  if (failed)
+    return (
+      <div className={cn(FRAME, 'flex-col gap-2 px-4 text-center text-sm text-slate-500')}>
+        <ImageOff className="h-6 w-6" />
+        <span className="max-w-full truncate font-mono text-xs">{path}</span>
+        <span className="text-xs">{t('The game has no picture at this path.')}</span>
+      </div>
+    );
+  return (
+    <div className={FRAME}>
+      {/* eslint-disable-next-line @next/next/no-img-element -- served from this origin by /td/game-image */}
+      <img src={src} alt="" onError={() => setFailed(true)} className="h-full w-full object-contain" />
+    </div>
+  );
+}
+
 /** An image the row shows: an uploaded image by its media key, or one kept by URL or path. */
 export function TdQuestionImage({ imageKey, src }: { imageKey?: string | null; src?: string | null }) {
   const media = useTdAllRows('media', {}, Boolean(imageKey));
@@ -122,7 +142,9 @@ export function TdQuestionImage({ imageKey, src }: { imageKey?: string | null; s
         <img src={legacy} alt={imageKey ?? ''} className="h-full w-full object-contain" />
       </div>
     );
-  // Other images kept by URL or by a path of the game are not loaded here (the CMS loads its own files only): the link opens them.
+  const game = gameImageSrc(src);
+  if (game) return <GameImage key={game} src={game} path={src} />;
+  // Other images kept by URL are not loaded here (the CMS loads its own files only): the link opens them.
   return (
     <a href={src} target="_blank" rel="noreferrer noopener" className={cn(FRAME, 'flex-col gap-2 px-4 text-center text-sm text-slate-500 hover:text-slate-900')}>
       <ImageOff className="h-6 w-6" />

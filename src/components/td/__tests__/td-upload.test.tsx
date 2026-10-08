@@ -849,7 +849,7 @@ describe('the upload dialog', () => {
     expect(screen.getByLabelText(/Pictures/)).toBeTruthy();
   });
 
-  it('uploads Football Logic into a new day, with a topic of those on file and an https image', async () => {
+  it('uploads Football Logic into a new day, with a topic of those on file and its two images', async () => {
     const { admin } = await signIn('editor');
     await openDialog({ initialType: 'football-logic', initialCategory: 'Clubs' });
     chooseFile(txt(TD_UPLOAD_EXAMPLES['football-logic']));
@@ -860,7 +860,7 @@ describe('the upload dialog', () => {
     const made = (await admin.content('football-logic').list({ status: 'draft' })).items.filter((row) => row.data.key.startsWith('row-'));
     expect(made).toHaveLength(1);
     expect(made[0]!.data.puzzle).toMatch(/^football-logic-[0-9a-f]{8}$/);
-    expect(made[0]!.data).toMatchObject({ category: 'Clubs', imageA: 'https://example.com/stopwatch-9-minutes.png', imageB: '/assets/football-logic/five-fingers.png', displayAnswer: 'რობერტ ლევანდოვსკი' });
+    expect(made[0]!.data).toMatchObject({ category: 'Clubs', imageA: '/assets/daily/football-logic/borussia-dortmund.webp', imageB: '/assets/daily/football-logic/bayern-munich.webp', displayAnswer: 'რობერტ ლევანდოვსკი' });
   });
 
   it('uploads Round III questions into the category the page was showing', async () => {

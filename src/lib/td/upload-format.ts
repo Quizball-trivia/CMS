@@ -51,9 +51,9 @@ C) არგენტინა
 D) ესპანეთი
 Difficulty: Easy
 Explanation: ფინალში გერმანიამ არგენტინა დამატებით დროში 1:0 დაამარცხა.`,
-  'football-logic': `1. Prompt: დაასახელეთ მოთამაშე ვიზუალური ლოგიკით
-Image A: https://example.com/stopwatch-9-minutes.png
-Image B: /assets/football-logic/five-fingers.png
+  'football-logic': `1. Prompt: რომელი თავდამსხმელი გადავიდა ამ ორ მეტოქეს შორის თავისუფალი ტრანსფერით 2014 წელს?
+Image A: /assets/daily/football-logic/borussia-dortmund.webp
+Image B: /assets/daily/football-logic/bayern-munich.webp
 Answer: რობერტ ლევანდოვსკი | ლევანდოვსკი | Robert Lewandowski | Lewandowski`,
   'put-in-order': `1. დაალაგეთ მსოფლიო ჩემპიონატის მასპინძლები ადრიდან გვიანდელისკენ
 Items:

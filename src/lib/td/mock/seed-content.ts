@@ -163,7 +163,7 @@ export function seedContent(): Seed {
       hidden: false,
     })),
     'football-logic': [
-      { key: 'fl-1-a', puzzle: 'fl-1', category: 'Clubs', prompt: 'What links these two images?', imageA: '/assets/logic/fl-1-a1.webp', imageB: '/assets/logic/fl-1-a2.webp', displayAnswer: 'Napoli', acceptedAnswers: ['napoli', 'ნაპოლი'] },
+      { key: 'fl-1-a', puzzle: 'fl-1', category: 'Clubs', prompt: 'What links these two images?', imageA: '/assets/daily/football-logic/fc-barcelona.webp', imageB: '/assets/daily/football-logic/sevilla-fc.webp', displayAnswer: 'Napoli', acceptedAnswers: ['napoli', 'ნაპოლი'] },
       { key: 'fl-1-b', puzzle: 'fl-1', category: 'Players', prompt: '', imageA: null, imageB: null, displayAnswer: 'Kaladze', acceptedAnswers: ['kaladze'] },
       { key: 'fl-2-a', puzzle: 'fl-2', category: 'Stadiums', prompt: 'Which stadium is this?', imageA: null, imageB: null, displayAnswer: 'Boris Paichadze Dinamo Arena', acceptedAnswers: ['dinamo arena', 'paichadze'] },
     ],
