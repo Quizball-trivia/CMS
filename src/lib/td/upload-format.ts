@@ -121,8 +121,14 @@ export interface ParsedPractice extends ParsedBase {
 export interface ParsedFootballLogic extends ParsedBase {
   kind: 'football-logic';
   prompt: string;
+  /** A path of the game or a web address. */
   imageA: string | null;
   imageB: string | null;
+  /** An uploaded image by its key, or a picture chosen with the file by its name: shown instead of imageA / imageB. */
+  imageAKey: string | null;
+  imageAFile: string | null;
+  imageBKey: string | null;
+  imageBFile: string | null;
   display: string;
   aliases: string[];
 }
@@ -495,6 +501,14 @@ function imageOf(r: Reader, entry: { value: string; line: number } | undefined):
   return entry.value;
 }
 
+/** A Football Logic image: a path of the game or a web address, or (as a card's) a picture chosen with the file
+ *  or the key of an image already uploaded. */
+function logicImage(r: Reader, entry: { value: string; line: number } | undefined): { ref: string | null; imageKey: string | null; imageFile: string | null } {
+  if (!entry || entry.value === '') return { ref: null, imageKey: null, imageFile: null };
+  if (/^(?:https?:\/\/|\/)/.test(entry.value)) return { ref: imageOf(r, entry), imageKey: null, imageFile: null };
+  return { ref: null, ...imageLine(r, entry) };
+}
+
 function parseLogic(block: Block): Parsed<ParsedFootballLogic> {
   const r = reader(block);
   const once = singles(r);
@@ -512,12 +526,28 @@ function parseLogic(block: Block): Parsed<ParsedFootballLogic> {
   const [first, ...rest] = unlabelled;
   const prompt = labelledPrompt ? labelledPrompt.value : (first?.text ?? '');
   for (const entry of labelledPrompt ? unlabelled : rest) ignored(r, entry);
-  const imageA = imageOf(r, once.get('Image A'));
-  const imageB = imageOf(r, once.get('Image B'));
+  const a = logicImage(r, once.get('Image A'));
+  const b = logicImage(r, once.get('Image B'));
   const answer = answerOf(r, once.get('Answer'));
 
   if (r.failed() || !answer) return { errors: r.errors };
-  return { errors: r.errors, question: { kind: 'football-logic', questionNumber: block.questionNumber, lineNumber: block.lineNumber, prompt, imageA, imageB, display: answer.display, aliases: answer.aliases } };
+  return {
+    errors: r.errors,
+    question: {
+      kind: 'football-logic',
+      questionNumber: block.questionNumber,
+      lineNumber: block.lineNumber,
+      prompt,
+      imageA: a.ref,
+      imageB: b.ref,
+      imageAKey: a.imageKey,
+      imageAFile: a.imageFile,
+      imageBKey: b.imageKey,
+      imageBFile: b.imageFile,
+      display: answer.display,
+      aliases: answer.aliases,
+    },
+  };
 }
 
 function parseOrder(block: Block): Parsed<ParsedPutInOrder> {
@@ -690,6 +720,12 @@ export interface TdUploadContext {
 }
 
 /** The image key a question's Image line comes to: its picture's (once chosen), or the uploaded image it names. */
+/** The picture files a question names on its Image lines: chosen with the file, saved as images by the upload. */
+export function pictureFilesOf(question: TdParsedQuestion): string[] {
+  if (question.kind === 'football-logic') return [question.imageAFile, question.imageBFile].filter((name): name is string => name !== null);
+  return 'imageFile' in question && question.imageFile ? [question.imageFile] : [];
+}
+
 export function imageKeyIn(question: { imageKey: string | null; imageFile: string | null }, context: Pick<TdUploadContext, 'pictures'>): string | null {
   return question.imageFile ? (context.pictures?.get(question.imageFile.toLowerCase()) ?? null) : question.imageKey;
 }
@@ -749,6 +785,8 @@ function columnValues(question: TdParsedQuestion, context: TdUploadContext): Rec
         prompt: question.prompt,
         imageA: question.imageA,
         imageB: question.imageB,
+        imageAKey: imageKeyIn({ imageKey: question.imageAKey, imageFile: question.imageAFile }, context),
+        imageBKey: imageKeyIn({ imageKey: question.imageBKey, imageFile: question.imageBFile }, context),
         displayAnswer: question.display,
         acceptedAnswers: question.aliases,
       };

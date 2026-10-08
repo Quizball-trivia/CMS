@@ -36,6 +36,8 @@ export const KA_PUBLISH: Record<string, string> = {
   'Prompt (may be empty)': 'დავალება (შეიძლება ცარიელი იყოს)',
   'Image A: /path or https:// URL (optional)': 'სურათი A: /-ით დაწყებული მისამართი ან https:// URL (არასავალდებულო)',
   'Image B (optional)': 'სურათი B (არასავალდებულო)',
+  'Image A as an uploaded image’s key (optional)': 'სურათი A, როგორც ატვირთული სურათის ID (არასავალდებულო)',
+  'Image B as an uploaded image’s key (optional)': 'სურათი B, როგორც ატვირთული სურათის ID (არასავალდებულო)',
   'The prompt': 'დავალება',
   'Items in the order shown: label=sortValue, separated by | (or a JSON array of {key,label,sortValue})':
     'ელემენტები ჩვენების თანმიმდევრობით: label=sortValue, გამოყოფილი | სიმბოლოთი (ან JSON მასივი {key,label,sortValue} ობიექტებით)',

@@ -42,7 +42,7 @@ export const TD_MERGE_UNITS: Record<TdContentType, readonly (readonly string[])[
   'practice-questions': [['difficulty', 'prompt', 'options', 'answer', 'explanation', 'imageKey']],
   media: [['url', 'uploadId', 'width', 'height', 'author', 'license', 'source']],
   clubs: [['label', 'value'], ['crest', 'crestImageKey']],
-  'football-logic': [['category', 'prompt', 'imageA', 'imageB', 'displayAnswer', 'acceptedAnswers']],
+  'football-logic': [['category', 'prompt', 'imageA', 'imageB', 'imageAKey', 'imageBKey', 'displayAnswer', 'acceptedAnswers']],
   'put-in-order': [['prompt', 'items']],
   'career-path': [['prompt', 'displayAnswer', 'acceptedAnswers', 'clubs']],
   'daily-schedule': [],

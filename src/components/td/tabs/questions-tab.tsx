@@ -87,7 +87,7 @@ function show(type: TdContentType, row: TdContentRow): Shown {
     }
     case 'football-logic': {
       const d = (row as TdContentRow<'football-logic'>).data;
-      return { title: d.prompt || d.displayAnswer, place: d.puzzle || null, detail: t('Answer: {answer}', { answer: d.displayAnswer }), image: Boolean(d.imageA || d.imageB) };
+      return { title: d.prompt || d.displayAnswer, place: d.puzzle || null, detail: t('Answer: {answer}', { answer: d.displayAnswer }), image: Boolean(d.imageA || d.imageB || d.imageAKey || d.imageBKey) };
     }
     case 'put-in-order': {
       const d = (row as TdContentRow<'put-in-order'>).data;

@@ -113,6 +113,10 @@ export function unapprovedRefs(db: MockDb, type: TdContentType, doc: Data | null
     const key = doc[type === 'clubs' ? 'crestImageKey' : 'imageKey'];
     return typeof key === 'string' && !mediaReady(db, key) ? [{ type: 'media', key }] : [];
   }
+  if (type === 'football-logic') {
+    const keys = [...new Set([doc.imageAKey, doc.imageBKey].filter((key): key is string => typeof key === 'string'))].sort();
+    return keys.filter((key) => !mediaReady(db, key)).map((key) => ({ type: 'media' as const, key }));
+  }
   if (type === 'career-path') {
     const keys = [...new Set((doc.clubs as Data[]).map((club) => club.clubKey).filter((key): key is string => typeof key === 'string'))];
     return keys.filter((key) => !approvedLive(findByKey(db, 'clubs', key))).map((key) => ({ type: 'clubs' as const, key }));
@@ -147,7 +151,7 @@ function referenced(db: MockDb, row: MockRow): boolean {
     const key = row.data.key;
     const uses = (type: TdContentType, field: string) =>
       rowsOf(db, type).some((r) => live(r) && (r.data[field] === key || r.approved?.[field] === key));
-    return uses('practice-questions', 'imageKey') || uses('cards', 'imageKey') || uses('clubs', 'crestImageKey');
+    return uses('practice-questions', 'imageKey') || uses('cards', 'imageKey') || uses('clubs', 'crestImageKey') || uses('football-logic', 'imageAKey') || uses('football-logic', 'imageBKey');
   }
   if (row.type === 'clubs') {
     const has = (d: Data | null) => ((d?.clubs as Data[] | undefined) ?? []).some((club) => club.clubKey === row.data.key);

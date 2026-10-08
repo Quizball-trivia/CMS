@@ -3,7 +3,7 @@ import { tdAdmin } from './client';
 import type { TdOperation } from './operation';
 
 /** The fields that name an uploaded image (a media row, by key). */
-const IMAGE_FIELDS: Partial<Record<TdContentType, readonly string[]>> = { cards: ['imageKey'], 'practice-questions': ['imageKey'] };
+const IMAGE_FIELDS: Partial<Record<TdContentType, readonly string[]>> = { cards: ['imageKey'], 'practice-questions': ['imageKey'], 'football-logic': ['imageAKey', 'imageBKey'] };
 
 export function imageKeysOf(type: TdContentType, rows: readonly TdContentRow[]): string[] {
   const fields = IMAGE_FIELDS[type] ?? [];
