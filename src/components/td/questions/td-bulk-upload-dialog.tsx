@@ -347,8 +347,10 @@ function UploadBody({ open, initialType, initialCategory, types, onBusy, onClose
   const pending = useMemo(() => (tooMany ? [] : entries.filter((entry) => !entry.updates && !checked.has(entry.signature))), [tooMany, entries, checked]);
 
   useEffect(() => {
-    uploadable.current = entries.flatMap((entry, index) => (!entry.updates && !unselected.has(questions[index]!.id) ? [entry.item] : []));
-  }, [entries, unselected, questions]);
+    // A question whose answer two cards carry is refused, so it is not among them: one that becomes so while a
+    // replay waits (the category read again) stops that replay.
+    uploadable.current = entries.flatMap((entry, index) => (!entry.updates && !unselected.has(questions[index]!.id) && !sharedName(questions[index]!) ? [entry.item] : []));
+  }, [entries, unselected, questions, sharedName]);
   const rows = useMemo<QuestionWithSelection[]>(() => {
     // The first question of the file that updates each card.
     const updater = new Map<string, number>();

@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { toast } from 'sonner';
@@ -574,19 +574,43 @@ describe('the upload dialog', () => {
     expect(await uploaded(admin, 'cards')).toEqual([]);
   });
 
-  it('uploads no card while the category’s cards cannot be read: one not read would be added again', async () => {
+  it('uploads no card while the category’s cards cannot be read, or were not all read: one not read would be added again', async () => {
     const inner = server;
-    let broken = true;
-    server = (async (input: RequestInfo | URL, init?: RequestInit) =>
-      broken && (!init?.method || init.method === 'GET') && String(input).includes('/admin/content/cards?')
-        ? new Response(JSON.stringify({ code: 'busy', message: 'Try again in a moment' }), { status: 503, headers: { 'content-type': 'application/json' } })
-        : inner(input, init)) as typeof fetch;
+    let state: 'broken' | 'endless' | 'fine' = 'broken';
+    const sent: string[] = [];
+    let pages = 0;
+    server = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (init?.method === 'POST' && url.includes('/admin/content/imports')) sent.push(url);
+      const cards = (!init?.method || init.method === 'GET') && url.includes('/admin/content/cards?');
+      if (cards && state === 'broken') return new Response(JSON.stringify({ code: 'busy', message: 'Try again in a moment' }), { status: 503, headers: { 'content-type': 'application/json' } });
+      if (cards && state === 'endless') {
+        pages += 1;
+        // A list that never ends: the read stops at its cap, incomplete.
+        const first = new URL(url);
+        first.searchParams.delete('cursor');
+        const page = (await (await inner(first.toString(), init)).json()) as Record<string, unknown>;
+        return new Response(JSON.stringify({ ...page, nextCursor: 'more' }), { status: 200, headers: { 'content-type': 'application/json' } });
+      }
+      return inner(input, init);
+    }) as typeof fetch;
     const { admin } = await signIn('editor');
     await openDialog({ initialType: 'cards', initialCategory: 'legends' });
-    chooseFile(txt('1.\nAnswer: Buffon\nPoints: 2'));
-    expect(await screen.findByText('The cards of this category could not be read, so nothing can be uploaded into it yet.', undefined, { timeout: 5000 })).toBeTruthy();
+    // A card that is fine as a new one: unread, Buffon's own card would be made a second time.
+    chooseFile(txt('1.\nClue 1: Italy\nAnswer: Buffon\nPoints: 2'));
+    const unread = 'The cards of this category could not be read, so nothing can be uploaded into it yet.';
+    expect(await screen.findByText(unread, undefined, { timeout: 5000 })).toBeTruthy();
     expect((await uploadButton(1)).hasAttribute('disabled')).toBe(true);
-    broken = false;
+
+    state = 'endless';
+    fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
+    await waitFor(() => expect(pages).toBeGreaterThanOrEqual(50), { timeout: 5000 });
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(screen.getByText(unread)).toBeTruthy();
+    expect((await uploadButton(1)).hasAttribute('disabled')).toBe(true);
+    expect(sent).toEqual([]);
+
+    state = 'fine';
     fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
     expect(await screen.findByText('Updates the card')).toBeTruthy();
     const upload = await uploadButton(1);
@@ -594,6 +618,7 @@ describe('the upload dialog', () => {
     fireEvent.click(upload);
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
     expect(await uploaded(admin, 'cards')).toEqual([]);
+    expect(sent.filter((url) => url.endsWith('/admin/content/imports'))).toEqual([]);
   });
 
   it('takes a category for Practice from the labels on file, or one typed', async () => {
@@ -919,6 +944,55 @@ describe('the upload dialog', () => {
     chooseFile(txt(file));
     expect(await screen.findByText(/Two cards in this category have this name/)).toBeTruthy();
     expect((await uploadButton(1)).hasAttribute('disabled')).toBe(true);
+    expect(await uploaded(admin, 'cards')).toEqual([]);
+  });
+
+  it('stops a replay when the category, read again while it waits, shows two cards of the name', async () => {
+    const inner = server;
+    let lose = true;
+    const sent: unknown[] = [];
+    server = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      const imports = init?.method === 'POST' && String(input).endsWith('/admin/content/imports');
+      if (imports && lose) {
+        lose = false;
+        throw new TypeError('Failed to fetch');
+      }
+      if (imports) sent.push(JSON.parse(String(init?.body)));
+      return inner(input, init);
+    }) as typeof fetch;
+    const { admin } = await signIn('editor');
+    const failed = vi.spyOn(toast, 'error');
+    const file = '1.\nClue 1: Uruguay\nAnswer: Luis Suarez\nPoints: 3';
+    await openDialog({ initialType: 'cards', initialCategory: 'legends' });
+    chooseFile(txt(file));
+    const upload = await uploadButton(1);
+    await waitFor(() => expect(upload.hasAttribute('disabled')).toBe(false));
+    fireEvent.click(upload);
+    await waitFor(() => expect(failed).toHaveBeenCalled());
+    cleanup();
+
+    // Read again with its hash held back; two cards of that name are made, and the category read again, meanwhile.
+    let release!: () => void;
+    const held = new Promise<void>((resolve) => (release = resolve));
+    const digest = crypto.subtle.digest.bind(crypto.subtle);
+    const hashing = vi.spyOn(crypto.subtle, 'digest').mockImplementation(async (...args) => {
+      await held;
+      return digest(...args);
+    });
+    await openDialog({ initialType: 'cards', initialCategory: 'legends' });
+    chooseFile(txt(file));
+    expect(await screen.findByText('Parsed Questions (1)')).toBeTruthy();
+    for (const [key, display] of [['suarez-es', 'Luis Suárez'], ['suarez-uy', 'Luis Suarez']] as const)
+      await admin.content('cards').create({ data: { categoryKey: 'legends', key, value: 1, lines: ['Old clue'], display, aliases: [key], photo: null, imageKey: null } });
+    await act(async () => {
+      await queryClient.invalidateQueries();
+    });
+    expect(await screen.findByText(/Two cards in this category have this name/)).toBeTruthy();
+    release();
+    await waitFor(() => expect((screen.getByRole('button', { name: 'Upload 1 Question' }) as HTMLButtonElement).disabled).toBe(true));
+    hashing.mockRestore();
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(sent).toEqual([]);
     expect(await uploaded(admin, 'cards')).toEqual([]);
   });
 
