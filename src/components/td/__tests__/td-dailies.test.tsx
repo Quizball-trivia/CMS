@@ -257,4 +257,24 @@ describe('the Daily page', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Save' }));
     await waitFor(async () => expect((await admin.content('daily-settings').list({ game: 'footballLogic' })).items[0]!.approved?.seconds).toBe(40));
   });
+  it('keeps the seconds dialog as it is while it saves: it cannot be closed, reopened and typed over meanwhile', async () => {
+    const inner = server;
+    let release!: () => void;
+    const held = new Promise<void>((resolve) => (release = resolve));
+    server = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      if (init?.method && init.method !== 'GET' && String(input).includes('/admin/content/daily-settings')) await held;
+      return inner(input, init);
+    }) as typeof fetch;
+    await signIn('publisher');
+    renderTd(<TdDailiesTab />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Seconds per question' }));
+    fireEvent.change(await screen.findByLabelText('Seconds'), { target: { value: '40' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Cancel' }).hasAttribute('disabled')).toBe(true));
+    expect(screen.getByLabelText('Seconds').hasAttribute('disabled')).toBe(true);
+    fireEvent.keyDown(screen.getByRole('dialog'), { key: 'Escape' });
+    expect(screen.getByRole('dialog')).toBeTruthy();
+    release();
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+  });
 });

@@ -321,10 +321,11 @@ function imageLine(r: Reader, entry: { value: string; line: number } | undefined
 
 function photoOf(r: Reader, entry: { value: string; line: number } | undefined): { id: number; ver: string } | null {
   if (!entry) return null;
-  const match = /^(\d+)\s*\|\s*(\S(?:.{0,18}\S)?)$/.exec(entry.value);
+  // The shapes a face is served for (the game's and the CMS's face routes take no other).
+  const match = /^(\d{1,7})\s*\|\s*(\d{2})$/.exec(entry.value);
   const id = match ? Number(match[1]) : 0;
-  if (!match || id < 1 || id > 2147483647) {
-    r.error(t('A photo is a SoFIFA player id and version, such as “158023 | 25_1”'), entry.line);
+  if (!match || id < 1) {
+    r.error(t('A photo is a SoFIFA player number and its two-digit version, such as “158023 | 24”'), entry.line);
     return null;
   }
   return { id, ver: match[2]! };

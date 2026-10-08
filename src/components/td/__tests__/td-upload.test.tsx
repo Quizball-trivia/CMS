@@ -137,11 +137,21 @@ describe('the question file format', () => {
   });
 
   it('reads a card: clue lines, the answer and its spellings, points, an image key and a SoFIFA photo', () => {
-    const parsed = parseTdUpload('1.\nClue 1: პირველი\nClue 2: მეორე\nAnswer: ლიონელ მესი | მესი | Messi | მესი\nPoints: 2\nImage: messi-face\nPhoto: 158023 | 25_1', 'cards');
+    const parsed = parseTdUpload('1.\nClue 1: პირველი\nClue 2: მეორე\nAnswer: ლიონელ მესი | მესი | Messi | მესი\nPoints: 2\nImage: messi-face\nPhoto: 158023 | 24', 'cards');
     expect(parsed.errors).toEqual([]);
-    expect(parsed.questions[0]).toMatchObject({ kind: 'cards', clues: ['პირველი', 'მეორე'], display: 'ლიონელ მესი', aliases: ['ლიონელ მესი', 'მესი', 'Messi'], points: 2, imageKey: 'messi-face', photo: { id: 158023, ver: '25_1' } });
+    expect(parsed.questions[0]).toMatchObject({ kind: 'cards', clues: ['პირველი', 'მეორე'], display: 'ლიონელ მესი', aliases: ['ლიონელ მესი', 'მესი', 'Messi'], points: 2, imageKey: 'messi-face', photo: { id: 158023, ver: '24' } });
     const item = toTdImportItem(parsed.questions[0]!, { categoryKey: 'legends', category: '', puzzle: '', clubs: [] });
-    expect(item).toMatchObject({ type: 'cards', data: { categoryKey: 'legends', value: 2, lines: ['პირველი', 'მეორე'], photo: { id: 158023, ver: '25_1' }, imageKey: 'messi-face' } });
+    expect(item).toMatchObject({ type: 'cards', data: { categoryKey: 'legends', value: 2, lines: ['პირველი', 'მეორე'], photo: { id: 158023, ver: '24' }, imageKey: 'messi-face' } });
+  });
+
+  it('takes a SoFIFA photo only in the shape a face is served for: a number of up to seven digits and a two-digit version', () => {
+    const card = (photo: string) => parseTdUpload(`1.\nClue 1: ა\nAnswer: მესი\nPoints: 2\nPhoto: ${photo}`, 'cards');
+    expect(card('158023 | 24').errors).toEqual([]);
+    for (const bad of ['158023 | 25_1', '158023 | 2024', '158023', '12345678 | 24', '0 | 24']) {
+      const parsed = card(bad);
+      expect(parsed.errors.map((e) => e.message), bad).toEqual(['A photo is a SoFIFA player number and its two-digit version, such as “158023 | 24”']);
+      expect(parsed.questions, bad).toHaveLength(0);
+    }
   });
 
   it('reads an Image line that names a picture file, and gives the card the key of the picture chosen by that name', () => {
@@ -517,6 +527,27 @@ describe('the upload dialog', () => {
     expect((await uploaded(admin, 'cards')).map((card) => card.data.display)).toEqual(['ახალი მეკარე']);
   });
 
+  it('updates the card of that name, not an earlier card that only spells its name so; a spelling two cards share updates neither', async () => {
+    const { admin } = await signIn('editor');
+    const make = (key: string, display: string, aliases: string[]) =>
+      admin.content('cards').create({ data: { categoryKey: 'legends', key, value: 1, lines: ['Old clue'], display, aliases, photo: null, imageKey: null } });
+    await make('zaza-long', 'Zaza Namesake Senior', ['Namesake', 'ZN7', 'El Doble']);
+    await make('namesake', 'Namesake', ['N9', 'El Doble']);
+    await openDialog({ initialType: 'cards', initialCategory: 'legends' });
+    chooseFile(txt('1.\nClue 1: Brazil\nAnswer: Namesake\nPoints: 3\n2.\nClue 1: Shared\nAnswer: El Doble\nPoints: 2'));
+    expect(await screen.findByText('1 of them updates a card already in the category')).toBeTruthy();
+    const upload = await uploadButton(2);
+    await waitFor(() => expect(upload.hasAttribute('disabled')).toBe(false));
+    fireEvent.click(upload);
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    const all = (await admin.content('cards').list({ category: 'legends', status: 'draft,ready,approved,archived', limit: 200 })).items;
+    const byKey = (key: string) => all.find((card) => card.data.key === key)!.data;
+    expect(byKey('namesake')).toMatchObject({ value: 3, lines: ['Brazil'] });
+    expect(byKey('zaza-long')).toMatchObject({ value: 1, lines: ['Old clue'] });
+    // The shared spelling made a card of its own.
+    expect(all.filter((card) => card.data.display === 'El Doble')).toHaveLength(1);
+  });
+
   it('takes a category for Practice from the labels on file, or one typed', async () => {
     const { admin } = await signIn('editor');
     await openDialog({ initialType: 'practice-questions' });
@@ -726,6 +757,54 @@ describe('the upload dialog', () => {
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
     expect(await uploaded(admin, 'penalty-questions')).toHaveLength(2);
     expect((await admin.imports.list()).items).toHaveLength(1);
+  });
+
+  it('replays nothing once a question of the file read again was unticked: only what is ticked now is ever sent', async () => {
+    const inner = server;
+    let lose = true;
+    const sent: unknown[] = [];
+    server = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      const imports = init?.method === 'POST' && String(input).endsWith('/admin/content/imports');
+      if (imports && lose) {
+        // Lost before it reaches the API: nothing was made, and the dialog does not know.
+        lose = false;
+        throw new TypeError('Failed to fetch');
+      }
+      if (imports) sent.push(JSON.parse(String(init?.body)));
+      return inner(input, init);
+    }) as typeof fetch;
+    const { admin } = await signIn('editor');
+    const failed = vi.spyOn(toast, 'error');
+    await openDialog({ initialType: 'penalty-questions' });
+    chooseFile(txt(PENALTIES));
+    const upload = await uploadButton(2);
+    await waitFor(() => expect(upload.hasAttribute('disabled')).toBe(false));
+    fireEvent.click(upload);
+    await waitFor(() => expect(failed).toHaveBeenCalled());
+    expect(await uploaded(admin, 'penalty-questions')).toHaveLength(0);
+    cleanup();
+
+    // Read again with its hash held back, and the second question unticked meanwhile.
+    let release!: () => void;
+    const held = new Promise<void>((resolve) => (release = resolve));
+    const digest = crypto.subtle.digest.bind(crypto.subtle);
+    const hashing = vi.spyOn(crypto.subtle, 'digest').mockImplementation(async (...args) => {
+      await held;
+      return digest(...args);
+    });
+    await openDialog({ initialType: 'penalty-questions' });
+    chooseFile(txt(PENALTIES));
+    expect(await screen.findByText('Parsed Questions (2)')).toBeTruthy();
+    fireEvent.click(screen.getAllByRole('checkbox').at(-1)!);
+    release();
+    const one = await uploadButton(1);
+    await waitFor(() => expect(one.hasAttribute('disabled')).toBe(false));
+    hashing.mockRestore();
+    expect(sent).toHaveLength(0);
+    expect(await uploaded(admin, 'penalty-questions')).toHaveLength(0);
+    fireEvent.click(one);
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    expect(await uploaded(admin, 'penalty-questions')).toHaveLength(1);
   });
 
   it('keeps the cards still to update when a file read again finds its new cards imported already', async () => {

@@ -245,6 +245,8 @@ function UploadBody({ open, initialType, initialCategory, types, onBusy, onClose
   const [read, setRead] = useState(0);
   const [replayed, setReplayed] = useState(0);
   const replayStarted = useRef(0);
+  // What an upload would import now: the new questions still ticked (a replay sends nothing else).
+  const uploadable = useRef<unknown[]>([]);
   const readOperation = useRef<TdOperation | null>(null);
   const checking = useRef(false);
 
@@ -296,7 +298,12 @@ function UploadBody({ open, initialType, initialCategory, types, onBusy, onClose
     (question: TdParsedQuestion): TdContentRow<'cards'> | null => {
       if (question.kind !== 'cards') return null;
       const wanted = plainName(question.display);
-      return ((categoryCards.data?.rows ?? []) as TdContentRow<'cards'>[]).find((row) => plainName(row.data.display) === wanted || row.data.aliases.some((alias) => plainName(alias) === wanted)) ?? null;
+      const cards = (categoryCards.data?.rows ?? []) as TdContentRow<'cards'>[];
+      // The card of that name; else the card that spells its name so, when only one does (two players may share a spelling).
+      const named = cards.find((row) => plainName(row.data.display) === wanted);
+      if (named) return named;
+      const spelled = cards.filter((row) => row.data.aliases.some((alias) => plainName(alias) === wanted));
+      return spelled.length === 1 ? spelled[0]! : null;
     },
     [categoryCards.data],
   );
@@ -327,6 +334,7 @@ function UploadBody({ open, initialType, initialCategory, types, onBusy, onClose
   // A question that updates a card is not imported, so it is not checked as an import either.
   const pending = useMemo(() => (tooMany ? [] : entries.filter((entry) => !entry.updates && !checked.has(entry.signature))), [tooMany, entries, checked]);
 
+  uploadable.current = entries.flatMap((entry, index) => (!entry.updates && !unselected.has(questions[index]!.id) ? [entry.item] : []));
   const rows = useMemo<QuestionWithSelection[]>(() => {
     // The first question of the file that updates each card.
     const updater = new Map<string, number>();
@@ -541,10 +549,13 @@ function UploadBody({ open, initialType, initialCategory, types, onBusy, onClose
     void (async () => {
       const items = entries.filter((entry) => !entry.updates).map((entry) => entry.item);
       const edits = entries.some((entry) => entry.updates);
-      const saved = user && operation && items.length > 0 ? batchKeyFor(user.id, await sha256Hex(canonicalJson(items))) : null;
+      // Questions removed or unticked since the file was read are not what went out: nothing is replayed then.
+      const asRead = canonicalJson(items);
+      const changed = () => canonicalJson(uploadable.current) !== asRead;
+      const saved = user && operation && items.length > 0 ? batchKeyFor(user.id, await sha256Hex(asRead)) : null;
       if (superseded()) return;
-      if (saved?.sent && operation) {
-        const outcome = await importItems(items, operation, false, () => !superseded());
+      if (saved?.sent && operation && !changed()) {
+        const outcome = await importItems(items, operation, false, () => !superseded() && !changed());
         if (superseded()) return;
         if (outcome === 'done' && !edits) {
           onClose();

@@ -405,7 +405,8 @@ function SecondsDialog({ row, publisher, onClose }: { row: TdContentRow<'daily-s
     }
   };
   return (
-    <Dialog open onOpenChange={(open) => !open && onClose()}>
+    // Not closed while it saves: the save's end closes this dialog, never one opened after it.
+    <Dialog open onOpenChange={(open) => !open && !busy && onClose()}>
       <DialogContent className="sm:max-w-sm">
         <DialogHeader>
           <DialogTitle>{t('Seconds per question')}</DialogTitle>
@@ -413,12 +414,12 @@ function SecondsDialog({ row, publisher, onClose }: { row: TdContentRow<'daily-s
         </DialogHeader>
         <div className="space-y-1.5">
           <Label htmlFor="td-seconds">{t('Seconds')}</Label>
-          <Input id="td-seconds" inputMode="numeric" value={value} onChange={(event) => setValue(event.target.value)} />
+          <Input id="td-seconds" inputMode="numeric" value={value} disabled={busy} onChange={(event) => setValue(event.target.value)} />
           {!valid && <p className="text-xs text-destructive">{t('1 to 600 seconds.')}</p>}
         </div>
         {error !== null && <TdErrorPanel error={error} />}
         <DialogFooter>
-          <Button variant="outline" onClick={onClose}>
+          <Button variant="outline" disabled={busy} onClick={onClose}>
             {t('Cancel')}
           </Button>
           <Button disabled={!valid || busy} onClick={() => void save()}>
