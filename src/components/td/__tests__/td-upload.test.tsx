@@ -211,6 +211,14 @@ describe('the question file format', () => {
     expect(item).toMatchObject({ type: 'football-logic', data: { puzzle: 'fl-9', category: 'Clubs', prompt: '', imageA: null, displayAnswer: 'Milan' } });
   });
 
+  it('reads a Football Logic image as a picture chosen with the file, or as the key of an image already uploaded', () => {
+    const parsed = parseTdUpload('1. Prompt: ვინ?\nImage A: barcelona.png\nImage B: psg-crest\nAnswer: ნეიმარი | Neymar\n2.\nImage A: not a key!\nAnswer: Milan', 'football-logic');
+    expect(parsed.questions[0]).toMatchObject({ imageA: null, imageAFile: 'barcelona.png', imageAKey: null, imageB: null, imageBFile: null, imageBKey: 'psg-crest' });
+    expect(parsed.errors.map((e) => e.questionNumber)).toEqual([2]);
+    const context = { categoryKey: '', category: 'Clubs', puzzle: 'fl-9', clubs: [], pictures: new Map([['barcelona.png', 'barcelona-1a2b']]) };
+    expect(toTdImportItem(parsed.questions[0]!, context)).toMatchObject({ data: { imageA: null, imageAKey: 'barcelona-1a2b', imageB: null, imageBKey: 'psg-crest' } });
+  });
+
   it('gives each Put in Order item the sort value of its place in the right order, and keeps one question’s numbered answers from opening the next', () => {
     const file = '1. პირველი\nItems:\n- ბ\n- ა\n- გ\nAnswer:\n1. ა\n2. ბ\n3. გ\n2. მეორე\nItems:\n- x\n- y\nAnswer:\n1. y\n2. x';
     const parsed = parseTdUpload(file, 'put-in-order');
@@ -1065,6 +1073,21 @@ describe('the upload dialog', () => {
     expect(within(preview).getAllByText(/პირველი მინიშნება/)).toHaveLength(1);
   });
 
+  it('shows a Football Logic image named by the key of an uploaded image in the preview, and says when no image has the key', async () => {
+    await signIn('editor');
+    await openDialog({ initialType: 'football-logic', initialCategory: 'Clubs' });
+    chooseFile(txt('1. Prompt: რომელი სტადიონია?\nImage A: dinamo-stadium\nAnswer: დინამო არენა\n2. Prompt: და ეს?\nImage A: no-such-image\nAnswer: სხვა'));
+    fireEvent.click(await screen.findByText('რომელი სტადიონია?'));
+    const preview = await screen.findByRole('dialog', { name: 'Question Preview' });
+    expect(within(preview).getByText('dinamo-stadium')).toBeTruthy();
+    // Once the images are read, the one on file is known.
+    await waitFor(() => expect(within(preview).getByText('1 of 2')).toBeTruthy());
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(within(preview).queryByText('No uploaded image has this key')).toBeNull();
+    fireEvent.click(within(preview).getByRole('button', { name: 'Next' }));
+    expect(await within(preview).findByText('No uploaded image has this key')).toBeTruthy();
+  });
+
   it('steps through the questions of the list with the arrows of the preview', async () => {
     await signIn('editor');
     await openDialog({ initialType: 'penalty-questions' });
@@ -1129,6 +1152,40 @@ describe('the upload dialog', () => {
     expect(made).toHaveLength(1);
     expect(made[0]!.data.puzzle).toMatch(/^football-logic-[0-9a-f]{8}$/);
     expect(made[0]!.data).toMatchObject({ category: 'Clubs', imageA: '/assets/daily/football-logic/borussia-dortmund.webp', imageB: '/assets/daily/football-logic/bayern-munich.webp', displayAnswer: 'რობერტ ლევანდოვსკი' });
+  });
+
+  it('uploads Football Logic with the pictures its Image lines name, saved as images the questions show', async () => {
+    const { admin } = await signIn('editor');
+    await openDialog({ initialType: 'football-logic', initialCategory: 'Clubs' });
+    chooseFile(txt('1. Prompt: ვინ გადავიდა ამ ორ კლუბს შორის?\nImage A: barcelona.png\nImage B: psg.png\nAnswer: ნეიმარი | Neymar\n2. Prompt: და ეს?\nImage A: barcelona.png\nAnswer: მესი | Messi'));
+    expect((await screen.findAllByText(/Choose the picture barcelona\.png under Pictures$/)).length).toBe(2);
+    const upload = await uploadButton(2);
+    expect(upload.hasAttribute('disabled')).toBe(true);
+    choosePictures(png('barcelona.png'), png('psg.png', RED));
+    await waitFor(() => expect(screen.queryByText(/under Pictures$/)).toBeNull());
+    await waitFor(() => expect(upload.hasAttribute('disabled')).toBe(false));
+    fireEvent.click(upload);
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+
+    const made = (await admin.content('football-logic').list({ status: 'draft' })).items.filter((row) => row.data.key.startsWith('row-'));
+    expect(made).toHaveLength(2);
+    const images = (await admin.content('media').list({ status: 'draft', limit: 200 })).items;
+    const first = made.find((row) => row.data.displayAnswer === 'ნეიმარი')!.data;
+    const second = made.find((row) => row.data.displayAnswer === 'მესი')!.data;
+    expect(first.imageA).toBeNull();
+    expect(images.map((image) => image.data.key)).toEqual(expect.arrayContaining([first.imageAKey, first.imageBKey]));
+    expect(first.imageAKey).not.toBe(first.imageBKey);
+    // One picture named twice is one image.
+    expect(second).toMatchObject({ imageAKey: first.imageAKey, imageBKey: null });
+  });
+
+  it('refuses a Football Logic question with neither text nor a picture, and takes one with either', async () => {
+    await signIn('editor');
+    await openDialog({ initialType: 'football-logic', initialCategory: 'Clubs' });
+    chooseFile(txt('1.\nAnswer: Milan\n2. Prompt: ვინ?\nAnswer: Inter\n3.\nImage A: /assets/daily/football-logic/juventus-fc.webp\nAnswer: Juventus'));
+    expect(await screen.findAllByText(/A question needs its text or a picture$/)).toHaveLength(1);
+    expect(screen.getByText('1 question has a problem: remove it or fix the file')).toBeTruthy();
+    expect((await uploadButton(3)).hasAttribute('disabled')).toBe(true);
   });
 
   it('uploads Round III questions into the category the page was showing', async () => {

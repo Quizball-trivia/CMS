@@ -27,7 +27,8 @@ type Issue = ReleaseReport['errors'][number];
 const approvedRows = (db: MockDb, type?: TdContentType) =>
   db.rows.filter((row) => row.approvedVersion !== null && row.status !== 'archived' && (!type || row.type === type));
 
-const imageField = (type: TdContentType) => (type === 'clubs' ? 'crestImageKey' : type === 'cards' || type === 'practice-questions' ? 'imageKey' : null);
+const IMAGE_FIELDS: Partial<Record<TdContentType, readonly string[]>> = { clubs: ['crestImageKey'], cards: ['imageKey'], 'practice-questions': ['imageKey'], 'football-logic': ['imageAKey', 'imageBKey'] };
+const imageFields = (type: TdContentType) => IMAGE_FIELDS[type] ?? [];
 
 /**
  * The rows a release published now holds, as the API's envelope takes them:
@@ -45,9 +46,10 @@ export function releaseRows(db: MockDb): MockRow[] {
   });
   const shown = new Set<string>();
   for (const row of rows) {
-    const field = imageField(row.type);
-    const key = field ? row.approved![field] : null;
-    if (typeof key === 'string') shown.add(key);
+    for (const field of imageFields(row.type)) {
+      const key = row.approved![field];
+      if (typeof key === 'string') shown.add(key);
+    }
   }
   return [...rows, ...approvedRows(db, 'media').filter((row) => shown.has(String(row.approved!.key)))];
 }
@@ -157,9 +159,10 @@ export async function report(db: MockDb, now: number): Promise<{ report: Release
   }
   const shown = new Set(approvedOf(rows, 'media').map((d) => String(d.key)));
   for (const row of rows) {
-    const field = imageField(row.type);
-    const key = field ? row.approved![field] : null;
-    if (typeof key === 'string' && !shown.has(key)) errors.push({ code: 'schema', message: `${row.type} ${String(row.approved!.key)}: its image ${key} is not approved`, ref: { type: row.type, key: String(row.approved!.key) } });
+    for (const field of imageFields(row.type)) {
+      const key = row.approved![field];
+      if (typeof key === 'string' && !shown.has(key)) errors.push({ code: 'schema', message: `${row.type} ${String(row.approved!.key)}: its image ${key} is not approved`, ref: { type: row.type, key: String(row.approved!.key) } });
+    }
   }
   const media = approvedOf(rows, 'media');
   const uploads = media.filter((d) => typeof d.uploadId === 'string');

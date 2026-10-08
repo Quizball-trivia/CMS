@@ -42,7 +42,7 @@ export const TD_MERGE_UNITS: Record<TdContentType, readonly (readonly string[])[
   'practice-questions': [['difficulty', 'prompt', 'options', 'answer', 'explanation', 'imageKey']],
   media: [['url', 'uploadId', 'width', 'height', 'author', 'license', 'source']],
   clubs: [['label', 'value'], ['crest', 'crestImageKey']],
-  'football-logic': [['category', 'prompt', 'imageA', 'imageB', 'displayAnswer', 'acceptedAnswers']],
+  'football-logic': [['category', 'prompt', 'imageA', 'imageB', 'imageAKey', 'imageBKey', 'displayAnswer', 'acceptedAnswers']],
   'put-in-order': [['prompt', 'items']],
   'career-path': [['prompt', 'displayAnswer', 'acceptedAnswers', 'clubs']],
   'daily-schedule': [],
@@ -73,11 +73,14 @@ export function contentRuleIssues(type: TdContentType, data: Data): SchemaIssue[
 }
 
 /** What the CMS asks of content beyond what the API refuses (the mock API, which mirrors the API, does not ask it):
- *  a Round II subject with fewer than five clues is never played (game-core MATCH_SIZES.buzzerClues), and a card's
+ *  a Round II subject with fewer than five clues is never played (game-core MATCH_SIZES.buzzerClues), a Football
+ *  Logic question with neither text nor a picture shows the player nothing, and a card's
  *  SoFIFA photo is served only for a number of up to seven digits and a two-digit version (the face routes). */
 export function editorialIssues(type: TdContentType, data: Data): SchemaIssue[] {
   if (type === 'whoami-subjects' && !(Array.isArray(data.clues) && data.clues.length >= 5))
     return [{ path: 'data.clues', message: t('Round II needs at least 5 clues: a match shows the first 5') }];
+  if (type === 'football-logic' && !String(data.prompt ?? '').trim() && ![data.imageA, data.imageB, data.imageAKey, data.imageBKey].some(Boolean))
+    return [{ path: 'data.prompt', message: t('A question needs its text or a picture') }];
   if (type === 'cards' && data.photo && typeof data.photo === 'object') {
     const { id, ver } = data.photo as { id?: unknown; ver?: unknown };
     return [

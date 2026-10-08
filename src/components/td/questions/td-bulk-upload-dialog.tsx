@@ -35,6 +35,7 @@ import {
   careerClubs,
   imageKeyIn,
   parseTdUpload,
+  pictureFilesOf,
   TD_UPLOAD_EXAMPLES,
   TD_UPLOAD_TYPES,
   tdQuestionSummary,
@@ -107,7 +108,7 @@ const FORMAT_NOTES: Partial<Record<UploadQuestionType, string[]>> = {
   ],
   'whoami-subjects': [t('Five clues per player, hardest first: a match shows the first 5, one every few seconds, and the first to buzz answers. No points and no pictures in this round.')],
   'practice-questions': [t('Optional: “Image: stadium.jpg” is the file name of a picture chosen below under Pictures, or the key of an image already uploaded.')],
-  'football-logic': [t('Image A and Image B are optional. Each is a web address starting with https:// or a path starting with /.')],
+  'football-logic': [t('Image A and Image B are optional. Each is the file name of a picture chosen below under Pictures (barcelona.png), the key of an image already uploaded, a web address starting with https://, or a path starting with /.')],
   'put-in-order': [t('The items are listed in the order they are shown; the Answer lists them in the right order.')],
   'career-path': [
     t('Each club is matched by its name to the clubs list for its crest; a club that is not on the list has no crest. Players are asked “Whose career is this?” unless a “Prompt:” line says otherwise.'),
@@ -260,8 +261,9 @@ function UploadBody({ open, initialType, initialCategory, types, onBusy, onClose
   const practiceRows = useTdAllRows('practice-questions', { status: STATUSES }, type === 'practice-questions');
   const logicRows = useTdAllRows('football-logic', { status: STATUSES }, type === 'football-logic');
   const clubRows = useTdAllRows('clubs', { status: STATUSES }, type === 'career-path');
-  const mediaRows = useTdAllRows('media', { status: STATUSES }, type === 'cards' || type === 'practice-questions');
-  const takesPictures = type === 'cards' || type === 'practice-questions';
+  // Every type whose questions may name an uploaded image by its key.
+  const mediaRows = useTdAllRows('media', { status: STATUSES }, type === 'cards' || type === 'practice-questions' || type === 'football-logic');
+  const takesPictures = type === 'cards' || type === 'practice-questions' || type === 'football-logic';
 
   const categoryOptions = useMemo(() => {
     if (keyCategory) return (categoryRows.data?.rows ?? []).map((row) => ({ value: row.data.key, label: 'prompt' in row.data ? row.data.prompt : row.data.title }));
@@ -293,7 +295,7 @@ function UploadBody({ open, initialType, initialCategory, types, onBusy, onClose
   const cardsUnread = type === 'cards' && category !== '' && (categoryCards.isError || (categoryCards.isSuccess && !categoryCards.data.complete));
   const pictureKeys = useMemo(() => new Map(pictures.map((picture) => [picture.name.toLowerCase(), picture.key])), [pictures]);
   const missingPictures = useMemo(
-    () => [...new Set(questions.flatMap((question) => ('imageFile' in question && question.imageFile && !pictureKeys.has(question.imageFile.toLowerCase()) ? [question.imageFile] : [])))],
+    () => [...new Set(questions.flatMap((question) => pictureFilesOf(question).filter((name) => !pictureKeys.has(name.toLowerCase()))))],
     [questions, pictureKeys],
   );
   const existingCard = useCallback(
@@ -334,8 +336,13 @@ function UploadBody({ open, initialType, initialCategory, types, onBusy, onClose
       ready
         ? questions.map((question, index) => {
             const item = toTdImportItem(question, days ? { ...context, puzzle: days[index]!.key } : context);
-            const pictured = 'imageFile' in question && question.imageFile !== null;
-            const asked = pictured ? { ...item, data: { ...(item.data as Record<string, unknown>), imageKey: null } } : item;
+            // A picture's image does not exist before the upload saves it: the check is asked without it.
+            const pictured = pictureFilesOf(question).length > 0;
+            const unsaved =
+              question.kind === 'football-logic'
+                ? { ...(question.imageAFile ? { imageAKey: null } : {}), ...(question.imageBFile ? { imageBKey: null } : {}) }
+                : { imageKey: null };
+            const asked = pictured ? { ...item, data: { ...(item.data as Record<string, unknown>), ...unsaved } } : item;
             return { item, asked, signature: canonicalJson(asked), updates: existingCard(question) };
           })
         : [],
@@ -361,10 +368,10 @@ function UploadBody({ open, initialType, initialCategory, types, onBusy, onClose
         const issues = signature && !updates ? (checked.get(signature) ?? []) : [];
         const isDuplicate = issues.some((issue) => issue.code === 'duplicate');
         // A picture the file names must be among those chosen.
-        const missingPicture = 'imageFile' in question && question.imageFile && !pictureKeys.has(question.imageFile.toLowerCase());
+        const missingPicture = pictureFilesOf(question).find((name) => !pictureKeys.has(name.toLowerCase()));
         const problems: RowIssue[] = [
           ...(isDuplicate ? [] : issues),
-          ...(missingPicture ? [{ code: 'missing_reference' as const, path: 'Image', message: t('Choose the picture {name} under Pictures', { name: question.imageFile! }) }] : []),
+          ...(missingPicture ? [{ code: 'missing_reference' as const, path: 'Image', message: t('Choose the picture {name} under Pictures', { name: missingPicture }) }] : []),
         ];
         if (question.kind === 'cards' && updates) {
           // What the card would become is checked as the edit it is, before anything is saved.
@@ -379,6 +386,8 @@ function UploadBody({ open, initialType, initialCategory, types, onBusy, onClose
           else if (!unselected.has(question.id)) updater.set(updates.id, question.questionNumber);
         } else if (sharedName(question)) {
           problems.push({ code: 'invalid' as const, path: 'Answer', message: t('Two cards in this category have this name: change the one meant on its own page') });
+        } else if (question.kind === 'football-logic' && !question.prompt.trim() && ![question.imageA, question.imageB, question.imageAKey, question.imageBKey, question.imageAFile, question.imageBFile].some(Boolean)) {
+          problems.push({ code: 'invalid' as const, path: 'Prompt', message: t('A question needs its text or a picture') });
         } else if (question.kind === 'cards' && question.clues.length === 0 && !question.photo && !question.imageKey && !question.imageFile) {
           problems.push({ code: 'invalid' as const, path: 'Clue 1', message: t('A new card needs a clue line or a picture') });
         }
@@ -671,7 +680,7 @@ function UploadBody({ open, initialType, initialCategory, types, onBusy, onClose
       // 1. The pictures the chosen questions name, saved as images first: the questions refer to them.
       const named = new Set(selectedRows.flatMap((index) => {
         const question = rows[index]!.question;
-        return 'imageFile' in question && question.imageFile ? [question.imageFile.toLowerCase()] : [];
+        return pictureFilesOf(question).map((name) => name.toLowerCase());
       }));
       const saved = await savePictures(pictures.filter((picture) => named.has(picture.name.toLowerCase())), operation);
       if (!saved) return;
@@ -1171,11 +1180,11 @@ function PreviewImage({ label, reference, media, mediaLoaded }: { label: string;
 }
 
 /** A picture the file names, as chosen under Pictures (or a note that it is not). */
-function ChosenPicture({ name, pictures }: { name: string; pictures: Picture[] }) {
+function ChosenPicture({ name, pictures, label = t('Image') }: { name: string; pictures: Picture[]; label?: string }) {
   const picture = pictures.find((p) => p.name.toLowerCase() === name.toLowerCase());
   return (
     <div>
-      <Label className="text-xs text-muted-foreground">{t('Image')}</Label>
+      <Label className="text-xs text-muted-foreground">{label}</Label>
       <div className="mt-1 flex items-center gap-3">
         {picture ? (
           // eslint-disable-next-line @next/next/no-img-element -- an object URL of a file chosen here
@@ -1341,8 +1350,8 @@ function ParsedQuestionPreviewDialog({ row, currentIndex, totalQuestions, clubs,
 
           {question.kind === 'football-logic' && (
             <>
-              <PreviewImage label={t('Image A')} reference={question.imageA} />
-              <PreviewImage label={t('Image B')} reference={question.imageB} />
+              {question.imageAFile ? <ChosenPicture label={t('Image A')} name={question.imageAFile} pictures={pictures} /> : <PreviewImage label={t('Image A')} reference={question.imageAKey ?? question.imageA} {...(question.imageAKey ? { media, mediaLoaded } : {})} />}
+              {question.imageBFile ? <ChosenPicture label={t('Image B')} name={question.imageBFile} pictures={pictures} /> : <PreviewImage label={t('Image B')} reference={question.imageBKey ?? question.imageB} {...(question.imageBKey ? { media, mediaLoaded } : {})} />}
               <div>
                 <Label className="text-xs text-muted-foreground">{t('Answer')}</Label>
                 <div className="mt-1 rounded-lg border bg-gray-50 p-3 text-sm font-medium">{question.display}</div>

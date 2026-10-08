@@ -80,6 +80,8 @@ export const TD_IMPORT_COLUMNS: Record<TdContentType, TdImportColumn[]> = {
     col('prompt', 'custom', t('Prompt (may be empty)'), 'What links these?', false),
     col('imageA', 'optional', t('Image A: /path or https:// URL (optional)'), ''),
     col('imageB', 'optional', t('Image B (optional)'), ''),
+    col('imageAKey', 'optional', t('Image A as an uploaded image’s key (optional)'), ''),
+    col('imageBKey', 'optional', t('Image B as an uploaded image’s key (optional)'), ''),
     col('displayAnswer', 'text', t('The answer as shown'), 'Napoli'),
     ALIASES('acceptedAnswers'),
   ],
@@ -272,9 +274,16 @@ function rowHash(text: string): string {
   return (a >>> 0).toString(36) + (b >>> 0).toString(36);
 }
 
+/** Columns added after files had been uploaded: they are part of the made-up ID only when they say something, so
+ *  a file from before keeps the IDs it was given (and is found again as the same questions, not uploaded twice). */
+const LATER_COLUMNS: Partial<Record<TdContentType, readonly string[]>> = { 'football-logic': ['imageAKey', 'imageBKey'] };
+
 /** The ID made up for a row that has none: from what its columns say, in the type's own column order. */
 export function madeKey(type: TdContentType, values: Record<string, unknown>): string {
-  return `row-${rowHash(canonicalJson(TD_IMPORT_COLUMNS[type].map((column) => (column === KEY ? null : (values[column.name] ?? null)))))}`;
+  const later = LATER_COLUMNS[type] ?? [];
+  const said: unknown[] = TD_IMPORT_COLUMNS[type].filter((column) => !later.includes(column.name)).map((column) => (column === KEY ? null : (values[column.name] ?? null)));
+  const added = later.flatMap((name) => ((values[name] ?? null) === null ? [] : [[name, values[name]]]));
+  return `row-${rowHash(canonicalJson(added.length ? [...said, added] : said))}`;
 }
 
 export interface TdSheetOptions {

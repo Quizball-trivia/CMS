@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { checkContract } from '../contract';
-import { parseDelimited, parseItemsJson, parseSheet, sheetTemplate, TD_IMPORTABLE_TYPES } from '../import-format';
+import { madeKey, parseDelimited, parseItemsJson, parseSheet, sheetTemplate, TD_IMPORTABLE_TYPES } from '../import-format';
 
 describe('spreadsheet import', () => {
   it('reads quoted fields, doubled quotes and line breaks, with the delimiter from the header', () => {
@@ -104,5 +104,17 @@ describe('spreadsheet import', () => {
     expect(parseItemsJson('{"items":[{"type":"clubs"},{"type":"cards"}]}').items).toHaveLength(2);
     expect(parseItemsJson('nope').problems[0].message).toMatch(/not valid JSON/);
     expect(parseItemsJson(JSON.stringify(Array.from({ length: 2001 }, () => ({})))).problems[0].message).toMatch(/At most 2000/);
+  });
+});
+
+describe('the ID made up for a question without one', () => {
+  const said = { puzzle: 'fl-3', category: 'Clubs', prompt: 'What links these?', imageA: '/assets/a.webp', imageB: null, displayAnswer: 'Napoli', acceptedAnswers: ['napoli'] };
+  it('stays what it was for a Football Logic question from before uploaded images, and changes only when one is named', () => {
+    // The ID the same question was given before the two columns existed.
+    expect(madeKey('football-logic', said)).toBe('row-7qlgghtk97d9');
+    expect(madeKey('football-logic', { ...said, imageAKey: null, imageBKey: null })).toBe('row-7qlgghtk97d9');
+    const withA = madeKey('football-logic', { ...said, imageAKey: 'crest-a', imageBKey: null });
+    expect(withA).not.toBe('row-7qlgghtk97d9');
+    expect(madeKey('football-logic', { ...said, imageAKey: null, imageBKey: 'crest-a' })).not.toBe(withA);
   });
 });

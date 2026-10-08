@@ -52,6 +52,11 @@ export function publishDays(ctx: MockContext, game: TdDailyGameKey, puzzles: str
         .map((row) => String(row.approved?.puzzle)),
     ),
   );
+  // Football Logic's uploaded pictures go with their questions: one never approved is marked ready and approved.
+  if (game === 'footballLogic') {
+    const keys = new Set(days.flatMap((puzzle) => dayRows(puzzle).flatMap((row) => [row.data.imageAKey, row.data.imageBKey])).filter((key): key is string => typeof key === 'string'));
+    for (const picture of rowsOf(db, 'media').filter((row) => live(row) && row.approvedVersion === null && keys.has(String(row.data.key)))) moveAlong(picture);
+  }
   for (const puzzle of days) for (const row of dayRows(puzzle)) moveAlong(row);
   const approvedCount = (puzzle: string) =>
     rowsOf(db, type).filter((row) => live(row) && row.approvedVersion !== null && row.approved?.puzzle === puzzle).length;

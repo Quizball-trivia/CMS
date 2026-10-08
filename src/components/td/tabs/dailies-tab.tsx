@@ -96,8 +96,13 @@ function whenText(day: TdDay, today: string | null): string {
   if (next) return next === today ? t('Today · {date}', { date: formatDay(next) }) : formatDay(next);
   const played = day.dates[day.dates.length - 1];
   if (played) return t('Played {date}', { date: formatDay(played) });
-  if (day.repeats) return t('In the repeat order');
+  if (day.repeats) return t('No date');
   return t('Not published');
+}
+
+/** What a day without a date still does, said under it: it is played all the same. */
+function whenNote(day: TdDay): string | null {
+  return day.dates.length === 0 && day.repeats ? t('Played in turn, after the dated days') : null;
 }
 
 function statusText(day: TdDay, size: number): string {
@@ -176,7 +181,6 @@ export function TdDailiesTab() {
   const publishable = days.filter((day) => day.status === 'ready' || day.status === 'changes');
   // Only chosen days that can still be published (one may have changed since it was ticked).
   const chosenDays = publishable.filter((d) => chosen.includes(d.key));
-  const day = days.find((d) => d.key === openDay) ?? null;
   const ahead = today ? days.filter((d) => d.dates.some((date) => date > today)).length : 0;
 
   const changeGame = (next: TdDailyGame) => {
@@ -212,10 +216,13 @@ export function TdDailiesTab() {
     }
   };
 
-  // A new question goes into the open day while it is short of a whole one, else it starts a new day.
-  const newQuestion = () => {
-    const into = day && day.status === 'incomplete' && day.questions.length < size ? day.key : `${TD_DAY_PREFIX[game]}-${shortHash(`${Date.now()}:${Math.random()}`)}`;
-    setTarget({ type, row: null, preset: { puzzle: into } as never });
+  // A new question joins the day it is added in (one still short of a whole day); the button above the list starts a new day.
+  const newQuestion = (into?: TdDay) => {
+    const puzzle = into ? into.key : `${TD_DAY_PREFIX[game]}-${shortHash(`${Date.now()}:${Math.random()}`)}`;
+    const note = into
+      ? t('It joins this day, which has {have} of its {size} questions.', { have: into.questions.length, size })
+      : t('It starts a new day (a day has {size} questions). To add to a day that is short, open that day and add the question there.', { size });
+    setTarget({ type, row: null, preset: { puzzle } as never, note });
   };
 
   return (
@@ -263,7 +270,7 @@ export function TdDailiesTab() {
             </Button>
           )}
           <TdBulkUploadDialog key={game} initialType={type} types={[type]} />
-          <Button variant="outline" onClick={newQuestion}>
+          <Button variant="outline" onClick={() => newQuestion()} title={t('Starts a new day')}>
             <Plus className="mr-1 size-4" />
             {t('New Question')}
           </Button>
@@ -299,7 +306,10 @@ export function TdDailiesTab() {
                       />
                     )}
                     <button type="button" className="flex min-w-0 flex-1 items-center gap-3 text-left" onClick={() => setOpenDay(openDay === d.key ? null : d.key)} aria-expanded={openDay === d.key}>
-                      <span className="w-32 shrink-0 text-sm font-semibold">{whenText(d, today)}</span>
+                      <span className="w-48 shrink-0 text-sm font-semibold">
+                        {whenText(d, today)}
+                        {whenNote(d) && <span className="block text-xs font-normal leading-snug text-slate-500">{whenNote(d)}</span>}
+                      </span>
                       <span className="min-w-0 flex-1 truncate text-sm text-slate-500">{questionText(d.questions[0]!)}</span>
                       <span className="shrink-0 text-xs text-slate-500">{`${d.questions.length}/${size}`}</span>
                       <span className={cn('shrink-0 rounded-md px-2 py-0.5 text-[11px] font-bold', d.status === 'published' ? 'bg-emerald-50 text-emerald-700' : d.status === 'incomplete' ? 'bg-amber-50 text-amber-700' : 'bg-blue-50 text-blue-700')}>
@@ -327,6 +337,18 @@ export function TdDailiesTab() {
                           </button>
                         </li>
                       ))}
+                      {d.questions.length < size && (
+                        <li>
+                          <button
+                            type="button"
+                            onClick={() => newQuestion(d)}
+                            className="flex w-full items-center gap-2 rounded-lg border border-dashed border-slate-300 px-3 py-2 text-left text-sm font-medium text-slate-600 hover:border-slate-400 hover:bg-white"
+                          >
+                            <Plus className="size-4" />
+                            {t('Add a question to this day ({have}/{size})', { have: d.questions.length, size })}
+                          </button>
+                        </li>
+                      )}
                     </ul>
                   )}
                 </li>

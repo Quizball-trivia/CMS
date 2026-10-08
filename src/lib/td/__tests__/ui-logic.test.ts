@@ -58,6 +58,16 @@ describe('what the editor asks of a card’s SoFIFA photo', () => {
   });
 });
 
+describe('what the editor asks of a Football Logic question', () => {
+  const question = { key: 'fl-x', puzzle: 'fl-1', category: 'Clubs', prompt: '', imageA: null, imageB: null, imageAKey: null, imageBKey: null, displayAnswer: 'Napoli', acceptedAnswers: ['napoli'] };
+  it('needs its text or a picture: an answer alone shows the player nothing', () => {
+    expect(editorialIssues('football-logic', question).map((issue) => issue.path)).toEqual(['data.prompt']);
+    expect(editorialIssues('football-logic', { ...question, prompt: '  ' })).toHaveLength(1);
+    for (const shown of [{ prompt: 'Who?' }, { imageA: '/assets/a.webp' }, { imageB: 'https://x.test/b.png' }, { imageAKey: 'crest-a' }, { imageBKey: 'crest-b' }])
+      expect(editorialIssues('football-logic', { ...question, ...shown }), JSON.stringify(shown)).toEqual([]);
+  });
+});
+
 describe('workflow actions offered', () => {
   it('keeps a publication key through refusals that say nothing about the request', async () => {
     const { refusedOutright } = await import('@/components/td/tabs/releases-tab');

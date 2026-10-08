@@ -34,6 +34,8 @@ export interface TdEditorTarget<T extends TdContentType = TdContentType> {
   /** null: a new row. */
   row: TdContentRow<T> | null;
   preset?: Partial<TdContentData<T>>;
+  /** Said under the title of a new row: where it goes. */
+  note?: string;
 }
 
 const draftOf = (row: TdContentRow): TdDraft => ({ data: row.data as Record<string, unknown>, position: row.position, note: row.note });
@@ -402,6 +404,7 @@ function EditorBody({
           </div>
         )}
       </div>
+      {!row && target?.note && <p className="mt-1 text-sm font-medium text-slate-600">{target.note}</p>}
       <DialogDescription className="sr-only">{row ? revisionLine(row) : t('Saved as a draft; mark it ready when it is done, then a publisher approves it.')}</DialogDescription>
     </DialogHeader>
   );

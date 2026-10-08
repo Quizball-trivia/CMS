@@ -26,8 +26,8 @@ export const KA_UPLOAD: Record<string, string> = {
     'Points არის 1, 2 ან 3. არასავალდებულოა: „Image: messi-portrait“ უკვე ატვირთული სურათის ID-ა, ხოლო „Photo: 158023 | 25_1“ — SoFIFA-ს მოთამაშის ID და ვერსია. სურათები აქ არ იტვირთება.',
   'Optional: “Image: dinamo-stadium” gives the key of an image already uploaded. Images are not uploaded here.':
     'არასავალდებულოა: „Image: dinamo-stadium“ უკვე ატვირთული სურათის ID-ა. სურათები აქ არ იტვირთება.',
-  'Image A and Image B are optional. Each is a web address starting with https:// or a path starting with /.':
-    'Image A და Image B არასავალდებულოა. თითოეული არის https://-ით დაწყებული ვებმისამართი ან /-ით დაწყებული მისამართი.',
+  'Image A and Image B are optional. Each is the file name of a picture chosen below under Pictures (barcelona.png), the key of an image already uploaded, a web address starting with https://, or a path starting with /.':
+    'Image A და Image B არასავალდებულოა. თითოეული არის ქვემოთ „სურათებში“ არჩეული სურათის ფაილის სახელი (barcelona.png), უკვე ატვირთული სურათის ID, https://-ით დაწყებული ვებმისამართი ან /-ით დაწყებული მისამართი.',
   'The items are listed in the order they are shown; the Answer lists them in the right order.': 'ელემენტები ჩამოწერილია ჩვენების თანმიმდევრობით; Answer-ში კი — სწორი თანმიმდევრობით.',
   'Each club is matched by its name to the clubs list for its crest; a club that is not on the list has no crest. Players are asked “Whose career is this?” unless a “Prompt:” line says otherwise.':
     'თითოეული კლუბი სახელით ემთხვევა კლუბების სიას და იღებს მის ემბლემას; სიაში არარსებულ კლუბს ემბლემა არ ექნება. მოთამაშეებს ეკითხებიან „ვისი კარიერაა?“, თუ „Prompt:“ სტრიქონი სხვას არ ამბობს.',
@@ -146,6 +146,7 @@ export const KA_UPLOAD: Record<string, string> = {
   'A Credit line is “author | licence | source”': 'Credit ხაზი ასეთია: „ავტორი | ლიცენზია | წყარო“',
   'Question {n} updates the same card': 'კითხვა {n} იმავე ბარათს ანახლებს',
   'A new card needs a clue line or a picture': 'ახალ ბარათს მინიშნება ან სურათი სჭირდება',
+  'A question needs its text or a picture': 'კითხვას ტექსტი ან სურათი სჭირდება',
   'The sign-in changed, so the upload stopped. Check the cards before you upload again.': 'შესვლა შეიცვალა, ამიტომ ატვირთვა შეჩერდა. ხელახლა ატვირთვამდე ბარათები გადაამოწმეთ.',
   'The images could not be loaded to check this key. Close the upload and open it again.': 'სურათები ვერ ჩაიტვირთა ამ ID-ის შესამოწმებლად. დახურეთ ატვირთვა და ხელახლა გახსენით.',
   'Choose one .txt file, with its pictures if it names any': 'აირჩიეთ ერთი .txt ფაილი და, თუ ასახელებს, მისი სურათები',

@@ -255,11 +255,11 @@ export function TdPreview({ type, data }: { type: TdContentType; data: Record<st
           <Section label={t('Question')}>
             <Prompt value={d.prompt} />
           </Section>
-          {(d.imageA || d.imageB) && (
+          {(d.imageA || d.imageB || d.imageAKey || d.imageBKey) && (
             <Section label={t('Images')}>
               <div className="grid gap-3 sm:grid-cols-2">
-                {d.imageA && <TdQuestionImage src={d.imageA} />}
-                {d.imageB && <TdQuestionImage src={d.imageB} />}
+                {(d.imageAKey || d.imageA) && <TdQuestionImage imageKey={d.imageAKey} src={d.imageA} />}
+                {(d.imageBKey || d.imageB) && <TdQuestionImage imageKey={d.imageBKey} src={d.imageB} />}
               </div>
             </Section>
           )}

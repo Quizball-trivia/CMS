@@ -43,7 +43,7 @@ export function apiScenarios(h: () => Harness) {
       case 'practice-questions': return { key: `prac-${run}`, difficulty: 'easy', category: 'Scenario', prompt: 'Pick one', options: ['A', 'B'], answer: 0, explanation: null, imageKey: `img-${run}` };
       case 'media': return { key: `img-${run}`, url: null, uploadId, width: 16, height: 9, author: 'Scenario', license: 'CC0', source: 'Generated' };
       case 'clubs': return { key: `club-${run}`, label: 'Scenario FC', value: 'Scenario FC', country: 'Georgia', countryKa: null, flag: null, crest: `club-${run}.webp`, crestImageKey: null, hidden: false };
-      case 'football-logic': return { key: `fl-${run}`, puzzle: `flp-${run}`, category: 'Scenario', prompt: '', imageA: null, imageB: null, displayAnswer: 'Answer', acceptedAnswers: ['answer'] };
+      case 'football-logic': return { key: `fl-${run}`, puzzle: `flp-${run}`, category: 'Scenario', prompt: '', imageA: null, imageB: null, imageAKey: null, imageBKey: null, displayAnswer: 'Answer', acceptedAnswers: ['answer'] };
       case 'put-in-order': return { key: `pio-${run}`, puzzle: `piop-${run}`, prompt: 'Order these', items: [{ key: 'a', label: 'A', sortValue: 1 }, { key: 'b', label: 'B', sortValue: 2 }] };
       case 'career-path': return { key: `cp-${run}`, puzzle: `cpp-${run}`, prompt: 'Whose career?', displayAnswer: 'Answer', acceptedAnswers: ['answer'], clubs: [{ name: 'Scenario FC', clubKey: `club-${run}` }] };
       case 'daily-schedule': return { game: 'footballLogic', date: farDate, puzzle: `flp-${run}` };
@@ -479,6 +479,28 @@ export function apiScenarios(h: () => Harness) {
     expect(body.cycle?.sets).toContain(day);
     // Again: nothing moves.
     expect((await h().call('publisher', 'POST', '/admin/dailies/footballLogic/publish', { body: { puzzles: [day] } })).body).toMatchObject({ days: body.days });
+  });
+
+  it('dailies: the uploaded pictures a day’s questions show are approved with the day, and stay while they are used', async () => {
+    const picture = (key: string) => create('editor', 'media', { ...sample('media'), key });
+    const [a, b] = [await picture(`flpa-${run}`), await picture(`flpb-${run}`)];
+    const day = `flpic-${run}`;
+    const rows: Row[] = [];
+    for (let i = 0; i < 10; i++)
+      rows.push(await create('editor', 'football-logic', { ...sample('football-logic'), key: `${day}-${i}`, puzzle: day, imageAKey: a.data.key, imageBKey: i === 0 ? b.data.key : null }));
+    // On its own a question waits for its pictures.
+    const ready = ok(await h().call('editor', 'POST', `/admin/content/football-logic/${rows[0]!.id}/ready`, { body: { version: rows[0]!.version } }));
+    expect(await h().call('publisher', 'POST', `/admin/content/football-logic/${ready.id}/approve`, { body: { version: ready.version } })).toMatchObject({
+      status: 409,
+      body: { code: 'dependency_unapproved' },
+    });
+    const published = await h().call('publisher', 'POST', '/admin/dailies/footballLogic/publish', { body: { puzzles: [day] } });
+    expect(published.status, JSON.stringify(published.body)).toBe(200);
+    for (const row of [a, b]) {
+      const now = (await h().call('editor', 'GET', `/admin/content/media/${row.id}`)).body as Row;
+      expect(now).toMatchObject({ status: 'approved' });
+      expect(await h().call('publisher', 'POST', `/admin/content/media/${row.id}/archive`, { body: { version: now.version } })).toMatchObject({ status: 409, body: { code: 'in_use' } });
+    }
   });
 
   it('dailies: days stay whole when questions move between them; a date an archived entry holds is skipped only when its day is gone', async () => {

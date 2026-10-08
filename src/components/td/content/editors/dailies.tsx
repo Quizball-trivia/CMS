@@ -9,6 +9,7 @@ import type { TdDailyGame } from '@/lib/td/admin-api';
 import { georgiaToday } from '@/lib/td/georgia';
 import { t, tn } from '@/lib/td/i18n';
 import { cn } from '@/lib/utils';
+import { TdMediaPicker } from '@/components/td/media/td-media';
 import { issuesAt, tdInputClass, TdField, TdIssueText, TdNumberField, TdNumberInput, TdOptionalTextField, TdSelectField, TdSpellingsField, TdSwitchField, TdTextField } from '../td-form';
 import { KeyField, type TdEditorProps } from './rounds';
 
@@ -83,6 +84,10 @@ export function FootballLogicEditor({ value, onChange, issues, creating }: TdEdi
         <TdTextField label={t('Topic')} value={value.category} onChange={(category) => onChange({ ...value, category })} issues={issuesAt(issues, 'data.category')} hint={t('Shown above the question in the game.')} />
       </div>
       <TdTextField label={t('Prompt (optional)')} multiline value={value.prompt} onChange={(prompt) => onChange({ ...value, prompt })} issues={issuesAt(issues, 'data.prompt')} />
+      <div className="grid gap-3 sm:grid-cols-2">
+        <TdMediaPicker label={t('Picture A')} value={value.imageAKey} onChange={(imageAKey) => onChange((current) => ({ ...current, imageAKey }))} hint={t('Upload a picture or choose one. It is shown instead of the path or link below.')} />
+        <TdMediaPicker label={t('Picture B')} value={value.imageBKey} onChange={(imageBKey) => onChange((current) => ({ ...current, imageBKey }))} />
+      </div>
       <div className="grid gap-3 sm:grid-cols-2">
         <TdOptionalTextField label={t('Image A')} value={value.imageA} onChange={(imageA) => onChange({ ...value, imageA })} issues={issuesAt(issues, 'data.imageA')} placeholder={t('/assets/… or https://…')} />
         <TdOptionalTextField label={t('Image B')} value={value.imageB} onChange={(imageB) => onChange({ ...value, imageB })} issues={issuesAt(issues, 'data.imageB')} placeholder={t('/assets/… or https://…')} />

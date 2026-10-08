@@ -86,7 +86,7 @@ export const TD_TYPE_CONFIG: { [T in TdContentType]: TdTypeConfig<T> } = {
     singular: t('Football Logic question'),
     plural: t('Football Logic questions'),
     title: (d) => d.displayAnswer,
-    empty: (p) => ({ key: newKey('fl'), puzzle: '', category: '', prompt: '', imageA: null, imageB: null, displayAnswer: '', acceptedAnswers: [], ...p }),
+    empty: (p) => ({ key: newKey('fl'), puzzle: '', category: '', prompt: '', imageA: null, imageB: null, imageAKey: null, imageBKey: null, displayAnswer: '', acceptedAnswers: [], ...p }),
     Editor: FootballLogicEditor,
   },
   'put-in-order': {
