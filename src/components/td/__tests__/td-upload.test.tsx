@@ -574,6 +574,28 @@ describe('the upload dialog', () => {
     expect(await uploaded(admin, 'cards')).toEqual([]);
   });
 
+  it('uploads no card while the category’s cards cannot be read: one not read would be added again', async () => {
+    const inner = server;
+    let broken = true;
+    server = (async (input: RequestInfo | URL, init?: RequestInit) =>
+      broken && (!init?.method || init.method === 'GET') && String(input).includes('/admin/content/cards?')
+        ? new Response(JSON.stringify({ code: 'busy', message: 'Try again in a moment' }), { status: 503, headers: { 'content-type': 'application/json' } })
+        : inner(input, init)) as typeof fetch;
+    const { admin } = await signIn('editor');
+    await openDialog({ initialType: 'cards', initialCategory: 'legends' });
+    chooseFile(txt('1.\nAnswer: Buffon\nPoints: 2'));
+    expect(await screen.findByText('The cards of this category could not be read, so nothing can be uploaded into it yet.', undefined, { timeout: 5000 })).toBeTruthy();
+    expect((await uploadButton(1)).hasAttribute('disabled')).toBe(true);
+    broken = false;
+    fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
+    expect(await screen.findByText('Updates the card')).toBeTruthy();
+    const upload = await uploadButton(1);
+    await waitFor(() => expect(upload.hasAttribute('disabled')).toBe(false));
+    fireEvent.click(upload);
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    expect(await uploaded(admin, 'cards')).toEqual([]);
+  });
+
   it('takes a category for Practice from the labels on file, or one typed', async () => {
     const { admin } = await signIn('editor');
     await openDialog({ initialType: 'practice-questions' });
@@ -867,6 +889,37 @@ describe('the upload dialog', () => {
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
     expect(await uploaded(admin, 'penalty-questions')).toHaveLength(2);
     expect((await admin.imports.list()).items).toHaveLength(1);
+  });
+
+  it('does not replay a lost upload of a card whose name two cards carry by now', async () => {
+    const inner = server;
+    let lose = true;
+    server = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      if (lose && init?.method === 'POST' && String(input).endsWith('/admin/content/imports')) {
+        lose = false;
+        throw new TypeError('Failed to fetch');
+      }
+      return inner(input, init);
+    }) as typeof fetch;
+    const { admin } = await signIn('editor');
+    const failed = vi.spyOn(toast, 'error');
+    const file = '1.\nClue 1: Uruguay\nAnswer: Luis Suarez\nPoints: 3';
+    await openDialog({ initialType: 'cards', initialCategory: 'legends' });
+    chooseFile(txt(file));
+    const upload = await uploadButton(1);
+    await waitFor(() => expect(upload.hasAttribute('disabled')).toBe(false));
+    fireEvent.click(upload);
+    await waitFor(() => expect(failed).toHaveBeenCalled());
+    cleanup();
+
+    // Meanwhile two cards of that name were made by someone else.
+    for (const [key, display] of [['suarez-es', 'Luis Suárez'], ['suarez-uy', 'Luis Suarez']] as const)
+      await admin.content('cards').create({ data: { categoryKey: 'legends', key, value: 1, lines: ['Old clue'], display, aliases: [key], photo: null, imageKey: null } });
+    await openDialog({ initialType: 'cards', initialCategory: 'legends' });
+    chooseFile(txt(file));
+    expect(await screen.findByText(/Two cards in this category have this name/)).toBeTruthy();
+    expect((await uploadButton(1)).hasAttribute('disabled')).toBe(true);
+    expect(await uploaded(admin, 'cards')).toEqual([]);
   });
 
   it('keeps the cards still to update when a file read again finds its new cards imported already', async () => {

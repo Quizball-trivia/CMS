@@ -99,6 +99,7 @@ export const KA_UPLOAD: Record<string, string> = {
   'Clues must be numbered sequentially starting from 1': 'მინიშნებები უნდა დაინომროს თანმიმდევრულად, 1-დან',
   'Missing points (use “Points: 1”, “Points: 2” or “Points: 3”)': 'ქულა არ არის მითითებული (გამოიყენეთ „Points: 1“, „Points: 2“ ან „Points: 3“)',
   'Points must be 1, 2 or 3': 'ქულა უნდა იყოს 1, 2 ან 3',
+  'The cards of this category could not be read, so nothing can be uploaded into it yet.': 'ამ კატეგორიის ბარათები ვერ წაიკითხა, ამიტომ მასში ჯერ ვერაფერი აიტვირთება.',
   'Two cards in this category have this name: change the one meant on its own page': 'ამ კატეგორიაში ორ ბარათს აქვს ეს სახელი: საჭირო ბარათი მის გვერდზე შეცვალეთ',
   'A photo is a SoFIFA player number and its two-digit version, such as “158023 | 24”': 'ფოტო არის SoFIFA-ს მოთამაშის ნომერი და ორნიშნა ვერსია, მაგალითად „158023 | 24“',
   'Must have between 2 and 8 options (A, B, C…), found {n}': 'უნდა იყოს 2-დან 8-მდე ვარიანტი (A, B, C…), მოიძებნა {n}',

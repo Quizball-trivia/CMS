@@ -288,7 +288,9 @@ function UploadBody({ open, initialType, initialCategory, types, onBusy, onClose
   const ready =
     (!keyCategory && !labelCategory ? true : keyCategory ? category !== '' : category !== '' && category.length <= 200) &&
     (type !== 'career-path' || !clubRows.isLoading) &&
-    (type !== 'cards' || (!categoryCards.isLoading && !mediaRows.isLoading));
+    // Every card of the category must be known: one not read would be added again instead of updated.
+    (type !== 'cards' || (categoryCards.isSuccess && categoryCards.data.complete && !mediaRows.isLoading));
+  const cardsUnread = type === 'cards' && category !== '' && (categoryCards.isError || (categoryCards.isSuccess && !categoryCards.data.complete));
   const pictureKeys = useMemo(() => new Map(pictures.map((picture) => [picture.name.toLowerCase(), picture.key])), [pictures]);
   const missingPictures = useMemo(
     () => [...new Set(questions.flatMap((question) => ('imageFile' in question && question.imageFile && !pictureKeys.has(question.imageFile.toLowerCase()) ? [question.imageFile] : [])))],
@@ -562,6 +564,11 @@ function UploadBody({ open, initialType, initialCategory, types, onBusy, onClose
     const superseded = () => reading.current !== mine;
     if (superseded()) return;
     replayStarted.current = read;
+    // A question whose answer two cards now carry is refused, not sent again as a new card.
+    if (questions.some(sharedName)) {
+      setReplayed(mine);
+      return;
+    }
     const operation = readOperation.current;
     void (async () => {
       const items = entries.filter((entry) => !entry.updates).map((entry) => entry.item);
@@ -596,7 +603,7 @@ function UploadBody({ open, initialType, initialCategory, types, onBusy, onClose
       }
       setReplayed(mine);
     })();
-  }, [read, replayed, ready, entries, questions, user, importItems, onClose, onBusy]);
+  }, [read, replayed, ready, entries, questions, user, importItems, onClose, onBusy, sharedName]);
 
   // The check: which of the questions the API would refuse, asked once for each item.
   useEffect(() => {
@@ -853,6 +860,17 @@ function UploadBody({ open, initialType, initialCategory, types, onBusy, onClose
               </p>
             </div>
           </div>
+
+          {cardsUnread && (
+            <Alert variant="destructive">
+              <AlertDescription className="flex flex-wrap items-center justify-between gap-2">
+                {t('The cards of this category could not be read, so nothing can be uploaded into it yet.')}
+                <Button type="button" variant="outline" size="sm" onClick={() => void categoryCards.refetch()}>
+                  {t('Try again')}
+                </Button>
+              </AlertDescription>
+            </Alert>
+          )}
 
           {/* Pictures the file names on its Image lines */}
           {takesPictures && (
