@@ -165,7 +165,7 @@ export function seedContent(): Seed {
     'football-logic': [
       { key: 'fl-1-a', puzzle: 'fl-1', category: 'Clubs', prompt: 'What links these two images?', imageA: '/assets/daily/football-logic/fc-barcelona.webp', imageB: '/assets/daily/football-logic/sevilla-fc.webp', imageAKey: null, imageBKey: null, displayAnswer: 'Napoli', acceptedAnswers: ['napoli', 'ნაპოლი'] },
       { key: 'fl-1-b', puzzle: 'fl-1', category: 'Players', prompt: 'Which Georgian defender won the Champions League twice with Milan?', imageA: null, imageB: null, imageAKey: null, imageBKey: null, displayAnswer: 'Kaladze', acceptedAnswers: ['kaladze'] },
-      { key: 'fl-2-a', puzzle: 'fl-2', category: 'Stadiums', prompt: 'Which stadium is this?', imageA: null, imageB: null, imageAKey: null, imageBKey: null, displayAnswer: 'Boris Paichadze Dinamo Arena', acceptedAnswers: ['dinamo arena', 'paichadze'] },
+      { key: 'fl-2-a', puzzle: 'fl-2', category: 'Stadiums', prompt: 'Which stadium is this?', imageA: null, imageB: null, imageAKey: 'dinamo-stadium', imageBKey: null, displayAnswer: 'Boris Paichadze Dinamo Arena', acceptedAnswers: ['dinamo arena', 'paichadze'] },
     ],
     'put-in-order': [
       {

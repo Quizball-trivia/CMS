@@ -186,6 +186,31 @@ describe('the Daily page', () => {
     expect(screen.queryByRole('button', { name: /Publish/ })).toBeNull();
   });
 
+  it('says where a new question goes: into the short day it is added in, or a new day from the button above', async () => {
+    const { admin } = await signIn('editor');
+    renderTd(<TdDailiesTab />);
+    fireEvent.click((await screen.findAllByRole('button', { name: /No date/ }))[0]!);
+    fireEvent.click(await screen.findByRole('button', { name: 'Add a question to this day (2/10)' }));
+    expect(await screen.findByText('It joins this day, which has 2 of its 10 questions.')).toBeTruthy();
+    fireEvent.change(screen.getByLabelText('Topic'), { target: { value: 'Clubs' } });
+    fireEvent.change(screen.getByLabelText('Prompt (optional)'), { target: { value: 'Who moved between these two?' } });
+    fireEvent.change(screen.getByLabelText('Answer (as shown)'), { target: { value: 'Neymar' } });
+    const spellings = screen.getByLabelText('Accepted spellings');
+    fireEvent.change(spellings, { target: { value: 'neymar jr' } });
+    fireEvent.keyDown(spellings, { key: 'Enter' });
+    fireEvent.click(screen.getByRole('button', { name: 'Create Question' }));
+    await waitFor(async () =>
+      expect((await admin.content('football-logic').list({ puzzle: 'fl-1', status: 'draft,ready,approved' })).items).toHaveLength(3),
+    );
+    // The editor shows the question it made; closed, the day has it.
+    const made = screen.queryByRole('dialog');
+    if (made) fireEvent.click(within(made).getByRole('button', { name: 'Close' }));
+    expect(await screen.findByRole('button', { name: 'Add a question to this day (3/10)' })).toBeTruthy();
+
+    fireEvent.click(screen.getByRole('button', { name: 'New Question' }));
+    expect(await screen.findByText(/^It starts a new day \(a day has 10 questions\)\./)).toBeTruthy();
+  });
+
   it('lists archived questions to open (and restore) them, and opens a question a link names', async () => {
     const { admin } = await signIn('publisher');
     const [first] = (await admin.content('football-logic').list({ status: 'draft,ready,approved' })).items;
