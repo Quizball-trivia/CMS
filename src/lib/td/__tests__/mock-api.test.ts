@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { createMockTdApi, MOCK_PASSWORD, type MockTdApiOptions } from '../mock-api';
+import { MOCK_DB_SCHEMA } from '../mock/db';
 import { createFakeLockManager, deferred, MemoryStorage, sleep } from './helpers';
 
 type MockAuthLock = NonNullable<MockTdApiOptions['authLock']>;
@@ -111,11 +112,11 @@ describe('mock Table Derby API', () => {
 
   it('a store saved by an older mock is seeded again, not reused', async () => {
     const storage = new MemoryStorage();
-    storage.setItem('td_mock_db', JSON.stringify({ schema: 3, webhooks: [] }));
+    storage.setItem('td_mock_db', JSON.stringify({ schema: MOCK_DB_SCHEMA - 1, webhooks: [] }));
     const { call, login } = mockApi(storage);
     const ops = (await login('ops@demo.tablederby.test')).accessToken as string;
     expect((await call('GET', '/admin/integration/webhooks/td-evt-0001', { token: ops })).body.event.attempts).toBe(230);
-    expect(JSON.parse(storage.getItem('td_mock_db')!).schema).toBe(4);
+    expect(JSON.parse(storage.getItem('td_mock_db')!).schema).toBe(MOCK_DB_SCHEMA);
   });
 
   it('webhooks: an event shows its latest 200 attempts, oldest first', async () => {

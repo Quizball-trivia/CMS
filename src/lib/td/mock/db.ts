@@ -9,7 +9,8 @@ import { seedContent } from './seed-content';
 import { MOCK_STAFF } from './staff';
 
 /** Bumped whenever the stored shape or the seed changes: an older store is replaced. */
-export const MOCK_DB_SCHEMA = 4;
+// 5: Football Logic's seeded pictures are files the game has (data kept from before named files it never had).
+export const MOCK_DB_SCHEMA = 5;
 
 export interface Actor {
   id: string | null;

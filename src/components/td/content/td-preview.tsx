@@ -98,6 +98,7 @@ function UploadedImage({ uploadId, alt }: { uploadId: string; alt: string }) {
 /** An image of the game by its path, fetched through /td/game-image; one that is not there shows its path. */
 function GameImage({ src, path }: { src: string; path: string }) {
   const [failed, setFailed] = useState(false);
+  const [loaded, setLoaded] = useState(false);
   if (failed)
     return (
       <div className={cn(FRAME, 'flex-col gap-2 px-4 text-center text-sm text-slate-500')}>
@@ -108,8 +109,9 @@ function GameImage({ src, path }: { src: string; path: string }) {
     );
   return (
     <div className={FRAME}>
+      {!loaded && <Loader2 className="absolute h-6 w-6 animate-spin text-slate-400" />}
       {/* eslint-disable-next-line @next/next/no-img-element -- served from this origin by /td/game-image */}
-      <img src={src} alt="" onError={() => setFailed(true)} className="h-full w-full object-contain" />
+      <img src={src} alt="" decoding="async" onLoad={() => setLoaded(true)} onError={() => setFailed(true)} className={cn('h-full w-full object-contain transition-opacity duration-150', loaded ? 'opacity-100' : 'opacity-0')} />
     </div>
   );
 }
