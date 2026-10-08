@@ -344,7 +344,9 @@ function UploadBody({ open, initialType, initialCategory, types, onBusy, onClose
   // A question that updates a card is not imported, so it is not checked as an import either.
   const pending = useMemo(() => (tooMany ? [] : entries.filter((entry) => !entry.updates && !checked.has(entry.signature))), [tooMany, entries, checked]);
 
-  uploadable.current = entries.flatMap((entry, index) => (!entry.updates && !unselected.has(questions[index]!.id) ? [entry.item] : []));
+  useEffect(() => {
+    uploadable.current = entries.flatMap((entry, index) => (!entry.updates && !unselected.has(questions[index]!.id) ? [entry.item] : []));
+  }, [entries, unselected, questions]);
   const rows = useMemo<QuestionWithSelection[]>(() => {
     // The first question of the file that updates each card.
     const updater = new Map<string, number>();
@@ -462,7 +464,9 @@ function UploadBody({ open, initialType, initialCategory, types, onBusy, onClose
   // The object URLs of the pictures shown go when they do.
   // The object URLs of the pictures go with the dialog (one replaced by a picture of the same name goes at once).
   const shownPictures = useRef(pictures);
-  shownPictures.current = pictures;
+  useEffect(() => {
+    shownPictures.current = pictures;
+  }, [pictures]);
   useEffect(() => () => shownPictures.current.forEach((picture) => URL.revokeObjectURL(picture.url)), []);
 
   /** Adds the pictures to those chosen; one of a name already chosen replaces it. */

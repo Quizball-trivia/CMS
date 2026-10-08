@@ -16,7 +16,8 @@ const ALL = { status: 'draft,ready,approved,archived' };
 export function TdCategoriesTab() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingCategory, setEditingCategory] = useState<TdCategoryRow | undefined>(undefined);
-  const [searchTerm, setSearchTerm] = useState('');
+  // A link from the publish report names a category by its key (?q=).
+  const [searchTerm, setSearchTerm] = useState(() => (typeof window === 'undefined' ? '' : (new URLSearchParams(window.location.search).get('q') ?? '')));
   // Asked before the dialog closes: the open form says whether it may be left.
   const leaveRef = useRef<() => boolean>(() => true);
 
@@ -46,7 +47,7 @@ export function TdCategoriesTab() {
     const query = round.type === 'card-categories' ? cardCategories : boxCategories;
     return { ...round, isLoading: query.isLoading, error: query.error, rows: (query.data?.rows ?? []) as TdCategoryRow[] };
   });
-  const matches = (category: TdCategoryRow) => !normalizedSearch || categoryName(category).toLowerCase().includes(normalizedSearch);
+  const matches = (category: TdCategoryRow) => !normalizedSearch || categoryName(category).toLowerCase().includes(normalizedSearch) || category.data.key.toLowerCase() === normalizedSearch;
   const live = sections.map((section) => section.rows.filter((row) => row.status !== 'archived' && matches(row)));
   const archivedCategories = sections.flatMap((section) => section.rows.filter((row) => row.status === 'archived' && matches(row)));
 

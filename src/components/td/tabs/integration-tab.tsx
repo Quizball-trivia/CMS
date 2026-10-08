@@ -150,7 +150,7 @@ export function TdIntegrationTab() {
 
       <TdSection title={t('Session inits and launches')} description={t("POST /partner/v1/sessions/init from Betsson's servers, and the iframe's one-time token exchanges.")}>
         <TdEmptyState icon={KeyRound} title={t('Coming with the next admin contract')}>
-          {t('The admin API (contract v6) has no route for session inits or launches yet. They will show here, with their reason codes, once it does.')}
+          {t('The admin API has no route for session inits or launches yet. They will show here, with their reason codes, once it does.')}
         </TdEmptyState>
       </TdSection>
 

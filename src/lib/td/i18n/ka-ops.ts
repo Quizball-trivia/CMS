@@ -220,8 +220,8 @@ export const KA_OPS: Record<string, string> = {
   'Session inits and launches': 'სესიის ინიციალიზაციები და გაშვებები',
   "POST /partner/v1/sessions/init from Betsson's servers, and the iframe's one-time token exchanges.": 'POST /partner/v1/sessions/init მოთხოვნები Betsson-ის სერვერებიდან და iframe-ის ერთჯერადი ტოკენის გაცვლა.',
   'Coming with the next admin contract': 'დაემატება ადმინ-API-ის შემდეგ კონტრაქტთან ერთად',
-  'The admin API (contract v6) has no route for session inits or launches yet. They will show here, with their reason codes, once it does.':
-    'ადმინ-API-ს (კონტრაქტი v6) სესიის ინიციალიზაციებისა და გაშვებების ჩანაწერები ჯერ არ აქვს. როგორც კი დაემატება, ისინი აქ გამოჩნდება მიზეზის კოდებთან ერთად.',
+  'The admin API has no route for session inits or launches yet. They will show here, with their reason codes, once it does.':
+    'ადმინ-API-ს სესიის ინიციალიზაციებისა და გაშვებების ჩანაწერები ჯერ არ აქვს. როგორც კი დაემატება, ისინი აქ გამოჩნდება მიზეზის კოდებთან ერთად.',
   'Reason codes': 'მიზეზის კოდები',
   'Betsson did not answer within 10 s': 'Betsson-მა 10 წამში არ უპასუხა',
   'Betsson answered with that non-2xx status': 'Betsson-მა ამ სტატუსით უპასუხა (არა 2xx)',

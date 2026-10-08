@@ -162,6 +162,21 @@ describe('the Categories page', () => {
     expect(screen.getByText('Famous coaches')).toBeTruthy();
   });
 
+  it('opens on the category a publish-report link names by its key', async () => {
+    const { admin } = await signIn('editor');
+    await admin.content('card-categories').create({ data: { key: 'coaches', prompt: 'Famous coaches' } });
+    await admin.content('card-categories').create({ data: { key: 'keepers', prompt: 'Goalkeepers of the 90s' } });
+    window.history.replaceState(null, '', '?q=keepers');
+    try {
+      renderPage();
+      expect(await screen.findByText('Goalkeepers of the 90s')).toBeTruthy();
+      expect(screen.queryByText('Famous coaches')).toBeNull();
+      expect((screen.getByPlaceholderText('Search categories...') as HTMLInputElement).value).toBe('keepers');
+    } finally {
+      window.history.replaceState(null, '', window.location.pathname);
+    }
+  });
+
   it('edits a category’s name; its key stays', async () => {
     const { admin } = await signIn('editor');
     await admin.content('card-categories').create({ data: { key: 'coaches', prompt: 'Famous coaches' } });
