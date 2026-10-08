@@ -566,13 +566,13 @@ function UploadBody({ open, initialType, initialCategory, types, onBusy, onClose
     const superseded = () => reading.current !== mine;
     if (superseded()) return;
     replayStarted.current = read;
-    // A question whose answer two cards now carry is refused, not sent again as a new card.
-    if (questions.some(sharedName)) {
-      setReplayed(mine);
-      return;
-    }
     const operation = readOperation.current;
     void (async () => {
+      // A question whose answer two cards now carry is refused, not sent again as a new card.
+      if (questions.some(sharedName)) {
+        setReplayed(mine);
+        return;
+      }
       const items = entries.filter((entry) => !entry.updates).map((entry) => entry.item);
       const edits = entries.some((entry) => entry.updates);
       // Questions removed or unticked since the file was read are not what went out: nothing is replayed then.
