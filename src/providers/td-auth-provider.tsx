@@ -4,6 +4,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { useQueryClient } from '@tanstack/react-query';
 import { SESSION_CHANGED, TdApiError } from '@/lib/td/api-client';
 import { tdApi, tdRefresh, tdTokens } from '@/lib/td/client';
+import { t } from '@/lib/td/i18n';
 import { newGeneration, type TdSession, type TdTokenSet } from '@/lib/td/token-store';
 import type { TdStaff } from '@/types/td';
 
@@ -29,8 +30,8 @@ const TdAuthContext = createContext<TdAuthContextValue | null>(null);
 
 const RENEW_BEFORE_EXPIRY_MS = 2 * 60_000;
 const RENEW_CHECK_INTERVAL_MS = 30_000;
-const SESSION_ENDED = 'Your session has ended. Please sign in again.';
-const NO_ACCESS = 'This account has no access to the Table Derby CMS.';
+const SESSION_ENDED = t('Your session has ended. Please sign in again.');
+const NO_ACCESS = t('This account has no access to the Table Derby CMS.');
 
 function nearExpiry(session: TdSession): boolean {
   return session.expiresAt !== null && Date.now() > session.expiresAt - RENEW_BEFORE_EXPIRY_MS;
@@ -163,7 +164,7 @@ export function TdAuthProvider({ children }: { children: ReactNode }) {
         const me = await tdApi.me({ generation });
         const committed = await tdTokens.transact((tx) => tx.update(generation, { staffId: me.id }));
         if (!committed || activeGeneration.current !== generation) {
-          throw new TdApiError(0, SESSION_CHANGED, 'Another sign-in replaced this one');
+          throw new TdApiError(0, SESSION_CHANGED, t('Another sign-in replaced this one'));
         }
         setState({ status: 'authenticated', user: me, notice: null });
         return me;
@@ -180,7 +181,7 @@ export function TdAuthProvider({ children }: { children: ReactNode }) {
   const login = useCallback(
     async (email: string, password: string) => {
       const member = await adopt(await tdApi.login(email, password));
-      if (!member) throw new TdApiError(0, SESSION_CHANGED, 'Another sign-in replaced this one');
+      if (!member) throw new TdApiError(0, SESSION_CHANGED, t('Another sign-in replaced this one'));
       return member;
     },
     [adopt],

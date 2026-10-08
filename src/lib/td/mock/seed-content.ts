@@ -24,6 +24,15 @@ const LEGENDS: Array<[key: string, display: string, value: 1 | 2 | 3, aliases: s
   ['buffon', 'Gianluigi Buffon', 2, ['buffon', 'ბუფონი'], ['Italy', 'Juventus', '2006 World Cup']],
 ];
 
+/** SoFIFA faces of some of the cards, as real cards carry them (the CMS shows them through app/td/face). */
+const FACES: Record<string, { id: number; ver: string }> = {
+  messi: { id: 158023, ver: '24' },
+  ronaldo: { id: 20801, ver: '24' },
+  kvaratskhelia: { id: 247635, ver: '24' },
+  modric: { id: 177003, ver: '24' },
+  buffon: { id: 1179, ver: '21' },
+};
+
 const BOX: Array<[key: string, title: string, questions: Array<[q: string, display: string, aliases: string[]]>]> = [
   ['world-cups', 'World Cups', [['Who won the 2022 World Cup?', 'Argentina', ['argentina', 'არგენტინა']], ['Which country hosted the 2014 World Cup?', 'Brazil', ['brazil', 'ბრაზილია']]]],
   ['champions-league', 'Champions League', [['Which club has won the most European Cups?', 'Real Madrid', ['real madrid', 'real', 'რეალი']], ['Who won the 2005 final in Istanbul?', 'Liverpool', ['liverpool', 'ლივერპული']]]],
@@ -106,7 +115,7 @@ export function seedContent(): Seed {
       lines,
       display,
       aliases,
-      photo: null,
+      photo: FACES[key] ?? null,
       imageKey: null,
     })),
     'whoami-subjects': [
@@ -154,7 +163,7 @@ export function seedContent(): Seed {
       hidden: false,
     })),
     'football-logic': [
-      { key: 'fl-1-a', puzzle: 'fl-1', category: 'Clubs', prompt: 'What links these two images?', imageA: '/assets/logic/fl-1-a1.webp', imageB: '/assets/logic/fl-1-a2.webp', displayAnswer: 'Napoli', acceptedAnswers: ['napoli', 'ნაპოლი'] },
+      { key: 'fl-1-a', puzzle: 'fl-1', category: 'Clubs', prompt: 'What links these two images?', imageA: '/assets/daily/football-logic/fc-barcelona.webp', imageB: '/assets/daily/football-logic/sevilla-fc.webp', displayAnswer: 'Napoli', acceptedAnswers: ['napoli', 'ნაპოლი'] },
       { key: 'fl-1-b', puzzle: 'fl-1', category: 'Players', prompt: '', imageA: null, imageB: null, displayAnswer: 'Kaladze', acceptedAnswers: ['kaladze'] },
       { key: 'fl-2-a', puzzle: 'fl-2', category: 'Stadiums', prompt: 'Which stadium is this?', imageA: null, imageB: null, displayAnswer: 'Boris Paichadze Dinamo Arena', acceptedAnswers: ['dinamo arena', 'paichadze'] },
     ],

@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { TdApiError } from '@/lib/td/api-client';
 import { checkContract } from '@/lib/td/contract';
+import { t, tr } from '@/lib/td/i18n';
 import { TD_LINK_PATHS } from '@/lib/td/link-fragment';
 import { TD_ROOT } from '@/lib/workspace-guard';
 import { useTdAuth } from '@/providers/td-auth-provider';
@@ -31,9 +32,9 @@ export function linkTokenFrom(hash: string): string | null {
 
 export function passwordProblem(password: string, confirm: string): string | null {
   const length = [...password].length;
-  if (length < PASSWORD_MIN) return `Use at least ${PASSWORD_MIN} characters.`;
-  if (length > PASSWORD_MAX) return `Use at most ${PASSWORD_MAX} characters.`;
-  if (password !== confirm) return 'The two passwords are not the same.';
+  if (length < PASSWORD_MIN) return t('Use at least {min} characters.', { min: PASSWORD_MIN });
+  if (length > PASSWORD_MAX) return t('Use at most {max} characters.', { max: PASSWORD_MAX });
+  if (password !== confirm) return t('The two passwords are not the same.');
   return null;
 }
 
@@ -43,23 +44,23 @@ export function passwordProblem(password: string, confirm: string): string | nul
  */
 export function linkRefusal(error: unknown, kind: TdLinkKind, unanswered = false): string {
   if (!(error instanceof TdApiError)) {
-    return 'No answer from the Table Derby API. It may have gone through: try signing in with the password you chose, or send this again.';
+    return t('No answer from the Table Derby API. It may have gone through: try signing in with the password you chose, or send this again.');
   }
   switch (error.code) {
     case 'invalid_token':
-      if (unanswered) return 'This link is used now, most likely by your try that got no answer: sign in with the password you chose.';
+      if (unanswered) return t('This link is used now, most likely by your try that got no answer: sign in with the password you chose.');
       return kind === 'invite'
-        ? 'This invitation link has expired or was already used. If you already joined, sign in; otherwise ask a team manager for a new one.'
-        : 'This reset link has expired or was already used. If you already set a new password, sign in; otherwise ask a team manager for a new one.';
+        ? t('This invitation link has expired or was already used. If you already joined, sign in; otherwise ask a team manager for a new one.')
+        : t('This reset link has expired or was already used. If you already set a new password, sign in; otherwise ask a team manager for a new one.');
     case 'weak_password':
-      return `The API refused this password: use ${PASSWORD_MIN} to ${PASSWORD_MAX} characters.`;
+      return t('The API refused this password: use {min} to {max} characters.', { min: PASSWORD_MIN, max: PASSWORD_MAX });
     case 'rate_limited':
-      return 'Too many attempts. Wait a minute and try again.';
+      return t('Too many attempts. Wait a minute and try again.');
     case 'invalid_request':
-      return kind === 'invite' ? 'Check your name and password and try again.' : 'Check your password and try again.';
+      return kind === 'invite' ? t('Check your name and password and try again.') : t('Check your password and try again.');
     case 'busy':
     case 'internal':
-      return 'The Table Derby API could not take this just now. Try again in a moment.';
+      return t('The Table Derby API could not take this just now. Try again in a moment.');
     default:
       return error.message;
   }
@@ -104,8 +105,8 @@ function forgetSpent(kind: TdLinkKind, token: string) {
 const inputClass = 'h-12 rounded-lg border-border bg-(--td-input) px-4 text-base text-foreground placeholder:text-(--td-text-3)';
 
 const COPY: Record<TdLinkKind, { title: string; lead: string; submit: string; done: string }> = {
-  invite: { title: 'Join the team', lead: 'Choose your name and a password to finish your invitation.', submit: 'Join', done: 'joined' },
-  reset: { title: 'Set a new password', lead: 'Choose a new password for your account.', submit: 'Set password', done: 'password-set' },
+  invite: { title: t('Join the team'), lead: t('Choose your name and a password to finish your invitation.'), submit: t('Join'), done: 'joined' },
+  reset: { title: t('Set a new password'), lead: t('Choose a new password for your account.'), submit: t('Set password'), done: 'password-set' },
 };
 
 /** Redeems an invitation or reset link (`/td/accept-invite#token=…`, `/td/reset#token=…`). */
@@ -166,7 +167,7 @@ function LinkForm({ kind, token }: { kind: TdLinkKind; token: string | null }) {
   const copy = COPY[kind];
   const done = `${TD_ROOT}/login?done=${copy.done}`;
   const trimmedName = name.trim();
-  const problem = passwordProblem(password, confirm) ?? (kind === 'invite' && (trimmedName === '' || [...trimmedName].length > 80) ? 'Enter your name (at most 80 characters).' : null);
+  const problem = passwordProblem(password, confirm) ?? (kind === 'invite' && (trimmedName === '' || [...trimmedName].length > 80) ? t('Enter your name (at most 80 characters).') : null);
 
   useEffect(() => {
     // Nobody signed in: the login page, with its note, is the way on.
@@ -215,16 +216,18 @@ function LinkForm({ kind, token }: { kind: TdLinkKind; token: string | null }) {
     if (status === 'unavailable') {
       return frame(
         <div className="rounded-xl border border-border bg-card p-6 sm:p-8">
-          <h1 className="text-center text-2xl font-bold">{kind === 'invite' ? 'You have joined' : 'Password set'}</h1>
+          <h1 className="text-center text-2xl font-bold">{kind === 'invite' ? t('You have joined') : t('Password set')}</h1>
           <p role="status" className="mt-4 text-sm text-(--td-text-2)">
-            {kind === 'invite' ? 'Your account is ready' : 'Your new password is set'}, but the Table Derby API could not be reached to check who is signed in on this browser.
+            {kind === 'invite'
+              ? t('Your account is ready, but the Table Derby API could not be reached to check who is signed in on this browser.')
+              : t('Your new password is set, but the Table Derby API could not be reached to check who is signed in on this browser.')}
           </p>
           <div className="mt-6 flex flex-col gap-2">
             <Button className="h-11 rounded-lg" onClick={retry}>
-              Try again
+              {t('Try again')}
             </Button>
             <Button variant="secondary" className="h-11 rounded-lg" onClick={() => router.replace(done)}>
-              Go to sign in
+              {t('Go to sign in')}
             </Button>
           </div>
         </div>,
@@ -233,9 +236,11 @@ function LinkForm({ kind, token }: { kind: TdLinkKind; token: string | null }) {
     if (status !== 'authenticated' || !user) return <TdFullScreenLoader />;
     return frame(
       <div className="rounded-xl border border-border bg-card p-6 sm:p-8">
-        <h1 className="text-center text-2xl font-bold">{kind === 'invite' ? 'You have joined' : 'Password set'}</h1>
+        <h1 className="text-center text-2xl font-bold">{kind === 'invite' ? t('You have joined') : t('Password set')}</h1>
         <p role="status" className="mt-4 text-sm text-(--td-text-2)">
-          {kind === 'invite' ? 'Your account is ready' : 'Your new password is set'}, but this browser is still signed in as {user.name}.
+          {kind === 'invite'
+            ? t('Your account is ready, but this browser is still signed in as {name}.', { name: user.name })
+            : t('Your new password is set, but this browser is still signed in as {name}.', { name: user.name })}
         </p>
         <div className="mt-6 flex flex-col gap-2">
           <Button
@@ -245,10 +250,10 @@ function LinkForm({ kind, token }: { kind: TdLinkKind; token: string | null }) {
               router.replace(done);
             }}
           >
-            Sign out and sign in with the new password
+            {t('Sign out and sign in with the new password')}
           </Button>
           <Button variant="secondary" className="h-11 rounded-lg" onClick={() => router.replace(TD_ROOT)}>
-            Stay signed in as {user.name}
+            {t('Stay signed in as {name}', { name: user.name })}
           </Button>
         </div>
       </div>,
@@ -260,10 +265,10 @@ function LinkForm({ kind, token }: { kind: TdLinkKind; token: string | null }) {
       <div className="rounded-xl border border-border bg-card p-6 text-center sm:p-8">
         <h1 className="text-2xl font-bold">{copy.title}</h1>
         <p role="alert" className="mt-4 text-sm text-(--td-danger)">
-          This link is incomplete or damaged. Open the whole link you were given, or ask a team manager for a new one.
+          {t('This link is incomplete or damaged. Open the whole link you were given, or ask a team manager for a new one.')}
         </p>
         <Link href={`${TD_ROOT}/login`} className="mt-6 inline-block text-sm text-primary underline">
-          Go to sign in
+          {t('Go to sign in')}
         </Link>
       </div>
     ) : (
@@ -272,8 +277,8 @@ function LinkForm({ kind, token }: { kind: TdLinkKind; token: string | null }) {
         <p className="mt-1 text-center text-sm text-(--td-text-3)">{copy.lead}</p>
 
         {status === 'authenticated' && user && (
-          <p className="mt-6 rounded-lg bg-amber-400/10 px-3 py-2.5 text-sm text-amber-200">
-            You are signed in as {user.name}. Finishing here signs you in with this account instead.
+          <p className="mt-6 rounded-lg bg-amber-50 px-3 py-2.5 text-sm text-amber-700">
+            {t('You are signed in as {name}. Finishing here signs you in with this account instead.', { name: user.name })}
           </p>
         )}
 
@@ -287,7 +292,7 @@ function LinkForm({ kind, token }: { kind: TdLinkKind; token: string | null }) {
         {kind === 'invite' && (
           <div className="mt-6 flex flex-col gap-2">
             <Label htmlFor="td-name" className="text-xs font-medium text-(--td-text-3)">
-              Your name
+              {t('Your name')}
             </Label>
             <Input id="td-name" autoComplete="name" maxLength={120} value={name} onChange={(event) => setName(event.target.value)} className={inputClass} />
           </div>
@@ -295,7 +300,7 @@ function LinkForm({ kind, token }: { kind: TdLinkKind; token: string | null }) {
 
         <div className="mt-4 flex flex-col gap-2">
           <Label htmlFor="td-new-password" className="text-xs font-medium text-(--td-text-3)">
-            New password
+            {t('New password')}
           </Label>
           <div className="relative">
             <Input
@@ -309,20 +314,20 @@ function LinkForm({ kind, token }: { kind: TdLinkKind; token: string | null }) {
             <button
               type="button"
               onClick={() => setShowPassword((shown) => !shown)}
-              aria-label={showPassword ? 'Hide password' : 'Show password'}
+              aria-label={showPassword ? t('Hide password') : t('Show password')}
               className="absolute inset-y-0 right-0 grid w-12 place-items-center text-(--td-text-3) hover:text-foreground"
             >
               {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
             </button>
           </div>
           <p className="text-xs text-(--td-text-3)">
-            {PASSWORD_MIN} to {PASSWORD_MAX} characters. A long phrase is easier to remember than a short, complicated word.
+            {t('{min} to {max} characters. A long phrase is easier to remember than a short, complicated word.', { min: PASSWORD_MIN, max: PASSWORD_MAX })}
           </p>
         </div>
 
         <div className="mt-4 flex flex-col gap-2">
           <Label htmlFor="td-confirm-password" className="text-xs font-medium text-(--td-text-3)">
-            Repeat the password
+            {t('Repeat the password')}
           </Label>
           <Input
             id="td-confirm-password"
@@ -342,10 +347,13 @@ function LinkForm({ kind, token }: { kind: TdLinkKind; token: string | null }) {
           {submitting ? <Loader2 className="animate-spin" /> : copy.submit}
         </Button>
         <p className="mt-4 text-center text-xs text-(--td-text-3)">
-          Already set your password?{' '}
-          <Link href={`${TD_ROOT}/login`} className="text-primary underline">
-            Sign in
-          </Link>
+          {tr('Already set your password? {link}', {
+            link: (
+              <Link key="link" href={`${TD_ROOT}/login`} className="text-primary underline">
+                {t('Sign in')}
+              </Link>
+            ),
+          })}
         </p>
       </form>
     ),

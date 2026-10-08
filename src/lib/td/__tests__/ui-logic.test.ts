@@ -2,16 +2,18 @@ import { describe, expect, it } from 'vitest';
 import type { TdStaffMember } from '@/types/td';
 import type { WebhookEventDetail } from '@/lib/td/contract';
 import { reviewCategory } from '@/components/td/content/td-category-approval';
-import { planDays } from '@/components/td/tabs/dailies-tab';
+import { buildDays } from '@/components/td/tabs/dailies-tab';
+import { uploadDays } from '../dailies';
+import { questionKey, type ParsedCareerPath } from '../upload-format';
 import { replaySteps } from '@/components/td/tabs/players-tab';
 import { pollInterval } from '@/components/td/tabs/integration-tab';
 import { canMakeResetLink } from '@/components/td/td-team';
 import { followAnswer } from '@/components/td/content/editors/library';
 import type { TdContentRow } from '../admin-api';
-import { daysFrom } from '../georgia';
 import { mergeDrafts, resolveConflicts } from '../merge';
-import { TD_FIXED_FIELDS, TD_MERGE_UNITS } from '../content-rules';
+import { editorialIssues, TD_FIXED_FIELDS, TD_MERGE_UNITS } from '../content-rules';
 import { contentActions } from '../workflow';
+import { withShownAnswer } from '../answers';
 import type { TdStaff } from '@/types/td';
 
 const EDITOR: TdStaff = { id: 'e1', email: 'e@x.test', name: 'Editor', role: 'editor' };
@@ -46,6 +48,16 @@ const history = (...actors: TdStaff[]) => ({
   complete: true,
 });
 
+describe('what the editor asks of a card’s SoFIFA photo', () => {
+  const card = (photo: { id: number; ver: string } | null) => ({ categoryKey: 'legends', key: 'messi', value: 2, lines: ['A'], display: 'Messi', aliases: ['messi'], photo, imageKey: null });
+  it('takes only what a face is served for: up to seven digits and a two-digit version', () => {
+    expect(editorialIssues('cards', card(null))).toEqual([]);
+    expect(editorialIssues('cards', card({ id: 158023, ver: '24' }))).toEqual([]);
+    expect(editorialIssues('cards', card({ id: 158023, ver: '25_1' })).map((issue) => issue.path)).toEqual(['data.photo.ver']);
+    expect(editorialIssues('cards', card({ id: 12345678, ver: '' })).map((issue) => issue.path)).toEqual(['data.photo.id', 'data.photo.ver']);
+  });
+});
+
 describe('workflow actions offered', () => {
   it('keeps a publication key through refusals that say nothing about the request', async () => {
     const { refusedOutright } = await import('@/components/td/tabs/releases-tab');
@@ -56,12 +68,12 @@ describe('workflow actions offered', () => {
       expect(refusedOutright(kept)).toBe(false);
   });
 
-  it('offers ready on drafts, approval to publishers who did not make the last edit', () => {
+  it('offers ready on drafts, approval to publishers, their own last edit included', () => {
     expect(contentActions(row(), EDITOR)).toMatchObject({ save: { allowed: true }, ready: { allowed: true }, approve: { allowed: false }, restore: { allowed: false } });
     const ready = row({ status: 'ready' });
     expect(contentActions(ready, EDITOR).approve).toEqual({ allowed: false, reason: 'Ready for a publisher to approve.' });
     expect(contentActions(ready, PUBLISHER).approve).toEqual({ allowed: true });
-    expect(contentActions({ ...ready, lastEditor: actor(PUBLISHER) }, PUBLISHER).approve.reason).toMatch(/another publisher/);
+    expect(contentActions({ ...ready, lastEditor: actor(PUBLISHER) }, PUBLISHER).approve).toEqual({ allowed: true });
   });
 
   it('lets an editor archive only an own, never approved row nobody else touched (by its trail when known)', () => {
@@ -175,47 +187,65 @@ describe('merge units: fields that only make sense together merge as one', () =>
 describe('category approval review', () => {
   const kid = (id: string, status: TdContentRow['status'], editor = EDITOR) => row({ id, status, lastEditor: actor(editor) });
   it('lists ready rows to approve with it and what holds it up', () => {
-    const review = reviewCategory([kid('a', 'ready'), kid('b', 'approved'), kid('c', 'draft'), kid('d', 'ready', PUBLISHER)], PUBLISHER.id);
-    expect(review.withIt.map((r) => r.id)).toEqual(['a']);
+    // A card the approver edited last goes with the category too.
+    const review = reviewCategory([kid('a', 'ready'), kid('b', 'approved'), kid('c', 'draft'), kid('d', 'ready', PUBLISHER)]);
+    expect(review.withIt.map((r) => r.id)).toEqual(['a', 'd']);
     expect(review.approved.map((r) => r.id)).toEqual(['b']);
-    expect(review.blockers.map((b) => b.row.id)).toEqual(['c', 'd']);
+    expect(review.blockers.map((b) => b.row.id)).toEqual(['c']);
     expect(review.canApprove).toBe(false);
-    expect(reviewCategory([kid('a', 'ready')], PUBLISHER.id).canApprove).toBe(true);
-    expect(reviewCategory([], PUBLISHER.id)).toMatchObject({ canApprove: false, problem: 'A category needs at least one approved row.' });
-    expect(reviewCategory(Array.from({ length: 501 }, (_, i) => kid(`k${i}`, 'ready')), PUBLISHER.id).problem).toMatch(/At most 500/);
+    expect(reviewCategory([kid('a', 'ready')]).canApprove).toBe(true);
+    expect(reviewCategory([])).toMatchObject({ canApprove: false, problem: 'A category needs at least one approved row.' });
+    expect(reviewCategory(Array.from({ length: 501 }, (_, i) => kid(`k${i}`, 'ready'))).problem).toMatch(/At most 500/);
   });
 });
 
-describe('dailies calendar projection', () => {
+describe('the days of a daily game', () => {
+  let n = 0;
+  const question = (puzzle: string, over: Partial<TdContentRow<'cards'>> = {}) =>
+    ({ ...row({ id: `q${++n}`, status: 'approved', createdAt: `2026-10-0${n % 9}T00:00:00Z`, ...over }), data: { puzzle, prompt: `Question ${n}?`, displayAnswer: 'x' } }) as unknown as TdContentRow<'football-logic'>;
+  const tenOf = (puzzle: string, over: Partial<TdContentRow<'cards'>> = {}) => Array.from({ length: 10 }, () => question(puzzle, over));
   const schedule = (date: string, puzzle: string, over: Partial<TdContentRow<'daily-schedule'>> = {}) =>
-    ({ ...row(), id: date, data: { game: 'footballLogic', date, puzzle }, approved: null, approvedVersion: null, ...over }) as unknown as TdContentRow<'daily-schedule'>;
-  const settings = { ...row(), status: 'approved', approvedVersion: 1, data: { game: 'footballLogic', seconds: 30, cycle: { anchor: '2026-10-01', sets: ['a', 'b'] } }, approved: { game: 'footballLogic', seconds: 30, cycle: { anchor: '2026-10-01', sets: ['a', 'b'] } } } as unknown as TdContentRow<'daily-settings'>;
-  const puzzles = [
-    { key: 'a', questions: 1, playable: true },
-    { key: 'b', questions: 1, playable: true },
-    { key: 'c', questions: 1, playable: false },
-  ];
+    ({ ...row(), id: date, status: 'approved', approvedVersion: 1, data: { game: 'footballLogic', date, puzzle }, approved: { game: 'footballLogic', date, puzzle }, ...over }) as unknown as TdContentRow<'daily-schedule'>;
 
-  it('plays approved dates, else the approved cycle; drafts are pending changes; archived rows count for nothing', () => {
-    const rows = [
-      schedule('2026-10-02', 'c'),
-      schedule('2026-10-03', 'a', { status: 'approved', approvedVersion: 1, approved: { game: 'footballLogic', date: '2026-10-03', puzzle: 'a' } }),
-      schedule('2026-10-04', 'b', { status: 'archived', approvedVersion: 1, approved: { game: 'footballLogic', date: '2026-10-04', puzzle: 'b' } }),
-    ];
-    const days = planDays(daysFrom('2026-10-01', 4), '2026-10-01', rows, settings, puzzles);
-    expect(days.map((d) => [d.date, d.planned, d.source, d.pending])).toEqual([
-      ['2026-10-01', 'a', 'cycle', null],
-      ['2026-10-02', 'b', 'cycle', 'c'],
-      ['2026-10-03', 'a', 'date', null],
-      ['2026-10-04', 'b', 'cycle', null],
+  it('groups questions by day: dated days by date, then the rest; whole days only can be published', () => {
+    const days = buildDays(
+      'footballLogic',
+      [...tenOf('fl-later'), ...tenOf('fl-ready', { status: 'draft' }), ...tenOf('fl-first'), ...tenOf('fl-edited'), question('fl-short'), question('fl-gone', { status: 'archived' })],
+      [schedule('2026-10-08', 'fl-later'), schedule('2026-10-06', 'fl-first'), schedule('2026-10-09', 'fl-archived', { status: 'archived' })],
+      ['fl-first', 'fl-later', 'fl-edited'],
+    );
+    expect(days.map((d) => [d.key, d.status, d.dates, d.questions.length])).toEqual([
+      ['fl-first', 'published', ['2026-10-06'], 10],
+      ['fl-later', 'published', ['2026-10-08'], 10],
+      ['fl-ready', 'ready', [], 10],
+      ['fl-edited', 'published', [], 10],
+      ['fl-short', 'incomplete', [], 1],
     ]);
-    expect(days[3].row?.status).toBe('archived');
   });
 
-  it('flags days of the next 30 with no playable puzzle', () => {
-    const days = planDays(daysFrom('2026-10-01', 31), '2026-10-01', [], null, puzzles);
-    expect(days.filter((d) => d.missing)).toHaveLength(30);
-    expect(days[30].inWindow).toBe(false);
+  it('dates a day by approved calendar entries only: a draft entry is not on the calendar yet', () => {
+    const draft = schedule('2026-10-10', 'fl-x', { status: 'draft', approvedVersion: null, approved: null });
+    expect(buildDays('footballLogic', tenOf('fl-x', { status: 'draft' }), [draft], [])[0]!).toMatchObject({ dates: [], status: 'ready' });
+    const moved = schedule('2026-10-11', 'fl-y', { status: 'draft', approvedVersion: 1, approved: { game: 'footballLogic', date: '2026-10-11', puzzle: 'fl-x' } } as never);
+    expect(buildDays('footballLogic', tenOf('fl-x'), [moved], [])[0]!.dates).toEqual(['2026-10-11']);
+  });
+
+  it('a published day with a question changed since has changes to publish', () => {
+    const rows = tenOf('fl-a');
+    rows[3] = { ...rows[3]!, status: 'draft' };
+    expect(buildDays('footballLogic', rows, [schedule('2026-10-07', 'fl-a')], [])[0]!.status).toBe('changes');
+  });
+
+  it('an upload’s day keys come from what the file says: a club found later makes the same days', () => {
+    const career = (display: string, clubs: string[]): ParsedCareerPath => ({ kind: 'career-path', questionNumber: 1, lineNumber: 1, prompt: null, clubs, display, aliases: [display.toLowerCase()] });
+    const questions = Array.from({ length: 10 }, (_, i) => career(`Player ${i}`, ['Dinamo Tbilisi', 'Rubin Kazan']));
+    const context = { categoryKey: '', category: '', puzzle: '', clubs: [] };
+    const known = { ...context, clubs: [{ key: 'dinamo-tbilisi', label: 'Dinamo Tbilisi', value: 'Dinamo Tbilisi' }] };
+    const before = uploadDays('careerPath', questions, (q) => questionKey(q, context));
+    expect(uploadDays('careerPath', questions, (q) => questionKey(q, known))).toEqual(before);
+    expect(new Set(before.map((d) => d.key)).size).toBe(1);
+    // Another answer is another day.
+    expect(uploadDays('careerPath', [career('Someone else', ['Rubin Kazan']), ...questions.slice(1)], (q) => questionKey(q, context))[0]!.key).not.toBe(before[0]!.key);
   });
 });
 
@@ -248,5 +278,24 @@ describe('practice: the right option follows its option', () => {
     expect(followAnswer(2, { kind: 'remove', index: 0 })).toBe(1);
     expect(followAnswer(1, { kind: 'remove', index: 3 })).toBe(1);
     expect(followAnswer(1, { kind: 'edit' })).toBe(1);
+  });
+});
+
+describe('withShownAnswer', () => {
+  it('puts the shown answer first among the spellings of the types whose rounds count only those', () => {
+    expect(withShownAnswer('cards', { display: 'Lionel Messi', aliases: ['Messi'] })).toEqual({ display: 'Lionel Messi', aliases: ['Lionel Messi', 'Messi'] });
+    expect(withShownAnswer('box-questions', { display: ' Mbappé ', aliases: [] }).aliases).toEqual(['Mbappé']);
+  });
+
+  it('leaves the spellings alone when the shown answer is among them already, whatever its case or accents', () => {
+    const data = { display: 'Luka Modrić', aliases: ['luka modric', 'Modric'] };
+    expect(withShownAnswer('cards', data)).toBe(data);
+  });
+
+  it('leaves the types that match the shown answer themselves, and an empty answer, alone', () => {
+    const daily = { displayAnswer: 'Lewandowski', aliases: [] };
+    expect(withShownAnswer('football-logic', daily)).toBe(daily);
+    const empty = { display: '', aliases: [] };
+    expect(withShownAnswer('cards', empty)).toBe(empty);
   });
 });

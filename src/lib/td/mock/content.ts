@@ -1,7 +1,7 @@
 /**
  * Content rows and their workflow, as migrations 0013 and 0015 enforce them:
  * the revision check, allowed jumps, self-approval, approval of a category
- * with its children, dependencies, rights, the editor archive rule, fixed
+ * with its children, dependencies, the editor archive rule, fixed
  * fields, unique keys, list filters and cursors, history.
  */
 import type { TdContentType } from '../admin-api';
@@ -68,7 +68,7 @@ export function audit(
   });
 }
 
-const rowsOf = (db: MockDb, type: TdContentType) => db.rows.filter((row) => row.type === type);
+export const rowsOf = (db: MockDb, type: TdContentType) => db.rows.filter((row) => row.type === type);
 const live = (row: MockRow) => row.status !== 'archived';
 
 export function findRow(db: MockDb, type: TdContentType, id: string): MockRow {
@@ -92,12 +92,10 @@ function touch(ctx: MockContext, row: MockRow) {
 
 const findByKey = (db: MockDb, type: TdContentType, key: string) => rowsOf(db, type).find((row) => row.data.key === key);
 
-/** An image a release can show: approved with its rights, not archived. */
+/** An image a release can show: approved, not archived. */
 function mediaReady(db: MockDb, key: string): boolean {
   const row = findByKey(db, 'media', key);
-  const approved = row?.approved;
-  const has = (field: string) => typeof approved?.[field] === 'string' && (approved[field] as string).trim() !== '';
-  return Boolean(row && live(row) && row.approvedVersion !== null && has('author') && has('license') && has('source'));
+  return Boolean(row && live(row) && row.approvedVersion !== null);
 }
 
 const approvedLive = (row: MockRow | undefined) => Boolean(row && live(row) && row.approvedVersion !== null);
@@ -271,14 +269,11 @@ export function markReady(ctx: MockContext, type: TdContentType, id: string, ver
 function approveRow(ctx: MockContext, row: MockRow) {
   if (row.status !== 'ready')
     throw new MockError(403, 'forbidden_transition', `only a ready row is approved (${row.type} ${row.id} is ${row.status})`);
-  if (row.lastEditor.id === ctx.staff.id) throw new MockError(403, 'self_approval', 'Nobody approves their own last edit');
   const refs = unapprovedRefs(ctx.db, row.type, row.data);
   if (refs.length) throw new MockError(409, 'dependency_unapproved', 'Approve what this refers to first', { refs });
   const moved = row.approved?.puzzle;
   if (typeof moved === 'string' && moved !== row.data.puzzle && puzzleNeeded(ctx.db, row.type, moved, row.id))
     throw new MockError(409, 'in_use', 'Live content still uses this');
-  if (row.type === 'media' && ['author', 'license', 'source'].some((f) => typeof row.data[f] !== 'string' || !(row.data[f] as string).trim()))
-    throw validation([{ path: 'data', message: 'an image is approved with its rights: licence, credit and source' }]);
   row.status = 'approved';
   row.approvedVersion = row.contentVersion;
   row.approved = clone(row.data);

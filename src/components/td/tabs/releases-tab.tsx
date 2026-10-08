@@ -16,11 +16,13 @@ import { SESSION_CHANGED, TdApiError } from '@/lib/td/api-client';
 import { tdAdmin, tdTokens } from '@/lib/td/client';
 import type { Publication, ReleaseDetail, ReleaseList, ReleaseReport } from '@/lib/td/contract';
 import { formatDay, formatGeorgiaTime } from '@/lib/td/georgia';
+import { t, tn, tr } from '@/lib/td/i18n';
 import { beginOperation, operationIsCurrent, type TdOperation } from '@/lib/td/operation';
 import { browserPendingPublications, type HeldRequest, type PendingPublications, type PendingRequest } from '@/lib/td/pending-publications';
 import { isTdPublisher } from '@/lib/td/workflow';
 import { cn } from '@/lib/utils';
 import { useTdAuth } from '@/providers/td-auth-provider';
+import { questionsHref } from '@/lib/td/question-modes';
 
 /**
  * Whether the API refused this very request (so nothing started and a new attempt takes a new key).
@@ -37,22 +39,26 @@ export function refusedOutright(error: unknown): boolean {
 const running = (p: Publication | undefined) => p?.status === 'running' || p?.status === 'failing';
 const settled = (p: Publication) => !running(p) && p.notify.state !== 'pending';
 
-const TAB_OF: Partial<Record<TdContentType, string>> = {
-  'card-categories': 'round-1',
-  cards: 'round-1',
-  'whoami-subjects': 'round-2',
-  'box-categories': 'round-3',
-  'box-questions': 'round-3',
-  'penalty-questions': 'penalties',
-  'practice-questions': 'practice',
-  media: 'media',
-  clubs: 'clubs',
-  'football-logic': 'dailies',
-  'put-in-order': 'dailies',
-  'career-path': 'dailies',
-  'daily-schedule': 'dailies',
-  'daily-settings': 'dailies',
-};
+/** What a request that got no answer says about itself. */
+function unansweredText(request: HeldRequest): string {
+  if (request.kind === 'publish') {
+    return request.adopted ? t('Your publish (sent from a tab since closed) got no answer, so it may have started.') : t('Your publish got no answer, so it may have started.');
+  }
+  const release = String(request.releaseId);
+  return request.adopted
+    ? t('Your roll back to {release} (sent from a tab since closed) got no answer, so it may have started.', { release })
+    : t('Your roll back to {release} got no answer, so it may have started.', { release });
+}
+
+/** Where a row named by the release report is edited. */
+function editHref(type: TdContentType, key: string): string | null {
+  const questions = questionsHref(type, key);
+  if (questions) return questions;
+  const q = `?q=${encodeURIComponent(key)}`;
+  if (type === 'card-categories' || type === 'box-categories') return `/td/categories${q}`;
+  if (type === 'daily-schedule' || type === 'daily-settings') return `/td/dailies${q}`;
+  return null;
+}
 
 export function TdReleasesTab() {
   const { user } = useTdAuth();
@@ -115,7 +121,7 @@ export function TdReleasesTab() {
   const start = async (request: HeldRequest, sending?: () => void) => {
     const operation = user ? begin(user.id) : null;
     if (!user || !operation) {
-      setRequestError(new TdApiError(0, SESSION_CHANGED, 'The session changed; the request was cancelled'));
+      setRequestError(new TdApiError(0, SESSION_CHANGED, t('The session changed; the request was cancelled')));
       return;
     }
     sending?.();
@@ -159,23 +165,23 @@ export function TdReleasesTab() {
   return (
     <>
       <TdSection
-        title="Next release"
-        description="What publishing the approved content now would give. Errors stop a publish; warnings do not."
+        title={t('Next release')}
+        description={t('What publishing the approved content now would give. Errors stop a publish; warnings do not.')}
         actions={
           <>
             <Button variant="secondary" className="rounded-lg" disabled={report.isFetching} onClick={() => void report.refetch()}>
               {report.isFetching ? <Loader2 className="animate-spin" /> : <RefreshCw />}
-              Check again
+              {t('Check again')}
             </Button>
             {publisher && (
               <Button
                 className="rounded-lg"
                 disabled={!report.data?.ok || report.data.unchanged || running(active ?? undefined) || sending || unanswered.length > 0}
-                title={report.data?.unchanged ? 'The approved content is the current release' : undefined}
+                title={report.data?.unchanged ? t('The approved content is the current release') : undefined}
                 onClick={() => setConfirm({ kind: 'publish' })}
               >
                 <Rocket />
-                Publish
+                {t('Publish')}
               </Button>
             )}
           </>
@@ -183,26 +189,25 @@ export function TdReleasesTab() {
       >
         <div className="p-5">
           {unanswered.map((request) => (
-            <div key={request.idemKey} className="mb-4 flex flex-wrap items-center gap-2 rounded-lg border border-amber-400/40 bg-amber-400/5 px-3 py-2 text-sm text-amber-200">
+            <div key={request.idemKey} className="mb-4 flex flex-wrap items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-700">
               <span className="min-w-0 flex-1">
-                {request.kind === 'publish' ? 'Your publish' : `Your roll back to ${request.releaseId}`}
-                {request.adopted ? ' (sent from a tab since closed)' : ''} got no answer, so it may have started. Ask again: the same request is answered, never run twice.
+                {unansweredText(request)} {t('Ask again: the same request is answered, never run twice.')}
               </span>
               <Button size="sm" className="rounded-lg" disabled={sending} onClick={() => void start(request)}>
                 {sending ? <Loader2 className="animate-spin" /> : <RefreshCw />}
-                Ask again
+                {t('Ask again')}
               </Button>
               {!request.adopted && (
-                <Button size="sm" variant="ghost" className="rounded-lg" title="Stop asking. It may have run: check the history below before publishing again." onClick={() => forget(request)}>
-                  Forget it
+                <Button size="sm" variant="ghost" className="rounded-lg" title={t('Stop asking. It may have run: check the history below before publishing again.')} onClick={() => forget(request)}>
+                  {t('Forget it')}
                 </Button>
               )}
             </div>
           ))}
           <TdErrorPanel error={report.error ?? requestError} />
-          {report.isLoading && <p className="text-sm text-(--td-text-3)">Checking the approved content…</p>}
+          {report.isLoading && <p className="text-sm text-(--td-text-3)">{t('Checking the approved content…')}</p>}
           {report.data && <ReleaseReportView report={report.data} />}
-          {!publisher && <p className="mt-4 text-xs text-(--td-text-3)">Publishing and rolling back are for publishers.</p>}
+          {!publisher && <p className="mt-4 text-xs text-(--td-text-3)">{t('Publishing and rolling back are for publishers.')}</p>}
         </div>
       </TdSection>
 
@@ -214,17 +219,17 @@ export function TdReleasesTab() {
         <Dialog open onOpenChange={(open) => !open && setConfirm(null)}>
           <DialogContent className="bg-(--td-surface-2)">
             <DialogHeader>
-              <DialogTitle>{confirm.kind === 'publish' ? 'Publish the approved content?' : `Roll back to ${confirm.releaseId}?`}</DialogTitle>
+              <DialogTitle>{confirm.kind === 'publish' ? t('Publish the approved content?') : t('Roll back to {release}?', { release: confirm.releaseId })}</DialogTitle>
               <DialogDescription>
                 {confirm.kind === 'publish'
-                  ? 'New matches, dailies and practice runs use it once it is current. Matches already under way keep the release they started with.'
-                  : 'The current release pointer moves back to this release. New matches use it; matches under way keep theirs.'}
+                  ? t('New matches, dailies and practice runs use it once it is current. Matches already under way keep the release they started with.')
+                  : t('The current release pointer moves back to this release. New matches use it; matches under way keep theirs.')}
               </DialogDescription>
             </DialogHeader>
             {confirm.kind === 'publish' && report.data && <ChangeSummary report={report.data} />}
             <DialogFooter>
               <Button variant="secondary" className="rounded-lg" onClick={() => setConfirm(null)}>
-                Cancel
+                {t('Cancel')}
               </Button>
               <Button
                 className="rounded-lg"
@@ -234,11 +239,11 @@ export function TdReleasesTab() {
                       ? { kind: 'publish', idemKey: `publish:${crypto.randomUUID()}`, releaseId: null, publicationId: null, adopted: false }
                       : { kind: 'rollback', idemKey: `rollback:${crypto.randomUUID()}`, releaseId: confirm.releaseId, publicationId: null, adopted: false };
                   setConfirm(null);
-                  void start(request, () => toast.message(confirm.kind === 'publish' ? 'Publishing…' : 'Rolling back…'));
+                  void start(request, () => toast.message(confirm.kind === 'publish' ? t('Publishing…') : t('Rolling back…')));
                 }}
               >
                 {confirm.kind === 'publish' ? <Rocket /> : <Undo2 />}
-                {confirm.kind === 'publish' ? 'Publish' : 'Roll back'}
+                {confirm.kind === 'publish' ? t('Publish') : t('Roll back')}
               </Button>
             </DialogFooter>
           </DialogContent>
@@ -255,24 +260,25 @@ function Meter({ label, ready, needed, detail }: { label: string; ready: number;
       <p className="text-xs text-(--td-text-3)">{label}</p>
       <p className={cn('mt-1 text-lg font-semibold tabular-nums', ok ? 'text-foreground' : 'text-(--td-danger)')}>
         {ready}
-        <span className="text-sm font-normal text-(--td-text-3)"> / {needed} needed</span>
+        <span className="text-sm font-normal text-(--td-text-3)"> {t('/ {needed} needed', { needed })}</span>
       </p>
       {detail && <p className="text-xs text-(--td-text-3)">{detail}</p>}
     </div>
   );
 }
 
-const GAME_LABELS = { footballLogic: 'Football Logic', putInOrder: 'Put in Order', careerPath: 'Career Path' } as const;
+const GAME_LABELS = { footballLogic: t('Football Logic'), putInOrder: t('Put in Order'), careerPath: t('Career Path') };
+const DIFFICULTY_LABELS = { easy: t('easy'), medium: t('medium'), hard: t('hard') };
 
 function IssueList({ issues, tone }: { issues: ReleaseReport['errors']; tone: 'error' | 'warning' }) {
   return (
-    <ul className={cn('flex flex-col gap-1 rounded-lg px-3 py-2 text-sm', tone === 'error' ? 'bg-(--td-danger)/10 text-(--td-danger)' : 'bg-amber-400/10 text-amber-200')}>
+    <ul className={cn('flex flex-col gap-1 rounded-lg px-3 py-2 text-sm', tone === 'error' ? 'bg-(--td-danger)/10 text-(--td-danger)' : 'bg-amber-50 text-amber-700')}>
       {issues.map((issue, i) => (
         <li key={i} className="flex flex-wrap items-baseline gap-x-2">
           <span className="font-mono text-xs opacity-80">{issue.code}</span>
           <span>{issue.message}</span>
-          {issue.ref && TAB_OF[issue.ref.type as TdContentType] && (
-            <Link href={`/td/${TAB_OF[issue.ref.type as TdContentType]}?q=${encodeURIComponent(issue.ref.key)}`} className="font-mono text-xs underline">
+          {issue.ref && editHref(issue.ref.type as TdContentType, issue.ref.key) && (
+            <Link href={editHref(issue.ref.type as TdContentType, issue.ref.key)!} className="font-mono text-xs underline">
               {issue.ref.key}
             </Link>
           )}
@@ -288,21 +294,25 @@ export function ReleaseReportView({ report }: { report: ReleaseReport }) {
     <div className="flex flex-col gap-4">
       <p className={cn('flex items-center gap-2 text-sm font-medium', report.ok ? 'text-(--td-new)' : 'text-(--td-danger)')}>
         {report.ok ? <CheckCircle2 className="size-4" /> : <CircleX className="size-4" />}
-        {report.ok ? (report.unchanged ? 'Valid, and already the current release: nothing to publish.' : 'Valid: it can be published.') : `${report.errors.length} error${report.errors.length === 1 ? '' : 's'} stop a publish.`}
-        <span className="font-normal text-(--td-text-3)">Checked {formatGeorgiaTime(report.checkedAt)}</span>
+        {report.ok
+          ? report.unchanged
+            ? t('Valid, and already the current release: nothing to publish.')
+            : t('Valid: it can be published.')
+          : tn(report.errors.length, '{count} error stop a publish.', '{count} errors stop a publish.')}
+        <span className="font-normal text-(--td-text-3)">{t('Checked {time}', { time: formatGeorgiaTime(report.checkedAt) })}</span>
       </p>
       {report.errors.length > 0 && <IssueList issues={report.errors} tone="error" />}
       {report.warnings.length > 0 && <IssueList issues={report.warnings} tone="warning" />}
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-        <Meter label="Card decks" ready={pools.cardDecks.ready} needed={pools.cardDecks.needed} detail={`categories with ${pools.cardDecks.deckSize}+ cards`} />
-        <Meter label="Round II subjects" ready={pools.whoAmI.ready} needed={pools.whoAmI.needed} detail={`with ${pools.whoAmI.clues}+ clues`} />
-        <Meter label="Box categories" ready={pools.box.ready} needed={pools.box.needed} detail={`with ${pools.box.questions}+ questions`} />
-        <Meter label="Penalty questions" ready={pools.penalties.ready} needed={pools.penalties.needed} />
+        <Meter label={t('Card decks')} ready={pools.cardDecks.ready} needed={pools.cardDecks.needed} detail={t('categories with {n}+ cards', { n: pools.cardDecks.deckSize })} />
+        <Meter label={t('Round II subjects')} ready={pools.whoAmI.ready} needed={pools.whoAmI.needed} detail={t('with {n}+ clues', { n: pools.whoAmI.clues })} />
+        <Meter label={t('Box categories')} ready={pools.box.ready} needed={pools.box.needed} detail={t('with {n}+ questions', { n: pools.box.questions })} />
+        <Meter label={t('Penalty questions')} ready={pools.penalties.ready} needed={pools.penalties.needed} />
         <div className="rounded-lg border border-border p-3">
-          <p className="text-xs text-(--td-text-3)">Practice</p>
+          <p className="text-xs text-(--td-text-3)">{t('Practice')}</p>
           {(['easy', 'medium', 'hard'] as const).map((d) => (
             <p key={d} className={cn('text-sm tabular-nums', pools.practice[d] < pools.practice.needed[d] && 'text-(--td-danger)')}>
-              <span className="capitalize">{d}</span> {pools.practice[d]} <span className="text-(--td-text-3)">/ {pools.practice.needed[d]}</span>
+              <span className="capitalize">{DIFFICULTY_LABELS[d]}</span> {pools.practice[d]} <span className="text-(--td-text-3)">/ {pools.practice.needed[d]}</span>
             </p>
           ))}
         </div>
@@ -310,17 +320,22 @@ export function ReleaseReportView({ report }: { report: ReleaseReport }) {
       <div className="grid gap-3 md:grid-cols-3">
         {(Object.keys(GAME_LABELS) as Array<keyof typeof GAME_LABELS>).map((game) => (
           <div key={game} className="rounded-lg border border-border p-3">
-            <p className="text-xs text-(--td-text-3)">{GAME_LABELS[game]}: next {report.days} days from {formatDay(report.from)}</p>
+            <p className="text-xs text-(--td-text-3)">{t('{game}: next {days} days from {date}', { game: GAME_LABELS[game], days: report.days, date: formatDay(report.from) })}</p>
             <p className={cn('mt-1 text-lg font-semibold tabular-nums', dailies[game].missing.length && 'text-(--td-danger)')}>
               {dailies[game].covered}
-              <span className="text-sm font-normal text-(--td-text-3)"> / {report.days} covered</span>
+              <span className="text-sm font-normal text-(--td-text-3)"> {t('/ {days} covered', { days: report.days })}</span>
             </p>
-            {dailies[game].missing.length > 0 && <p className="text-xs text-(--td-danger)">Missing: {dailies[game].missing.slice(0, 5).map(formatDay).join(', ')}{dailies[game].missing.length > 5 ? '…' : ''}</p>}
+            {dailies[game].missing.length > 0 && <p className="text-xs text-(--td-danger)">{t('Missing: {days}', { days: `${dailies[game].missing.slice(0, 5).map(formatDay).join(', ')}${dailies[game].missing.length > 5 ? '…' : ''}` })}</p>}
           </div>
         ))}
       </div>
       <p className="text-xs text-(--td-text-3)">
-        Images: {media.images} shown ({media.uploaded} uploaded, {media.external} by URL) · {media.missingRights} missing rights · {media.pending} to make public at publish
+        {t('Images: {images} shown ({uploaded} uploaded, {external} by URL) · {pending} to make public at publish', {
+          images: media.images,
+          uploaded: media.uploaded,
+          external: media.external,
+          pending: media.pending,
+        })}
       </p>
       <ChangeSummary report={report} />
     </div>
@@ -329,12 +344,12 @@ export function ReleaseReportView({ report }: { report: ReleaseReport }) {
 
 function ChangeSummary({ report }: { report: ReleaseReport }) {
   const { changes } = report;
-  if (!changes.types.length) return <p className="text-sm text-(--td-text-3)">No changes since the current release.</p>;
+  if (!changes.types.length) return <p className="text-sm text-(--td-text-3)">{t('No changes since the current release.')}</p>;
   return (
     <div className="rounded-lg border border-border">
       <p className="border-b border-(--td-divider) px-3 py-2 text-xs font-medium text-(--td-text-3)">
-        Changes since the current release{report.currentReleaseId ? ` (${report.currentReleaseId})` : ''}
-        {!changes.complete && ' · the current release has no recorded rows, so this is incomplete'}
+        {report.currentReleaseId ? t('Changes since the current release ({release})', { release: report.currentReleaseId }) : t('Changes since the current release')}
+        {!changes.complete && ` · ${t('the current release has no recorded rows, so this is incomplete')}`}
       </p>
       <ul className="divide-y divide-(--td-divider) text-sm">
         {changes.types.map((c) => (
@@ -342,7 +357,7 @@ function ChangeSummary({ report }: { report: ReleaseReport }) {
             <span className="capitalize">{TD_TYPE_CONFIG[c.type as TdContentType]?.plural ?? c.type}</span>
             <span className="text-xs tabular-nums">
               {c.added > 0 && <span className="text-(--td-new)">+{c.added} </span>}
-              {c.changed > 0 && <span className="text-amber-300">~{c.changed} </span>}
+              {c.changed > 0 && <span className="text-amber-800">~{c.changed} </span>}
               {c.removed > 0 && <span className="text-(--td-danger)">−{c.removed}</span>}
             </span>
           </li>
@@ -353,23 +368,23 @@ function ChangeSummary({ report }: { report: ReleaseReport }) {
 }
 
 const PHASE_LABELS: Record<string, string> = {
-  snapshot: 'Snapshot of the approved content',
-  validate: 'Validation',
-  media: 'Images made public',
-  artifact: 'Release file written',
-  available: 'Release stored',
-  pointer: 'Made current',
+  snapshot: t('Snapshot of the approved content'),
+  validate: t('Validation'),
+  media: t('Images made public'),
+  artifact: t('Release file written'),
+  available: t('Release stored'),
+  pointer: t('Made current'),
 };
 
 const PUBLICATION_ERRORS: Record<string, string> = {
-  validation_failed: 'The approved content did not validate at the snapshot. Fix the errors and publish again.',
-  actor_revoked: 'The member who asked was disabled or lost the role before it finished.',
-  pointer_moved: 'The current release moved meanwhile (another tool). The release is stored; a roll back can make it current.',
-  release_unavailable: 'The release could not be read back.',
-  image_missing: 'An uploaded image’s file is missing.',
-  storage_failed: 'Storage kept failing.',
-  artifact_conflict: 'A different release file already had this name.',
-  gave_up: 'It kept failing and was given up; what it made was removed.',
+  validation_failed: t('The approved content did not validate at the snapshot. Fix the errors and publish again.'),
+  actor_revoked: t('The member who asked was disabled or lost the role before it finished.'),
+  pointer_moved: t('The current release moved meanwhile (another tool). The release is stored; a roll back can make it current.'),
+  release_unavailable: t('The release could not be read back.'),
+  image_missing: t('An uploaded image’s file is missing.'),
+  storage_failed: t('Storage kept failing.'),
+  artifact_conflict: t('A different release file already had this name.'),
+  gave_up: t('It kept failing and was given up; what it made was removed.'),
 };
 
 function PublicationProgress({ id, onSettled }: { id: string; onSettled: (publication: Publication) => void }) {
@@ -387,9 +402,9 @@ function PublicationProgress({ id, onSettled }: { id: string; onSettled: (public
     }
   }, [data, onSettled]);
   if (!data) return publication.error ? <TdErrorPanel error={publication.error} /> : null;
-  const title = data.kind === 'publish' ? 'Publish' : `Roll back to ${data.releaseId}`;
+  const title = data.kind === 'publish' ? t('Publish') : t('Roll back to {release}', { release: String(data.releaseId) });
   return (
-    <TdSection title={title} description={`Asked by ${data.requestedBy.name} at ${formatGeorgiaTime(data.requestedAt)}.`}>
+    <TdSection title={title} description={t('Asked by {name} at {time}.', { name: data.requestedBy.name, time: formatGeorgiaTime(data.requestedAt) })}>
       <div className="flex flex-col gap-4 p-5">
         <ol className="grid gap-2 sm:grid-cols-3 lg:grid-cols-6">
           {data.phases.map((phase) => (
@@ -412,15 +427,15 @@ function PublicationProgress({ id, onSettled }: { id: string; onSettled: (public
         {data.status === 'published' && (
           <p className="flex items-center gap-2 text-sm text-(--td-new)">
             <CheckCircle2 className="size-4" />
-            {data.changed === false ? `${data.releaseId} was current already.` : `${data.releaseId} is current now.`}
+            {data.changed === false ? t('{release} was current already.', { release: String(data.releaseId) }) : t('{release} is current now.', { release: String(data.releaseId) })}
             <span className="text-(--td-text-3)">
-              {data.notify.state === 'sent' ? 'Game servers notified.' : data.notify.state === 'pending' ? 'Notifying game servers…' : data.notify.state === 'gave_up' ? 'Game servers pick it up within 30 seconds.' : ''}
+              {data.notify.state === 'sent' ? t('Game servers notified.') : data.notify.state === 'pending' ? t('Notifying game servers…') : data.notify.state === 'gave_up' ? t('Game servers pick it up within 30 seconds.') : ''}
             </span>
           </p>
         )}
         {(data.status === 'failed' || data.status === 'failing') && data.error && (
           <div className="rounded-lg bg-(--td-danger)/10 px-3 py-2 text-sm text-(--td-danger)">
-            <p className="font-medium">{data.status === 'failing' ? 'Failing: removing what it made…' : 'Failed.'} {PUBLICATION_ERRORS[data.error.code] ?? data.error.message}</p>
+            <p className="font-medium">{data.status === 'failing' ? t('Failing: removing what it made…') : t('Failed.')} {PUBLICATION_ERRORS[data.error.code] ?? data.error.message}</p>
             <p className="font-mono text-xs opacity-80">{data.error.code}</p>
           </div>
         )}
@@ -441,21 +456,28 @@ function ReleaseHistory({ canRollback, onRollback }: { canRollback: boolean; onR
   const first = releases.data?.pages[0];
   const items = releases.data?.pages.flatMap((page) => page.items) ?? [];
   return (
-    <TdSection title="History" description="Every stored release; any that was current before can be made current again.">
+    <TdSection title={t('History')} description={t('Every stored release; any that was current before can be made current again.')}>
       <TdErrorPanel error={releases.error} className="m-5" />
       {first && (
         <p className="border-b border-(--td-divider) px-5 py-3 text-sm">
-          Current: <span className="font-mono">{first.pointer.releaseId ?? 'none'}</span>
+          {tr('Current: {release}', {
+            release: (
+              <span key="release" className="font-mono">
+                {first.pointer.releaseId ?? t('none')}
+              </span>
+            ),
+          })}
           {first.pointer.movedAt && (
             <span className="text-(--td-text-3)">
               {' '}
-              since {formatGeorgiaTime(first.pointer.movedAt)}
-              {first.pointer.movedBy && ` (${first.pointer.movedBy.name})`}
+              {first.pointer.movedBy
+                ? t('since {time} ({name})', { time: formatGeorgiaTime(first.pointer.movedAt), name: first.pointer.movedBy.name })
+                : t('since {time}', { time: formatGeorgiaTime(first.pointer.movedAt) })}
             </span>
           )}
         </p>
       )}
-      {releases.isSuccess && items.length === 0 && <TdEmptyState icon={History} title="No releases yet" />}
+      {releases.isSuccess && items.length === 0 && <TdEmptyState icon={History} title={t('No releases yet')} />}
       <ul className="divide-y divide-(--td-divider)">
         {items.map((release) => (
           <li key={release.id} className="px-5 py-3">
@@ -464,16 +486,16 @@ function ReleaseHistory({ canRollback, onRollback }: { canRollback: boolean; onR
                 <ChevronDown className={cn('size-4 text-(--td-text-3) transition-transform', open === release.id && 'rotate-180')} />
                 <span className="font-mono text-sm">{release.id}</span>
               </button>
-              {release.current && <span className="rounded-full bg-primary/15 px-2 py-0.5 text-xs font-semibold text-primary">Current</span>}
-              {release.status === 'retired' && <span className="rounded-full bg-secondary px-2 py-0.5 text-xs">Retired</span>}
+              {release.current && <span className="rounded-full bg-primary/15 px-2 py-0.5 text-xs font-semibold text-primary">{t('Current')}</span>}
+              {release.status === 'retired' && <span className="rounded-full bg-secondary px-2 py-0.5 text-xs">{t('Retired')}</span>}
               <span className="text-xs text-(--td-text-3)">
-                {formatGeorgiaTime(release.createdAt)} · {release.createdBy.name} · {release.members} rows
+                {t('{time} · {name} · {n} rows', { time: formatGeorgiaTime(release.createdAt), name: release.createdBy.name, n: release.members })}
               </span>
               <span className="flex-1" />
               {canRollback && release.wasCurrent && !release.current && release.status === 'available' && (
                 <Button variant="secondary" size="sm" className="rounded-lg" onClick={() => onRollback(release.id)}>
                   <Undo2 />
-                  Roll back to this
+                  {t('Roll back to this')}
                 </Button>
               )}
             </div>
@@ -484,13 +506,13 @@ function ReleaseHistory({ canRollback, onRollback }: { canRollback: boolean; onR
       {releases.hasNextPage && (
         <div className="border-t border-(--td-divider) px-5 py-3">
           <Button variant="secondary" size="sm" className="rounded-lg" disabled={releases.isFetchingNextPage} onClick={() => void releases.fetchNextPage()}>
-            Load more
+            {t('Load more')}
           </Button>
         </div>
       )}
       {first && first.history.length > 0 && (
         <div className="border-t border-(--td-divider) px-5 py-3">
-          <p className="mb-2 text-xs font-medium text-(--td-text-3)">Pointer moves</p>
+          <p className="mb-2 text-xs font-medium text-(--td-text-3)">{t('Pointer moves')}</p>
           <ol className="flex flex-col gap-1 text-xs">
             {first.history.map((move) => (
               <li key={move.version} className="flex flex-wrap gap-x-3">
@@ -512,19 +534,19 @@ function ReleaseHistory({ canRollback, onRollback }: { canRollback: boolean; onR
 
 function ReleaseDetailView({ id }: { id: string }) {
   const detail = useQuery({ queryKey: [...tdKeys.releases, 'detail', id], queryFn: ({ signal }) => tdAdmin.releases.get(id, { signal }), staleTime: 5 * 60_000 });
-  if (detail.isLoading) return <p className="mt-2 text-xs text-(--td-text-3)">Loading…</p>;
+  if (detail.isLoading) return <p className="mt-2 text-xs text-(--td-text-3)">{t('Loading…')}</p>;
   if (!detail.data) return <TdErrorPanel error={detail.error} className="mt-2" />;
   const { manifest, diff }: ReleaseDetail = detail.data;
   const counts: Array<[string, string]> = [
-    ['Card categories', `${manifest.cards.categories} · ${manifest.cards.cards} cards`],
-    ['Round II subjects', String(manifest.whoAmI.subjects)],
-    ['Box categories', `${manifest.box.categories} · ${manifest.box.questions} questions`],
-    ['Penalty questions', String(manifest.penalties.questions)],
-    ['Practice', `${manifest.practice.easy} easy · ${manifest.practice.medium} medium · ${manifest.practice.hard} hard`],
-    ['Clubs · images', `${manifest.clubs} · ${manifest.media}`],
+    [t('Card categories'), t('{categories} · {cards} cards', { categories: manifest.cards.categories, cards: manifest.cards.cards })],
+    [t('Round II subjects'), String(manifest.whoAmI.subjects)],
+    [t('Box categories'), t('{categories} · {questions} questions', { categories: manifest.box.categories, questions: manifest.box.questions })],
+    [t('Penalty questions'), String(manifest.penalties.questions)],
+    [t('Practice'), t('{easy} easy · {medium} medium · {hard} hard', { easy: manifest.practice.easy, medium: manifest.practice.medium, hard: manifest.practice.hard })],
+    [t('Clubs · images'), `${manifest.clubs} · ${manifest.media}`],
     ...(Object.keys(GAME_LABELS) as Array<keyof typeof GAME_LABELS>).map((game): [string, string] => [
       GAME_LABELS[game],
-      `${manifest.dailies[game].sets} sets · ${manifest.dailies[game].scheduledDates} dated · ${manifest.dailies[game].coveredDays}/30 days`,
+      t('{sets} sets · {dated} dated · {covered}/30 days', { sets: manifest.dailies[game].sets, dated: manifest.dailies[game].scheduledDates, covered: manifest.dailies[game].coveredDays }),
     ]),
   ];
   return (
@@ -541,28 +563,34 @@ function ReleaseDetailView({ id }: { id: string }) {
         {diff ? (
           <>
             <p className="mb-2 text-(--td-text-3)">
-              Against <span className="font-mono">{diff.against}</span>
+              {tr('Against {release}', {
+                release: (
+                  <span key="release" className="font-mono">
+                    {diff.against}
+                  </span>
+                ),
+              })}
               {!diff.complete && (
-                <span className="text-amber-300">
+                <span className="text-amber-800">
                   {' '}
-                  <AlertTriangle className="inline size-3" /> incomplete: one of them has no recorded rows
+                  <AlertTriangle className="inline size-3" /> {t('incomplete: one of them has no recorded rows')}
                 </span>
               )}
             </p>
-            {diff.types.length === 0 && <p className="text-(--td-text-3)">No differences.</p>}
+            {diff.types.length === 0 && <p className="text-(--td-text-3)">{t('No differences.')}</p>}
             <ul className="flex max-h-64 flex-col gap-2 overflow-y-auto">
-              {diff.types.map((t) => (
-                <li key={t.type}>
-                  <p className="font-medium capitalize">{TD_TYPE_CONFIG[t.type as TdContentType]?.plural ?? t.type}</p>
-                  {t.added.map((m) => (
+              {diff.types.map((group) => (
+                <li key={group.type}>
+                  <p className="font-medium capitalize">{TD_TYPE_CONFIG[group.type as TdContentType]?.plural ?? group.type}</p>
+                  {group.added.map((m) => (
                     <p key={m.id} className="text-(--td-new)">+ {m.label}</p>
                   ))}
-                  {t.changed.map((m) => (
-                    <p key={m.id} className="text-amber-300">
+                  {group.changed.map((m) => (
+                    <p key={m.id} className="text-amber-800">
                       ~ {m.label} (v{m.from} → v{m.to})
                     </p>
                   ))}
-                  {t.removed.map((m) => (
+                  {group.removed.map((m) => (
                     <p key={m.id} className="text-(--td-danger)">− {m.label}</p>
                   ))}
                 </li>
@@ -570,7 +598,7 @@ function ReleaseDetailView({ id }: { id: string }) {
             </ul>
           </>
         ) : (
-          <p className="text-(--td-text-3)">No earlier release to compare with.</p>
+          <p className="text-(--td-text-3)">{t('No earlier release to compare with.')}</p>
         )}
       </div>
     </div>

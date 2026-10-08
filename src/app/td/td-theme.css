@@ -1,47 +1,27 @@
 /*
- * Betsson platform palette for the Table Derby workspace (table-derby repo,
- * docs/betsson-design-reference.md). It re-points the shadcn tokens, so the
- * shared ui/ primitives render in Betsson colours without restyling any
- * Quizball component. `body:has(.td-theme)` also covers Radix portals.
+ * The Table Derby workspace wears the Quizball CMS's look: its light shadcn
+ * tokens (globals.css) are inherited as they are. The `--td-*` names the
+ * Table Derby components use map onto that palette, so no component is
+ * restyled one by one. `body:has(.td-theme)` also covers Radix portals.
  */
 .td-theme,
 body:has(.td-theme) {
-  color-scheme: dark;
-  --radius: 0.75rem;
+  color-scheme: light;
 
-  --td-page: #0d0e0f;
-  --td-header: #131415;
-  --td-surface: #1c1c1d;
-  --td-surface-2: #1f2021;
-  --td-input: #232424;
-  --td-border: #2b2c2e;
-  --td-divider: rgb(255 255 255 / 0.08);
-  --td-text: #ffffff;
-  --td-text-2: #cfcfcf;
-  --td-text-3: #8f8f90;
-  --td-primary: #f15a22;
-  --td-primary-pressed: #db5727;
-  --td-new: #099d80;
-  --td-danger: #ff3c3c;
-
-  --background: var(--td-page);
-  --foreground: var(--td-text);
-  --card: var(--td-surface);
-  --card-foreground: var(--td-text);
-  --popover: var(--td-surface-2);
-  --popover-foreground: var(--td-text);
-  --primary: var(--td-primary);
-  --primary-foreground: #ffffff;
-  --secondary: var(--td-input);
-  --secondary-foreground: var(--td-text);
-  --muted: var(--td-input);
-  --muted-foreground: var(--td-text-3);
-  --accent: var(--td-input);
-  --accent-foreground: var(--td-text);
-  --destructive: var(--td-danger);
-  --border: var(--td-border);
-  --input: var(--td-border);
-  --ring: var(--td-primary);
+  --td-page: #f8fafc;
+  --td-header: #ffffff;
+  --td-surface: #ffffff;
+  --td-surface-2: #ffffff;
+  --td-input: #f1f5f9;
+  --td-border: #e2e8f0;
+  --td-divider: #e2e8f0;
+  --td-text: #0f172a;
+  --td-text-2: #475569;
+  --td-text-3: #64748b;
+  --td-primary: var(--primary);
+  --td-primary-pressed: var(--primary);
+  --td-new: #059669;
+  --td-danger: #dc2626;
 }
 
 body:has(.td-theme) {
@@ -49,6 +29,17 @@ body:has(.td-theme) {
   color: var(--td-text);
 }
 
+/* Inter for Latin, as in the Quizball CMS; Noto Sans Georgian supplies the Georgian glyphs. */
 .td-theme {
-  font-family: var(--font-td), var(--font-inter), system-ui, sans-serif;
+  font-family: var(--font-inter), var(--font-td), system-ui, sans-serif;
+}
+
+/* Native dropdowns: the browser's arrow sits against the border; ours sits inside, with room for it. */
+body:has(.td-theme) select:not([multiple]) {
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.75rem center;
+  background-size: 1rem 1rem;
+  padding-right: 2.25rem;
 }

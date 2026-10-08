@@ -5,6 +5,7 @@
  */
 import type { TdContentType } from './admin-api';
 import { checkContract, type SchemaIssue } from './contract';
+import { t } from './i18n';
 
 type Data = Record<string, unknown>;
 
@@ -28,7 +29,7 @@ export const TD_FIXED_FIELDS: Record<TdContentType, readonly string[]> = {
 /**
  * Data fields that only make sense together, merged as one unit when an edit
  * conflicts (merge.ts): a question with its answer and options, an answer
- * with its spellings and clues, an image with its size and rights, a round
+ * with its spellings and clues, an image with its size and credits, a round
  * with the order its prompt asks for.
  */
 export const TD_MERGE_UNITS: Record<TdContentType, readonly (readonly string[])[]> = {
@@ -53,22 +54,38 @@ export function contentRuleIssues(type: TdContentType, data: Data): SchemaIssue[
     case 'practice-questions':
       return Array.isArray(data.options) && Number(data.answer) < data.options.length
         ? []
-        : [{ path: 'data.answer', message: 'the answer is not one of the options' }];
+        : [{ path: 'data.answer', message: t('the answer is not one of the options') }];
     case 'media':
       return (data.url === null) !== (data.uploadId === null)
         ? []
-        : [{ path: 'data.uploadId', message: 'an image is an upload (or, kept from before, a URL): exactly one' }];
+        : [{ path: 'data.uploadId', message: t('an image is an upload (or, kept from before, a URL): exactly one') }];
     case 'put-in-order': {
       const keys = Array.isArray(data.items) ? (data.items as Data[]).map((item) => item.key) : [];
-      return new Set(keys).size === keys.length ? [] : [{ path: 'data.items', message: 'item keys repeat' }];
+      return new Set(keys).size === keys.length ? [] : [{ path: 'data.items', message: t('item keys repeat') }];
     }
     case 'daily-settings':
       return (data.game === 'careerPath') === (data.seconds === null)
         ? []
-        : [{ path: 'data.seconds', message: 'Football Logic and Put in Order have seconds; Career Path has none' }];
+        : [{ path: 'data.seconds', message: t('Football Logic and Put in Order have seconds; Career Path has none') }];
     default:
       return [];
   }
+}
+
+/** What the CMS asks of content beyond what the API refuses (the mock API, which mirrors the API, does not ask it):
+ *  a Round II subject with fewer than five clues is never played (game-core MATCH_SIZES.buzzerClues), and a card's
+ *  SoFIFA photo is served only for a number of up to seven digits and a two-digit version (the face routes). */
+export function editorialIssues(type: TdContentType, data: Data): SchemaIssue[] {
+  if (type === 'whoami-subjects' && !(Array.isArray(data.clues) && data.clues.length >= 5))
+    return [{ path: 'data.clues', message: t('Round II needs at least 5 clues: a match shows the first 5') }];
+  if (type === 'cards' && data.photo && typeof data.photo === 'object') {
+    const { id, ver } = data.photo as { id?: unknown; ver?: unknown };
+    return [
+      ...(typeof id === 'number' && Number.isInteger(id) && id >= 1 && id <= 9_999_999 ? [] : [{ path: 'data.photo.id', message: t('A SoFIFA player number has at most seven digits') }]),
+      ...(typeof ver === 'string' && /^\d{2}$/.test(ver) ? [] : [{ path: 'data.photo.ver', message: t('Two digits, such as 24: no face is shown for anything else.') }]),
+    ];
+  }
+  return [];
 }
 
 /** Everything the API would refuse in a create or edit body, by path (`data.aliases.0`), before it is sent. */

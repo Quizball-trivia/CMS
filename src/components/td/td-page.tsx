@@ -11,15 +11,15 @@ export function TdPageHeader({ tabKey, actions }: { tabKey: TdTabKey; actions?: 
   return (
     <header className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
       <div className="flex min-w-0 items-start gap-4">
-        <span className="grid size-11 shrink-0 place-items-center rounded-xl bg-primary/15 text-primary">
+        <span className="shrink-0 rounded-2xl bg-white p-3 text-slate-700 shadow-sm ring-1 ring-slate-200">
           <Icon className="size-5" />
         </span>
         <div className="min-w-0">
-          <h1 className="flex flex-wrap items-baseline gap-x-3 text-2xl font-bold leading-tight text-foreground">
+          <h1 className="flex flex-wrap items-baseline gap-x-3 text-2xl font-bold tracking-tight text-slate-900">
             {tab.label}
             {tab.hint && <span className="text-sm font-medium text-(--td-text-3)">{tab.hint}</span>}
           </h1>
-          <p className="mt-1 max-w-3xl text-sm text-(--td-text-2)">{tab.description}</p>
+          <p className="mt-1 max-w-3xl text-sm text-slate-500">{tab.description}</p>
         </div>
       </div>
       {actions && <div className="flex shrink-0 flex-wrap items-center gap-2">{actions}</div>}
@@ -41,7 +41,7 @@ export function TdSection({
   className?: string;
 }) {
   return (
-    <section className={cn('overflow-hidden rounded-xl border border-border bg-card', className)}>
+    <section className={cn('overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm', className)}>
       <div className="flex flex-col gap-2 border-b border-(--td-divider) px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h2 className="text-base font-semibold text-foreground">{title}</h2>

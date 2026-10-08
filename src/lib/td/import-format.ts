@@ -9,7 +9,9 @@
  * and yes/no are read strictly. Nested fields have their own columns or a
  * short form (see TD_IMPORT_COLUMNS).
  */
+import { t } from '@/lib/td/i18n';
 import type { TdContentType } from './admin-api';
+import { canonicalJson } from './hash';
 
 export const TD_IMPORT_MAX_ITEMS = 2000;
 /** The API's import body limit is 4 MiB; leave room for the envelope. */
@@ -27,75 +29,75 @@ export interface TdImportColumn {
 
 const col = (name: string, kind: Kind | 'custom', help: string, example: string, required = kind !== 'optional' && kind !== 'optionalNumber'): TdImportColumn => ({ name, kind, required, help, example });
 
-const KEY = col('key', 'text', 'The row’s key: lower-case letters, digits, - and _', 'messi');
-const ALIASES = (name = 'aliases') => col(name, 'list', 'Accepted spellings, separated by |', 'messi|lionel messi');
-const POSITION = col('position', 'optionalNumber', 'Order in a release (optional)', '');
-const NOTE = col('note', 'optional', 'A note for the team (optional)', '');
+const KEY = col('key', 'text', t('The row’s ID: lower-case letters, digits, - and _. Leave it out and one is made for the row.'), 'messi', false);
+const ALIASES = (name = 'aliases') => col(name, 'list', t('Accepted spellings, separated by |'), 'messi|lionel messi');
+const POSITION = col('position', 'optionalNumber', t('Order in a release (optional)'), '');
+const NOTE = col('note', 'optional', t('A note for the team (optional)'), '');
 
 export const TD_IMPORT_COLUMNS: Record<TdContentType, TdImportColumn[]> = {
-  'card-categories': [KEY, col('prompt', 'text', 'The category’s prompt', 'Legends of the game')],
+  'card-categories': [KEY, col('prompt', 'text', t('The category’s prompt'), 'Legends of the game')],
   cards: [
-    col('categoryKey', 'text', 'The card category’s key', 'legends'),
+    col('categoryKey', 'text', t('The card category’s key'), 'legends'),
     KEY,
-    col('value', 'number', '1, 2 or 3', '2'),
-    col('display', 'text', 'The answer as shown', 'Lionel Messi'),
+    col('value', 'number', t('1, 2 or 3'), '2'),
+    col('display', 'text', t('The answer as shown'), 'Lionel Messi'),
     ALIASES(),
-    col('lines', 'list', 'Clue lines, separated by | (up to 8)', 'Argentina|Barcelona'),
-    col('photoId', 'optionalNumber', 'SoFIFA player id (optional)', ''),
-    col('photoVer', 'optional', 'SoFIFA version, with photoId', ''),
-    col('imageKey', 'optional', 'An uploaded photo’s image key (optional)', ''),
+    col('lines', 'list', t('Clue lines, separated by | (up to 8)'), 'Argentina|Barcelona'),
+    col('photoId', 'optionalNumber', t('SoFIFA player id (optional)'), ''),
+    col('photoVer', 'optional', t('SoFIFA version, with photoId'), ''),
+    col('imageKey', 'optional', t('An uploaded photo’s image key (optional)'), ''),
   ],
-  'whoami-subjects': [KEY, col('display', 'text', 'The answer as shown', 'Kakha Kaladze'), ALIASES(), col('clues', 'list', 'Clues in reading order, separated by |', 'A defender|Milan|Two Champions Leagues')],
-  'box-categories': [KEY, col('title', 'text', 'The category’s title', 'World Cups')],
-  'box-questions': [col('categoryKey', 'text', 'The box category’s key', 'world-cups'), KEY, col('q', 'text', 'The question', 'Who won in 2022?'), col('display', 'text', 'The answer as shown', 'Argentina'), ALIASES()],
-  'penalty-questions': [KEY, col('q', 'text', 'The question', 'Capital of Georgia?'), col('display', 'text', 'The answer as shown', 'Tbilisi'), ALIASES()],
+  'whoami-subjects': [KEY, col('display', 'text', t('The answer as shown'), 'Kakha Kaladze'), ALIASES(), col('clues', 'list', t('Clues in reading order, separated by |'), 'A defender|Milan|Two Champions Leagues')],
+  'box-categories': [KEY, col('title', 'text', t('The category’s title'), 'World Cups')],
+  'box-questions': [col('categoryKey', 'text', t('The box category’s key'), 'world-cups'), KEY, col('q', 'text', t('The question'), 'Who won in 2022?'), col('display', 'text', t('The answer as shown'), 'Argentina'), ALIASES()],
+  'penalty-questions': [KEY, col('q', 'text', t('The question'), 'Capital of Georgia?'), col('display', 'text', t('The answer as shown'), 'Tbilisi'), ALIASES()],
   'practice-questions': [
     KEY,
-    col('difficulty', 'text', 'easy, medium or hard', 'easy'),
-    col('category', 'text', 'The category label', 'Clubs'),
-    col('prompt', 'text', 'The question', 'Which club plays at Anfield?'),
-    col('options', 'list', 'The options, separated by | (2 to 8)', 'Liverpool|Everton|Chelsea'),
-    col('answer', 'number', 'The right option’s number, counting from 1', '1'),
-    col('explanation', 'optional', 'Shown after answering (optional)', ''),
-    col('imageKey', 'optional', 'An image key (optional)', ''),
+    col('difficulty', 'text', t('easy, medium or hard'), 'easy'),
+    col('category', 'text', t('The category label'), 'Clubs'),
+    col('prompt', 'text', t('The question'), 'Which club plays at Anfield?'),
+    col('options', 'list', t('The options, separated by | (2 to 8)'), 'Liverpool|Everton|Chelsea'),
+    col('answer', 'number', t('The right option’s number, counting from 1'), '1'),
+    col('explanation', 'optional', t('Shown after answering (optional)'), ''),
+    col('imageKey', 'optional', t('An image key (optional)'), ''),
   ],
   media: [],
   clubs: [
     KEY,
-    col('label', 'text', 'The name as shown', 'Dinamo Tbilisi'),
-    col('value', 'text', 'What a pick stores', 'Dinamo Tbilisi'),
-    col('country', 'text', 'Country', 'Georgia'),
-    col('countryKa', 'optional', 'Country in Georgian (optional)', 'საქართველო'),
-    col('flag', 'optional', 'Flag emoji (optional)', '🇬🇪'),
-    col('crest', 'text', 'Crest file under /assets/clubs', 'dinamo-tbilisi.webp'),
-    col('crestImageKey', 'optional', 'An uploaded crest’s image key (optional)', ''),
-    col('hidden', 'boolean', 'yes to hide from the club picker', 'no'),
+    col('label', 'text', t('The name as shown'), 'Dinamo Tbilisi'),
+    col('value', 'text', t('What a pick stores'), 'Dinamo Tbilisi'),
+    col('country', 'text', t('Country'), 'Georgia'),
+    col('countryKa', 'optional', t('Country in Georgian (optional)'), 'საქართველო'),
+    col('flag', 'optional', t('Flag emoji (optional)'), '🇬🇪'),
+    col('crest', 'text', t('Crest file under /assets/clubs'), 'dinamo-tbilisi.webp'),
+    col('crestImageKey', 'optional', t('An uploaded crest’s image key (optional)'), ''),
+    col('hidden', 'boolean', t('yes to hide from the club picker'), 'no'),
   ],
   'football-logic': [
     KEY,
-    col('puzzle', 'text', 'The puzzle (set) key', 'fl-3'),
-    col('category', 'text', 'Category', 'Clubs'),
-    col('prompt', 'custom', 'Prompt (may be empty)', 'What links these?', false),
-    col('imageA', 'optional', 'Image A: /path or https:// URL (optional)', ''),
-    col('imageB', 'optional', 'Image B (optional)', ''),
-    col('displayAnswer', 'text', 'The answer as shown', 'Napoli'),
+    col('puzzle', 'text', t('The category key'), 'fl-3'),
+    col('category', 'text', t('Topic shown above the question'), 'Clubs'),
+    col('prompt', 'custom', t('Prompt (may be empty)'), 'What links these?', false),
+    col('imageA', 'optional', t('Image A: /path or https:// URL (optional)'), ''),
+    col('imageB', 'optional', t('Image B (optional)'), ''),
+    col('displayAnswer', 'text', t('The answer as shown'), 'Napoli'),
     ALIASES('acceptedAnswers'),
   ],
   'put-in-order': [
     KEY,
-    col('puzzle', 'text', 'The puzzle (set) key', 'pio-3'),
-    col('prompt', 'text', 'The prompt', 'Earliest to latest'),
-    col('items', 'custom', 'Items in the order shown: label=sortValue, separated by | (or a JSON array of {key,label,sortValue})', 'Italy=2006|Spain=2010|Germany=2014'),
+    col('puzzle', 'text', t('The category key'), 'pio-3'),
+    col('prompt', 'text', t('The prompt'), 'Earliest to latest'),
+    col('items', 'custom', t('Items in the order shown: label=sortValue, separated by | (or a JSON array of {key,label,sortValue})'), 'Italy=2006|Spain=2010|Germany=2014'),
   ],
   'career-path': [
     KEY,
-    col('puzzle', 'text', 'The puzzle (set) key', 'cp-3'),
-    col('prompt', 'text', 'The prompt', 'Whose career is this?'),
-    col('displayAnswer', 'text', 'The answer as shown', 'Khvicha Kvaratskhelia'),
+    col('puzzle', 'text', t('The category key'), 'cp-3'),
+    col('prompt', 'text', t('The prompt'), 'Whose career is this?'),
+    col('displayAnswer', 'text', t('The answer as shown'), 'Khvicha Kvaratskhelia'),
     ALIASES('acceptedAnswers'),
-    col('clubs', 'custom', 'The career in order: Name or Name=clubKey, separated by |', 'Dinamo Tbilisi=dinamo-tbilisi|Rubin Kazan|Napoli=napoli'),
+    col('clubs', 'custom', t('The career in order: Name or Name=clubKey, separated by |'), 'Dinamo Tbilisi=dinamo-tbilisi|Rubin Kazan|Napoli=napoli'),
   ],
-  'daily-schedule': [col('game', 'text', 'footballLogic, putInOrder or careerPath', 'footballLogic'), col('date', 'text', 'The Georgia date (YYYY-MM-DD)', '2026-11-01'), col('puzzle', 'text', 'The puzzle key', 'fl-3')],
+  'daily-schedule': [col('game', 'text', t('footballLogic, putInOrder or careerPath'), 'footballLogic'), col('date', 'text', t('The Georgia date (YYYY-MM-DD)'), '2026-11-01'), col('puzzle', 'text', t('The category key'), 'fl-3')],
   'daily-settings': [],
 };
 
@@ -168,7 +170,7 @@ function list(cell: string): string[] {
   if (trimmed === '') return [];
   if (trimmed.startsWith('[')) {
     const parsed = JSON.parse(trimmed) as unknown;
-    if (!Array.isArray(parsed)) throw new CellError('not a JSON array');
+    if (!Array.isArray(parsed)) throw new CellError(t('not a JSON array'));
     return parsed.map(String);
   }
   return trimmed
@@ -179,7 +181,7 @@ function list(cell: string): string[] {
 
 function number(cell: string): number {
   const trimmed = cell.trim();
-  if (!/^-?\d+(\.\d+)?$/.test(trimmed)) throw new CellError(`“${cell}” is not a number`);
+  if (!/^-?\d+(\.\d+)?$/.test(trimmed)) throw new CellError(t('“{cell}” is not a number', { cell }));
   return Number(trimmed);
 }
 
@@ -187,7 +189,7 @@ function yesNo(cell: string): boolean {
   const value = cell.trim().toLowerCase();
   if (['', 'no', 'false', '0', 'n'].includes(value)) return false;
   if (['yes', 'true', '1', 'y'].includes(value)) return true;
-  throw new CellError(`“${cell}” is not yes or no`);
+  throw new CellError(t('“{cell}” is not yes or no', { cell }));
 }
 
 function items(cell: string) {
@@ -195,7 +197,7 @@ function items(cell: string) {
   if (trimmed.startsWith('[')) return JSON.parse(trimmed) as unknown;
   return list(cell).map((part, i) => {
     const at = part.lastIndexOf('=');
-    if (at < 0) throw new CellError(`“${part}” needs =sortValue`);
+    if (at < 0) throw new CellError(t('“{part}” needs =sortValue', { part }));
     return { key: `item-${i + 1}`, label: part.slice(0, at).trim(), sortValue: number(part.slice(at + 1)) };
   });
 }
@@ -230,8 +232,8 @@ function read(column: TdImportColumn, cell: string): unknown {
   }
 }
 
-/** One item from a sheet row, in the contract's data shape. */
-function toItem(type: TdContentType, values: Record<string, unknown>) {
+/** One item from a row's values (as a sheet's columns read them), in the contract's data shape. */
+export function toItem(type: TdContentType, values: Record<string, unknown>) {
   const { position, note, ...data } = values;
   if (type === 'cards') {
     const { photoId, photoVer } = data;
@@ -255,24 +257,62 @@ export interface TdParsedImport {
   problems: TdParseProblem[];
 }
 
-export function parseSheet(type: TdContentType, text: string): TdParsedImport {
+/** Two FNV-1a passes over what a row says (its fields as read, in the type's own
+ *  column order, nested fields by name): the same row always gets the same
+ *  made-up ID, however the file orders its columns or writes a JSON cell, so
+ *  reading it twice names its rows the same way. */
+function rowHash(text: string): string {
+  let a = 0x811c9dc5;
+  let b = 0x9e3779b9;
+  for (let i = 0; i < text.length; i++) {
+    const code = text.charCodeAt(i);
+    a = Math.imul(a ^ code, 0x01000193);
+    b = Math.imul(b ^ code, 0x85ebca6b);
+  }
+  return (a >>> 0).toString(36) + (b >>> 0).toString(36);
+}
+
+/** The ID made up for a row that has none: from what its columns say, in the type's own column order. */
+export function madeKey(type: TdContentType, values: Record<string, unknown>): string {
+  return `row-${rowHash(canonicalJson(TD_IMPORT_COLUMNS[type].map((column) => (column === KEY ? null : (values[column.name] ?? null)))))}`;
+}
+
+export interface TdSheetOptions {
+  /** The category for rows that name none (a file uploaded into one category needs no categoryKey column). */
+  categoryKey?: string;
+}
+
+export function parseSheet(type: TdContentType, text: string, options: TdSheetOptions = {}): TdParsedImport {
   const columns = [...TD_IMPORT_COLUMNS[type], POSITION, NOTE];
   const { rows, lines: at } = parseDelimited(text);
   const problems: TdParseProblem[] = [];
-  if (rows.length < 2) return { items: [], lines: [], problems: [{ line: 0, column: null, message: 'The sheet needs a header row and at least one item.' }] };
+  if (rows.length < 2) return { items: [], lines: [], problems: [{ line: 0, column: null, message: t('The sheet needs a header row and at least one item.') }] };
   const header = rows[0].map((cell) => cell.trim());
   const index = new Map(header.map((name, i) => [name.toLowerCase(), i]));
-  for (const name of header) if (name && !columns.some((c) => c.name.toLowerCase() === name.toLowerCase())) problems.push({ line: at[0], column: name, message: `“${name}” is not a column of this type` });
-  for (const column of columns) if (column.required && !index.has(column.name.toLowerCase())) problems.push({ line: at[0], column: column.name, message: `The column “${column.name}” is missing` });
+  for (const name of header) if (name && !columns.some((c) => c.name.toLowerCase() === name.toLowerCase())) problems.push({ line: at[0], column: name, message: t('“{name}” is not a column of this type', { name }) });
+  for (const column of columns)
+    if (column.required && !index.has(column.name.toLowerCase()) && !(column.name === 'categoryKey' && options.categoryKey)) problems.push({ line: at[0], column: column.name, message: t('The column “{name}” is missing', { name: column.name }) });
   if (problems.length) return { items: [], lines: [], problems };
   const items: unknown[] = [];
   const lines: number[] = [];
+  // The line each made-up ID was first given on: a row written twice is imported once.
+  const made = new Map<string, number>();
   rows.slice(1).forEach((cells, i) => {
     const line = at[i + 1];
     const values: Record<string, unknown> = {};
     let ok = true;
+    let keyless = false;
     for (const column of columns) {
       const at = index.get(column.name.toLowerCase());
+      const blank = at === undefined || (cells[at] ?? '').trim() === '';
+      if (column === KEY && blank) {
+        keyless = true;
+        continue;
+      }
+      if (column.name === 'categoryKey' && blank && options.categoryKey) {
+        values.categoryKey = options.categoryKey;
+        continue;
+      }
       if (at === undefined) {
         if (column.kind === 'custom' && column.name === 'prompt') values.prompt = '';
         else if (!column.required) values[column.name] = column.kind === 'boolean' ? false : null;
@@ -282,8 +322,16 @@ export function parseSheet(type: TdContentType, text: string): TdParsedImport {
         values[column.name] = read(column, cells[at] ?? '');
       } catch (error) {
         ok = false;
-        problems.push({ line, column: column.name, message: error instanceof CellError ? error.message : 'not valid JSON' });
+        problems.push({ line, column: column.name, message: error instanceof CellError ? error.message : t('not valid JSON') });
       }
+    }
+    if (ok && keyless) {
+      values.key = madeKey(type, values);
+      const first = made.get(values.key as string);
+      if (first !== undefined) {
+        ok = false;
+        problems.push({ line, column: null, message: t('The same as line {line}: remove one of them.', { line: first }) });
+      } else made.set(values.key as string, line);
     }
     if (ok) {
       items.push(toItem(type, values));
@@ -299,18 +347,21 @@ export function parseItemsJson(text: string): TdParsedImport {
   try {
     parsed = JSON.parse(text.replace(/^﻿/, ''));
   } catch {
-    return { items: [], lines: [], problems: [{ line: 0, column: null, message: 'The file is not valid JSON.' }] };
+    return { items: [], lines: [], problems: [{ line: 0, column: null, message: t('The file is not valid JSON.') }] };
   }
   const items = Array.isArray(parsed) ? parsed : parsed && typeof parsed === 'object' && Array.isArray((parsed as { items?: unknown }).items) ? (parsed as { items: unknown[] }).items : null;
-  if (!items) return { items: [], lines: [], problems: [{ line: 0, column: null, message: 'Expected a list of items, or { "items": [...] }.' }] };
+  if (!items) return { items: [], lines: [], problems: [{ line: 0, column: null, message: t('Expected a list of items, or { "items": [...] }.') }] };
   return { items, lines: items.map((_, i) => i + 1), problems: limits(items) };
 }
 
 function limits(items: unknown[]): TdParseProblem[] {
-  if (items.length > TD_IMPORT_MAX_ITEMS) return [{ line: 0, column: null, message: `At most ${TD_IMPORT_MAX_ITEMS} items per import; this has ${items.length}. Split the file.` }];
-  if (new TextEncoder().encode(JSON.stringify({ items })).length > TD_IMPORT_MAX_BYTES) return [{ line: 0, column: null, message: 'The import is larger than the API accepts (4 MB). Split the file.' }];
+  if (items.length > TD_IMPORT_MAX_ITEMS) return [{ line: 0, column: null, message: t('At most {max} items per import; this has {n}. Split the file.', { max: TD_IMPORT_MAX_ITEMS, n: items.length }) }];
+  if (new TextEncoder().encode(JSON.stringify({ items })).length > TD_IMPORT_MAX_BYTES) return [{ line: 0, column: null, message: t('The import is larger than the API accepts (4 MB). Split the file.') }];
   return [];
 }
+
+/** What a payload of items may not exceed (count and size), as problems. */
+export const tdImportLimits = limits;
 
 /** A CSV template for a type: the header and one example row. */
 export function sheetTemplate(type: TdContentType): string {

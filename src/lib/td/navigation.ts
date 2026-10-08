@@ -1,25 +1,19 @@
+import { t } from '@/lib/td/i18n';
 import { TD_ROLES, type TdRole } from '@/types/td';
 import { isTableDerbyPath, TD_ROOT } from '@/lib/workspace-guard';
 
 export type TdTabKey =
   | 'dashboard'
-  | 'round-1'
-  | 'round-2'
-  | 'round-3'
-  | 'penalties'
+  | 'questions'
+  | 'categories'
   | 'dailies'
-  | 'practice'
-  | 'clubs'
-  | 'media'
-  | 'import'
-  | 'releases'
   | 'players'
   | 'leaderboard'
   | 'integration'
   | 'team'
   | 'settings';
 
-export type TdTabGroup = 'overview' | 'rounds' | 'modes' | 'library' | 'operations' | 'admin';
+export type TdTabGroup = 'analytics' | 'content' | 'users' | 'settings';
 
 export interface TdTab {
   key: TdTabKey;
@@ -38,149 +32,85 @@ const ALL = TD_ROLES;
 const ADMINS: readonly TdRole[] = ['betsson_admin', 'ops'];
 const OPS: readonly TdRole[] = ['ops'];
 
+// The Quizball CMS's sidebar groups (components/layout/sidebar.tsx), in its order.
 export const TD_TAB_GROUP_LABELS: Record<TdTabGroup, string> = {
-  overview: 'Overview',
-  rounds: 'Match rounds',
-  modes: 'Modes',
-  library: 'Library',
-  operations: 'Operations',
-  admin: 'Admin',
+  analytics: t('Analytics'),
+  content: t('Content'),
+  users: t('Users'),
+  settings: t('Settings'),
 };
 
 export const TD_TABS: readonly TdTab[] = [
   {
     key: 'dashboard',
     href: TD_ROOT,
-    label: 'Dashboard',
-    description: 'Players, matches and dailies played, today and yesterday in Georgia time.',
-    group: 'overview',
+    label: t('Dashboard'),
+    description: t('Players, matches and dailies played: today, yesterday, the last 7 and the last 30 days.'),
+    group: 'analytics',
     roles: ALL,
   },
   {
-    key: 'round-1',
-    href: `${TD_ROOT}/round-1`,
-    label: 'ბარათონი',
-    hint: 'Round I',
-    description: 'Categories and their cards: photo, value 1–3, clue lines, the answer and accepted spellings.',
-    group: 'rounds',
+    key: 'categories',
+    href: `${TD_ROOT}/categories`,
+    label: t('Categories'),
+    description: t('The categories of Round I (ბარათონი) and Round III (პაპა კარლოს ყუთი). A category is approved with its questions.'),
+    group: 'content',
     roles: ALL,
   },
   {
-    key: 'round-2',
-    href: `${TD_ROOT}/round-2`,
-    label: 'გამარჯობა',
-    hint: 'Round II',
-    // The full name, "გამარჯობა ჩემი სახელია", is too long for the sidebar.
-    description: 'Subjects with their ordered clues, the answer and accepted spellings.',
-    group: 'rounds',
-    roles: ALL,
-  },
-  {
-    key: 'round-3',
-    href: `${TD_ROOT}/round-3`,
-    label: 'პაპა კარლოს ყუთი',
-    hint: 'Round III',
-    description: 'Categories and their questions: text, an optional image, the answer and accepted spellings.',
-    group: 'rounds',
-    roles: ALL,
-  },
-  {
-    key: 'penalties',
-    href: `${TD_ROOT}/penalties`,
-    label: 'Penalties',
-    description: "The shoot-out's own pool of short questions.",
-    group: 'rounds',
+    key: 'questions',
+    href: `${TD_ROOT}/questions`,
+    label: t('Questions'),
+    description: t('The cards and questions of the match rounds and practice: search, edit, upload, approve.'),
+    group: 'content',
     roles: ALL,
   },
   {
     key: 'dailies',
     href: `${TD_ROOT}/dailies`,
-    label: 'Dailies',
-    description: 'Football Logic, Put in Order and Career Path, each on a calendar with one puzzle per Georgia date.',
-    group: 'modes',
-    roles: ALL,
-  },
-  {
-    key: 'practice',
-    href: `${TD_ROOT}/practice`,
-    label: 'Practice',
-    hint: 'ივარჯიშე',
-    description: 'The practice question bank, with difficulty.',
-    group: 'modes',
-    roles: ALL,
-  },
-  {
-    key: 'clubs',
-    href: `${TD_ROOT}/clubs`,
-    label: 'Clubs',
-    description: 'Clubs and crests used by Career Path, onboarding and cards.',
-    group: 'library',
-    roles: ALL,
-  },
-  {
-    key: 'media',
-    href: `${TD_ROOT}/media`,
-    label: 'Media',
-    description: 'Upload and preview images, record their rights (licence, credit, source) and approve them.',
-    group: 'library',
-    roles: ALL,
-  },
-  {
-    key: 'import',
-    href: `${TD_ROOT}/import`,
-    label: 'Import',
-    description: 'Spreadsheet import: check, preview, import as drafts, and undo a batch.',
-    group: 'library',
-    roles: ALL,
-  },
-  {
-    key: 'releases',
-    href: `${TD_ROOT}/releases`,
-    label: 'Releases',
-    description:
-      'Changes since the last release, the validation report (pool sizes, missing images, rights, 30 days of dailies), publish and roll back.',
-    group: 'library',
-    // Editors see the validation report; publish and roll back stay publisher+ in the API.
+    label: t('Daily Challenges'),
+    description: t('Football Logic, Put in Order and Career Path: their days, their questions, and publishing them.'),
+    group: 'content',
     roles: ALL,
   },
   {
     key: 'players',
     href: `${TD_ROOT}/players`,
-    label: 'Players',
-    description: 'Search by nickname or Betsson id, match history and replays, and corrections (void + refund) with a reason.',
-    group: 'operations',
+    label: t('Players'),
+    description: t('Search by nickname or Betsson id, match history and replays, and corrections (void + refund) with a reason.'),
+    group: 'users',
     roles: ADMINS,
   },
   {
     key: 'leaderboard',
     href: `${TD_ROOT}/leaderboard`,
-    label: 'Leaderboard',
-    description: 'Standings, frozen snapshots and their export.',
-    group: 'operations',
-    roles: ADMINS,
-  },
-  {
-    key: 'integration',
-    href: `${TD_ROOT}/integration`,
-    label: 'Integration',
-    description: 'Session inits, launches and webhook deliveries with their reason codes, retry and search.',
-    group: 'operations',
+    label: t('Leaderboard'),
+    description: t('Standings, frozen snapshots and their export.'),
+    group: 'users',
     roles: ADMINS,
   },
   {
     key: 'team',
     href: `${TD_ROOT}/team`,
-    label: 'Team',
-    description: 'Invite editors and set roles.',
-    group: 'admin',
+    label: t('Team'),
+    description: t('Invite editors and set roles.'),
+    group: 'settings',
+    roles: ADMINS,
+  },
+  {
+    key: 'integration',
+    href: `${TD_ROOT}/integration`,
+    label: t('Integration'),
+    description: t('Session inits, launches and webhook deliveries with their reason codes, retry and search.'),
+    group: 'settings',
     roles: ADMINS,
   },
   {
     key: 'settings',
     href: `${TD_ROOT}/settings`,
-    label: 'Settings',
-    description: 'Tickets per day and maintenance mode.',
-    group: 'admin',
+    label: t('Settings'),
+    description: t('Tickets per day and maintenance mode.'),
+    group: 'settings',
     roles: OPS,
   },
 ];

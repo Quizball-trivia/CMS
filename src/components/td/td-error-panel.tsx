@@ -3,30 +3,46 @@
 import { AlertCircle } from 'lucide-react';
 import { TD_CONTENT_SCHEMA_NAMES, type TdContentType } from '@/lib/td/admin-api';
 import { describeTdError, type TdDependencyRef } from '@/lib/td/errors';
+import { t } from '@/lib/td/i18n';
 import { cn } from '@/lib/utils';
 
 const TYPE_LABELS: Record<string, string> = {
-  'card-categories': 'card category',
-  cards: 'card',
-  'whoami-subjects': 'subject',
-  'box-categories': 'box category',
-  'box-questions': 'box question',
-  'penalty-questions': 'penalty question',
-  'practice-questions': 'practice question',
-  media: 'image',
-  clubs: 'club',
-  'football-logic': 'Football Logic question',
-  'put-in-order': 'Put in Order round',
-  'career-path': 'Career Path question',
-  'daily-schedule': 'calendar date',
-  'daily-settings': 'daily settings',
+  'card-categories': t('card category'),
+  cards: t('card'),
+  'whoami-subjects': t('subject'),
+  'box-categories': t('box category'),
+  'box-questions': t('box question'),
+  'penalty-questions': t('penalty question'),
+  'practice-questions': t('practice question'),
+  media: t('image'),
+  clubs: t('club'),
+  'football-logic': t('Football Logic question'),
+  'put-in-order': t('Put in Order round'),
+  'career-path': t('Career Path question'),
+  'daily-schedule': t('calendar date'),
+  'daily-settings': t('daily settings'),
+};
+
+/** The statuses as the API names them in a refusal. */
+const STATUS_LABELS: Record<string, string> = {
+  draft: t('draft'),
+  ready: t('ready'),
+  approved: t('approved'),
+  archived: t('archived'),
 };
 
 export function describeRef(ref: TdDependencyRef): string {
   const type = TYPE_LABELS[ref.type] ?? (TD_CONTENT_SCHEMA_NAMES[ref.type as TdContentType] ?? ref.type);
-  const name = ref.key ? ` “${ref.key}”` : ref.puzzle ? ` in puzzle “${ref.puzzle}”` : ref.type === 'cards' || ref.type === 'box-questions' ? 's: none approved yet' : '';
-  const status = ref.status ? ` (${ref.status})` : '';
-  return `${type}${name}${status}`;
+  const what = ref.key
+    ? t('{type} “{key}”', { type, key: ref.key })
+    : ref.puzzle
+      ? t('{type} in puzzle “{puzzle}”', { type, puzzle: ref.puzzle })
+      : ref.type === 'cards'
+        ? t('cards: none approved yet')
+        : ref.type === 'box-questions'
+          ? t('box questions: none approved yet')
+          : type;
+  return ref.status ? `${what} (${STATUS_LABELS[ref.status] ?? ref.status})` : what;
 }
 
 /** A refusal, in plain words, with what the API said about it (issues, what to approve first). */

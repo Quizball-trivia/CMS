@@ -9,7 +9,9 @@ import type { TdContentType } from '../admin-api';
 import { checkContract, matchContractRoute, type ContractRoute } from '../contract';
 import type { TdRole } from '@/types/td';
 import type { MockBlobStore } from './blob-store';
+import type { TdDailyGameKey } from '../dailies';
 import * as content from './content';
+import * as dailies from './dailies';
 import { MOCK_DB_SCHEMA, SEED_UPLOAD_ID, seedDb, type MockDb } from './db';
 import * as imports from './imports';
 import * as integration from './integration';
@@ -149,6 +151,8 @@ export function createMockAdmin({ storage, blobs, now, lock }: MockAdminDeps) {
       case 'DELETE /admin/media/uploads/:id':
         await media.removeUpload(ctx, blobs, params.id);
         return new Response(null, { status: 204 });
+      case 'POST /admin/dailies/:game/publish':
+        return json(200, dailies.publishDays(ctx, params.game as TdDailyGameKey, checked<{ puzzles: string[] }>().puzzles));
       case 'POST /admin/releases/validate':
         return json(200, await releases.validate(ctx));
       case 'POST /admin/releases/publish': {

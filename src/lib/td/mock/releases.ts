@@ -164,8 +164,8 @@ export async function report(db: MockDb, now: number): Promise<{ report: Release
   const media = approvedOf(rows, 'media');
   const uploads = media.filter((d) => typeof d.uploadId === 'string');
   const external = media.filter((d) => typeof d.url === 'string');
+  // Contract 8: an image needs no rights; they are only counted.
   const noRights = media.filter((d) => ['author', 'license', 'source'].some((f) => !String(d[f] ?? '').trim()));
-  for (const d of noRights) warnings.push({ code: 'rights_missing', message: 'an image has no licence, credit or source', ref: { type: 'media', key: String(d.key) } });
   for (const d of external) warnings.push({ code: 'image_external', message: 'an image is kept by URL, not re-hosted', ref: { type: 'media', key: String(d.key) } });
   const pending = uploads.filter((d) => !db.uploads.find((u) => u.id === d.uploadId)?.public).length;
   const releaseId = `r-${(await sha256Hex(canonicalJson(rows.map((row) => [row.type, row.approved, row.approvedPosition]).sort((a, b) => canonicalJson(a).localeCompare(canonicalJson(b)))))).slice(0, 16)}`;

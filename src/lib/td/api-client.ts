@@ -1,4 +1,5 @@
 import { logger } from '@/lib/logger';
+import { t } from '@/lib/td/i18n';
 import type { TdApiErrorBody, TdStaff, TdTokenResponse } from '@/types/td';
 import type { RefreshCoordinator } from './refresh-coordinator';
 import type { Revoker } from './revoker';
@@ -23,7 +24,7 @@ export class TdApiError extends Error {
 
 /** The request belonged to a session that has since been signed out or replaced; it was cancelled. */
 export const SESSION_CHANGED = 'session_changed';
-const sessionChanged = () => new TdApiError(0, SESSION_CHANGED, 'The session changed; the request was cancelled');
+const sessionChanged = () => new TdApiError(0, SESSION_CHANGED, t('The session changed; the request was cancelled'));
 
 type Method = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
 
@@ -90,7 +91,7 @@ async function toApiError(response: Response): Promise<TdApiError> {
   return new TdApiError(
     response.status,
     body?.code ?? `http_${response.status}`,
-    body?.message ?? `Request failed with status ${response.status}`,
+    body?.message ?? t('Request failed with status {status}', { status: response.status }),
     body?.details,
   );
 }
@@ -123,7 +124,7 @@ export async function requestTokenRefresh(
     timeoutMs: AUTH_TIMEOUT_MS,
   });
   const tokens = tokensFromResponse(await parse<TdTokenResponse>(response));
-  if (!tokens) throw new TdApiError(502, 'invalid_token_response', 'The API returned an incomplete session');
+  if (!tokens) throw new TdApiError(502, 'invalid_token_response', t('The API returned an incomplete session'));
   return tokens;
 }
 
@@ -201,7 +202,7 @@ export function createTdApiClient({
     const { body, raw, responseType = 'json' } = options;
     const session = tokens.read();
     if (options.generation && session?.generation !== options.generation) throw sessionChanged();
-    if (!session) throw new TdApiError(401, 'not_signed_in', 'Not signed in');
+    if (!session) throw new TdApiError(401, 'not_signed_in', t('Not signed in'));
 
     const { generation } = session;
     const stillCurrent = () => tokens.read()?.generation === generation;
@@ -220,11 +221,11 @@ export function createTdApiClient({
     if (response.status !== 401) return parse<T>(response, responseType);
 
     const outcome = await coordinator.refresh({ generation, staleAccessToken: session.accessToken });
-    if (outcome === 'terminal') throw new TdApiError(401, 'session_expired', 'Your session has ended; sign in again');
+    if (outcome === 'terminal') throw new TdApiError(401, 'session_expired', t('Your session has ended; sign in again'));
     const current = tokens.read();
     // Never retry under someone else's sign-in.
     if (outcome === 'superseded' || !current || current.generation !== generation) throw sessionChanged();
-    if (outcome === 'transient') throw new TdApiError(503, 'refresh_unavailable', 'Could not renew the session; try again');
+    if (outcome === 'transient') throw new TdApiError(503, 'refresh_unavailable', t('Could not renew the session; try again'));
     // Retried once: a second 401 is the API's answer, not a stale token.
     return parse<T>(await send(current.accessToken), responseType);
   }
@@ -233,7 +234,7 @@ export function createTdApiClient({
   async function sessionFrom(path: string, body: object): Promise<TdTokenSet> {
     const response = await transport.send('POST', path, { body, timeoutMs: AUTH_TIMEOUT_MS });
     const tokens = tokensFromResponse(await parse<TdTokenResponse>(response));
-    if (!tokens) throw new TdApiError(502, 'invalid_token_response', 'The API returned an incomplete session');
+    if (!tokens) throw new TdApiError(502, 'invalid_token_response', t('The API returned an incomplete session'));
     return tokens;
   }
 

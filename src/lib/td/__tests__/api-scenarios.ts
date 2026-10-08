@@ -116,10 +116,10 @@ export function apiScenarios(h: () => Harness) {
     const edited = ok(await h().call('publisher', 'PATCH', `/admin/content/penalty-questions/${pen.id}`, { body: { version: pen.version, data: { ...pen.data, display: 'Changed' } } }));
     expect(edited).toMatchObject({ status: 'draft', contentVersion: pen.contentVersion + 1, approvedVersion: pen.contentVersion, approved: { display: 'Answer' } });
     const ready = ok(await step('publisher', 'penalty-questions', edited, 'ready'));
-    expect(await step('publisher', 'penalty-questions', ready, 'approve')).toMatchObject({ status: 403, body: { code: 'self_approval' } });
     expect(await step('editor', 'penalty-questions', ready, 'approve')).toMatchObject({ status: 403, body: { code: 'forbidden' } });
     expect(await step('publisher', 'penalty-questions', ready, 'ready')).toMatchObject({ status: 403, body: { code: 'forbidden_transition' } });
-    made['penalty-questions'] = ok(await step('betsson_admin', 'penalty-questions', ready, 'approve'));
+    // As in the Quizball CMS, a publisher approves their own last edit.
+    made['penalty-questions'] = ok(await step('publisher', 'penalty-questions', ready, 'approve'));
     const taken = await h().call('editor', 'POST', '/admin/content/penalty-questions', { body: { data: sample('penalty-questions') } });
     expect(taken).toMatchObject({ status: 409, body: { code: 'already_exists' } });
   });
@@ -460,5 +460,87 @@ export function apiScenarios(h: () => Harness) {
     expect((await h().anon('POST', '/admin/auth/login', { email, password: first })).status).toBe(401);
     expect(secondDecomposed).not.toBe(second);
     expect((await h().anon('POST', '/admin/auth/login', { email, password: secondDecomposed })).status).toBe(200);
+  });
+
+  it('dailies: whole days are published onto the next free dates, a short one is refused, publishers only', async () => {
+    const day = `fld-${run}`;
+    for (let i = 0; i < 10; i++) await create('editor', 'football-logic', { ...sample('football-logic'), key: `fld-${run}-${i}`, puzzle: day });
+    const short = `fls-${run}`;
+    await create('editor', 'football-logic', { ...sample('football-logic'), key: `fls-${run}-0`, puzzle: short });
+    expect(await h().call('editor', 'POST', '/admin/dailies/footballLogic/publish', { body: { puzzles: [day] } })).toMatchObject({ status: 403 });
+    expect(await h().call('publisher', 'POST', '/admin/dailies/footballLogic/publish', { body: { puzzles: [day, short] } })).toMatchObject({
+      status: 422,
+      body: { code: 'validation', details: { issues: [{ path: short, message: '1 of 10 questions' }] } },
+    });
+    const published = await h().call('publisher', 'POST', '/admin/dailies/footballLogic/publish', { body: { puzzles: [day] } });
+    expect(published.status, JSON.stringify(published.body)).toBe(200);
+    const body = published.body as { days: { puzzle: string; date: string }[]; cycle: { sets: string[] } | null };
+    expect(body.days.map((d) => d.puzzle)).toEqual([day]);
+    expect(body.cycle?.sets).toContain(day);
+    // Again: nothing moves.
+    expect((await h().call('publisher', 'POST', '/admin/dailies/footballLogic/publish', { body: { puzzles: [day] } })).body).toMatchObject({ days: body.days });
+  });
+
+  it('dailies: days stay whole when questions move between them; a date an archived entry holds is skipped only when its day is gone', async () => {
+    const publish = (puzzles: string[]) => h().call('publisher', 'POST', '/admin/dailies/footballLogic/publish', { body: { puzzles } });
+    const read = async (type: TdContentType, row: Row) => (await h().call('editor', 'GET', `/admin/content/${type}/${row.id}`)).body as Row;
+    const fill = async (puzzle: string, from = 0, to = 10) => {
+      const rows: Row[] = [];
+      for (let i = from; i < to; i++) rows.push(await create('editor', 'football-logic', { ...sample('football-logic'), key: `${puzzle}-${i}`, puzzle }));
+      return rows;
+    };
+    const datesOf = (res: { body: unknown }) => (res.body as { days: { puzzle: string; date: string }[] }).days;
+
+    const a = `fla-${run}`;
+    const aRows = await fill(a);
+    const first = await publish([a]);
+    expect(first.status, JSON.stringify(first.body)).toBe(200);
+    const aDate = datesOf(first)[0]!.date;
+
+    // One of A's questions moved into B: B is whole, A would be left with 9; refused, and nothing is left behind.
+    const b = `flb-${run}`;
+    await fill(b, 0, 9);
+    const mover = await read('football-logic', aRows[0]!);
+    ok(await h().call('editor', 'PATCH', `/admin/content/football-logic/${mover.id}`, { body: { version: mover.version, data: { ...mover.data, puzzle: b } } }));
+    expect(await publish([b])).toMatchObject({
+      status: 422,
+      body: { code: 'validation', details: { issues: [{ path: a, message: '9 of 10 approved questions once the moves are approved' }] } },
+    });
+    expect((await read('football-logic', mover)).status).toBe('draft');
+    // A filled up again counts the moved question too until its move is approved.
+    await fill(a, 10, 11);
+    expect(await publish([a])).toMatchObject({ status: 422, body: { details: { issues: [{ path: a, message: '11 of 10 approved questions' }] } } });
+    // Both together: each is whole. A keeps its date, B gets the next one.
+    const both = await publish([a, b]);
+    expect(both.status, JSON.stringify(both.body)).toBe(200);
+    const bDate = addDays(aDate, 1);
+    expect(datesOf(both)).toEqual([{ puzzle: a, date: aDate }, { puzzle: b, date: bDate }]);
+
+    // An archived entry on the next date whose day has since gone: that date stays its own, the day after is used.
+    const gone = `flg-${run}`;
+    const goneRows = await fill(gone);
+    for (const row of goneRows) ok(await step('publisher', 'football-logic', ok(await step('editor', 'football-logic', row, 'ready')), 'approve'));
+    const held = addDays(bDate, 1);
+    const entry = await create('editor', 'daily-schedule', { game: 'footballLogic', date: held, puzzle: gone });
+    const approvedEntry = ok(await step('publisher', 'daily-schedule', ok(await step('editor', 'daily-schedule', entry, 'ready')), 'approve'));
+    ok(await step('publisher', 'daily-schedule', approvedEntry, 'archive'));
+    for (const row of goneRows) ok(await step('publisher', 'football-logic', await read('football-logic', row), 'archive'));
+    const c = `flc-${run}`;
+    await fill(c);
+    const third = await publish([c]);
+    expect(third.status, JSON.stringify(third.body)).toBe(200);
+    expect(datesOf(third)).toEqual([{ puzzle: c, date: addDays(held, 1) }]);
+    expect((await read('daily-schedule', entry)).status).toBe('archived');
+
+    // An archived entry whose day is still there comes back with the new day.
+    const kept = await create('editor', 'daily-schedule', { game: 'footballLogic', date: addDays(held, 2), puzzle: a });
+    const approvedKept = ok(await step('publisher', 'daily-schedule', ok(await step('editor', 'daily-schedule', kept, 'ready')), 'approve'));
+    ok(await step('publisher', 'daily-schedule', approvedKept, 'archive'));
+    const d = `fld2-${run}`;
+    await fill(d);
+    const fourth = await publish([d]);
+    expect(fourth.status, JSON.stringify(fourth.body)).toBe(200);
+    expect(datesOf(fourth)).toEqual([{ puzzle: d, date: addDays(held, 2) }]);
+    expect(await read('daily-schedule', kept)).toMatchObject({ status: 'approved', approved: { puzzle: d } });
   });
 }

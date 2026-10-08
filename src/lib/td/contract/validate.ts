@@ -7,6 +7,8 @@
  * keyword it does not know.
  */
 
+import { t } from '@/lib/td/i18n';
+
 export type JsonSchema = Record<string, unknown>;
 
 export interface SchemaIssue {
@@ -81,47 +83,50 @@ const codePoints = (text: string) => [...text].length;
 /** A plain-language reading of the contract's pattern families. */
 export function describePattern(pattern: string): string {
   let m = /^\^\\S\(\?:\[\\s\\S\]\{0,(\d+)\}\\S\)\?\$$/.exec(pattern);
-  if (m) return `Required: at most ${Number(m[1]) + 2} characters, with no spaces at the start or end`;
+  if (m) return t('Required: at most {max} characters, with no spaces at the start or end', { max: Number(m[1]) + 2 });
   m = /^\^\(\?:\\S\(\?:\[\\s\\S\]\{0,(\d+)\}\\S\)\?\)\?\$$/.exec(pattern);
-  if (m) return `At most ${Number(m[1]) + 2} characters, with no spaces at the start or end`;
+  if (m) return t('At most {max} characters, with no spaces at the start or end', { max: Number(m[1]) + 2 });
   m = /^\^\[\\s\\S\]\{(\d+),(\d+)\}\$$/.exec(pattern);
-  if (m) return Number(m[1]) === 0 ? `At most ${m[2]} characters` : `Between ${m[1]} and ${m[2]} characters`;
+  if (m) return Number(m[1]) === 0 ? t('At most {max} characters', { max: m[2]! }) : t('Between {min} and {max} characters', { min: m[1]!, max: m[2]! });
   if (pattern === '^[a-z0-9][a-z0-9_-]{0,63}$')
-    return 'Lower-case letters, digits, - and _ (starting with a letter or digit), at most 64';
-  if (pattern.includes('-02-29')) return 'A date (YYYY-MM-DD)';
-  if (pattern === '^(?!0000)') return 'Year 0000 is not a date';
-  if (pattern.includes('[0-9a-fA-F]{8}') || pattern.includes('[0-9a-f]{8}')) return 'An id (UUID)';
-  if (pattern.startsWith('^(?:https?:\\/\\/|\\/)')) return 'A web address or a path starting with /';
-  if (pattern.startsWith('^https?:\\/\\/')) return 'A web address (http or https)';
-  if (pattern === '^[a-z0-9-]{1,120}\\.webp$') return 'A file name such as club-name.webp';
-  if (pattern.includes('@')) return 'An email address';
-  if (pattern.startsWith('^[A-Za-z0-9_')) return 'Letters, digits and - _ only';
-  return 'Not in the expected format';
+    return t('Lower-case letters, digits, - and _ (starting with a letter or digit), at most 64');
+  if (pattern.includes('-02-29')) return t('A date (YYYY-MM-DD)');
+  if (pattern === '^(?!0000)') return t('Year 0000 is not a date');
+  if (pattern.includes('[0-9a-fA-F]{8}') || pattern.includes('[0-9a-f]{8}')) return t('An id (UUID)');
+  if (pattern.startsWith('^(?:https?:\\/\\/|\\/)')) return t('A web address or a path starting with /');
+  if (pattern.startsWith('^https?:\\/\\/')) return t('A web address (http or https)');
+  if (pattern === '^[a-z0-9-]{1,120}\\.webp$') return t('A file name such as club-name.webp');
+  if (pattern.includes('@')) return t('An email address');
+  if (pattern.startsWith('^[A-Za-z0-9_')) return t('Letters, digits and - _ only');
+  return t('Not in the expected format');
 }
 
 const TYPE_NAMES: Record<string, string> = {
-  string: 'text',
-  number: 'a number',
-  integer: 'a whole number',
-  boolean: 'yes or no',
-  object: 'an object',
-  array: 'a list',
-  null: 'empty',
+  string: t('text'),
+  number: t('a number'),
+  integer: t('a whole number'),
+  boolean: t('yes or no'),
+  object: t('an object'),
+  array: t('a list'),
+  null: t('empty'),
 };
 
 function typeMessage(types: string[], value: unknown): string {
-  if (value === null || value === undefined) return 'Required';
-  return `Expected ${types.map((t) => TYPE_NAMES[t] ?? t).join(' or ')}`;
+  if (value === null || value === undefined) return t('Required');
+  return t('Expected {types}', { types: types.map((name) => TYPE_NAMES[name] ?? name).join(t(' or ')) });
 }
+
+/** Issues that say a const did not match: told by this mark, since their text is translated. */
+const CONST_MISSES = new WeakSet<SchemaIssue>();
 
 /** The branch of a failed anyOf/oneOf whose issues say most about `value`. */
 function closestBranch(branches: JsonSchema[], value: unknown, path: string): SchemaIssue[] {
   if (branches.every((branch) => branch.const !== undefined)) {
-    return [{ path, message: `One of: ${branches.map((branch) => String(branch.const)).join(', ')}` }];
+    return [{ path, message: t('One of: {options}', { options: branches.map((branch) => String(branch.const)).join(', ') }) }];
   }
   const typed = branches.filter((branch) => {
     const types = branch.type === undefined ? null : ([] as unknown[]).concat(branch.type);
-    return types === null || types.some((t) => hasType(value, String(t)));
+    return types === null || types.some((name) => hasType(value, String(name)));
   });
   if (typed.length === 0) {
     const types = branches.flatMap((branch) => (branch.type === undefined ? [] : ([] as string[]).concat(branch.type as string)));
@@ -131,10 +136,10 @@ function closestBranch(branches: JsonSchema[], value: unknown, path: string): Sc
   const ranked = typed
     .map((branch) => {
       const issues = validateSchema(branch, value, path);
-      return { issues, missed: issues.some((issue) => issue.message.startsWith('Must be ')) };
+      return { issues, missed: issues.some((issue) => CONST_MISSES.has(issue)) };
     })
     .sort((a, b) => Number(a.missed) - Number(b.missed) || a.issues.length - b.issues.length);
-  return ranked[0]?.issues ?? [{ path, message: 'Not a valid value' }];
+  return ranked[0]?.issues ?? [{ path, message: t('Not a valid value') }];
 }
 
 /** Every issue of `value` against `schema`; empty when it is valid. */
@@ -143,39 +148,41 @@ export function validateSchema(schema: JsonSchema, value: unknown, path = ''): S
 
   if (schema.type !== undefined) {
     const types = ([] as unknown[]).concat(schema.type).map(String);
-    if (!types.some((t) => hasType(value, t))) return [{ path, message: typeMessage(types, value) }];
+    if (!types.some((name) => hasType(value, name))) return [{ path, message: typeMessage(types, value) }];
   }
   if (schema.const !== undefined && !deepEqual(value, schema.const)) {
-    return [{ path, message: `Must be ${JSON.stringify(schema.const)}` }];
+    const issue = { path, message: t('Must be {value}', { value: JSON.stringify(schema.const) }) };
+    CONST_MISSES.add(issue);
+    return [issue];
   }
   if (Array.isArray(schema.enum) && !schema.enum.some((option) => deepEqual(option, value))) {
-    return [{ path, message: `One of: ${schema.enum.map((option) => String(option)).join(', ')}` }];
+    return [{ path, message: t('One of: {options}', { options: schema.enum.map((option) => String(option)).join(', ') }) }];
   }
 
   if (typeof value === 'string') {
     const length = schema.minLength !== undefined || schema.maxLength !== undefined ? codePoints(value) : 0;
     if (typeof schema.minLength === 'number' && length < schema.minLength)
-      issues.push({ path, message: schema.minLength === 1 ? 'Required' : `At least ${schema.minLength} characters` });
+      issues.push({ path, message: schema.minLength === 1 ? t('Required') : t('At least {min} characters', { min: schema.minLength }) });
     if (typeof schema.maxLength === 'number' && length > schema.maxLength)
-      issues.push({ path, message: `At most ${schema.maxLength} characters` });
+      issues.push({ path, message: t('At most {max} characters', { max: schema.maxLength }) });
     if (typeof schema.pattern === 'string' && !compiled(schema.pattern).test(value))
-      issues.push({ path, message: value === '' ? 'Required' : describePattern(schema.pattern) });
+      issues.push({ path, message: value === '' ? t('Required') : describePattern(schema.pattern) });
   }
 
   if (typeof value === 'number') {
-    if (typeof schema.minimum === 'number' && value < schema.minimum) issues.push({ path, message: `At least ${schema.minimum}` });
-    if (typeof schema.maximum === 'number' && value > schema.maximum) issues.push({ path, message: `At most ${schema.maximum}` });
+    if (typeof schema.minimum === 'number' && value < schema.minimum) issues.push({ path, message: t('At least {min}', { min: schema.minimum }) });
+    if (typeof schema.maximum === 'number' && value > schema.maximum) issues.push({ path, message: t('At most {max}', { max: schema.maximum }) });
     if (typeof schema.exclusiveMinimum === 'number' && value <= schema.exclusiveMinimum)
-      issues.push({ path, message: `More than ${schema.exclusiveMinimum}` });
+      issues.push({ path, message: t('More than {min}', { min: schema.exclusiveMinimum }) });
     if (typeof schema.exclusiveMaximum === 'number' && value >= schema.exclusiveMaximum)
-      issues.push({ path, message: `Less than ${schema.exclusiveMaximum}` });
+      issues.push({ path, message: t('Less than {max}', { max: schema.exclusiveMaximum }) });
   }
 
   if (Array.isArray(value)) {
     if (typeof schema.minItems === 'number' && value.length < schema.minItems)
-      issues.push({ path, message: schema.minItems === 1 ? 'Add at least one' : `At least ${schema.minItems} items` });
+      issues.push({ path, message: schema.minItems === 1 ? t('Add at least one') : t('At least {min} items', { min: schema.minItems }) });
     if (typeof schema.maxItems === 'number' && value.length > schema.maxItems)
-      issues.push({ path, message: `At most ${schema.maxItems} items` });
+      issues.push({ path, message: t('At most {max} items', { max: schema.maxItems }) });
     if (schema.items && typeof schema.items === 'object')
       value.forEach((item, index) => issues.push(...validateSchema(schema.items as JsonSchema, item, join(path, index))));
   }
@@ -184,13 +191,13 @@ export function validateSchema(schema: JsonSchema, value: unknown, path = ''): S
     const record = value as Record<string, unknown>;
     const properties = (schema.properties ?? {}) as Record<string, JsonSchema>;
     for (const key of (schema.required ?? []) as string[]) {
-      if (!Object.hasOwn(record, key)) issues.push({ path: join(path, key), message: 'Required' });
+      if (!Object.hasOwn(record, key)) issues.push({ path: join(path, key), message: t('Required') });
     }
     for (const [key, item] of Object.entries(record)) {
       if (Object.hasOwn(properties, key)) {
         issues.push(...validateSchema(properties[key], item, join(path, key)));
       } else if (schema.additionalProperties === false) {
-        issues.push({ path: join(path, key), message: 'Not a field of this type' });
+        issues.push({ path: join(path, key), message: t('Not a field of this type') });
       } else if (schema.additionalProperties && typeof schema.additionalProperties === 'object') {
         issues.push(...validateSchema(schema.additionalProperties as JsonSchema, item, join(path, key)));
       }
@@ -209,7 +216,7 @@ export function validateSchema(schema: JsonSchema, value: unknown, path = ''): S
     const branches = schema.oneOf as JsonSchema[];
     const passing = branches.filter((branch) => validateSchema(branch, value, path).length === 0).length;
     if (passing === 0) issues.push(...closestBranch(branches, value, path));
-    else if (passing > 1) issues.push({ path, message: 'Matches more than one shape' });
+    else if (passing > 1) issues.push({ path, message: t('Matches more than one shape') });
   }
 
   return issues;
