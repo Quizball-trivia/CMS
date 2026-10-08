@@ -299,11 +299,21 @@ function UploadBody({ open, initialType, initialCategory, types, onBusy, onClose
       if (question.kind !== 'cards') return null;
       const wanted = plainName(question.display);
       const cards = (categoryCards.data?.rows ?? []) as TdContentRow<'cards'>[];
-      // The card of that name; else the card that spells its name so, when only one does (two players may share a spelling).
-      const named = cards.find((row) => plainName(row.data.display) === wanted);
-      if (named) return named;
+      // The card of that name; else the card that spells its name so, when only one does (two players may share a
+      // spelling). Two cards of one name are told apart by nobody here: `sharedName` refuses the question.
+      const named = cards.filter((row) => plainName(row.data.display) === wanted);
+      if (named.length > 0) return named.length === 1 ? named[0]! : null;
       const spelled = cards.filter((row) => row.data.aliases.some((alias) => plainName(alias) === wanted));
       return spelled.length === 1 ? spelled[0]! : null;
+    },
+    [categoryCards.data],
+  );
+  /** Two cards of the category carry the question's answer as their name: it could mean either. */
+  const sharedName = useCallback(
+    (question: TdParsedQuestion): boolean => {
+      if (question.kind !== 'cards') return false;
+      const wanted = plainName(question.display);
+      return ((categoryCards.data?.rows ?? []) as TdContentRow<'cards'>[]).filter((row) => plainName(row.data.display) === wanted).length > 1;
     },
     [categoryCards.data],
   );
@@ -357,9 +367,12 @@ function UploadBody({ open, initialType, initialCategory, types, onBusy, onClose
           // The import's check finds a new card's missing image; an update's is found here.
           if (question.imageKey && mediaRows.isError) problems.push({ code: 'missing_reference' as const, path: 'Image', message: t('The images could not be loaded to check this key. Close the upload and open it again.') });
           else if (question.imageKey && mediaRows.isSuccess && !mediaByKey.has(question.imageKey)) problems.push({ code: 'missing_reference' as const, path: 'Image', message: t('No uploaded image has this key') });
+          // Among the questions ticked: one left out updates nothing.
           const earlier = updater.get(updates.id);
-          if (earlier === undefined) updater.set(updates.id, question.questionNumber);
-          else problems.push({ code: 'duplicate_in_batch' as const, path: 'Answer', message: t('Question {n} updates the same card', { n: earlier }) });
+          if (earlier !== undefined) problems.push({ code: 'duplicate_in_batch' as const, path: 'Answer', message: t('Question {n} updates the same card', { n: earlier }) });
+          else if (!unselected.has(question.id)) updater.set(updates.id, question.questionNumber);
+        } else if (sharedName(question)) {
+          problems.push({ code: 'invalid' as const, path: 'Answer', message: t('Two cards in this category have this name: change the one meant on its own page') });
         } else if (question.kind === 'cards' && question.clues.length === 0 && !question.photo && !question.imageKey && !question.imageFile) {
           problems.push({ code: 'invalid' as const, path: 'Clue 1', message: t('A new card needs a clue line or a picture') });
         }
@@ -373,7 +386,7 @@ function UploadBody({ open, initialType, initialCategory, types, onBusy, onClose
           updates,
         };
       });
-  }, [questions, entries, checked, unselected, pictureKeys, context, mediaByKey, mediaRows.isError, mediaRows.isSuccess]);
+  }, [questions, entries, checked, unselected, pictureKeys, context, mediaByKey, mediaRows.isError, mediaRows.isSuccess, sharedName]);
 
   const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
     // The .txt and the pictures it names may be chosen together.
@@ -555,7 +568,17 @@ function UploadBody({ open, initialType, initialCategory, types, onBusy, onClose
       const saved = user && operation && items.length > 0 ? batchKeyFor(user.id, await sha256Hex(asRead)) : null;
       if (superseded()) return;
       if (saved?.sent && operation && !changed()) {
-        const outcome = await importItems(items, operation, false, () => !superseded() && !changed());
+        // The questions cannot be changed while it is out: what a retry sends is what is shown.
+        setUploadCount(items.length);
+        setState((prev) => ({ ...prev, isUploading: true }));
+        onBusy(true);
+        let outcome: Awaited<ReturnType<typeof importItems>>;
+        try {
+          outcome = await importItems(items, operation, false, () => !superseded() && !changed());
+        } finally {
+          onBusy(false);
+          setState((prev) => ({ ...prev, isUploading: false }));
+        }
         if (superseded()) return;
         if (outcome === 'done' && !edits) {
           onClose();
@@ -569,7 +592,7 @@ function UploadBody({ open, initialType, initialCategory, types, onBusy, onClose
       }
       setReplayed(mine);
     })();
-  }, [read, replayed, ready, entries, questions, user, importItems, onClose]);
+  }, [read, replayed, ready, entries, questions, user, importItems, onClose, onBusy]);
 
   // The check: which of the questions the API would refuse, asked once for each item.
   useEffect(() => {

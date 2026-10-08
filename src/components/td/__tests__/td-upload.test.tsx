@@ -548,6 +548,32 @@ describe('the upload dialog', () => {
     expect(all.filter((card) => card.data.display === 'El Doble')).toHaveLength(1);
   });
 
+  it('refuses an answer that is the name of two cards, and a question left out no longer stands in the way of another updating its card', async () => {
+    const { admin } = await signIn('editor');
+    const make = (key: string, display: string) =>
+      admin.content('cards').create({ data: { categoryKey: 'legends', key, value: 1, lines: ['Old clue'], display, aliases: [key], photo: null, imageKey: null } });
+    await make('suarez-es', 'Luis Suárez');
+    await make('suarez-uy', 'Luis Suarez');
+    await openDialog({ initialType: 'cards', initialCategory: 'legends' });
+    chooseFile(txt('1.\nClue 1: Uruguay\nAnswer: Luis Suarez\nPoints: 3\n2.\nAnswer: Buffon\nPoints: 2\n3.\nAnswer: ბუფონი\nPoints: 3'));
+    expect(await screen.findByText(/Two cards in this category have this name/)).toBeTruthy();
+    expect(screen.getByText(/Question 2 updates the same card$/)).toBeTruthy();
+    expect((await uploadButton(3)).hasAttribute('disabled')).toBe(true);
+    // Questions 1 and 2 left out: question 3 alone updates Buffon.
+    const boxes = screen.getAllByRole('checkbox');
+    fireEvent.click(boxes.at(-3)!);
+    fireEvent.click(boxes.at(-2)!);
+    await waitFor(() => expect(screen.queryByText(/updates the same card$/)).toBeNull());
+    const upload = await uploadButton(1);
+    await waitFor(() => expect(upload.hasAttribute('disabled')).toBe(false));
+    fireEvent.click(upload);
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    const all = (await admin.content('cards').list({ category: 'legends', status: 'draft,ready,approved,archived', limit: 200 })).items;
+    for (const key of ['suarez-es', 'suarez-uy']) expect(all.find((card) => card.data.key === key)!.data, key).toMatchObject({ value: 1, lines: ['Old clue'] });
+    expect(all.find((card) => card.data.key === 'buffon')!.data.value).toBe(3);
+    expect(await uploaded(admin, 'cards')).toEqual([]);
+  });
+
   it('takes a category for Practice from the labels on file, or one typed', async () => {
     const { admin } = await signIn('editor');
     await openDialog({ initialType: 'practice-questions' });
@@ -805,6 +831,42 @@ describe('the upload dialog', () => {
     fireEvent.click(one);
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
     expect(await uploaded(admin, 'penalty-questions')).toHaveLength(1);
+  });
+
+  it('shows a replay as uploading, its questions out of reach, until it is answered', async () => {
+    const inner = server;
+    let lose = true;
+    let hold: Promise<void> | null = null;
+    server = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      const imports = init?.method === 'POST' && String(input).endsWith('/admin/content/imports');
+      if (imports && hold) await hold;
+      const response = await inner(input, init);
+      if (imports && lose) {
+        lose = false;
+        throw new TypeError('Failed to fetch');
+      }
+      return response;
+    }) as typeof fetch;
+    const { admin } = await signIn('editor');
+    const failed = vi.spyOn(toast, 'error');
+    await openDialog({ initialType: 'penalty-questions' });
+    chooseFile(txt(PENALTIES));
+    const upload = await uploadButton(2);
+    await waitFor(() => expect(upload.hasAttribute('disabled')).toBe(false));
+    fireEvent.click(upload);
+    await waitFor(() => expect(failed).toHaveBeenCalled());
+    cleanup();
+
+    let release!: () => void;
+    hold = new Promise<void>((resolve) => (release = resolve));
+    await openDialog({ initialType: 'penalty-questions' });
+    chooseFile(txt(PENALTIES));
+    expect(await screen.findByText('Creating 2 questions…')).toBeTruthy();
+    expect(screen.queryAllByRole('checkbox')).toHaveLength(0);
+    release();
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    expect(await uploaded(admin, 'penalty-questions')).toHaveLength(2);
+    expect((await admin.imports.list()).items).toHaveLength(1);
   });
 
   it('keeps the cards still to update when a file read again finds its new cards imported already', async () => {

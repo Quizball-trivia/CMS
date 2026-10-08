@@ -11,7 +11,7 @@ import { canMakeResetLink } from '@/components/td/td-team';
 import { followAnswer } from '@/components/td/content/editors/library';
 import type { TdContentRow } from '../admin-api';
 import { mergeDrafts, resolveConflicts } from '../merge';
-import { TD_FIXED_FIELDS, TD_MERGE_UNITS } from '../content-rules';
+import { editorialIssues, TD_FIXED_FIELDS, TD_MERGE_UNITS } from '../content-rules';
 import { contentActions } from '../workflow';
 import { withShownAnswer } from '../answers';
 import type { TdStaff } from '@/types/td';
@@ -46,6 +46,16 @@ function row(over: Partial<TdContentRow<'cards'>> = {}): TdContentRow<'cards'> {
 const history = (...actors: TdStaff[]) => ({
   items: actors.map((who, i) => ({ id: String(i + 1), at: '2026-09-30T08:00:00.000Z', actor: actor(who), action: 'edit' as const, fromStatus: null, toStatus: null, version: i + 1, contentVersion: 1, batchId: null })),
   complete: true,
+});
+
+describe('what the editor asks of a card’s SoFIFA photo', () => {
+  const card = (photo: { id: number; ver: string } | null) => ({ categoryKey: 'legends', key: 'messi', value: 2, lines: ['A'], display: 'Messi', aliases: ['messi'], photo, imageKey: null });
+  it('takes only what a face is served for: up to seven digits and a two-digit version', () => {
+    expect(editorialIssues('cards', card(null))).toEqual([]);
+    expect(editorialIssues('cards', card({ id: 158023, ver: '24' }))).toEqual([]);
+    expect(editorialIssues('cards', card({ id: 158023, ver: '25_1' })).map((issue) => issue.path)).toEqual(['data.photo.ver']);
+    expect(editorialIssues('cards', card({ id: 12345678, ver: '' })).map((issue) => issue.path)).toEqual(['data.photo.id', 'data.photo.ver']);
+  });
 });
 
 describe('workflow actions offered', () => {

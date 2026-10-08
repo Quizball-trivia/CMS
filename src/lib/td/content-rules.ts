@@ -73,10 +73,18 @@ export function contentRuleIssues(type: TdContentType, data: Data): SchemaIssue[
 }
 
 /** What the CMS asks of content beyond what the API refuses (the mock API, which mirrors the API, does not ask it):
- *  a Round II subject with fewer than five clues is never played (game-core MATCH_SIZES.buzzerClues). */
+ *  a Round II subject with fewer than five clues is never played (game-core MATCH_SIZES.buzzerClues), and a card's
+ *  SoFIFA photo is served only for a number of up to seven digits and a two-digit version (the face routes). */
 export function editorialIssues(type: TdContentType, data: Data): SchemaIssue[] {
   if (type === 'whoami-subjects' && !(Array.isArray(data.clues) && data.clues.length >= 5))
     return [{ path: 'data.clues', message: t('Round II needs at least 5 clues: a match shows the first 5') }];
+  if (type === 'cards' && data.photo && typeof data.photo === 'object') {
+    const { id, ver } = data.photo as { id?: unknown; ver?: unknown };
+    return [
+      ...(typeof id === 'number' && Number.isInteger(id) && id >= 1 && id <= 9_999_999 ? [] : [{ path: 'data.photo.id', message: t('A SoFIFA player number has at most seven digits') }]),
+      ...(typeof ver === 'string' && /^\d{2}$/.test(ver) ? [] : [{ path: 'data.photo.ver', message: t('Two digits, such as 24: no face is shown for anything else.') }]),
+    ];
+  }
   return [];
 }
 

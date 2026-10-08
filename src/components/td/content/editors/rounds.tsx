@@ -80,7 +80,7 @@ export function CardEditor({ value, onChange, issues, creating }: TdEditorProps<
       {value.photo && (
         <div className="grid gap-3 sm:grid-cols-2">
           <TdNumberField label={t('SoFIFA player id')} value={value.photo.id} onChange={(id) => onChange({ ...value, photo: { ...value.photo!, id: id ?? 1 } })} issues={issuesAt(issues, 'data.photo.id')} />
-          <TdTextField label={t('SoFIFA version')} value={value.photo.ver} onChange={(ver) => onChange({ ...value, photo: { ...value.photo!, ver } })} issues={issuesAt(issues, 'data.photo.ver')} placeholder={t('e.g. 24')} hint={/^\d{2}$/.test(value.photo.ver) ? undefined : t('Two digits, such as 24: no face is shown for anything else.')} />
+          <TdTextField label={t('SoFIFA version')} value={value.photo.ver} onChange={(ver) => onChange({ ...value, photo: { ...value.photo!, ver } })} issues={issuesAt(issues, 'data.photo.ver')} placeholder={t('e.g. 24')} />
         </div>
       )}
       <TdMediaPicker label={t('Uploaded photo')} value={value.imageKey} onChange={(imageKey) => onChange((current) => ({ ...current, imageKey }))} />

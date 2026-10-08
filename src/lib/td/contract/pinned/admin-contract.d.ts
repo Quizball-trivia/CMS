@@ -3490,7 +3490,7 @@ export type DailyPublishRequest = {
   puzzles: string[];
 };
 
-/** In one transaction (publisher and up): the days’ questions are approved (each day then has exactly its size of approved questions); today keeps the day players get now (a schedule entry pins it; 503 busy while the current release cannot be read); the calendar is read from approved entries, and a date holding a draft or archived entry gets it back; each day that never had a date gets the next free one after the last; the cycle becomes every dated day in date order, then the days it repeated already (none drops out), anchored the day after the last date, so after the calendar the days repeat from the first. Days already dated never move. Running it again changes nothing. Players get it with the next release. */
+/** In one transaction (publisher and up): the days’ questions are approved (each day then has exactly its size of approved questions); today keeps the day players get now (a schedule entry pins it; 503 busy while the current release cannot be read; an approved entry already on today is left as it is); the calendar is read from approved entries, and a date holding a draft or archived entry gets it back; each day that never had a date gets the next free one after the last; the cycle becomes every dated day in date order, then the days it repeated already (none drops out; when that is more than 400 days, the last 400), anchored the day after the last date, so after the calendar the days repeat from the first. Days already dated never move. Running it again changes nothing. Players get it with the next release. */
 export type DailyPublishResponse = {
   game: "footballLogic" | "putInOrder" | "careerPath";
   today: string;

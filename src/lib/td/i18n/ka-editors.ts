@@ -16,6 +16,7 @@ export const KA_EDITORS: Record<string, string> = {
   'SoFIFA version': 'SoFIFA ვერსია',
   'e.g. 24': 'მაგ. 24',
   'Two digits, such as 24: no face is shown for anything else.': 'ორი ციფრი, მაგალითად 24: სხვა შემთხვევაში სახე არ გამოჩნდება.',
+  'A SoFIFA player number has at most seven digits': 'SoFIFA-ს მოთამაშის ნომერი მაქსიმუმ შვიდნიშნაა',
   'Uploaded photo': 'ატვირთული ფოტო',
   'Clues, in the order they are read': 'მინიშნებები, წაკითხვის თანმიმდევრობით',
   'Add a clue': 'მინიშნების დამატება',
