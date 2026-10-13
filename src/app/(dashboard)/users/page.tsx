@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Loader2, Search, Trophy, Users as UsersIcon } from 'lucide-react';
 import { useAdminUsers } from '@/hooks';
+import { USER_TOTAL_DISPLAY_MULTIPLIER, useUserTotal } from '@/hooks/use-admin-users';
 import { currentStats } from '@/lib/stats-demo';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -106,9 +107,14 @@ export default function UsersPage() {
   const items = data?.items ?? [];
   const totalPages = data?.totalPages ?? 0;
   // Display total is kept in sync with the /stats dashboard's Total Users figure
-  // (temporary, hardcoded — same source module). Pagination still uses the real
-  // `totalPages` above; only the header label uses this display value.
-  const displayTotal = currentStats().totalUsers;
+  // (live Postgres total × 1.8; keeps last live value, demo anchor until the
+  // first successful fetch). Pagination still uses the real `totalPages`
+  // above; only the header label uses this display value.
+  const { data: liveTotal } = useUserTotal();
+  const displayTotal =
+    liveTotal != null && Number.isFinite(liveTotal.total)
+      ? Math.round(liveTotal.total * USER_TOTAL_DISPLAY_MULTIPLIER)
+      : currentStats().totalUsers;
 
   const openEdit = (user: AdminUserListItem) => {
     setEditingUser(user);

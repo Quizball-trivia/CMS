@@ -30,6 +30,14 @@ interface ResetTicketWindowBody {
   reason: string;
 }
 
+/** Guest-inclusive user total (mirrors backend AdminUserTotalResponse). */
+export interface AdminUserTotal {
+  registered: number;
+  guestsPlayed: number;
+  converters: number;
+  total: number;
+}
+
 interface ResetTicketWindowResult {
   voided: number;
   wallet: { coins: number; tickets: number };
@@ -51,6 +59,15 @@ export const adminUsersService = {
       '/admin/users',
       query as Record<string, string | number | boolean | undefined>
     );
+  },
+
+  /**
+   * Guest-inclusive user total (hand-typed until the OpenAPI spec is
+   * regenerated with AdminUserTotalResponse).
+   * total = registered + guestsPlayed - converters.
+   */
+  async userTotal(): Promise<AdminUserTotal> {
+    return apiClient.get<AdminUserTotal>('/admin/stats/user-total');
   },
 
   async setProgression(
