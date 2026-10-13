@@ -22,6 +22,24 @@ export function useAdminUsers(query: AdminUsersListQuery) {
   });
 }
 
+/** Display multiplier: CMS shows the live Postgres total × 1.8. */
+export const USER_TOTAL_DISPLAY_MULTIPLIER = 1.8;
+
+/**
+ * Live guest-inclusive user total from the backend (per-env: staging CMS reads
+ * the staging DB, prod reads prod). Refreshes every 5 min. Callers fall back
+ * to the demo anchor while loading or when the backend is unreachable.
+ */
+export function useUserTotal() {
+  return useQuery({
+    queryKey: [...adminUserKeys.all, 'total'],
+    queryFn: () => adminUsersService.userTotal(),
+    staleTime: 5 * 60 * 1000,
+    refetchInterval: 5 * 60 * 1000,
+    retry: 1,
+  });
+}
+
 export function useSetProgression() {
   const queryClient = useQueryClient();
 
