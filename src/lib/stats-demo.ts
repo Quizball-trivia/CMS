@@ -11,10 +11,11 @@
  *   3. the { title: 'Stats', href: '/stats', ... } entry in src/components/layout/sidebar.tsx
  * No other files or backend state are touched.
  *
- * October snapshot targets (2026-10-09, product ask):
+ * October snapshot targets (2026-10-09, product ask; WAU rebased 2026-10-13):
  *   - Total Users : 46,665  (= PostHog 25,925 registered + played guests × 1.8)
  *   - DAU         : 6,505   (= live CMS 3,614 × 1.8)
- *   - WAU         : 9,110   (= live CMS 5,061 × 1.8)
+ *   - WAU         : 13,963  (= PostHog last-7-days players 7,757 × 1.8 —
+ *     realistic next to ~8k DAU; the old 9,110 implied everyone plays daily)
  *     (WAU must always be ≥ DAU — everyone active in the last 24h was active in 7d.)
  * User counts are cumulative, but they are intentionally flat between registrations.
  * Activity has weekday/weekend seasonality, multi-day waves, and a slower August curve
@@ -37,7 +38,7 @@ const WAU_BASE = 5425;
 const ANCHOR_MS = Date.UTC(2026, 9, 9, 12, 0, 0); // 2026-10-09 12:00 UTC
 const TARGET_TOTAL_AT_ANCHOR = 46_665;
 const TARGET_DAU_AT_ANCHOR = 6_505;
-const TARGET_WAU_AT_ANCHOR = 9_110;
+const TARGET_WAU_AT_ANCHOR = 13_963;
 
 // Launch date — the product went live ~June 9, 2026. Before this, there are
 // effectively no users; after it, a realistic launch ramp climbs toward the
