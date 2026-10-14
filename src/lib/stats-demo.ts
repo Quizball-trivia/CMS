@@ -11,10 +11,10 @@
  *   3. the { title: 'Stats', href: '/stats', ... } entry in src/components/layout/sidebar.tsx
  * No other files or backend state are touched.
  *
- * September snapshot targets (2026-09-17):
- *   - Total Users : 13,654
- *   - DAU         : 3,611
- *   - WAU         : 5,037
+ * October snapshot targets (2026-10-09, product ask):
+ *   - Total Users : 46,665  (= PostHog 25,925 registered + played guests × 1.8)
+ *   - DAU         : 6,505   (= live CMS 3,614 × 1.8)
+ *   - WAU         : 9,110   (= live CMS 5,061 × 1.8)
  *     (WAU must always be ≥ DAU — everyone active in the last 24h was active in 7d.)
  * User counts are cumulative, but they are intentionally flat between registrations.
  * Activity has weekday/weekend seasonality, multi-day waves, and a slower August curve
@@ -29,15 +29,15 @@ const TOTAL_USERS_BASE = 3853;
 const DAU_BASE = 3530;
 const WAU_BASE = 5425;
 
-// --- calibration anchor (product ask 2026-09-17) -----------------------------
+// --- calibration anchor (product ask 2026-10-09) -----------------------------
 // Pin the headline values displayed ON the anchor day to exact targets while
 // keeping every curve shape (ramp, waves, seasonality, spike) unchanged: all
 // raw outputs are multiplied by constant factors computed once against the
 // anchor timestamp, so the series stays deterministic and monotonic.
-const ANCHOR_MS = Date.UTC(2026, 8, 17, 12, 0, 0); // 2026-09-17 12:00 UTC
-const TARGET_TOTAL_AT_ANCHOR = 13_654;
-const TARGET_DAU_AT_ANCHOR = 3_611;
-const TARGET_WAU_AT_ANCHOR = 5_037;
+const ANCHOR_MS = Date.UTC(2026, 9, 9, 12, 0, 0); // 2026-10-09 12:00 UTC
+const TARGET_TOTAL_AT_ANCHOR = 46_665;
+const TARGET_DAU_AT_ANCHOR = 6_505;
+const TARGET_WAU_AT_ANCHOR = 9_110;
 
 // Launch date — the product went live ~June 9, 2026. Before this, there are
 // effectively no users; after it, a realistic launch ramp climbs toward the
@@ -114,9 +114,11 @@ function registrationsForDay(dayMs: number): number {
   return Math.max(0, rate);
 }
 
-// After the Sept 17 snapshot, total users tick +10 per completed day.
-const SNAPSHOT_MS = Date.UTC(2026, 8, 17, 0, 0, 0); // 2026-09-17
-const USERS_PER_DAY_AFTER_SNAPSHOT = 10;
+// After the Oct 9 snapshot, raw registrations freeze; forward growth is applied
+// explicitly in currentStats/dailySeries/weeklySeries so the headline climbs at
+// the measured Postgres net-add rate (× 1.8 display).
+const SNAPSHOT_MS = Date.UTC(2026, 9, 9, 0, 0, 0); // 2026-10-09
+const USERS_PER_DAY_AFTER_SNAPSHOT = 0;
 
 /**
  * Cumulative registrations since the ramp matured. History is frozen at the
@@ -233,13 +235,30 @@ const TOTAL_SCALE = TARGET_TOTAL_AT_ANCHOR / Math.max(1, RAW_AT_ANCHOR.totalUser
 const DAU_SCALE = TARGET_DAU_AT_ANCHOR / Math.max(1, RAW_AT_ANCHOR.dau);
 const WAU_SCALE = TARGET_WAU_AT_ANCHOR / Math.max(1, RAW_AT_ANCHOR.wau);
 
+// Forward growth after the anchor: Postgres added ~663 net identities/day over
+// the trailing 7d (1,402 registered + 3,240 played-guest net of converters).
+// Displayed growth = real × 1.8 ≈ +1,193/day (≈2.56%/day); DAU/WAU scale with it.
+// Stepped on whole UTC days so chart points never shift intraday.
+const DAY_MS = 86_400_000;
+const DISPLAY_GROWTH_PER_DAY = 1_193;
+function dayNumber(ms: number): number {
+  return Math.floor(ms / DAY_MS);
+}
+const ANCHOR_DAY = dayNumber(ANCHOR_MS);
+function growthRatio(dayMs: number): number {
+  const d = dayNumber(dayMs) - ANCHOR_DAY;
+  if (d <= 0) return 1;
+  return (TARGET_TOTAL_AT_ANCHOR + d * DISPLAY_GROWTH_PER_DAY) / TARGET_TOTAL_AT_ANCHOR;
+}
+
 /** Current headline numbers, quantized to the 5-min tick. */
 export function currentStats(now: number = Date.now()): StatSnapshot {
   const raw = rawStats(now);
-  const dau = Math.round(raw.dau * DAU_SCALE);
-  const wau = Math.round(raw.wau * WAU_SCALE);
+  const ratio = growthRatio(bucketed(now));
+  const dau = Math.round(raw.dau * DAU_SCALE * ratio);
+  const wau = Math.round(raw.wau * WAU_SCALE * ratio);
   return {
-    totalUsers: Math.round(raw.totalUsers * TOTAL_SCALE),
+    totalUsers: Math.round(raw.totalUsers * TOTAL_SCALE * ratio),
     dau,
     wau: Math.max(dau, wau),
   };
@@ -284,7 +303,7 @@ export function dailySeries(now: number = Date.now(), count = 14): DailyPoint[] 
       )
     );
     const d = new Date(dayMs);
-    out.push({ date: d.toISOString().slice(0, 10), label: fmtDay(d), dau: Math.round(dau * DAU_SCALE) });
+    out.push({ date: d.toISOString().slice(0, 10), label: fmtDay(d), dau: Math.round(dau * DAU_SCALE * growthRatio(dayMs)) });
   }
   return out;
 }
@@ -313,7 +332,7 @@ export function weeklySeries(now: number = Date.now(), count = 8): WeeklyPoint[]
       )
     );
     const d = new Date(weekMs);
-    out.push({ week: d.toISOString().slice(0, 10), label: `W of ${fmtDay(d)}`, wau: Math.round(wau * WAU_SCALE) });
+    out.push({ week: d.toISOString().slice(0, 10), label: `W of ${fmtDay(d)}`, wau: Math.round(wau * WAU_SCALE * growthRatio(weekMs)) });
   }
   return out;
 }

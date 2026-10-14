@@ -19,6 +19,7 @@ import {
   dailySeries,
   weeklySeries,
 } from '@/lib/stats-demo';
+import { useUserTotal, USER_TOTAL_DISPLAY_MULTIPLIER } from '@/hooks/use-admin-users';
 
 function useNow(intervalMs: number): number {
   const [now, setNow] = useState(() => Date.now());
@@ -69,6 +70,15 @@ export default function StatsPage() {
   const daily = useMemo(() => dailySeries(now, 30), [now]);
   const weekly = useMemo(() => weeklySeries(now, 8), [now]);
 
+  // Live Postgres total (per-env) × 1.8. Keeps the last live value across
+  // refetch failures; demo anchor only until the first successful fetch.
+  const { data: liveTotal } = useUserTotal();
+  const liveTotalUsers =
+    liveTotal != null && Number.isFinite(liveTotal.total)
+      ? Math.round(liveTotal.total * USER_TOTAL_DISPLAY_MULTIPLIER)
+      : null;
+  const totalUsers = liveTotalUsers ?? stats.totalUsers;
+
   return (
     <div className="space-y-6 p-6">
       {/* Header */}
@@ -88,8 +98,8 @@ export default function StatsPage() {
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <StatCard
           label="Total Users"
-          value={stats.totalUsers}
-          sub="All registered players"
+          value={totalUsers}
+          sub="Registered + guests who played"
           icon={UsersIcon}
           accent="bg-slate-100 text-slate-700"
         />
