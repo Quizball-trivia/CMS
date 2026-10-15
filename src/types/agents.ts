@@ -345,3 +345,57 @@ export interface AgentReviewQueue {
   count: number;
   groups: AgentReviewGroup[];
 }
+
+// ── Daily-game day batches (pipeline-built days awaiting approval) ──
+
+export type DailyGame = 'buscaminas' | 'pistas' | 'ultimo' | 'minuto';
+export type DayBatchStatus = 'pending' | 'seeded' | 'rejected' | 'failed';
+
+export interface DayBatchPlan {
+  entries: { day: string; number: number; status: string }[];
+  keptDays: number;
+}
+
+export interface DayBatchSummary {
+  id: string;
+  jobId: string;
+  game: DailyGame;
+  firstDay: string;
+  lastDay: string;
+  dayCount: number;
+  status: DayBatchStatus;
+  validation: { ok?: boolean; output?: string; validator?: string; [k: string]: unknown };
+  plan: DayBatchPlan | null;
+  error: string | null;
+  rejectReason: string | null;
+  decidedBy: string | null;
+  decidedAt: string | null;
+  createdAt: string;
+}
+
+/** A Buscaminas day file as the pipeline stores it (server-side: `ok` marks the cards that fit the prompt). */
+export interface BuscaminasBatchDay {
+  day: string;
+  number: number;
+  contentVersion: number;
+  rounds: {
+    id: string;
+    difficulty: string;
+    prompt: Record<string, string>;
+    cards: { id: string; name: string; img: string; ok: boolean }[];
+  }[];
+}
+
+export interface DayBatchDetail extends DayBatchSummary {
+  days: unknown[];
+  dryRun: { plan: DayBatchPlan } | { error: string } | null;
+}
+
+export interface DailyGameBuffer {
+  game: DailyGame;
+  lastDay: string | null;
+  daysLeft: number;
+  pendingBatchId: string | null;
+  activeJobId: string | null;
+  holdForReview: boolean;
+}
