@@ -1,0 +1,170 @@
+import { renderHook, waitFor } from '@testing-library/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import type { ReactNode } from 'react';
+import { beforeEach, expect, it, vi } from 'vitest';
+
+let failCards = false;
+let photoCards = false;
+let faceId = (category: string, i: number) => category.charCodeAt(0) * 100 + i;
+let gate: Promise<void> | null = null;
+const file = vi.fn(async () => {
+  if (gate) await gate;
+  return new Blob(['img'], { type: 'image/webp' });
+});
+const cardsOf = (category: string) =>
+  Array.from({ length: 30 }, (_, i) =>
+    photoCards
+      ? { id: `${category}-${i}`, data: { categoryKey: category, imageKey: null, photo: { id: faceId(category, i), ver: '1' } } }
+      : { id: `${category}-${i}`, data: { categoryKey: category, imageKey: `${category}-img-${i}`, photo: null } },
+  );
+const media = ['a', 'b', 'c', 'd', 'e'].flatMap((category) =>
+  Array.from({ length: 30 }, (_, i) => ({ status: 'approved', approved: null, data: { key: `${category}-img-${i}`, uploadId: `up-${category}-${i}`, url: null } })),
+);
+vi.mock('@/lib/td/client', () => ({
+  tdAdmin: {
+    content: (type: string) => ({
+      list: async (query: { category?: string }) => {
+        if (type === 'cards' && failCards) throw new Error('down');
+        return { items: type === 'media' ? media : cardsOf(query.category!), nextCursor: null };
+      },
+    }),
+    media: { file },
+  },
+  tdTokens: { read: () => null },
+}));
+
+const { useTdCategoryImagePrefetch, resetTdPrefetchBudget, PREFETCH_MAX_PICTURES, PREFETCH_PER_MINUTE } = await import('./use-td-image-prefetch');
+
+beforeEach(() => {
+  failCards = false;
+  gate = null;
+  faceId = (category, i) => category.charCodeAt(0) * 100 + i;
+  file.mockClear();
+  resetTdPrefetchBudget();
+});
+
+const wrapperWith = (client: QueryClient) =>
+  function Wrapper({ children }: { children: ReactNode }) {
+    return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
+  };
+
+it('reads a category\'s first pictures ahead once, in small copies, and all categories together stay within the allowance', async () => {
+  const client = new QueryClient();
+  const wrapper = wrapperWith(client);
+  const a = renderHook(() => useTdCategoryImagePrefetch('a'), { wrapper });
+  a.result.current.now();
+  await waitFor(() => expect(file).toHaveBeenCalledTimes(PREFETCH_MAX_PICTURES));
+  expect(file.mock.calls.every((call) => (call as unknown[])[2] !== undefined)).toBe(true);
+  a.result.current.now();
+  for (const key of ['b', 'c', 'd']) renderHook(() => useTdCategoryImagePrefetch(key), { wrapper }).result.current.now();
+  await waitFor(() => expect(file).toHaveBeenCalledTimes(PREFETCH_PER_MINUTE));
+  await new Promise((resolve) => setTimeout(resolve, 50));
+  expect(file).toHaveBeenCalledTimes(PREFETCH_PER_MINUTE);
+});
+
+it('reads nothing for a pointer that only passes over', async () => {
+  vi.useFakeTimers();
+  try {
+    const { result } = renderHook(() => useTdCategoryImagePrefetch('a'), { wrapper: wrapperWith(new QueryClient()) });
+    result.current.soon();
+    vi.advanceTimersByTime(100);
+    result.current.cancel();
+    vi.advanceTimersByTime(500);
+  } finally {
+    vi.useRealTimers();
+  }
+  await new Promise((resolve) => setTimeout(resolve, 50));
+  expect(file).not.toHaveBeenCalled();
+});
+
+it('tries a category again after its rows failed to load or the allowance ran out, without asking twice for a picture it has', async () => {
+  vi.useFakeTimers({ toFake: ['Date'] });
+  try {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const wrapper = wrapperWith(client);
+    failCards = true;
+    const d = renderHook(() => useTdCategoryImagePrefetch('d'), { wrapper });
+    d.result.current.now();
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(file).not.toHaveBeenCalled();
+    failCards = false;
+    client.clear();
+    for (const key of ['a', 'b', 'c']) renderHook(() => useTdCategoryImagePrefetch(key), { wrapper }).result.current.now();
+    await waitFor(() => expect(file).toHaveBeenCalledTimes(PREFETCH_PER_MINUTE));
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    // c got 12 of its 24; a minute later the next hover reads the other 12, and d (whose rows failed) its 24.
+    vi.setSystemTime(Date.now() + 61_000);
+    renderHook(() => useTdCategoryImagePrefetch('c'), { wrapper }).result.current.now();
+    await waitFor(() => expect(file).toHaveBeenCalledTimes(PREFETCH_PER_MINUTE + 12));
+    d.result.current.now();
+    await waitFor(() => expect(file).toHaveBeenCalledTimes(PREFETCH_PER_MINUTE + 12 + PREFETCH_MAX_PICTURES));
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
+it('counts SoFIFA faces against the same allowance and loads each once', async () => {
+  const images: string[] = [];
+  vi.stubGlobal('Image', class { set src(value: string) { images.push(value); } });
+  try {
+    const wrapper = wrapperWith(new QueryClient());
+    photoCards = true;
+    for (const key of ['a', 'b', 'c']) renderHook(() => useTdCategoryImagePrefetch(key), { wrapper }).result.current.now();
+    await waitFor(() => expect(images).toHaveLength(PREFETCH_PER_MINUTE));
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(images).toHaveLength(PREFETCH_PER_MINUTE);
+    expect(new Set(images).size).toBe(PREFETCH_PER_MINUTE);
+  } finally {
+    photoCards = false;
+    vi.unstubAllGlobals();
+  }
+});
+
+it('runs one pass per category at a time, and a retried pass does not pay again for pictures still loading', async () => {
+  vi.useFakeTimers({ toFake: ['Date'] });
+  let release = () => {};
+  gate = new Promise<void>((resolve) => (release = resolve));
+  try {
+    const wrapper = wrapperWith(new QueryClient());
+    const first = renderHook(() => useTdCategoryImagePrefetch('a'), { wrapper });
+    first.result.current.now();
+    renderHook(() => useTdCategoryImagePrefetch('a'), { wrapper }).result.current.now();
+    for (const key of ['b', 'c']) renderHook(() => useTdCategoryImagePrefetch(key), { wrapper }).result.current.now();
+    await waitFor(() => expect(file).toHaveBeenCalledTimes(PREFETCH_PER_MINUTE));
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(file).toHaveBeenCalledTimes(PREFETCH_PER_MINUTE);
+    // c stopped at 12 of 24 with its first 12 still loading; a minute later its retry pays only for the other 12,
+    // leaving 48 of the allowance for d and e.
+    vi.setSystemTime(Date.now() + 61_000);
+    renderHook(() => useTdCategoryImagePrefetch('c'), { wrapper }).result.current.now();
+    await waitFor(() => expect(file).toHaveBeenCalledTimes(PREFETCH_PER_MINUTE + 12));
+    for (const key of ['d', 'e']) renderHook(() => useTdCategoryImagePrefetch(key), { wrapper }).result.current.now();
+    await waitFor(() => expect(file).toHaveBeenCalledTimes(2 * PREFETCH_PER_MINUTE));
+  } finally {
+    release();
+    vi.useRealTimers();
+  }
+});
+
+it('asks once for a face several categories share, and faces and uploads share one allowance', async () => {
+  const images: string[] = [];
+  vi.stubGlobal('Image', class { set src(value: string) { images.push(value); } });
+  try {
+    const wrapper = wrapperWith(new QueryClient());
+    faceId = (_category, i) => i;
+    photoCards = true;
+    for (const key of ['a', 'b']) renderHook(() => useTdCategoryImagePrefetch(key), { wrapper }).result.current.now();
+    await waitFor(() => expect(images).toHaveLength(PREFETCH_MAX_PICTURES));
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(images).toHaveLength(PREFETCH_MAX_PICTURES);
+    // 24 of the 60 spent on faces: uploads get the other 36.
+    photoCards = false;
+    for (const key of ['c', 'd']) renderHook(() => useTdCategoryImagePrefetch(key), { wrapper }).result.current.now();
+    await waitFor(() => expect(file).toHaveBeenCalledTimes(PREFETCH_PER_MINUTE - PREFETCH_MAX_PICTURES));
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(file).toHaveBeenCalledTimes(PREFETCH_PER_MINUTE - PREFETCH_MAX_PICTURES);
+  } finally {
+    photoCards = false;
+    vi.unstubAllGlobals();
+  }
+});

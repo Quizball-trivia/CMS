@@ -9,13 +9,23 @@ import { cn } from '@/lib/utils';
 /** The SoFIFA face of a card, through the CMS's own route (app/td/face). */
 export const cardFaceSrc = (photo: { id: number; ver: string }) => `/td/face?id=${photo.id}&v=${encodeURIComponent(photo.ver)}`;
 
+/** A spot that is still loading: visibly so, not an empty frame. */
+function Loading({ className }: { className: string }) {
+  return (
+    <span className={cn(className, 'flex animate-pulse items-center justify-center bg-slate-200 text-slate-400')}>
+      <ImageIcon className="h-6 w-6" />
+    </span>
+  );
+}
+
 function Uploaded({ uploadId, alt, className }: { uploadId: string; alt: string; className: string }) {
-  const file = useTdUploadUrl(uploadId);
+  // A card's picture is never shown wider than a tile: the small copy, not the file as sent.
+  const file = useTdUploadUrl(uploadId, { preview: true });
   return file.url ? (
     // eslint-disable-next-line @next/next/no-img-element -- an object URL of an authenticated download
     <img src={file.url} alt={alt} className={className} />
   ) : (
-    <span className={cn(className, 'animate-pulse bg-slate-100')} />
+    <Loading className={className} />
   );
 }
 
@@ -27,7 +37,7 @@ export function TdCardImage({ card, className }: { card: Pick<TdContentData<'car
     const found = media.data?.rows.find((row) => row.data.key === card.imageKey);
     const uploadId = found ? releasedImage(found).uploadId : null;
     if (uploadId) return <Uploaded uploadId={uploadId} alt={card.display} className={frame} />;
-    if (media.isLoading) return <span className={cn(frame, 'animate-pulse bg-slate-100')} />;
+    if (media.isLoading) return <Loading className={frame} />;
   }
   if (card.photo)
     // eslint-disable-next-line @next/next/no-img-element -- served by the CMS's own face route

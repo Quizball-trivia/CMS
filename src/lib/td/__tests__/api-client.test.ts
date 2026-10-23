@@ -34,6 +34,14 @@ describe('Table Derby API client', () => {
     const [, init] = fetchMock.mock.calls[0];
     expect(bearer(init!)).toBe('Bearer access-1');
     expect(init!.credentials).toBe('omit');
+    expect(init!.cache).toBe('no-store');
+  });
+
+  it('lets the browser keep only what is asked to be revalidated (an upload\'s file), checking it again each time', async () => {
+    const { api, tokens, fetchMock } = setup(() => new Response(new Blob(['img']), { status: 200 }));
+    await put(tokens, session('gen-a', 'access-1', 'refresh-1'));
+    await api.request('GET', '/admin/media/uploads/u/file', { responseType: 'blob', revalidate: true });
+    expect(fetchMock.mock.calls[0][1]!.cache).toBe('no-cache');
   });
 
   it('refreshes once for concurrent 401s and retries each request within the same generation', async () => {

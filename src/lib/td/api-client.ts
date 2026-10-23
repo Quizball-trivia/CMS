@@ -42,6 +42,8 @@ interface SendOptions {
   accessToken?: string | null;
   signal?: AbortSignal;
   timeoutMs?: number;
+  /** A response the API lets the browser keep and check again (an upload's file); no-store otherwise. */
+  revalidate?: boolean;
 }
 
 export interface TdTransport {
@@ -63,7 +65,7 @@ function combineSignals(signals: Array<AbortSignal | undefined>): AbortSignal | 
 
 export function createTransport(baseUrl: string, fetchImpl: typeof fetch): TdTransport {
   return {
-    send(method, path, { body, raw, accept = 'application/json', accessToken, signal, timeoutMs = REQUEST_TIMEOUT_MS } = {}) {
+    send(method, path, { body, raw, accept = 'application/json', accessToken, signal, timeoutMs = REQUEST_TIMEOUT_MS, revalidate = false } = {}) {
       const headers: Record<string, string> = { Accept: accept };
       if (raw) headers['Content-Type'] = raw.contentType;
       else if (body !== undefined) headers['Content-Type'] = 'application/json';
@@ -74,7 +76,7 @@ export function createTransport(baseUrl: string, fetchImpl: typeof fetch): TdTra
         body: raw ? raw.data : body === undefined ? undefined : JSON.stringify(body),
         // Staff auth is bearer-only; never send or accept cookies from the TD API.
         credentials: 'omit',
-        cache: 'no-store',
+        cache: revalidate ? 'no-cache' : 'no-store',
         signal: combineSignals([signal, AbortSignal.timeout(timeoutMs)]),
       });
     },
@@ -146,6 +148,7 @@ export interface TdCallOptions extends TdRequestOptions {
   body?: unknown;
   raw?: TdRawBody;
   responseType?: TdResponseType;
+  revalidate?: boolean;
 }
 
 export interface TdApiClient {
@@ -199,7 +202,7 @@ export function createTdApiClient({
   };
 
   async function authed<T>(method: Method, path: string, options: TdCallOptions = {}): Promise<T> {
-    const { body, raw, responseType = 'json' } = options;
+    const { body, raw, responseType = 'json', revalidate } = options;
     const session = tokens.read();
     if (options.generation && session?.generation !== options.generation) throw sessionChanged();
     if (!session) throw new TdApiError(401, 'not_signed_in', t('Not signed in'));
@@ -209,7 +212,7 @@ export function createTdApiClient({
     const signal = combineSignals([options.signal, cancellerFor(generation)]);
     const send = async (accessToken: string) => {
       try {
-        const response = await transport.send(method, path, { body, raw, accept: ACCEPT[responseType], accessToken, signal });
+        const response = await transport.send(method, path, { body, raw, accept: ACCEPT[responseType], accessToken, signal, revalidate });
         if (!stillCurrent()) throw sessionChanged();
         return response;
       } catch (error) {

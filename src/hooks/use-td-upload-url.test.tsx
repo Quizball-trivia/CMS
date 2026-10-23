@@ -47,3 +47,16 @@ it('has no URL without an upload', () => {
   expect(result.current.url).toBeNull();
   expect(made).toEqual([]);
 });
+
+it('asks a tile for the small copy and keeps it apart from the file as sent', async () => {
+  const { tdAdmin } = await import('@/lib/td/client');
+  const file = vi.mocked(tdAdmin.media.file);
+  file.mockClear();
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const both = ({ children }: { children: ReactNode }) => <QueryClientProvider client={client}>{children}</QueryClientProvider>;
+  const small = renderHook(() => useTdUploadUrl('upload-2', { preview: true }), { wrapper: both });
+  const full = renderHook(() => useTdUploadUrl('upload-2'), { wrapper: both });
+  await waitFor(() => expect(small.result.current.url && full.result.current.url).toBeTruthy());
+  expect(file.mock.calls.map(([id, , query]) => [id, query])).toEqual(expect.arrayContaining([['upload-2', { w: '480' }], ['upload-2', undefined]]));
+  expect(file).toHaveBeenCalledTimes(2);
+});
