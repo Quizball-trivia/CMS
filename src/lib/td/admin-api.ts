@@ -121,8 +121,10 @@ export function createTdAdminApi(api: TdApiClient) {
       upload: (file: Blob, contentType: string, options?: TdRequestOptions) =>
         api.request<C.MediaUpload>('POST', '/admin/media/uploads', { ...options, raw: { data: file, contentType } }),
       get: (id: string, options?: TdRequestOptions) => api.get<C.MediaUpload>(`/admin/media/uploads/${segment(id)}`, options),
-      file: (id: string, options?: TdRequestOptions) =>
-        api.request<Blob>('GET', `/admin/media/uploads/${segment(id)}/file`, { ...options, responseType: 'blob' }),
+      /** The image as sent, or with `w` a WebP copy at most that wide (tiles and lists). The browser keeps it and asks
+       *  again each time: the API answers 304 for the same bytes, after checking the member and the upload. */
+      file: (id: string, options?: TdRequestOptions, query?: C.MediaFileQuery) =>
+        api.request<Blob>('GET', `/admin/media/uploads/${segment(id)}/file${queryString(query ?? {})}`, { ...options, responseType: 'blob', revalidate: true }),
       remove: (id: string, options?: TdRequestOptions) => api.delete(`/admin/media/uploads/${segment(id)}`, options),
     },
     dailies: {

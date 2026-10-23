@@ -6,6 +6,7 @@ import { ArchiveRestore, Edit2, FileQuestion, Layers, Loader2, Trash2 } from 'lu
 import { Button } from '@/components/ui/button';
 import { TD_STATUS_LABELS } from '@/components/td/content/td-status';
 import { useTdWrite } from '@/hooks/use-td-content';
+import { useTdCategoryImagePrefetch } from '@/hooks/use-td-image-prefetch';
 import { tdAdmin } from '@/lib/td/client';
 import { tdErrorText } from '@/lib/td/errors';
 import { t } from '@/lib/td/i18n';
@@ -40,6 +41,8 @@ export function TdCategoryCard({ category, count, description, onEdit }: TdCateg
   const canDelete = publisher || (category.approvedVersion === null && category.lastEditor.id === user?.id);
   const StatusIcon = TD_STATUS_ICONS[category.status];
   const CountIcon = type === 'card-categories' ? Layers : FileQuestion;
+  const prefetch = useTdCategoryImagePrefetch(category.data.key);
+  const pictures = type === 'card-categories' && !archived;
 
   const handleRestore = async () => {
     setRestoring(true);
@@ -63,6 +66,9 @@ export function TdCategoryCard({ category, count, description, onEdit }: TdCateg
         tabIndex={0}
         aria-label={name}
         onClick={() => onEdit(category)}
+        onPointerEnter={pictures ? prefetch.soon : undefined}
+        onPointerLeave={pictures ? prefetch.cancel : undefined}
+        onFocus={pictures ? prefetch.now : undefined}
         onKeyDown={(event) => {
           if (event.target !== event.currentTarget || (event.key !== 'Enter' && event.key !== ' ')) return;
           event.preventDefault();

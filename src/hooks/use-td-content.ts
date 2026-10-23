@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useInfiniteQuery, useQuery, useQueryClient, type QueryKey } from '@tanstack/react-query';
+import { queryOptions, useInfiniteQuery, useQuery, useQueryClient, type QueryKey } from '@tanstack/react-query';
 import type { TdContentList, TdContentRow, TdContentType } from '@/lib/td/admin-api';
 import { tdAdmin, tdTokens } from '@/lib/td/client';
 import { t } from '@/lib/td/i18n';
@@ -38,9 +38,13 @@ export function useTdContentList<T extends TdContentType>(type: T, query: TdList
 
 /** Every row of a list, all pages (category children, pickers, the calendar); capped so a runaway list stays bounded. */
 export function useTdAllRows<T extends TdContentType>(type: T, query: TdListQuery, enabled = true) {
-  return useQuery({
+  return useQuery({ ...tdAllRowsQuery(type, query), enabled });
+}
+
+/** The query behind useTdAllRows, for reading ahead of time (queryClient.ensureQueryData). */
+export function tdAllRowsQuery<T extends TdContentType>(type: T, query: TdListQuery) {
+  return queryOptions({
     queryKey: tdKeys.all(type, query),
-    enabled,
     queryFn: async ({ signal }) => {
       const rows: TdContentRow<T>[] = [];
       let cursor: string | undefined;
@@ -128,15 +132,22 @@ export function useTdCurrentRelease() {
   return { releaseId: current, members, loaded: list.isSuccess && (current === null || detail.isSuccess) };
 }
 
-/** An uploaded image as an object URL (the file needs the bearer token, so no plain <img src>). */
-export function useTdUploadUrl(uploadId: string | null | undefined) {
-  const file = useQuery({
-    queryKey: [...tdKeys.uploads, 'file', uploadId],
-    queryFn: ({ signal }) => tdAdmin.media.file(uploadId!, { signal }),
-    enabled: Boolean(uploadId),
+/** The width a tile or a list asks an uploaded image at (a small WebP copy instead of the file as sent). */
+export const TD_PREVIEW_WIDTH = '480';
+
+/** An uploaded image's bytes: as sent, or (`preview`) the small copy. An id's bytes never change. */
+export function tdUploadFileQuery(uploadId: string, preview = false) {
+  return queryOptions({
+    queryKey: [...tdKeys.uploads, 'file', uploadId, preview ? TD_PREVIEW_WIDTH : 'full'],
+    queryFn: ({ signal }) => tdAdmin.media.file(uploadId, { signal }, preview ? { w: TD_PREVIEW_WIDTH } : undefined),
     staleTime: Infinity,
     gcTime: 10 * 60_000,
   });
+}
+
+/** An uploaded image as an object URL (the file needs the bearer token, so no plain <img src>). */
+export function useTdUploadUrl(uploadId: string | null | undefined, { preview = false }: { preview?: boolean } = {}) {
+  const file = useQuery({ ...tdUploadFileQuery(uploadId ?? '', preview), enabled: Boolean(uploadId) });
   // Made in an effect, so each URL made is the one revoked (a memo may run twice and leak, or hand out a revoked URL).
   const [made, setMade] = useState<{ blob: Blob; url: string } | null>(null);
   useEffect(() => {
