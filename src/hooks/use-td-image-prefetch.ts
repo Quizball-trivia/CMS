@@ -14,7 +14,10 @@ export const PREFETCH_MAX_PICTURES = 24;
 export const PREFETCH_PER_MINUTE = 60;
 
 const spent: number[] = [];
+/** Categories whose first pictures were all read ahead, and those being read now. */
 const done = new Set<string>();
+const running = new Set<string>();
+const faces = new Set<string>();
 
 /** Takes one picture from this minute's read-ahead allowance; false when it is used up. */
 function allowance(now = Date.now()) {
@@ -28,20 +31,22 @@ function allowance(now = Date.now()) {
 export function resetTdPrefetchBudget() {
   spent.length = 0;
   done.clear();
+  running.clear();
+  faces.clear();
 }
 
 /** Starts loading a card category's pictures before its editor opens (on a resting pointer or on focus), so they
  *  are there when it does: the cards and media rows it reads, then the first cards' small copies or SoFIFA faces.
- *  Best effort, once per category, within a shared allowance (SoFIFA faces come from the CMS's own route and do
- *  not count against the API). */
+ *  Best effort within a shared allowance; a category is done once all its first pictures were asked for, so one
+ *  that failed or ran out of allowance is tried again on the next hover. */
 export function useTdCategoryImagePrefetch(categoryKey: string) {
   const queryClient = useQueryClient();
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const now = useCallback(() => {
     // Once per category in a visit: React Query keeps what was read.
-    if (done.has(categoryKey)) return;
-    done.add(categoryKey);
+    if (done.has(categoryKey) || running.has(categoryKey)) return;
+    running.add(categoryKey);
     void (async () => {
       const [cards, media] = await Promise.all([
         queryClient.ensureQueryData(tdAllRowsQuery('cards', { ...LIVE, category: categoryKey })),
@@ -53,11 +58,20 @@ export function useTdCategoryImagePrefetch(categoryKey: string) {
         if (uploadId) {
           const query = tdUploadFileQuery(uploadId, true);
           if (queryClient.getQueryData(query.queryKey)) continue;
-          if (!allowance()) break;
+          if (!allowance()) return;
           void queryClient.prefetchQuery({ ...query, retry: false });
-        } else if (card.data.photo) new Image().src = cardFaceSrc(card.data.photo);
+        } else if (card.data.photo) {
+          const src = cardFaceSrc(card.data.photo);
+          if (faces.has(src)) continue;
+          if (!allowance()) return;
+          faces.add(src);
+          new Image().src = src;
+        }
       }
-    })().catch(() => {});
+      done.add(categoryKey);
+    })()
+      .catch(() => {})
+      .finally(() => running.delete(categoryKey));
   }, [queryClient, categoryKey]);
 
   const cancel = useCallback(() => {
