@@ -58,7 +58,7 @@ export function useTdCategoryImagePrefetch(categoryKey: string) {
         if (uploadId) {
           const query = tdUploadFileQuery(uploadId, true);
           const state = queryClient.getQueryState(query.queryKey);
-          if (state?.data || state?.fetchStatus === 'fetching') continue;
+          if (state?.data || (state && state.fetchStatus !== 'idle')) continue;
           if (!allowance()) return;
           void queryClient.prefetchQuery({ ...query, retry: false });
         } else if (card.data.photo) {
