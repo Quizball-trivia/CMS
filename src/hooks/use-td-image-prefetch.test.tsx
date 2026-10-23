@@ -5,14 +5,19 @@ import { beforeEach, expect, it, vi } from 'vitest';
 
 let failCards = false;
 let photoCards = false;
-const file = vi.fn(async () => new Blob(['img'], { type: 'image/webp' }));
+let faceId = (category: string, i: number) => category.charCodeAt(0) * 100 + i;
+let gate: Promise<void> | null = null;
+const file = vi.fn(async () => {
+  if (gate) await gate;
+  return new Blob(['img'], { type: 'image/webp' });
+});
 const cardsOf = (category: string) =>
   Array.from({ length: 30 }, (_, i) =>
     photoCards
-      ? { id: `${category}-${i}`, data: { categoryKey: category, imageKey: null, photo: { id: category.charCodeAt(0) * 100 + i, ver: '1' } } }
+      ? { id: `${category}-${i}`, data: { categoryKey: category, imageKey: null, photo: { id: faceId(category, i), ver: '1' } } }
       : { id: `${category}-${i}`, data: { categoryKey: category, imageKey: `${category}-img-${i}`, photo: null } },
   );
-const media = ['a', 'b', 'c', 'd'].flatMap((category) =>
+const media = ['a', 'b', 'c', 'd', 'e'].flatMap((category) =>
   Array.from({ length: 30 }, (_, i) => ({ status: 'approved', approved: null, data: { key: `${category}-img-${i}`, uploadId: `up-${category}-${i}`, url: null } })),
 );
 vi.mock('@/lib/td/client', () => ({
@@ -32,6 +37,8 @@ const { useTdCategoryImagePrefetch, resetTdPrefetchBudget, PREFETCH_MAX_PICTURES
 
 beforeEach(() => {
   failCards = false;
+  gate = null;
+  faceId = (category, i) => category.charCodeAt(0) * 100 + i;
   file.mockClear();
   resetTdPrefetchBudget();
 });
@@ -107,6 +114,55 @@ it('counts SoFIFA faces against the same allowance and loads each once', async (
     await new Promise((resolve) => setTimeout(resolve, 50));
     expect(images).toHaveLength(PREFETCH_PER_MINUTE);
     expect(new Set(images).size).toBe(PREFETCH_PER_MINUTE);
+  } finally {
+    photoCards = false;
+    vi.unstubAllGlobals();
+  }
+});
+
+it('runs one pass per category at a time, and a retried pass does not pay again for pictures still loading', async () => {
+  vi.useFakeTimers({ toFake: ['Date'] });
+  let release = () => {};
+  gate = new Promise<void>((resolve) => (release = resolve));
+  try {
+    const wrapper = wrapperWith(new QueryClient());
+    const first = renderHook(() => useTdCategoryImagePrefetch('a'), { wrapper });
+    first.result.current.now();
+    renderHook(() => useTdCategoryImagePrefetch('a'), { wrapper }).result.current.now();
+    for (const key of ['b', 'c']) renderHook(() => useTdCategoryImagePrefetch(key), { wrapper }).result.current.now();
+    await waitFor(() => expect(file).toHaveBeenCalledTimes(PREFETCH_PER_MINUTE));
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(file).toHaveBeenCalledTimes(PREFETCH_PER_MINUTE);
+    // c stopped at 12 of 24 with its first 12 still loading; a minute later its retry pays only for the other 12,
+    // leaving 48 of the allowance for d and e.
+    vi.setSystemTime(Date.now() + 61_000);
+    renderHook(() => useTdCategoryImagePrefetch('c'), { wrapper }).result.current.now();
+    await waitFor(() => expect(file).toHaveBeenCalledTimes(PREFETCH_PER_MINUTE + 12));
+    for (const key of ['d', 'e']) renderHook(() => useTdCategoryImagePrefetch(key), { wrapper }).result.current.now();
+    await waitFor(() => expect(file).toHaveBeenCalledTimes(2 * PREFETCH_PER_MINUTE));
+  } finally {
+    release();
+    vi.useRealTimers();
+  }
+});
+
+it('asks once for a face several categories share, and faces and uploads share one allowance', async () => {
+  const images: string[] = [];
+  vi.stubGlobal('Image', class { set src(value: string) { images.push(value); } });
+  try {
+    const wrapper = wrapperWith(new QueryClient());
+    faceId = (_category, i) => i;
+    photoCards = true;
+    for (const key of ['a', 'b']) renderHook(() => useTdCategoryImagePrefetch(key), { wrapper }).result.current.now();
+    await waitFor(() => expect(images).toHaveLength(PREFETCH_MAX_PICTURES));
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(images).toHaveLength(PREFETCH_MAX_PICTURES);
+    // 24 of the 60 spent on faces: uploads get the other 36.
+    photoCards = false;
+    for (const key of ['c', 'd']) renderHook(() => useTdCategoryImagePrefetch(key), { wrapper }).result.current.now();
+    await waitFor(() => expect(file).toHaveBeenCalledTimes(PREFETCH_PER_MINUTE - PREFETCH_MAX_PICTURES));
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(file).toHaveBeenCalledTimes(PREFETCH_PER_MINUTE - PREFETCH_MAX_PICTURES);
   } finally {
     photoCards = false;
     vi.unstubAllGlobals();
