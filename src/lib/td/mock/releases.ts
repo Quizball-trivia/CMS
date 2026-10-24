@@ -158,10 +158,14 @@ export async function report(db: MockDb, now: number): Promise<{ report: Release
     dailies[game] = c;
   }
   const shown = new Set(approvedOf(rows, 'media').map((d) => String(d.key)));
+  // Contract 11: a picture kept by its path in the player app shows on a practice question only.
+  const byPath = new Set(approvedOf(rows, 'media').filter((d) => typeof d.url === 'string' && d.url.startsWith('/assets/')).map((d) => String(d.key)));
   for (const row of rows) {
     for (const field of imageFields(row.type)) {
       const key = row.approved![field];
-      if (typeof key === 'string' && !shown.has(key)) errors.push({ code: 'schema', message: `${row.type} ${String(row.approved!.key)}: its image ${key} is not approved`, ref: { type: row.type, key: String(row.approved!.key) } });
+      const ref = { type: row.type, key: String(row.approved!.key) };
+      if (typeof key === 'string' && !shown.has(key)) errors.push({ code: 'schema', message: `${row.type} ${ref.key}: its image ${key} is not approved`, ref });
+      else if (typeof key === 'string' && byPath.has(key) && row.type !== 'practice-questions') errors.push({ code: 'schema', message: `${row.type} ${ref.key}: its image ${key} ships with the player app and shows on a practice question only`, ref });
     }
   }
   const media = approvedOf(rows, 'media');

@@ -141,6 +141,28 @@ describe('mock releases', () => {
     expect(await as('GET', `/admin/publications/${started.id}`)).toMatchObject({ status: 'failed', error: { code: 'release_unavailable' } });
   });
 
+  it('take a picture shipped with the player app on a practice question only, as the API does', async () => {
+    const storage = new MemoryStorage();
+    const server = createMockTdApi({ storage: () => storage, latencyMs: 0, now: () => Date.parse('2026-10-24T08:00:00Z'), blobs: memoryBlobStore(), lock: undefined });
+    const login = await server(`${BASE}/admin/auth/login`, { method: 'POST', body: JSON.stringify({ email: 'publisher@demo.tablederby.test', password: MOCK_PASSWORD }) });
+    const token = ((await login.json()) as { accessToken: string }).accessToken;
+    const validate = () => server(`${BASE}/admin/releases/validate`, { method: 'POST', headers: { Authorization: `Bearer ${token}` } }).then((r) => r.json());
+    await validate();
+    const db = JSON.parse(storage.getItem('td_mock_db')!) as MockDb;
+    const picture = { key: 'practice-shipped', url: '/assets/practice/1a2b3c4d5e6f7a8b.webp', uploadId: null, width: 960, height: 540, author: null, license: null, source: null };
+    const practice = db.rows.find((r) => r.type === 'practice-questions' && r.approved)!;
+    db.rows.push({ ...practice, id: 'media-shipped', type: 'media', data: picture, approved: picture, batchId: null });
+    practice.data = practice.approved = { ...practice.approved!, imageKey: picture.key };
+    storage.setItem('td_mock_db', JSON.stringify(db));
+    const fine = await validate();
+    expect(fine.errors).toEqual([]);
+    expect(fine.warnings.some((w: { code: string }) => w.code === 'image_external')).toBe(false);
+    const card = db.rows.find((r) => r.type === 'cards' && r.approved)!;
+    card.data = card.approved = { ...card.approved!, imageKey: picture.key };
+    storage.setItem('td_mock_db', JSON.stringify(db));
+    expect((await validate()).errors).toEqual([expect.objectContaining({ message: expect.stringContaining('ships with the player app and shows on a practice question only') })]);
+  });
+
   it('refuse to roll back to a release that has no daily set for today', async () => {
     const { call } = mock();
     expect(await call('publisher', 'POST', '/admin/releases/r-00000000000000a1/rollback', { idemKey: 'rollback:old-one' })).toMatchObject({
