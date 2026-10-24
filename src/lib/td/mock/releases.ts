@@ -166,7 +166,8 @@ export async function report(db: MockDb, now: number): Promise<{ report: Release
   }
   const media = approvedOf(rows, 'media');
   const uploads = media.filter((d) => typeof d.uploadId === 'string');
-  const external = media.filter((d) => typeof d.url === 'string');
+  // Contract 11: a picture kept by its path in the player app is the game's own, not external.
+  const external = media.filter((d) => typeof d.url === 'string' && !d.url.startsWith('/assets/'));
   // Contract 8: an image needs no rights; they are only counted.
   const noRights = media.filter((d) => ['author', 'license', 'source'].some((f) => !String(d[f] ?? '').trim()));
   for (const d of external) warnings.push({ code: 'image_external', message: 'an image is kept by URL, not re-hosted', ref: { type: 'media', key: String(d.key) } });
