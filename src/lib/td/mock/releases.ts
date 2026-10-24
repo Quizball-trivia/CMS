@@ -301,7 +301,8 @@ export function advance(db: MockDb, now: number) {
           db.releases.push({
             id: snapshot.releaseId,
             hash: `${snapshot.releaseId.slice(2)}${'0'.repeat(48)}`,
-            formatVersion: snapshot.format,
+            // A publication saved before snapshots carried their format finishes as format 2, as they all were.
+            formatVersion: snapshot.format ?? 2,
             status: 'available',
             createdAt: new Date(now).toISOString(),
             createdBy: p.requestedBy,

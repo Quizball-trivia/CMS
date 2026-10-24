@@ -112,7 +112,7 @@ export interface ReleaseSnapshot {
   /** The uploads its images are (made public at publish). */
   uploads: string[];
   /** Its envelope format: 3 when a practice question shows a picture shipped with the player app (contract 11). */
-  format: number;
+  format?: number;
 }
 
 export interface MockRelease {
