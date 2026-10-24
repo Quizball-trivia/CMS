@@ -17,9 +17,9 @@ describe('pinned admin contract', () => {
     expect(TD_CONTRACT.contract).toBe('table-derby-admin');
   });
 
-  it('is v10: the dashboard has the last 7 and 30 days and a point per day; match inputs can be archived or expired; images need no rights; Football Logic takes uploaded images; an upload comes in a small copy', () => {
-    expect(TD_ADMIN_CONTRACT_VERSION).toBe(10);
-    expect(TD_CONTRACT.version).toBe(10);
+  it('is v11: the dashboard has the last 7 and 30 days and a point per day; match inputs can be archived or expired; images need no rights; Football Logic takes uploaded images; an upload comes in a small copy; an image kept by URL may be a picture of the player app', () => {
+    expect(TD_ADMIN_CONTRACT_VERSION).toBe(11);
+    expect(TD_CONTRACT.version).toBe(11);
     expect((TD_CONTRACT.schemas.MediaFileQuery as { properties: { w: { enum: string[] } } }).properties.w.enum).toEqual(['480']);
     expect((TD_CONTRACT.schemas.FootballLogicData as { required: string[] }).required).toEqual(expect.arrayContaining(['imageAKey', 'imageBKey']));
     const board = TD_CONTRACT.schemas.Dashboard as { required: string[] };

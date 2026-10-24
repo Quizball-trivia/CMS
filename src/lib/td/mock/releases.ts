@@ -103,18 +103,23 @@ function manifestOf(rows: MockRow[], dailies: DailySnapshot, today: string): Man
 export function snapshotOf(db: MockDb, now: number): ReleaseSnapshot {
   const rows = releaseRows(db);
   const dailies = dailiesOf(rows);
+  const byPath = new Set(approvedOf(rows, 'media').filter((d) => typeof d.url === 'string' && d.url.startsWith('/assets/')).map((d) => String(d.key)));
   return {
     members: rows.map((row) => ({ type: row.type, id: row.id, label: rowLabel({ ...row, data: row.approved! }), contentVersion: row.approvedVersion! })),
     manifest: manifestOf(rows, dailies, georgiaToday(now)),
     dailies,
     uploads: approvedOf(rows, 'media').flatMap((d) => (typeof d.uploadId === 'string' ? [d.uploadId] : [])),
+    format: approvedOf(rows, 'practice-questions').some((d) => byPath.has(String(d.imageKey))) ? 3 : 2,
   };
 }
 
 /** The seeded current release holds the seed's content. */
 export function completeSeed(db: MockDb, now: number) {
   const current = db.releases.find((r) => r.id === db.pointer.releaseId);
-  if (current && current.manifest === null) Object.assign(current, snapshotOf(db, now));
+  if (current && current.manifest === null) {
+    const { members, manifest, dailies, uploads } = snapshotOf(db, now);
+    Object.assign(current, { members, manifest, dailies, uploads });
+  }
 }
 
 function changeCounts(before: Member[], after: Member[]) {
@@ -158,15 +163,20 @@ export async function report(db: MockDb, now: number): Promise<{ report: Release
     dailies[game] = c;
   }
   const shown = new Set(approvedOf(rows, 'media').map((d) => String(d.key)));
+  // Contract 11: a picture kept by its path in the player app shows on a practice question only.
+  const byPath = new Set(approvedOf(rows, 'media').filter((d) => typeof d.url === 'string' && d.url.startsWith('/assets/')).map((d) => String(d.key)));
   for (const row of rows) {
     for (const field of imageFields(row.type)) {
       const key = row.approved![field];
-      if (typeof key === 'string' && !shown.has(key)) errors.push({ code: 'schema', message: `${row.type} ${String(row.approved!.key)}: its image ${key} is not approved`, ref: { type: row.type, key: String(row.approved!.key) } });
+      const ref = { type: row.type, key: String(row.approved!.key) };
+      if (typeof key === 'string' && !shown.has(key)) errors.push({ code: 'schema', message: `${row.type} ${ref.key}: its image ${key} is not approved`, ref });
+      else if (typeof key === 'string' && byPath.has(key) && row.type !== 'practice-questions') errors.push({ code: 'schema', message: `${row.type} ${ref.key}: its image ${key} ships with the player app and shows on a practice question only`, ref });
     }
   }
   const media = approvedOf(rows, 'media');
   const uploads = media.filter((d) => typeof d.uploadId === 'string');
-  const external = media.filter((d) => typeof d.url === 'string');
+  // Contract 11: a picture kept by its path in the player app is the game's own, not external.
+  const external = media.filter((d) => typeof d.url === 'string' && !d.url.startsWith('/assets/'));
   // Contract 8: an image needs no rights; they are only counted.
   const noRights = media.filter((d) => ['author', 'license', 'source'].some((f) => !String(d[f] ?? '').trim()));
   for (const d of external) warnings.push({ code: 'image_external', message: 'an image is kept by URL, not re-hosted', ref: { type: 'media', key: String(d.key) } });
@@ -291,7 +301,8 @@ export function advance(db: MockDb, now: number) {
           db.releases.push({
             id: snapshot.releaseId,
             hash: `${snapshot.releaseId.slice(2)}${'0'.repeat(48)}`,
-            formatVersion: 2,
+            // A publication saved before snapshots carried their format finishes as format 2, as they all were.
+            formatVersion: snapshot.format ?? 2,
             status: 'available',
             createdAt: new Date(now).toISOString(),
             createdBy: p.requestedBy,
