@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { memoryBlobStore } from '../mock/blob-store';
 import { seedDb, type MockDb, type MockPlayer } from '../mock/db';
 import { replayRating } from '../mock/ops';
+import { snapshotOf } from '../mock/releases';
 import { createMockTdApi, MOCK_PASSWORD, MOCK_STAFF } from '../mock-api';
 import { MemoryStorage } from './helpers';
 
@@ -156,6 +157,7 @@ describe('mock releases', () => {
     storage.setItem('td_mock_db', JSON.stringify(db));
     const fine = await validate();
     expect(fine.errors).toEqual([]);
+    expect(snapshotOf(db, Date.parse('2026-10-24T08:00:00Z')).format).toBe(3);
     expect(fine.warnings.some((w: { code: string }) => w.code === 'image_external')).toBe(false);
     const card = db.rows.find((r) => r.type === 'cards' && r.approved)!;
     card.data = card.approved = { ...card.approved!, imageKey: picture.key };
