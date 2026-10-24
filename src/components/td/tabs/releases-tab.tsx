@@ -270,19 +270,56 @@ function Meter({ label, ready, needed, detail }: { label: string; ready: number;
 const GAME_LABELS = { footballLogic: t('Football Logic'), putInOrder: t('Put in Order'), careerPath: t('Career Path') };
 const DIFFICULTY_LABELS = { easy: t('easy'), medium: t('medium'), hard: t('hard') };
 
-function IssueList({ issues, tone }: { issues: ReleaseReport['errors']; tone: 'error' | 'warning' }) {
+/** What a group of issues means, in a line, for the codes an editor meets; the API's own lines are listed below it. */
+const ISSUE_SUMMARIES: Partial<Record<ReleaseReport['warnings'][number]['code'], (count: number) => string>> = {
+  image_external: (count) =>
+    tn(count, '{count} picture is shown from a link to another site’s storage, not kept in Table Derby’s own: if that site moves it, it disappears. Upload it again to keep it.', '{count} pictures are shown from links to another site’s storage, not kept in Table Derby’s own: if that site moves them, they disappear. Upload them again to keep them.'),
+  dailies: (count) => tn(count, '{count} daily game is missing days.', '{count} daily games are missing days.'),
+  pool: (count) => tn(count, '{count} round has too little approved content for a match.', '{count} rounds have too little approved content for a match.'),
+  practice: () => t('Practice needs more approved questions of a difficulty.'),
+  image_missing: (count) => tn(count, '{count} uploaded picture’s file is missing.', '{count} uploaded pictures’ files are missing.'),
+  rights_missing: (count) => tn(count, '{count} picture has no credit, licence or source.', '{count} pictures have no credit, licence or source.'),
+  schema: (count) => tn(count, '{count} item does not fit the game’s format.', '{count} items do not fit the game’s format.'),
+  storage: () => t('Picture storage is not set up.'),
+};
+const ISSUES_SHOWN = 3;
+
+function IssueGroup({ code, issues, tone }: { code: string; issues: ReleaseReport['errors']; tone: 'error' | 'warning' }) {
+  const [all, setAll] = useState(false);
+  const shown = all ? issues : issues.slice(0, ISSUES_SHOWN);
   return (
-    <ul className={cn('flex flex-col gap-1 rounded-lg px-3 py-2 text-sm', tone === 'error' ? 'bg-(--td-danger)/10 text-(--td-danger)' : 'bg-amber-50 text-amber-700')}>
-      {issues.map((issue, i) => (
-        <li key={i} className="flex flex-wrap items-baseline gap-x-2">
-          <span className="font-mono text-xs opacity-80">{issue.code}</span>
-          <span>{issue.message}</span>
-          {issue.ref && editHref(issue.ref.type as TdContentType, issue.ref.key) && (
-            <Link href={editHref(issue.ref.type as TdContentType, issue.ref.key)!} className="font-mono text-xs underline">
-              {issue.ref.key}
-            </Link>
-          )}
-        </li>
+    <li className="flex flex-col gap-1">
+      <p className="font-medium">
+        {ISSUE_SUMMARIES[code as keyof typeof ISSUE_SUMMARIES]?.(issues.length) ?? `${code} (${issues.length})`}
+      </p>
+      <ul className="flex flex-col gap-0.5 text-xs opacity-90">
+        {shown.map((issue, i) => (
+          <li key={i} className="flex flex-wrap items-baseline gap-x-2">
+            <span>{issue.message}</span>
+            {issue.ref && editHref(issue.ref.type as TdContentType, issue.ref.key) && (
+              <Link href={editHref(issue.ref.type as TdContentType, issue.ref.key)!} className="font-mono underline">
+                {issue.ref.key}
+              </Link>
+            )}
+          </li>
+        ))}
+      </ul>
+      {issues.length > ISSUES_SHOWN && (
+        <button type="button" className={cn('self-start text-xs font-semibold underline', tone === 'error' ? 'text-(--td-danger)' : 'text-amber-800')} onClick={() => setAll(!all)}>
+          {all ? t('Show fewer') : t('Show all {count}', { count: issues.length })}
+        </button>
+      )}
+    </li>
+  );
+}
+
+function IssueList({ issues, tone }: { issues: ReleaseReport['errors']; tone: 'error' | 'warning' }) {
+  const groups = new Map<string, ReleaseReport['errors']>();
+  for (const issue of issues) groups.set(issue.code, [...(groups.get(issue.code) ?? []), issue]);
+  return (
+    <ul className={cn('flex flex-col gap-3 rounded-lg px-3 py-2 text-sm', tone === 'error' ? 'bg-(--td-danger)/10 text-(--td-danger)' : 'bg-amber-50 text-amber-800')}>
+      {[...groups].map(([code, group]) => (
+        <IssueGroup key={code} code={code} issues={group} tone={tone} />
       ))}
     </ul>
   );
@@ -301,6 +338,7 @@ export function ReleaseReportView({ report }: { report: ReleaseReport }) {
           : tn(report.errors.length, '{count} error stop a publish.', '{count} errors stop a publish.')}
         <span className="font-normal text-(--td-text-3)">{t('Checked {time}', { time: formatGeorgiaTime(report.checkedAt) })}</span>
       </p>
+      {report.ok && report.unchanged && <p className="-mt-2 text-xs text-(--td-text-3)">{t('Only approved content is published: drafts and questions marked ready go out once a publisher approves them.')}</p>}
       {report.errors.length > 0 && <IssueList issues={report.errors} tone="error" />}
       {report.warnings.length > 0 && <IssueList issues={report.warnings} tone="warning" />}
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
@@ -344,13 +382,18 @@ export function ReleaseReportView({ report }: { report: ReleaseReport }) {
 
 function ChangeSummary({ report }: { report: ReleaseReport }) {
   const { changes } = report;
-  if (!changes.types.length) return <p className="text-sm text-(--td-text-3)">{t('No changes since the current release.')}</p>;
+  // A release that has no recorded rows lists everything as added; the same content as the current release changes nothing.
+  if (!changes.types.length || report.unchanged) return <p className="text-sm text-(--td-text-3)">{t('No changes since the current release.')}</p>;
   return (
     <div className="rounded-lg border border-border">
       <p className="border-b border-(--td-divider) px-3 py-2 text-xs font-medium text-(--td-text-3)">
         {report.currentReleaseId ? t('Changes since the current release ({release})', { release: report.currentReleaseId }) : t('Changes since the current release')}
-        {!changes.complete && ` · ${t('the current release has no recorded rows, so this is incomplete')}`}
       </p>
+      {!changes.complete && (
+        <p className="border-b border-(--td-divider) bg-amber-50 px-3 py-2 text-xs text-amber-800">
+          {t('The current release came with the first deploy and keeps no list of its rows, so everything shows as new here. From the first publish on, this lists only what changed.')}
+        </p>
+      )}
       <ul className="divide-y divide-(--td-divider) text-sm">
         {changes.types.map((c) => (
           <li key={c.type} className="flex items-center justify-between px-3 py-1.5">

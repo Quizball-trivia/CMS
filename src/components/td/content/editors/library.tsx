@@ -1,6 +1,8 @@
 'use client';
 
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { TdMediaPicker, TdMediaThumb, TdUploadButton } from '@/components/td/media/td-media';
+import { useTdAllRows } from '@/hooks/use-td-content';
 import { t } from '@/lib/td/i18n';
 import { issuesAt, TdField, TdIssueText, TdListField, TdOptionalTextField, TdSelectField, TdSwitchField, TdTextField, type TdListChange } from '../td-form';
 import { KeyField, type TdEditorProps } from './rounds';
@@ -10,6 +12,52 @@ export function followAnswer(answer: number, change: TdListChange): number {
   if (change.kind === 'move') return answer === change.from ? change.to : answer === change.to ? change.from : answer;
   if (change.kind === 'remove') return change.index < answer ? answer - 1 : answer;
   return answer;
+}
+
+const NEW_LABEL = '\u0000new';
+
+/** A Practice question's category: one already on file, or a new one typed. Players never see it. */
+function PracticeCategoryField({ value, onChange, issues }: { value: string; onChange: (category: string) => void; issues: ReturnType<typeof issuesAt> }) {
+  const rows = useTdAllRows('practice-questions', { status: 'draft,ready,approved' });
+  const labels = useMemo(() => {
+    const all = new Set((rows.data?.rows ?? []).map((row) => row.data.category).filter(Boolean));
+    if (value) all.add(value);
+    return [...all].sort((a, b) => a.localeCompare(b));
+  }, [rows.data, value]);
+  const [typing, setTyping] = useState(false);
+  // Switching between the list and the text field keeps the keyboard in the field that replaced the other.
+  const box = useRef<HTMLDivElement>(null);
+  const switched = useRef(false);
+  useEffect(() => {
+    if (switched.current) box.current?.querySelector<HTMLElement>('input, select')?.focus();
+  }, [typing]);
+  const toggle = (next: boolean) => {
+    switched.current = true;
+    setTyping(next);
+    onChange('');
+  };
+  const hint = t('For sorting here only: the streak plays every Practice question as one pool.');
+  if (typing)
+    return (
+      <div ref={box} className="grid gap-1">
+        <TdTextField label={t('New category')} value={value} onChange={onChange} issues={issues} hint={hint} />
+        <button type="button" className="justify-self-start text-xs font-medium text-(--td-text-3) underline" onClick={() => toggle(false)}>
+          {t('Choose one on file')}
+        </button>
+      </div>
+    );
+  return (
+    <div ref={box}>
+      <TdSelectField
+        label={t('Category')}
+        value={value}
+        onChange={(next) => (next === NEW_LABEL ? toggle(true) : onChange(next))}
+        options={[{ value: '', label: t('Select a category') }, ...labels.map((label) => ({ value: label, label })), { value: NEW_LABEL, label: t('New category…') }]}
+        issues={issues}
+        hint={hint}
+      />
+    </div>
+  );
 }
 
 export function PracticeEditor({ value, onChange, issues, creating }: TdEditorProps<'practice-questions'>) {
@@ -29,7 +77,7 @@ export function PracticeEditor({ value, onChange, issues, creating }: TdEditorPr
           issues={issuesAt(issues, 'data.difficulty')}
           hint={t('A run opens with 5 easy, then 10 medium, then hard.')}
         />
-        <TdTextField label={t('Category')} value={value.category} onChange={(category) => onChange({ ...value, category })} issues={issuesAt(issues, 'data.category')} />
+        <PracticeCategoryField value={value.category} onChange={(category) => onChange({ ...value, category })} issues={issuesAt(issues, 'data.category')} />
       </div>
       <TdTextField label={t('Question')} multiline value={value.prompt} onChange={(prompt) => onChange({ ...value, prompt })} issues={issuesAt(issues, 'data.prompt')} />
       <TdListField
