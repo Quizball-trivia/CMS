@@ -283,7 +283,7 @@ export function TdTeam() {
           <TableHeader>
             <TableRow className="border-(--td-divider) hover:bg-transparent">
               {columns.map((column) => (
-                <TableHead key={column || 'actions'} className="h-10 px-5 text-xs font-semibold uppercase tracking-wide text-(--td-text-3)">
+                <TableHead key={column || 'actions'} className="h-auto whitespace-normal px-5 py-2 text-xs font-semibold uppercase tracking-wide text-(--td-text-3)">
                   {column}
                 </TableHead>
               ))}
@@ -304,13 +304,13 @@ export function TdTeam() {
               <TableRow key={member.id} className="border-(--td-divider) hover:bg-secondary/40">
                 <TableCell className="px-5 py-3 font-medium">{member.name}</TableCell>
                 <TableCell className="px-5 py-3 font-mono text-xs text-(--td-text-2)">{member.email}</TableCell>
-                <TableCell className="px-5 py-3">{TD_ROLE_LABELS[member.role]}</TableCell>
+                <TableCell className="whitespace-normal px-5 py-3">{TD_ROLE_LABELS[member.role]}</TableCell>
                 <TableCell className="px-5 py-3">
                   <span className={cn('rounded-full px-2 py-0.5 text-xs font-semibold capitalize', STATUS_STYLES[member.status])}>
                     {STATUS_LABELS[member.status] ?? member.status}
                   </span>
                 </TableCell>
-                <TableCell className="px-5 py-3 text-(--td-text-2) tabular-nums">
+                <TableCell className="whitespace-normal px-5 py-3 text-(--td-text-2) tabular-nums">
                   {formatGeorgiaTime(member.lastSignInAt)}
                 </TableCell>
                 {resetColumn && (
@@ -325,7 +325,8 @@ export function TdTeam() {
                         onClick={(event) => void makeResetLink(member, event.currentTarget)}
                       >
                         {making === member.id ? <Loader2 className="animate-spin" /> : <KeyRound />}
-                        {t('Reset link')}
+                        {/* The key alone where the table is narrow (its aria-label names it): the row then fits without scrolling sideways. */}
+                        <span className="hidden min-[1400px]:inline">{t('Reset link')}</span>
                       </Button>
                     )}
                   </TableCell>

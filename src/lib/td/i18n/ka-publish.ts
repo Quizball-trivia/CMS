@@ -1,6 +1,28 @@
 /** Bulk upload and releases. A sheet's row or line is „სტრიქონი“; a content row or an item is „ჩანაწერი“;
  *  an import is „ატვირთვა“ (the page's name), its batch „პაკეტი“; the release in force is „მიმდინარე გამოშვება“. */
 export const KA_PUBLISH: Record<string, string> = {
+  '{count} picture is shown from a link to another site’s storage, not kept in Table Derby’s own: if that site moves it, it disappears. Upload it again to keep it.':
+    '{count} სურათი ჩანს სხვა საიტის საცავის ბმულით და არა Table Derby-ის საკუთარ საცავში: თუ ის საიტი მას გადაიტანს, სურათი გაქრება. შესანარჩუნებლად ხელახლა ატვირთეთ.',
+  '{count} pictures are shown from links to another site’s storage, not kept in Table Derby’s own: if that site moves them, they disappear. Upload them again to keep them.':
+    '{count} სურათი ჩანს სხვა საიტის საცავის ბმულებით და არა Table Derby-ის საკუთარ საცავში: თუ ის საიტი მათ გადაიტანს, სურათები გაქრება. შესანარჩუნებლად ხელახლა ატვირთეთ.',
+  '{count} daily game is missing days.': '{count} ყოველდღიურ თამაშს დღეები აკლია.',
+  '{count} daily games are missing days.': '{count} ყოველდღიურ თამაშს დღეები აკლია.',
+  '{count} round has too little approved content for a match.': '{count} ტურს მატჩისთვის საკმარისი დამტკიცებული კონტენტი არ აქვს.',
+  '{count} rounds have too little approved content for a match.': '{count} ტურს მატჩისთვის საკმარისი დამტკიცებული კონტენტი არ აქვს.',
+  'Practice needs more approved questions of a difficulty.': 'ვარჯიშს რომელიმე სირთულის მეტი დამტკიცებული კითხვა სჭირდება.',
+  '{count} uploaded picture’s file is missing.': '{count} ატვირთული სურათის ფაილი აკლია.',
+  '{count} uploaded pictures’ files are missing.': '{count} ატვირთული სურათის ფაილი აკლია.',
+  '{count} picture has no credit, licence or source.': '{count} სურათს ავტორი, ლიცენზია ან წყარო არ აქვს.',
+  '{count} pictures have no credit, licence or source.': '{count} სურათს ავტორი, ლიცენზია ან წყარო არ აქვს.',
+  '{count} item does not fit the game’s format.': '{count} ჩანაწერი თამაშის ფორმატს არ შეესაბამება.',
+  '{count} items do not fit the game’s format.': '{count} ჩანაწერი თამაშის ფორმატს არ შეესაბამება.',
+  'Picture storage is not set up.': 'სურათების საცავი გამართული არ არის.',
+  'Show all {count}': 'ყველას ჩვენება ({count})',
+  'Show fewer': 'ნაკლების ჩვენება',
+  'The current release came with the first deploy and keeps no list of its rows, so everything shows as new here. From the first publish on, this lists only what changed.':
+    'მიმდინარე გამოშვება პირველ განთავსებასთან ერთად შეიქმნა და მისი ჩანაწერების სია არ ინახება, ამიტომ აქ ყველაფერი ახლად ჩანს. პირველი გამოქვეყნების შემდეგ აქ მხოლოდ ცვლილებები გამოჩნდება.',
+  'Only approved content is published: drafts and questions marked ready go out once a publisher approves them.':
+    'ქვეყნდება მხოლოდ დამტკიცებული კონტენტი: დრაფტები და მზადად მონიშნული კითხვები გამოქვეყნდება მას შემდეგ, რაც გამომქვეყნებელი დაამტკიცებს.',
   // lib/td/import-format.ts: what each column holds (the cell values a sheet takes, such as easy or yes, stay as typed)
   'The row’s key: lower-case letters, digits, - and _': 'ჩანაწერის ID: ლათინური პატარა ასოები, ციფრები, - და _',
   'Accepted spellings, separated by |': 'მისაღები ვარიანტები, გამოყოფილი | სიმბოლოთი',
@@ -144,7 +166,6 @@ export const KA_PUBLISH: Record<string, string> = {
   'No changes since the current release.': 'მიმდინარე გამოშვების შემდეგ ცვლილება არ არის.',
   'Changes since the current release': 'ცვლილებები მიმდინარე გამოშვების შემდეგ',
   'Changes since the current release ({release})': 'ცვლილებები მიმდინარე გამოშვების ({release}) შემდეგ',
-  'the current release has no recorded rows, so this is incomplete': 'მიმდინარე გამოშვების ჩანაწერები შენახული არ არის, ამიტომ სია არასრულია',
 
   // components/td/tabs/releases-tab.tsx: publishing and rolling back
   'Publish the approved content?': 'გამოქვეყნდეს დამტკიცებული კონტენტი?',

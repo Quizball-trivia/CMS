@@ -3,6 +3,8 @@ export const KA_QUESTIONS: Record<string, string> = {
   'Manage and curate your quiz questions library.': 'მართეთ და დაალაგეთ ვიქტორინის კითხვების ბიბლიოთეკა.',
   'Search questions...': 'კითხვების ძებნა...',
   Type: 'ტიპი',
+  'For sorting here only: the streak plays every Practice question as one pool.': 'მხოლოდ აქ დასალაგებლად: ვარჯიში ყველა კითხვას ერთ საერთო ნაკრებად თამაშობს.',
+  'Choose one on file': 'არსებულიდან არჩევა',
   'Category: {name}': 'კატეგორია: {name}',
   'Status: {status}': 'სტატუსი: {status}',
   'Difficulty: {difficulty}': 'სირთულე: {difficulty}',

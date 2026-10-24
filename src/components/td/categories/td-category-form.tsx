@@ -229,7 +229,8 @@ export function TdCategoryForm({ category, leaveRef, onSuccess }: TdCategoryForm
       {otherIssues.length > 0 && <TdErrorPanel error={new TdApiError(422, 'validation', 'Some fields are not valid', { issues: otherIssues })} />}
       <TdErrorPanel error={error} hideIssues={issues.length > 0} />
 
-      <div className="pt-2">
+      {/* Kept in sight at the foot of the dialog, however far its cards scroll. */}
+      <div className="sticky -bottom-8 z-10 -mx-8 -mb-8 border-t border-slate-100 bg-white px-8 pt-4 pb-8">
         {creating ? (
           <Button type="submit" disabled={busy !== null || !dirty} className="w-full h-11 rounded-xl font-bold shadow-lg shadow-primary/20">
             {busy === 'save' ? t('Saving…') : t('Save as Draft')}

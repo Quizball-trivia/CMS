@@ -107,6 +107,9 @@ function show(type: TdContentType, row: TdContentRow): Shown {
 const keyOf = (row: TdContentRow) => String((row.data as Record<string, unknown>).key ?? row.id);
 
 /** Read in the browser only: the console draws its pages once the sign-in is known, never on the server. */
+/** The category filter's "all" (no filter): not a value a category key or a Practice label can take. */
+const ANY_CATEGORY = '\u0000all';
+
 function readParam(name: string): string {
   return typeof window === 'undefined' ? '' : (new URLSearchParams(window.location.search).get(name) ?? '');
 }
@@ -121,7 +124,7 @@ export function TdQuestionsTab() {
   const mode = TD_QUESTION_MODES.find((m) => m.key === modeKey)!;
   const [searchQuery, setSearchQuery] = useState(() => readParam('q'));
   const [q, setQ] = useState(() => readParam('q'));
-  const [category, setCategory] = useState(() => readParam('category') || 'all');
+  const [category, setCategory] = useState(() => readParam('category') || ANY_CATEGORY);
   const [status, setStatus] = useState<'all' | TdContentStatus>('all');
   const [difficulty, setDifficulty] = useState<'all' | (typeof DIFFICULTIES)[number]>('all');
   const [asked, setPage] = useState(1);
@@ -140,7 +143,9 @@ export function TdQuestionsTab() {
   };
 
   const byDifficulty = mode.type === 'practice-questions' && difficulty !== 'all';
-  const filtered = (mode.categoryType || mode.puzzles) && category !== 'all' ? category : undefined;
+  // Practice questions carry a category label of their own (no category rows): its filter lists the labels in use.
+  const labelled = mode.type === 'practice-questions';
+  const filtered = (mode.categoryType || mode.puzzles || labelled) && category !== ANY_CATEGORY ? category : undefined;
   const query = useMemo<TdListQuery>(
     () => ({ q: q || undefined, status: status === 'all' ? undefined : status, ...(mode.puzzles ? { puzzle: filtered } : { category: filtered }) }),
     [q, status, filtered, mode.puzzles],
@@ -149,13 +154,13 @@ export function TdQuestionsTab() {
   const list = useTdContentList(mode.type, query, !byDifficulty);
   const everyPractice = useTdAllRows('practice-questions', query, byDifficulty);
   const categories = useTdAllRows(mode.categoryType ?? 'card-categories', {}, mode.categoryType !== undefined);
-  const dailyRows = useTdAllRows(mode.type, { status: 'draft,ready,approved,archived' }, mode.puzzles === true);
+  const dailyRows = useTdAllRows(mode.type, { status: 'draft,ready,approved,archived' }, mode.puzzles === true || labelled);
   const categoryKeys = useMemo(
     () =>
-      mode.puzzles
-        ? [...new Set((dailyRows.data?.rows ?? []).map((row) => String((row.data as { puzzle: string }).puzzle)))].sort((a, b) => a.localeCompare(b))
+      mode.puzzles || labelled
+        ? [...new Set((dailyRows.data?.rows ?? []).map((row) => String((row.data as { puzzle?: string; category?: string })[labelled ? 'category' : 'puzzle'] ?? '')))].filter(Boolean).sort((a, b) => a.localeCompare(b))
         : (categories.data?.rows ?? []).map((row) => (row.data as { key: string }).key),
-    [mode.puzzles, dailyRows.data, categories.data],
+    [mode.puzzles, labelled, dailyRows.data, categories.data],
   );
   const rows = useMemo<TdContentRow[]>(() => {
     if (byDifficulty) return ((everyPractice.data?.rows ?? []) as TdContentRow<'practice-questions'>[]).filter((row) => row.data.difficulty === difficulty);
@@ -241,7 +246,7 @@ export function TdQuestionsTab() {
     const text = params.get('q') ?? '';
     reset(() => {
       if (key && TD_QUESTION_MODES.some((m) => m.key === key)) setModeKey(key);
-      setCategory('all');
+      setCategory(ANY_CATEGORY);
       setStatus('all');
       setDifficulty('all');
       setSearchQuery(text);
@@ -255,7 +260,7 @@ export function TdQuestionsTab() {
   const changeMode = (key: string) =>
     reset(() => {
       setModeKey(key);
-      setCategory('all');
+      setCategory(ANY_CATEGORY);
       setDifficulty('all');
       window.history.replaceState(null, '', `?mode=${key}`);
     });
@@ -291,6 +296,8 @@ export function TdQuestionsTab() {
   };
 
   const categoryName = (key: string) => {
+    // A Practice question's category is its own label, never a card or box category's key.
+    if (labelled) return key;
     const found = categories.data?.rows.find((row) => (row.data as { key: string }).key === key);
     if (!found) return key;
     const d = found.data as { prompt?: string; title?: string };
@@ -316,9 +323,9 @@ export function TdQuestionsTab() {
             <Rocket className="mr-2 h-4 w-4" />
             {t('Publish')}
           </Button>
-          <TdBulkUploadDialog key={`${mode.type}:${category}`} initialType={mode.type} initialCategory={mode.categoryType ? filtered : null} types={TD_QUESTION_MODES.map((m) => m.type)} />
+          <TdBulkUploadDialog key={`${mode.type}:${category}`} initialType={mode.type} initialCategory={mode.categoryType || labelled ? filtered : null} types={TD_QUESTION_MODES.map((m) => m.type)} />
           <Button
-            onClick={() => open({ type: mode.type, row: null, preset: filtered === undefined ? undefined : mode.puzzles ? { puzzle: filtered } : { categoryKey: filtered } })}
+            onClick={() => open({ type: mode.type, row: null, preset: filtered === undefined ? undefined : mode.puzzles ? { puzzle: filtered } : labelled ? { category: filtered } : { categoryKey: filtered } })}
             className="flex h-11 items-center gap-2 rounded-xl bg-gray-900 px-6 text-sm font-bold text-white shadow-lg shadow-gray-200 transition-all hover:bg-gray-800 active:scale-95"
           >
             <Plus className="h-4 w-4" />
@@ -355,13 +362,13 @@ export function TdQuestionsTab() {
                   ))}
                 </SelectContent>
               </Select>
-              {(mode.categoryType || mode.puzzles) && (
+              {(mode.categoryType || mode.puzzles || labelled) && (
                 <Select value={category} onValueChange={(value) => reset(() => setCategory(value))}>
                   <SelectTrigger aria-label={t('Category')} className={cn(TRIGGER, 'w-[200px]')}>
                     <SelectValue placeholder={t('Category')} />
                   </SelectTrigger>
                   <SelectContent className="rounded-xl border-gray-200 bg-white shadow-xl">
-                    <SelectItem value="all" className={ITEM}>
+                    <SelectItem value={ANY_CATEGORY} className={ITEM}>
                       {t('Categories')}
                     </SelectItem>
                     {categoryKeys.map((key) => (
@@ -440,8 +447,8 @@ export function TdQuestionsTab() {
 
           {/* Filter chips */}
           <div className="flex flex-wrap gap-2">
-            {category !== 'all' && (
-              <button type="button" onClick={() => reset(() => setCategory('all'))} className={CHIP}>
+            {category !== ANY_CATEGORY && (
+              <button type="button" onClick={() => reset(() => setCategory(ANY_CATEGORY))} className={CHIP}>
                 {t('Category: {name}', { name: categoryName(category) })}
                 <X className="h-3 w-3" />
               </button>

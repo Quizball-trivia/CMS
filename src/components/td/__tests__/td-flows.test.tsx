@@ -38,7 +38,8 @@ const { createMockTdApi, MOCK_PASSWORD, MOCK_STAFF } = await import('@/lib/td/mo
 const { createOrigin, MemoryStorage, put } = await import('@/lib/td/__tests__/helpers');
 const { TdContentEditorDialog } = await import('../content/td-content-editor');
 const { TdQuestionsTab } = await import('../tabs/questions-tab');
-const { TdReleasesTab } = await import('../tabs/releases-tab');
+const { ReleaseReportView, TdReleasesTab } = await import('../tabs/releases-tab');
+const { TdCardImage } = await import('../content/td-card-image');
 const { useTdWrite } = await import('@/hooks/use-td-content');
 const { CorrectionForm, OpsReviews, Replay } = await import('../tabs/players-tab');
 const { MaintenanceSetting, TdSettingsTab, TicketsSetting } = await import('../tabs/ops-tabs');
@@ -942,5 +943,94 @@ describe('releases', () => {
     expect(await screen.findByText('Another publish or rollback is under way')).toBeTruthy();
     expect(screen.queryByText(/got no answer/)).toBeNull();
     expect(elsewhere.status).toBe('running');
+  });
+});
+
+const practice = (key: string, category: string, prompt = `${key}?`) => ({ key, difficulty: 'easy' as const, category, prompt, options: ['one', 'two'], answer: 0, explanation: null, imageKey: null });
+
+describe('practice categories', () => {
+  it('a Practice question takes a category on file, or a new one typed', async () => {
+    const { admin } = await signIn('editor');
+    await admin.content('practice-questions').create({ data: practice('on-file', 'Clubs') });
+    renderTd(<TdContentEditorDialog target={{ type: 'practice-questions', row: null }} onClose={() => {}} />);
+    const category = (await screen.findByLabelText('Category')) as HTMLSelectElement;
+    await waitFor(() => expect([...category.options].map((o) => o.text)).toContain('Clubs'));
+    const shown = [...category.options].map((o) => o.text);
+    expect([shown[0], shown.at(-1)]).toEqual(['Select a category', 'New category…']);
+    fireEvent.change(category, { target: { value: 'Clubs' } });
+    expect(category.value).toBe('Clubs');
+    fireEvent.change(category, { target: { value: category.options[category.options.length - 1]!.value } });
+    expect(document.activeElement).toBe(screen.getByLabelText('New category'));
+    fireEvent.change(screen.getByLabelText('New category'), { target: { value: 'Tournaments' } });
+    fireEvent.change(screen.getByLabelText('Question'), { target: { value: 'Who won?' } });
+    fireEvent.change(screen.getByLabelText('Options (choose the right one) 1'), { target: { value: 'Spain' } });
+    fireEvent.change(screen.getByLabelText('Options (choose the right one) 2'), { target: { value: 'Italy' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Create Question' }));
+    await screen.findByRole('heading', { name: 'Question Preview' });
+    const [made] = (await admin.content('practice-questions').list({ q: 'Who won?' })).items;
+    expect(made!.data).toMatchObject({ category: 'Tournaments' });
+  });
+
+  it('the Practice list filters by the categories in use, and a new question starts in the one shown', async () => {
+    const { admin } = await signIn('editor');
+    await admin.content('practice-questions').create({ data: practice('in-clubs', 'Clubs', 'A clubs question?') });
+    await admin.content('practice-questions').create({ data: practice('in-cups', 'Cups', 'A cups question?') });
+    // Labels that look like the filter's own words or another round's category keys are labels all the same.
+    await admin.content('practice-questions').create({ data: practice('in-all', 'all', 'An all question?') });
+    window.history.replaceState(null, '', '/td/questions?mode=practice');
+    renderTd(<TdQuestionsTab />);
+    const pick = async (name: string) => {
+      fireEvent.click(await screen.findByRole('combobox', { name: 'Category' }));
+      fireEvent.click(await screen.findByRole('option', { name }));
+    };
+    await pick('Cups');
+    expect(await screen.findByText('A cups question?')).toBeTruthy();
+    expect(screen.queryByText('A clubs question?')).toBeNull();
+    await pick('all');
+    expect(await screen.findByText('An all question?')).toBeTruthy();
+    expect(screen.queryByText('A cups question?')).toBeNull();
+    await pick('Clubs');
+    expect(await screen.findByText('A clubs question?')).toBeTruthy();
+    expect(screen.queryByText('A cups question?')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'New Question' }));
+    expect((within(await screen.findByRole('dialog')).getByLabelText('Category') as HTMLSelectElement).value).toBe('Clubs');
+  });
+});
+
+describe('the release report', () => {
+  async function report() {
+    await signIn('publisher');
+    return h.admin.releases.validate();
+  }
+
+  it('groups warnings by kind in one line each, the rest behind “Show all”', async () => {
+    const base = await report();
+    const warnings = Array.from({ length: 5 }, (_, i) => ({ code: 'image_external' as const, message: `the image practice-${i} is shown from its URL, not re-hosted: upload it to keep it` }));
+    renderTd(<ReleaseReportView report={{ ...base, warnings }} />);
+    expect(screen.getByText(/5 pictures are shown from links to another site’s storage/)).toBeTruthy();
+    expect(screen.getAllByText(/is shown from its URL/)).toHaveLength(3);
+    fireEvent.click(screen.getByRole('button', { name: 'Show all 5' }));
+    expect(screen.getAllByText(/is shown from its URL/)).toHaveLength(5);
+  });
+
+  it('the same content as the current release lists no changes, even against a release with no recorded rows', async () => {
+    const base = await report();
+    const changes = { complete: false, types: [{ type: 'clubs' as const, added: 116, changed: 0, removed: 0 }] };
+    renderTd(<ReleaseReportView report={{ ...base, ok: true, errors: [], unchanged: true, changes }} />);
+    expect(screen.getByText('No changes since the current release.')).toBeTruthy();
+    expect(screen.getByText(/Only approved content is published/)).toBeTruthy();
+    cleanup();
+    renderTd(<ReleaseReportView report={{ ...base, ok: true, errors: [], unchanged: false, changes }} />);
+    expect(screen.getByText('+116')).toBeTruthy();
+    expect(screen.getByText(/keeps no list of its rows, so everything shows as new here/)).toBeTruthy();
+  });
+});
+
+describe('card pictures', () => {
+  it('a SoFIFA face that does not load is a blank, not a broken image', async () => {
+    renderTd(<TdCardImage card={{ display: 'Messi', imageKey: null, photo: { id: 158023, ver: '24' } }} />);
+    const img = screen.getByRole('img', { name: 'Messi' });
+    fireEvent.error(img);
+    await waitFor(() => expect(screen.queryByRole('img', { name: 'Messi' })).toBeNull());
   });
 });

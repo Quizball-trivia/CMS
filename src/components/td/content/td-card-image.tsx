@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import { ImageIcon } from 'lucide-react';
 import { useTdAllRows, useTdUploadUrl } from '@/hooks/use-td-content';
 import type { TdContentData } from '@/lib/td/admin-api';
@@ -29,6 +30,21 @@ function Uploaded({ uploadId, alt, className }: { uploadId: string; alt: string;
   );
 }
 
+function Blank({ className }: { className: string }) {
+  return (
+    <span className={cn(className, 'flex items-center justify-center bg-slate-100 text-slate-300')}>
+      <ImageIcon className="h-6 w-6" />
+    </span>
+  );
+}
+
+/** A SoFIFA face; one SoFIFA did not send in time is a blank, not a broken image with its name over it. */
+function Face({ photo, alt, className }: { photo: { id: number; ver: string }; alt: string; className: string }) {
+  const [failed, setFailed] = useState(false);
+  // eslint-disable-next-line @next/next/no-img-element -- served by the CMS's own face route
+  return failed ? <Blank className={className} /> : <img src={cardFaceSrc(photo)} alt={alt} loading="lazy" onError={() => setFailed(true)} className={cn(className, 'bg-slate-100')} />;
+}
+
 /** A card's picture as the game shows it: its uploaded photo, otherwise its SoFIFA face, otherwise a blank. */
 export function TdCardImage({ card, className }: { card: Pick<TdContentData<'cards'>, 'display' | 'imageKey' | 'photo'>; className?: string }) {
   const media = useTdAllRows('media', {}, Boolean(card.imageKey));
@@ -39,12 +55,6 @@ export function TdCardImage({ card, className }: { card: Pick<TdContentData<'car
     if (uploadId) return <Uploaded uploadId={uploadId} alt={card.display} className={frame} />;
     if (media.isLoading) return <Loading className={frame} />;
   }
-  if (card.photo)
-    // eslint-disable-next-line @next/next/no-img-element -- served by the CMS's own face route
-    return <img src={cardFaceSrc(card.photo)} alt={card.display} loading="lazy" className={frame} />;
-  return (
-    <span className={cn(frame, 'flex items-center justify-center bg-slate-100 text-slate-300')}>
-      <ImageIcon className="h-6 w-6" />
-    </span>
-  );
+  if (card.photo) return <Face key={`${card.photo.id}:${card.photo.ver}`} photo={card.photo} alt={card.display} className={frame} />;
+  return <Blank className={frame} />;
 }
