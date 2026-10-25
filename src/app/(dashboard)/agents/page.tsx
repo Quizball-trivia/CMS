@@ -411,8 +411,12 @@ function BudgetWidget() {
   );
 }
 
+const DAILY_GAME_NAMES: Record<string, string> = { buscaminas: 'Buscaminas futbolero', pistas: 'Pistas futboleras', ultimo: 'Último en pie', minuto: '¿En qué minuto?' };
+
 function jobTopic(job: AgentJob): string {
   const params = job.params ?? {};
+  // a daily-game build: which game and how many days
+  if (job.type === 'daily_days') return `${DAILY_GAME_NAMES[String(params.game)] ?? String(params.game)} · next ${String(params.days ?? '?')} days`;
   const topic = params.topic;
   return typeof topic === 'string' && topic.length > 0 ? topic : '—';
 }
@@ -425,6 +429,10 @@ function jobDifficulty(job: AgentJob): string {
 
 function jobProgress(job: AgentJob): string {
   const counts = job.counts ?? {};
+  if (job.type === 'daily_days') {
+    const c = counts as Record<string, unknown>;
+    return c.batch ? (c.valid === false ? 'batch built (validation failed)' : 'batch built') : '—';
+  }
   const approved = counts.approved ?? 0;
   const target = counts.target ?? (typeof job.params?.count === 'number' ? job.params.count : 0);
   return `${approved}/${target} approved`;
