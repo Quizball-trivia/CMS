@@ -11,7 +11,7 @@ describe('freecroco mock backend', () => {
   it('serves the seeded defaults', async () => {
     const { games, version } = await make().getGames();
     expect(version).toBe(1);
-    expect(games).toHaveLength(11);
+    expect(games).toHaveLength(12);
     expect(games.find((g) => g.gameId === 'ranked')?.defaultLimit).toBe(10);
   });
 
