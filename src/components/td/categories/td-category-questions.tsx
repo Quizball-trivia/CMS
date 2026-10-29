@@ -14,7 +14,7 @@ import { roundOf, type TdCategoryType } from './td-category-data';
 
 const BADGES: Record<TdContentStatus, string> = {
   draft: 'bg-gray-100 text-gray-400',
-  ready: 'bg-amber-50 text-amber-600',
+  ready: 'bg-gray-100 text-gray-400',
   approved: 'bg-emerald-50 text-emerald-600',
   archived: 'bg-gray-100 text-gray-400',
 };
@@ -93,7 +93,7 @@ export function TdCategoryQuestions({ type, categoryKey }: { type: TdCategoryTyp
             >
               <div className="relative aspect-[3/4] w-full overflow-hidden bg-slate-50">
                 <TdCardImage card={card.data} className="transition-transform duration-300 group-hover:scale-105" />
-                <span className={cn('absolute left-1.5 top-1.5 h-2 w-2 rounded-full', card.status === 'approved' ? 'bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.6)]' : card.status === 'ready' ? 'bg-amber-400' : 'bg-gray-300')} />
+                <span className={cn('absolute left-1.5 top-1.5 h-2 w-2 rounded-full', card.status === 'approved' ? 'bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.6)]' : 'bg-gray-300')} />
               </div>
               <div className="space-y-1 px-2 py-1.5">
                 <p title={card.data.display} className="truncate text-xs font-bold text-gray-900">

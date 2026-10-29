@@ -6,7 +6,8 @@ import { AlertTriangle, CheckCircle2, ChevronDown, Circle, CircleDashed, CircleX
 import { toast } from 'sonner';
 import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { TdDialogContent } from '@/components/td/td-dialog';
 import { TD_TYPE_CONFIG } from '@/components/td/content/content-types';
 import { TdEmptyState, TdSection } from '@/components/td/td-page';
 import { TdErrorPanel } from '@/components/td/td-error-panel';
@@ -15,11 +16,12 @@ import type { TdContentType } from '@/lib/td/admin-api';
 import { SESSION_CHANGED, TdApiError } from '@/lib/td/api-client';
 import { tdAdmin, tdTokens } from '@/lib/td/client';
 import type { Publication, ReleaseDetail, ReleaseList, ReleaseReport } from '@/lib/td/contract';
-import { formatDay, formatGeorgiaTime } from '@/lib/td/georgia';
-import { t, tn, tr } from '@/lib/td/i18n';
+import { tdActorName } from '@/lib/td/actors';
+import { dailyEntries, TD_DAILY_GAME_LABELS } from '@/lib/td/dailies';
+import { formatDate, formatDay, formatGeorgiaTime } from '@/lib/td/georgia';
+import { t, TD_LANG, tn, tr } from '@/lib/td/i18n';
 import { beginOperation, operationIsCurrent, type TdOperation } from '@/lib/td/operation';
 import { browserPendingPublications, type HeldRequest, type PendingPublications, type PendingRequest } from '@/lib/td/pending-publications';
-import { isTdPublisher } from '@/lib/td/workflow';
 import { cn } from '@/lib/utils';
 import { useTdAuth } from '@/providers/td-auth-provider';
 import { questionsHref } from '@/lib/td/question-modes';
@@ -56,15 +58,15 @@ function editHref(type: TdContentType, key: string): string | null {
   if (questions) return questions;
   const q = `?q=${encodeURIComponent(key)}`;
   if (type === 'card-categories' || type === 'box-categories') return `/td/categories${q}`;
-  if (type === 'daily-schedule' || type === 'daily-settings') return `/td/dailies${q}`;
   return null;
 }
 
-export function TdReleasesTab() {
+/** `autoPublish`: opened right after Publish on questions; the release starts on its own once the check passes. */
+export function TdReleasesTab({ autoPublish = false }: { autoPublish?: boolean } = {}) {
   const { user } = useTdAuth();
   const queryClient = useQueryClient();
   const write = useTdWrite();
-  const publisher = user ? isTdPublisher(user.role) : false;
+  const publisher = Boolean(user);
   const report = useQuery({
     queryKey: [...tdKeys.releases, 'report'],
     queryFn: () => tdAdmin.releases.validate(),
@@ -79,6 +81,15 @@ export function TdReleasesTab() {
   const [requestError, setRequestError] = useState<unknown>(null);
   const [sending, setSending] = useState(false);
   const recoveredFor = useRef<string | null>(null);
+  const [recovered, setRecovered] = useState(false);
+  // Why a publish asked for on opening (autoPublish) did not go out.
+  const [autoHeld, setAutoHeld] = useState<'invalid' | 'unchanged' | 'busy' | null>(null);
+  const [autoBusy, setAutoBusy] = useState(false);
+  const autoDone = useRef(false);
+  const unansweredNow = useRef(unanswered);
+  useEffect(() => {
+    unansweredNow.current = unanswered;
+  }, [unanswered]);
 
   const without = (request: PendingRequest) => (list: HeldRequest[]) => list.filter((r) => r.idemKey !== request.idemKey);
 
@@ -135,15 +146,16 @@ export function TdReleasesTab() {
     const staffId = user.id;
     // Begun before waiting for the kept requests, which may take a while (another tab holds the lock).
     const operation = begin(staffId);
-    if (!operation) return;
+    if (!operation) return setRecovered(true);
     void (async () => {
       const requests = await browserPendingPublications(staffId)
         .then((kept) => kept.claim())
         .catch(() => []);
       for (const request of requests) {
-        if (!operationIsCurrent(tdTokens, operation)) return;
+        if (!operationIsCurrent(tdTokens, operation)) break;
         await send(request, staffId, operation);
       }
+      setRecovered(true);
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps -- once per member, per mount
   }, [user]);
@@ -155,7 +167,35 @@ export function TdReleasesTab() {
   };
 
   const active = list.data?.active ?? null;
-  const shownId = watching ?? active?.id ?? null;
+  // A running publication comes first; a finished one this tab watched stays in view until another starts.
+  const shownId = active?.id ?? watching ?? null;
+
+  // Once, after this member's kept requests were asked again: the check and the slot are read now (never from the
+  // cache, nor joined to a read begun before the approvals), and the publish goes out only if both allow it.
+  useEffect(() => {
+    if (!autoPublish || autoDone.current || !publisher || !recovered || sending) return;
+    autoDone.current = true;
+    setConfirm(null);
+    setAutoBusy(true);
+    void (async () => {
+      try {
+        const [checked, listed] = await Promise.all([tdAdmin.releases.validate(), tdAdmin.releases.list({ limit: 1 })]);
+        queryClient.setQueryData([...tdKeys.releases, 'report'], checked);
+        queryClient.setQueryData([...tdKeys.releases, 'list', 'first'], listed);
+        const held = !checked.ok ? 'invalid' : checked.unchanged ? 'unchanged' : running(listed.active ?? undefined) || unansweredNow.current.length > 0 ? 'busy' : null;
+        if (held) return setAutoHeld(held);
+        await start({ kind: 'publish', idemKey: `publish:${crypto.randomUUID()}`, releaseId: null, publicationId: null, adopted: false }, () => toast.message(t('Publishing…')));
+      } catch (caught) {
+        setRequestError(caught);
+      } finally {
+        setAutoBusy(false);
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- start reads the current state; this runs once
+  }, [autoPublish, publisher, recovered, sending]);
+
+  // Published, but the game is still short of content elsewhere (a new game filling up): said plainly, the full check behind Details.
+  if (autoPublish && autoHeld === 'invalid' && report.data && missingContentOnly(report.data)) return <WaitingForContent report={report.data} />;
 
   const onSettled = (publication: Publication) => {
     if (user) void browserPendingPublications(user.id).then((kept) => kept.resolved(publication.id)).catch(() => undefined);
@@ -176,7 +216,7 @@ export function TdReleasesTab() {
             {publisher && (
               <Button
                 className="rounded-lg"
-                disabled={!report.data?.ok || report.data.unchanged || running(active ?? undefined) || sending || unanswered.length > 0}
+                disabled={!report.data?.ok || report.data.unchanged || running(active ?? undefined) || sending || unanswered.length > 0 || !recovered || autoBusy}
                 title={report.data?.unchanged ? t('The approved content is the current release') : undefined}
                 onClick={() => setConfirm({ kind: 'publish' })}
               >
@@ -188,7 +228,7 @@ export function TdReleasesTab() {
         }
       >
         <div className="p-5">
-          {unanswered.map((request) => (
+          {publisher && unanswered.map((request) => (
             <div key={request.idemKey} className="mb-4 flex flex-wrap items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-700">
               <span className="min-w-0 flex-1">
                 {unansweredText(request)} {t('Ask again: the same request is answered, never run twice.')}
@@ -204,20 +244,38 @@ export function TdReleasesTab() {
               )}
             </div>
           ))}
+          {autoHeld && (
+            <p role="status" className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-700">
+              {autoHeld === 'invalid'
+                ? t('Your questions are approved, but the game was not updated: fix what is listed below, then press Publish.')
+                : autoHeld === 'unchanged'
+                  ? t('Nothing new for players: the game already has this content.')
+                  : t('Another publish is running or waiting for an answer; press Publish when it is done.')}
+            </p>
+          )}
           <TdErrorPanel error={report.error ?? requestError} />
           {report.isLoading && <p className="text-sm text-(--td-text-3)">{t('Checking the approved content…')}</p>}
           {report.data && <ReleaseReportView report={report.data} />}
-          {!publisher && <p className="mt-4 text-xs text-(--td-text-3)">{t('Publishing and rolling back are for publishers.')}</p>}
         </div>
       </TdSection>
 
-      {shownId && <PublicationProgress id={shownId} onSettled={onSettled} />}
+      {shownId && (
+        <PublicationProgress
+          id={shownId}
+          onSettled={onSettled}
+          onMoved={(publication) => {
+            // Kept in view until it settles (the list read next no longer names it as active), and lists showing what players have read again.
+            setWatching(publication.id);
+            void queryClient.invalidateQueries({ queryKey: [...tdKeys.releases, 'list'] });
+          }}
+        />
+      )}
 
-      <ReleaseHistory canRollback={publisher && !running(active ?? undefined) && !sending && unanswered.length === 0} onRollback={(releaseId) => setConfirm({ kind: 'rollback', releaseId })} />
+      <ReleaseHistory canRollback={publisher && !running(active ?? undefined) && !sending && unanswered.length === 0 && recovered && !autoBusy} onRollback={(releaseId) => setConfirm({ kind: 'rollback', releaseId })} />
 
       {confirm && (
         <Dialog open onOpenChange={(open) => !open && setConfirm(null)}>
-          <DialogContent className="bg-(--td-surface-2)">
+          <TdDialogContent className="bg-(--td-surface-2)">
             <DialogHeader>
               <DialogTitle>{confirm.kind === 'publish' ? t('Publish the approved content?') : t('Roll back to {release}?', { release: confirm.releaseId })}</DialogTitle>
               <DialogDescription>
@@ -246,10 +304,54 @@ export function TdReleasesTab() {
                 {confirm.kind === 'publish' ? t('Publish') : t('Roll back')}
               </Button>
             </DialogFooter>
-          </DialogContent>
+          </TdDialogContent>
         </Dialog>
       )}
     </>
+  );
+}
+
+/** Errors that only say the game has too little published content yet: rounds short of a match, dailies short of days
+ *  (the dailies ship with the game's code since contract 12, so in practice only rounds). */
+const MISSING_CONTENT = new Set(['pool', 'dailies']);
+const missingContentOnly = (report: ReleaseReport) => !report.ok && report.errors.every((error) => MISSING_CONTENT.has(error.code));
+
+/** After a Publish while the game still lacks content in other modes: what was asked for is published; the game gets it once every mode has its minimum. */
+function WaitingForContent({ report }: { report: ReleaseReport }) {
+  const [details, setDetails] = useState(false);
+  const { pools } = report;
+  const short = [
+    pools.cardDecks.ready < pools.cardDecks.needed && t('Round I: {needed} categories with {size}+ cards (now {ready})', { needed: pools.cardDecks.needed, size: pools.cardDecks.deckSize, ready: pools.cardDecks.ready }),
+    pools.whoAmI.ready < pools.whoAmI.needed && t('Round II: {needed} subjects with {clues}+ clues (now {ready})', { needed: pools.whoAmI.needed, clues: pools.whoAmI.clues, ready: pools.whoAmI.ready }),
+    pools.box.ready < pools.box.needed && t('Round III: {needed} categories with {questions}+ questions (now {ready})', { needed: pools.box.needed, questions: pools.box.questions, ready: pools.box.ready }),
+    pools.penalties.ready < pools.penalties.needed && t('Penalties: {needed} questions (now {ready})', { needed: pools.penalties.needed, ready: pools.penalties.ready }),
+    ...reportDailies(report).map(
+      ([game, daily]) => daily.missing.length > 0 && t('{game}: {days} days (now {covered})', { game: TD_DAILY_GAME_LABELS[game], days: report.days, covered: daily.covered }),
+    ),
+  ].filter((line): line is string => Boolean(line));
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-5">
+        <p className="flex items-center gap-2 text-base font-bold text-emerald-800">
+          <CheckCircle2 className="size-5" />
+          {t('Published.')}
+        </p>
+        <p className="mt-1 text-sm text-emerald-900">{t('Players get it once the game has enough published content in every mode. Still missing:')}</p>
+        <ul className="mt-3 flex flex-col gap-1.5 text-sm text-slate-700">
+          {short.map((line) => (
+            <li key={line} className="flex items-start gap-2">
+              <Circle className="mt-1 size-3 shrink-0 text-slate-400" />
+              {line}
+            </li>
+          ))}
+        </ul>
+        <p className="mt-3 text-xs text-emerald-900/80">{t('Publish the rest the same way: with the last of it, the game gets everything at once.')}</p>
+      </div>
+      <button type="button" className="self-start text-xs font-semibold text-(--td-text-3) underline" onClick={() => setDetails(!details)}>
+        {details ? t('Hide details') : t('Details')}
+      </button>
+      {details && <ReleaseReportView report={report} />}
+    </div>
   );
 }
 
@@ -267,7 +369,8 @@ function Meter({ label, ready, needed, detail }: { label: string; ready: number;
   );
 }
 
-const GAME_LABELS = { footballLogic: t('Football Logic'), putInOrder: t('Put in Order'), careerPath: t('Career Path') };
+/** The daily games a report names (Stat Sniper, or Football Logic in one from before), as the API gives them. */
+const reportDailies = (report: ReleaseReport) => dailyEntries<{ covered: number; missing: string[] }>(report.dailies);
 const DIFFICULTY_LABELS = { easy: t('easy'), medium: t('medium'), hard: t('hard') };
 
 /** What a group of issues means, in a line, for the codes an editor meets; the API's own lines are listed below it. */
@@ -284,9 +387,37 @@ const ISSUE_SUMMARIES: Partial<Record<ReleaseReport['warnings'][number]['code'],
 };
 const ISSUES_SHOWN = 3;
 
+const gameName = (game: string) => TD_DAILY_GAME_LABELS[game as keyof typeof TD_DAILY_GAME_LABELS] ?? game;
+
+/** A line of the API's report (English) in the workspace's language; null for a line it has no wording for. */
+export function reportLine(message: string): string | null {
+  if (TD_LANG === 'en') return message;
+  const body = message.replace(/^cannot run a match: /, '');
+  let m: RegExpExecArray | null;
+  if ((m = /^round I needs a category with at least (\d+) cards$/.exec(body))) return t('Round I needs a category with at least {n} cards.', { n: m[1]! });
+  if ((m = /^round II needs (\d+) subjects with (\d+)\+ clues, has (\d+)$/.exec(body)))
+    return t('Round II needs {n} subjects with {clues} or more clues; it has {has}.', { n: m[1]!, clues: m[2]!, has: m[3]! });
+  if ((m = /^round III needs (\d+) categories with (\d+)\+ questions, has (\d+)$/.exec(body)))
+    return t('Round III needs {n} categories with {questions} or more questions; it has {has}.', { n: m[1]!, questions: m[2]!, has: m[3]! });
+  if ((m = /^penalties need (\d+) questions, have (\d+)$/.exec(body))) return t('Penalties need {n} questions; they have {has}.', { n: m[1]!, has: m[2]! });
+  if ((m = /^duplicate (card|box question) id (.+)$/.exec(body))) return m[1] === 'card' ? t('Two cards have the ID {id}.', { id: m[2]! }) : t('Two box questions have the ID {id}.', { id: m[2]! });
+  if ((m = /^practice needs (\d+) (easy|medium|hard) questions, has (\d+)$/.exec(body)))
+    return t('Practice needs {n} {difficulty} questions; it has {has}.', { n: m[1]!, difficulty: DIFFICULTY_LABELS[m[2] as keyof typeof DIFFICULTY_LABELS], has: m[3]! });
+  if ((m = /^(\w+) has no set on (\d+) of the (\d+) days from (\S+) \(first (\S+)\)$/.exec(body)))
+    return t('{game} has nothing on {n} of the {days} days from {from} (the first: {first}).', { game: gameName(m[1]!), n: m[2]!, days: m[3]!, from: formatDate(m[4]!), first: formatDate(m[5]!) });
+  if ((m = /^(\w+) has no set$/.exec(body))) return t('{game} has no set.', { game: gameName(m[1]!) });
+  if ((m = /^(\w+) schedules no date$/.exec(body))) return t('{game} has no date in its calendar.', { game: gameName(m[1]!) });
+  if ((m = /^the image (\S+) is shown from its URL, not re-hosted: upload it to keep it$/.exec(body))) return t('The picture {key} is shown from its link, not kept here: upload it to keep it.', { key: m[1]! });
+  if ((m = /^the uploaded file of the image (\S+) is missing$/.exec(body))) return t('The uploaded file of the picture {key} is missing.', { key: m[1]! });
+  if (body === 'the release shows uploaded images and no storage is configured') return t('The release shows uploaded pictures, and picture storage is not set up.');
+  return null;
+}
+
 function IssueGroup({ code, issues, tone }: { code: string; issues: ReleaseReport['errors']; tone: 'error' | 'warning' }) {
   const [all, setAll] = useState(false);
-  const shown = all ? issues : issues.slice(0, ISSUES_SHOWN);
+  // A line with no wording here and nothing to open says no more than the summary above it.
+  const lines = issues.filter((issue) => reportLine(issue.message) !== null || (issue.ref && editHref(issue.ref.type as TdContentType, issue.ref.key)));
+  const shown = all ? lines : lines.slice(0, ISSUES_SHOWN);
   return (
     <li className="flex flex-col gap-1">
       <p className="font-medium">
@@ -295,7 +426,7 @@ function IssueGroup({ code, issues, tone }: { code: string; issues: ReleaseRepor
       <ul className="flex flex-col gap-0.5 text-xs opacity-90">
         {shown.map((issue, i) => (
           <li key={i} className="flex flex-wrap items-baseline gap-x-2">
-            <span>{issue.message}</span>
+            {reportLine(issue.message) !== null && <span>{reportLine(issue.message)}</span>}
             {issue.ref && editHref(issue.ref.type as TdContentType, issue.ref.key) && (
               <Link href={editHref(issue.ref.type as TdContentType, issue.ref.key)!} className="font-mono underline">
                 {issue.ref.key}
@@ -304,9 +435,9 @@ function IssueGroup({ code, issues, tone }: { code: string; issues: ReleaseRepor
           </li>
         ))}
       </ul>
-      {issues.length > ISSUES_SHOWN && (
+      {lines.length > ISSUES_SHOWN && (
         <button type="button" className={cn('self-start text-xs font-semibold underline', tone === 'error' ? 'text-(--td-danger)' : 'text-amber-800')} onClick={() => setAll(!all)}>
-          {all ? t('Show fewer') : t('Show all {count}', { count: issues.length })}
+          {all ? t('Show fewer') : t('Show all {count}', { count: lines.length })}
         </button>
       )}
     </li>
@@ -326,7 +457,7 @@ function IssueList({ issues, tone }: { issues: ReleaseReport['errors']; tone: 'e
 }
 
 export function ReleaseReportView({ report }: { report: ReleaseReport }) {
-  const { pools, dailies, media } = report;
+  const { pools, media } = report;
   return (
     <div className="flex flex-col gap-4">
       <p className={cn('flex items-center gap-2 text-sm font-medium', report.ok ? 'text-(--td-new)' : 'text-(--td-danger)')}>
@@ -338,7 +469,7 @@ export function ReleaseReportView({ report }: { report: ReleaseReport }) {
           : tn(report.errors.length, '{count} error stop a publish.', '{count} errors stop a publish.')}
         <span className="font-normal text-(--td-text-3)">{t('Checked {time}', { time: formatGeorgiaTime(report.checkedAt) })}</span>
       </p>
-      {report.ok && report.unchanged && <p className="-mt-2 text-xs text-(--td-text-3)">{t('Only approved content is published: drafts and questions marked ready go out once a publisher approves them.')}</p>}
+      {report.ok && report.unchanged && <p className="-mt-2 text-xs text-(--td-text-3)">{t('Only published content goes out: a draft goes out once it is published.')}</p>}
       {report.errors.length > 0 && <IssueList issues={report.errors} tone="error" />}
       {report.warnings.length > 0 && <IssueList issues={report.warnings} tone="warning" />}
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
@@ -356,14 +487,14 @@ export function ReleaseReportView({ report }: { report: ReleaseReport }) {
         </div>
       </div>
       <div className="grid gap-3 md:grid-cols-3">
-        {(Object.keys(GAME_LABELS) as Array<keyof typeof GAME_LABELS>).map((game) => (
+        {reportDailies(report).map(([game, daily]) => (
           <div key={game} className="rounded-lg border border-border p-3">
-            <p className="text-xs text-(--td-text-3)">{t('{game}: next {days} days from {date}', { game: GAME_LABELS[game], days: report.days, date: formatDay(report.from) })}</p>
-            <p className={cn('mt-1 text-lg font-semibold tabular-nums', dailies[game].missing.length && 'text-(--td-danger)')}>
-              {dailies[game].covered}
+            <p className="text-xs text-(--td-text-3)">{t('{game}: next {days} days from {date}', { game: TD_DAILY_GAME_LABELS[game], days: report.days, date: formatDay(report.from) })}</p>
+            <p className={cn('mt-1 text-lg font-semibold tabular-nums', daily.missing.length && 'text-(--td-danger)')}>
+              {daily.covered}
               <span className="text-sm font-normal text-(--td-text-3)"> {t('/ {days} covered', { days: report.days })}</span>
             </p>
-            {dailies[game].missing.length > 0 && <p className="text-xs text-(--td-danger)">{t('Missing: {days}', { days: `${dailies[game].missing.slice(0, 5).map(formatDay).join(', ')}${dailies[game].missing.length > 5 ? '…' : ''}` })}</p>}
+            {daily.missing.length > 0 && <p className="text-xs text-(--td-danger)">{t('Missing: {days}', { days: `${daily.missing.slice(0, 5).map(formatDay).join(', ')}${daily.missing.length > 5 ? '…' : ''}` })}</p>}
           </div>
         ))}
       </div>
@@ -430,13 +561,21 @@ const PUBLICATION_ERRORS: Record<string, string> = {
   gave_up: t('It kept failing and was given up; what it made was removed.'),
 };
 
-function PublicationProgress({ id, onSettled }: { id: string; onSettled: (publication: Publication) => void }) {
+function PublicationProgress({ id, onSettled, onMoved }: { id: string; onSettled: (publication: Publication) => void; onMoved: (publication: Publication) => void }) {
   const publication = useQuery({
     queryKey: [...tdKeys.releases, 'publication', id],
     queryFn: ({ signal }) => tdAdmin.releases.publication(id, { signal }),
     refetchInterval: (query) => (query.state.data && settled(query.state.data) ? false : 1000),
   });
   const data = publication.data;
+  // Current as soon as the pointer moved, while the notice to game servers may still be on its way.
+  const moved = useRef<string | null>(null);
+  useEffect(() => {
+    if (data?.status === 'published' && moved.current !== data.id) {
+      moved.current = data.id;
+      onMoved(data);
+    }
+  }, [data, onMoved]);
   const notified = useRef<string | null>(null);
   useEffect(() => {
     if (data && settled(data) && notified.current !== data.id) {
@@ -447,7 +586,7 @@ function PublicationProgress({ id, onSettled }: { id: string; onSettled: (public
   if (!data) return publication.error ? <TdErrorPanel error={publication.error} /> : null;
   const title = data.kind === 'publish' ? t('Publish') : t('Roll back to {release}', { release: String(data.releaseId) });
   return (
-    <TdSection title={title} description={t('Asked by {name} at {time}.', { name: data.requestedBy.name, time: formatGeorgiaTime(data.requestedAt) })}>
+    <TdSection title={title} description={t('Asked by {name} at {time}.', { name: tdActorName(data.requestedBy.name), time: formatGeorgiaTime(data.requestedAt) })}>
       <div className="flex flex-col gap-4 p-5">
         <ol className="grid gap-2 sm:grid-cols-3 lg:grid-cols-6">
           {data.phases.map((phase) => (
@@ -477,9 +616,8 @@ function PublicationProgress({ id, onSettled }: { id: string; onSettled: (public
           </p>
         )}
         {(data.status === 'failed' || data.status === 'failing') && data.error && (
-          <div className="rounded-lg bg-(--td-danger)/10 px-3 py-2 text-sm text-(--td-danger)">
-            <p className="font-medium">{data.status === 'failing' ? t('Failing: removing what it made…') : t('Failed.')} {PUBLICATION_ERRORS[data.error.code] ?? data.error.message}</p>
-            <p className="font-mono text-xs opacity-80">{data.error.code}</p>
+          <div className="rounded-lg bg-(--td-danger)/10 px-3 py-2 text-sm text-(--td-danger)" title={data.error.code}>
+            <p className="font-medium">{data.status === 'failing' ? t('Failing: removing what it made…') : t('Failed.')} {PUBLICATION_ERRORS[data.error.code] ?? reportLine(data.error.message) ?? ''}</p>
           </div>
         )}
         {data.status === 'failed' && data.report && !data.report.ok && <IssueList issues={data.report.errors} tone="error" />}
@@ -514,7 +652,7 @@ function ReleaseHistory({ canRollback, onRollback }: { canRollback: boolean; onR
             <span className="text-(--td-text-3)">
               {' '}
               {first.pointer.movedBy
-                ? t('since {time} ({name})', { time: formatGeorgiaTime(first.pointer.movedAt), name: first.pointer.movedBy.name })
+                ? t('since {time} ({name})', { time: formatGeorgiaTime(first.pointer.movedAt), name: tdActorName(first.pointer.movedBy.name) })
                 : t('since {time}', { time: formatGeorgiaTime(first.pointer.movedAt) })}
             </span>
           )}
@@ -532,7 +670,7 @@ function ReleaseHistory({ canRollback, onRollback }: { canRollback: boolean; onR
               {release.current && <span className="rounded-full bg-primary/15 px-2 py-0.5 text-xs font-semibold text-primary">{t('Current')}</span>}
               {release.status === 'retired' && <span className="rounded-full bg-secondary px-2 py-0.5 text-xs">{t('Retired')}</span>}
               <span className="text-xs text-(--td-text-3)">
-                {t('{time} · {name} · {n} rows', { time: formatGeorgiaTime(release.createdAt), name: release.createdBy.name, n: release.members })}
+                {t('{time} · {name} · {n} rows', { time: formatGeorgiaTime(release.createdAt), name: tdActorName(release.createdBy.name), n: release.members })}
               </span>
               <span className="flex-1" />
               {canRollback && release.wasCurrent && !release.current && release.status === 'available' && (
@@ -564,7 +702,7 @@ function ReleaseHistory({ canRollback, onRollback }: { canRollback: boolean; onR
                   {move.previousReleaseId ?? '—'} → {move.releaseId}
                 </span>
                 <span className="text-(--td-text-3)">
-                  {formatGeorgiaTime(move.movedAt)} · {move.movedBy.name}
+                  {formatGeorgiaTime(move.movedAt)} · {tdActorName(move.movedBy.name)}
                 </span>
               </li>
             ))}
@@ -587,9 +725,10 @@ function ReleaseDetailView({ id }: { id: string }) {
     [t('Penalty questions'), String(manifest.penalties.questions)],
     [t('Practice'), t('{easy} easy · {medium} medium · {hard} hard', { easy: manifest.practice.easy, medium: manifest.practice.medium, hard: manifest.practice.hard })],
     [t('Clubs · images'), `${manifest.clubs} · ${manifest.media}`],
-    ...(Object.keys(GAME_LABELS) as Array<keyof typeof GAME_LABELS>).map((game): [string, string] => [
-      GAME_LABELS[game],
-      t('{sets} sets · {dated} dated · {covered}/30 days', { sets: manifest.dailies[game].sets, dated: manifest.dailies[game].scheduledDates, covered: manifest.dailies[game].coveredDays }),
+    // Whichever dailies the release holds: Football Logic in one from before Stat Sniper.
+    ...dailyEntries<{ sets: number; scheduledDates: number; coveredDays: number }>(manifest.dailies).map(([game, daily]): [string, string] => [
+      TD_DAILY_GAME_LABELS[game],
+      t('{sets} sets · {dated} dated · {covered}/30 days', { sets: daily.sets, dated: daily.scheduledDates, covered: daily.coveredDays }),
     ]),
   ];
   return (

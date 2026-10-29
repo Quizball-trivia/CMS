@@ -192,6 +192,8 @@ export function createTdAdminApi(api: TdApiClient) {
       invite: (body: C.StaffInviteRequest, options?: TdRequestOptions) => api.post<C.StaffInviteResponse>('/admin/staff/invite', body, options),
       /** A one-time reset link token (48 hours) for an active member, to hand over; an earlier open one stops working. */
       resetLink: (staffId: string, options?: TdRequestOptions) => api.post<C.LinkTokenResponse>(`/admin/staff/${segment(staffId)}/reset-link`, undefined, options),
+      /** A member's role or status. Disabling ends their sessions and closes their open links; enabling brings them back as they were (invited if never signed up). */
+      patch: (staffId: string, body: C.StaffPatchRequest, options?: TdRequestOptions) => api.patch<C.StaffMember>(`/admin/staff/${segment(staffId)}`, body, options),
     },
     settings: {
       get: (options?: TdRequestOptions) => api.get<C.Settings>('/admin/settings', options),

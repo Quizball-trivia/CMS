@@ -41,7 +41,8 @@ Clue 4: ჩემპიონთა ლიგა ორჯერ მოვიგ
 Clue 5: მოგვიანებით თბილისის მერი გავხდი
 Answer: კახა კალაძე | კალაძე | Kakha Kaladze`,
   'box-questions': `1. ვინ გახდა 2022 წლის მსოფლიო ჩემპიონატის საუკეთესო ბომბარდირი?
-Answer: კილიან ემბაპე | ემბაპე | Kylian Mbappé | Mbappe`,
+Answer: კილიან ემბაპე | ემბაპე | Kylian Mbappé | Mbappe
+Category: მუნდიალი`,
   'penalty-questions': `1. რომელი ქვეყნის ნაკრებმა მოიგო ევრო 2024?
 Answer: ესპანეთი | Spain`,
   'practice-questions': `1. რომელმა ქვეყანამ მოიგო მსოფლიო ჩემპიონატი 2014 წელს?
@@ -66,7 +67,7 @@ Answer:
 2. სამხრეთ აფრიკა 2010
 3. ბრაზილია 2014
 4. რუსეთი 2018`,
-  'career-path': `1. Question: Dinamo Tbilisi ➔ Rubin Kazan ➔ Napoli ➔ Paris Saint-Germain
+  'career-path': `1. Question: Dinamo Tbilisi ➔ რუბინ ყაზანი ➔ Napoli ➔ პსჟ=paris-saint-germain
 Answer: ხვიჩა კვარაცხელია | კვარაცხელია | Khvicha Kvaratskhelia`,
 };
 
@@ -106,6 +107,8 @@ export interface ParsedQa extends ParsedBase {
   q: string;
   display: string;
   aliases: string[];
+  /** Round III: its category by name (a “Category:” line), made by the upload when there is none of that name. */
+  category: string | null;
 }
 
 export interface ParsedPractice extends ParsedBase {
@@ -116,6 +119,8 @@ export interface ParsedPractice extends ParsedBase {
   explanation: string | null;
   imageKey: string | null;
   imageFile: string | null;
+  /** Its own category (a “Category:” line), in place of the one the upload chooses for the file. */
+  category: string | null;
 }
 
 export interface ParsedFootballLogic extends ParsedBase {
@@ -175,12 +180,12 @@ interface Block {
   answers: number;
 }
 
-const QUESTION_START = /^(\d+)\.\s*(.*)$/;
+export const QUESTION_START = /^(\d+)\.\s*(.*)$/;
 const CLUE_LINE = /^Clue\s+(\d+)\s*:\s*(.*)$/i;
 const OPTION_LINE = /^([A-H])\)\s+(.+?)(\*?)$/;
 const ARROWS = /(?:➔|->|→)/;
 const KEY_PATTERN = /^[a-z0-9][a-z0-9_-]{0,63}$/;
-const IMAGE_PATTERN = /^(?:https?:\/\/|\/)\S{1,2040}$/;
+const IMAGE_PATH = /^\/\S{1,2040}$/;
 /** Quizball's lines that no Table Derby mode of that kind stores. */
 const UNUSED_LINE = /^(?:Difficulty|Explanation|Direction)\s*:/i;
 const LETTERS = 'ABCDEFGH';
@@ -313,13 +318,24 @@ function answerOf(r: Reader, entry: { value: string; line: number } | undefined)
 
 /** A picture file's name, as the Image line gives it. */
 const PICTURE_FILE = /\.(?:jpe?g|png|webp)$/i;
+const PICTURE_LINK = /^https?:\/\/\S{1,2040}$/i;
 
-/** An Image line: a picture chosen with the file (by its name), or an image already uploaded (by its key). */
+/** A picture given by its link: the upload downloads it and saves it as a picture chosen with the file. */
+export const isPictureLink = (name: string) => /^https?:\/\//i.test(name);
+/** How a picture is looked up by the name an Image line gives: a file name in any case, a link exactly. */
+export const pictureName = (name: string) => (isPictureLink(name) ? name : name.toLowerCase());
+
+/** An Image line: a picture chosen with the file (by its name), a picture at a link, or an image already uploaded (by its key). */
 function imageLine(r: Reader, entry: { value: string; line: number } | undefined): { imageKey: string | null; imageFile: string | null } {
   if (!entry) return { imageKey: null, imageFile: null };
+  if (isPictureLink(entry.value)) {
+    if (PICTURE_LINK.test(entry.value)) return { imageKey: null, imageFile: entry.value };
+    r.error(t('A picture link is a web address starting with https://, with no spaces'), entry.line);
+    return { imageKey: null, imageFile: null };
+  }
   if (PICTURE_FILE.test(entry.value)) return { imageKey: null, imageFile: entry.value.trim() };
   if (!KEY_PATTERN.test(entry.value)) {
-    r.error(t('An image is the file name of a picture chosen with the file (buffon.jpg), or the key of an image already uploaded'), entry.line);
+    r.error(t('An image is the file name of a picture chosen with the file (buffon.jpg), a link to a picture (https://…), or the key of an image already uploaded'), entry.line);
     return { imageKey: null, imageFile: null };
   }
   return { imageKey: entry.value, imageFile: null };
@@ -398,17 +414,26 @@ function parseQa(block: Block, kind: 'box-questions' | 'penalty-questions'): Par
 
   for (const entry of block.lines) {
     const answer = labelled(entry.text, 'Answer');
+    const category = labelled(entry.text, 'Category');
     if (answer !== null) once.take('Answer', answer, entry.line);
-    else if (UNUSED_LINE.test(entry.text)) ignored(r, entry);
+    else if (category !== null) {
+      if (kind === 'box-questions') once.take('Category', category, entry.line);
+      else r.error(t('Penalty questions have no category: remove this line'), entry.line);
+    } else if (UNUSED_LINE.test(entry.text)) ignored(r, entry);
     else questions.push(withoutQuestionLabel(entry.text));
   }
 
   if (questions.length === 0 || !questions[0]) r.error(t('Missing question text'));
   else if (questions.length > 1) r.error(t('Needs exactly one question line before the answer'));
   const answer = answerOf(r, once.get('Answer'));
+  const ownCategory = once.get('Category');
+  if (ownCategory && (ownCategory.value === '' || ownCategory.value.length > 200)) r.error(t('A category has 1 to {max} characters', { max: 200 }), ownCategory.line);
 
   if (r.failed() || !answer) return { errors: r.errors };
-  return { errors: r.errors, question: { kind, questionNumber: block.questionNumber, lineNumber: block.lineNumber, q: questions[0]!, display: answer.display, aliases: answer.aliases } };
+  return {
+    errors: r.errors,
+    question: { kind, questionNumber: block.questionNumber, lineNumber: block.lineNumber, q: questions[0]!, display: answer.display, aliases: answer.aliases, category: ownCategory?.value || null },
+  };
 }
 
 function parsePractice(block: Block): Parsed<ParsedPractice> {
@@ -443,6 +468,12 @@ function parsePractice(block: Block): Parsed<ParsedPractice> {
       explaining = false;
       continue;
     }
+    const category = labelled(text, 'Category');
+    if (category !== null) {
+      once.take('Category', category, line);
+      explaining = false;
+      continue;
+    }
     // A Credit line (no longer used) is not read as more explanation.
     if (labelled(text, 'Credit') !== null) {
       ignored(r, entry);
@@ -473,6 +504,8 @@ function parsePractice(block: Block): Parsed<ParsedPractice> {
   else if (/^(?:easy|medium|hard)$/i.test(level.value)) difficulty = level.value.toLowerCase() as ParsedPractice['difficulty'];
   else r.error(t('Difficulty must be Easy, Medium or Hard'), level.line);
   const { imageKey, imageFile } = imageLine(r, once.get('Image'));
+  const ownCategory = once.get('Category');
+  if (ownCategory && (ownCategory.value === '' || ownCategory.value.length > 200)) r.error(t('A category has 1 to {max} characters', { max: 200 }), ownCategory.line);
 
   if (r.failed() || !prompt || !difficulty) return { errors: r.errors };
   return {
@@ -487,25 +520,23 @@ function parsePractice(block: Block): Parsed<ParsedPractice> {
       explanation: explanation.join(' ').trim() || null,
       imageKey,
       imageFile,
+      category: ownCategory?.value || null,
     },
   };
 }
 
-function imageOf(r: Reader, entry: { value: string; line: number } | undefined): string | null {
-  if (!entry || entry.value === '') return null;
-  if (!IMAGE_PATTERN.test(entry.value)) {
-    r.error(t('An image is a path starting with / or a web address starting with https://'), entry.line);
-    return null;
-  }
-  if (entry.value.startsWith('http://')) r.warn(t('An http:// image may not show in the game: use https://'), entry.line);
-  return entry.value;
+/** A path of the game's own pictures (/assets/…). */
+function imageOf(r: Reader, entry: { value: string; line: number }): string | null {
+  if (IMAGE_PATH.test(entry.value)) return entry.value;
+  r.error(t('An image path starts with / and has no spaces'), entry.line);
+  return null;
 }
 
-/** A Football Logic image: a path of the game or a web address, or (as a card's) a picture chosen with the file
+/** A Football Logic image: a path of the game, or (as a card's) a picture chosen with the file, a picture at a link
  *  or the key of an image already uploaded. */
 function logicImage(r: Reader, entry: { value: string; line: number } | undefined): { ref: string | null; imageKey: string | null; imageFile: string | null } {
   if (!entry || entry.value === '') return { ref: null, imageKey: null, imageFile: null };
-  if (/^(?:https?:\/\/|\/)/.test(entry.value)) return { ref: imageOf(r, entry), imageKey: null, imageFile: null };
+  if (entry.value.startsWith('/')) return { ref: imageOf(r, entry), imageKey: null, imageFile: null };
   return { ref: null, ...imageLine(r, entry) };
 }
 
@@ -620,6 +651,7 @@ function parseCareer(block: Block): Parsed<ParsedCareerPath> {
     .filter(Boolean);
   if (clubs.length < 2) r.error(t('Career Path questions need at least 2 clubs separated by arrows'));
   if (clubs.length > 20) r.error(t('At most {max} clubs', { max: 20 }));
+  if (clubs.some((club) => !splitCareerClub(club).name)) r.error(t('Every club needs a name before its = (Name=club-key)'));
   const prompt = once.get('Prompt');
   if (prompt && !prompt.value) r.error(emptyLine('Prompt'), prompt.line);
   const answer = answerOf(r, once.get('Answer'));
@@ -694,7 +726,7 @@ export function tdQuestionSummary(question: TdParsedQuestion): string {
     case 'football-logic':
       return question.prompt || question.display;
     case 'career-path':
-      return question.clubs.join(' ➔ ');
+      return question.clubs.map((club) => splitCareerClub(club).name).join(' ➔ ');
   }
 }
 
@@ -704,6 +736,8 @@ export interface TdClubRef {
   key: string;
   label: string;
   value: string;
+  /** Other names careers on file already give it (often Georgian). */
+  aliases?: readonly string[];
 }
 
 /** What the dialog chooses for the whole upload. */
@@ -715,9 +749,17 @@ export interface TdUploadContext {
   /** The three dailies: the puzzle's key. */
   puzzle: string;
   clubs: readonly TdClubRef[];
-  /** The pictures chosen with the file: lower-cased file name → the key its image is saved under. */
+  /** The pictures chosen with the file or downloaded from links: pictureName → the key its image is saved under. */
   pictures?: ReadonlyMap<string, string>;
+  /** Round III: the key of each category a “Category:” line names (by `categoryName`), on file or made by the upload. */
+  categoryKeys?: ReadonlyMap<string, string>;
 }
+
+/** A category's name as two spellings of it compare: spaces evened out, capitals ignored. */
+export const categoryName = (value: string) => value.trim().replace(/\s+/g, ' ').toLowerCase();
+
+/** The key a Round III category the upload makes is given: from its name, so the same file names the same category. */
+export const newBoxCategoryKey = (name: string) => `box-${madeKey('box-categories', { title: categoryName(name) }).slice('row-'.length)}`;
 
 /** The image key a question's Image line comes to: its picture's (once chosen), or the uploaded image it names. */
 /** The picture files a question names on its Image lines: chosen with the file, saved as images by the upload. */
@@ -727,7 +769,7 @@ export function pictureFilesOf(question: TdParsedQuestion): string[] {
 }
 
 export function imageKeyIn(question: { imageKey: string | null; imageFile: string | null }, context: Pick<TdUploadContext, 'pictures'>): string | null {
-  return question.imageFile ? (context.pictures?.get(question.imageFile.toLowerCase()) ?? null) : question.imageKey;
+  return question.imageFile ? (context.pictures?.get(pictureName(question.imageFile)) ?? null) : question.imageKey;
 }
 
 const clubName = (value: string) =>
@@ -738,15 +780,48 @@ const clubName = (value: string) =>
     .trim()
     .toLowerCase();
 
-/** A club of the clubs list by the name a file gives it (its label, value or key, spelled alike), or null. */
+/** Words that say what kind of club it is, not which: "Napoli" is SSC Napoli, "Dinamo Tbilisi" FC Dinamo Tbilisi. */
+const CLUB_WORDS = new Set(['fc', 'cf', 'sc', 'ssc', 'ac', 'afc', 'fk', 'sk', 'cd', 'ud', 'rc', 'rcd', 'as', 'ss', 'us', 'sv', 'tsv', 'vfb', 'vfl', 'bv', 'bsc', 'club', 'calcio', 'de']);
+const bareClubName = (value: string) =>
+  clubName(value)
+    .split(' ')
+    .filter((word) => !CLUB_WORDS.has(word))
+    .join(' ');
+
+/** A club of the clubs list by the name a file gives it, or null: its label, value, key or a name careers on file
+ *  give it, spelled alike; failing that, the one club whose name is the same without words like FC or SSC. */
 export function matchClub(name: string, clubs: readonly TdClubRef[]): string | null {
   const wanted = clubName(name);
   if (!wanted) return null;
-  const found = clubs.find((club) => clubName(club.label) === wanted) ?? clubs.find((club) => clubName(club.value) === wanted) ?? clubs.find((club) => clubName(club.key) === wanted);
-  return found?.key ?? null;
+  const names = (club: TdClubRef) => [club.label, club.value, club.key, ...(club.aliases ?? [])];
+  for (const pick of [(c: TdClubRef) => [c.label], (c: TdClubRef) => [c.value], (c: TdClubRef) => [c.key]]) {
+    const found = clubs.find((club) => pick(club).some((n) => clubName(n) === wanted));
+    if (found) return found.key;
+  }
+  // Earlier careers may have given one name to two clubs (დინამო): then neither is guessed.
+  const one = (found: readonly TdClubRef[]) => (found.length === 1 ? found[0].key : null);
+  const byAlias = clubs.filter((club) => (club.aliases ?? []).some((n) => clubName(n) === wanted));
+  if (byAlias.length) return one(byAlias);
+  const bare = bareClubName(name);
+  return bare ? one(clubs.filter((club) => names(club).some((n) => bareClubName(n) === bare))) : null;
 }
 
-export const careerClubs = (question: ParsedCareerPath, clubs: readonly TdClubRef[]) => question.clubs.map((name) => ({ name, clubKey: matchClub(name, clubs) }));
+/** `Name=club-key` names the club outright; a key not on the list gives no crest. */
+export function splitCareerClub(text: string): { name: string; key: string | null } {
+  const at = text.lastIndexOf('=');
+  return at < 0 ? { name: text.trim(), key: null } : { name: text.slice(0, at).trim(), key: text.slice(at + 1).trim() || null };
+}
+
+export const careerClubs = (question: ParsedCareerPath, clubs: readonly TdClubRef[]) =>
+  question.clubs.map((text) => {
+    const { name, key } = splitCareerClub(text);
+    return { name, clubKey: key !== null ? (clubs.find((club) => club.key === key)?.key ?? null) : matchClub(name, clubs) };
+  });
+
+/** The clubs of these careers that get no crest, each once, as the file names them. */
+export const clubsWithoutCrest = (questions: readonly TdParsedQuestion[], clubs: readonly TdClubRef[]) => [
+  ...new Set(questions.flatMap((question) => (question.kind === 'career-path' ? careerClubs(question, clubs).filter((club) => !club.clubKey).map((club) => club.name) : []))),
+];
 
 /** The row's fields as a sheet's columns read them (import-format.ts), without its ID. */
 function columnValues(question: TdParsedQuestion, context: TdUploadContext): Record<string, unknown> {
@@ -765,13 +840,13 @@ function columnValues(question: TdParsedQuestion, context: TdUploadContext): Rec
     case 'whoami-subjects':
       return { display: question.display, aliases: question.aliases, clues: question.clues };
     case 'box-questions':
-      return { categoryKey: context.categoryKey, q: question.q, display: question.display, aliases: question.aliases };
+      return { categoryKey: question.category !== null ? (context.categoryKeys?.get(categoryName(question.category)) ?? newBoxCategoryKey(question.category)) : context.categoryKey, q: question.q, display: question.display, aliases: question.aliases };
     case 'penalty-questions':
       return { q: question.q, display: question.display, aliases: question.aliases };
     case 'practice-questions':
       return {
         difficulty: question.difficulty,
-        category: context.category,
+        category: question.category ?? context.category,
         prompt: question.prompt,
         options: question.options.map((option) => option.text),
         answer: question.options.findIndex((option) => option.isCorrect) + 1,

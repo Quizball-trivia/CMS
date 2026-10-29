@@ -29,7 +29,7 @@ export const KA_QUESTIONS: Record<string, string> = {
   Create: 'შექმნა',
   'Save Changes': 'ცვლილებების შენახვა',
   'Confirm?': 'დარწმუნებული ხართ?',
-  'This version is not approved yet: players get the last approved one until it is.': 'ეს ვერსია ჯერ არ არის დამტკიცებული: მანამდე მოთამაშეები ბოლო დამტკიცებულ ვერსიას ხედავენ.',
+  'This version is not approved yet: players get the last approved one until it is.': 'ეს ვერსია ჯერ არ არის გამოქვეყნებული: მანამდე მოთამაშეები ბოლო გამოქვეყნებულ ვერსიას ხედავენ.',
   'Untitled question': 'უსათაურო კითხვა',
   'Accepted Answers': 'მისაღები პასუხები',
   Options: 'პასუხის ვარიანტები',
@@ -40,7 +40,7 @@ export const KA_QUESTIONS: Record<string, string> = {
   'The game has no picture at this path.': 'თამაშში ამ მისამართზე სურათი არ არის.',
 
   // The image field of the form (media/td-media.tsx)
-  'It is approved with the question.': 'კითხვასთან ერთად დამტკიცდება.',
+  'It is approved with the question.': 'კითხვასთან ერთად გამოქვეყნდება.',
   'This image no longer exists': 'ეს სურათი აღარ არსებობს',
   'Image details': 'სურათის მონაცემები',
   Change: 'შეცვლა',

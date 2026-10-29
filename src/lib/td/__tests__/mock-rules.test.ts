@@ -35,7 +35,7 @@ const PNG = Uint8Array.from(atob('iVBORw0KGgoAAAANSUhEUgAAABAAAAAJCAIAAAC0SDtlAA
 describe('mock uploads refuse what the API’s decoder refuses', () => {
   it('a header-only PNG, trailing bytes, an animated PNG', async () => {
     const { call } = mock();
-    const upload = (data: Uint8Array<ArrayBuffer>) => call('editor', 'POST', '/admin/media/uploads', undefined, { data, type: 'image/png' });
+    const upload = (data: Uint8Array<ArrayBuffer>) => call('betsson_admin', 'POST', '/admin/media/uploads', undefined, { data, type: 'image/png' });
     expect((await upload(PNG)).status).toBe(201);
     expect(await upload(PNG.slice(0, 24))).toMatchObject({ status: 422, body: { details: { reason: 'decode' } } });
     expect(await upload(new Uint8Array([...PNG, 1, 2, 3]))).toMatchObject({ status: 422, body: { details: { reason: 'trailing_data' } } });
@@ -49,7 +49,7 @@ describe('mock uploads refuse what the API’s decoder refuses', () => {
 
   it('PNG image data that is not what the header promises (a bad filter byte); excess data is ignored, as the API does', async () => {
     const { call } = mock();
-    const upload = (data: Uint8Array<ArrayBuffer>) => call('editor', 'POST', '/admin/media/uploads', undefined, { data, type: 'image/png' });
+    const upload = (data: Uint8Array<ArrayBuffer>) => call('betsson_admin', 'POST', '/admin/media/uploads', undefined, { data, type: 'image/png' });
     const png = async (width: number, height: number, raw: Uint8Array<ArrayBuffer>, depth = 8, colour = 2) => {
       const deflated = new Uint8Array(await new Response(new Response(raw).body!.pipeThrough(new CompressionStream('deflate'))).arrayBuffer());
       const chunk = (type: string, data: Uint8Array) => {
@@ -82,7 +82,7 @@ describe('mock uploads refuse what the API’s decoder refuses', () => {
     const { call } = mock();
     // 16×9, encoded by macOS sips (the API decodes it too).
     const jpeg = Uint8Array.from(atob('/9j/4AAQSkZJRgABAQAASABIAAD/4QBMRXhpZgAATU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAA6ABAAMAAAABAAEAAKACAAQAAAABAAAAEKADAAQAAAABAAAACQAAAAD/7QA4UGhvdG9zaG9wIDMuMAA4QklNBAQAAAAAAAA4QklNBCUAAAAAABDUHYzZjwCyBOmACZjs+EJ+/8AAEQgACQAQAwEiAAIRAQMRAf/EAB8AAAEFAQEBAQEBAAAAAAAAAAABAgMEBQYHCAkKC//EALUQAAIBAwMCBAMFBQQEAAABfQECAwAEEQUSITFBBhNRYQcicRQygZGhCCNCscEVUtHwJDNicoIJChYXGBkaJSYnKCkqNDU2Nzg5OkNERUZHSElKU1RVVldYWVpjZGVmZ2hpanN0dXZ3eHl6g4SFhoeIiYqSk5SVlpeYmZqio6Slpqeoqaqys7S1tre4ubrCw8TFxsfIycrS09TV1tfY2drh4uPk5ebn6Onq8fLz9PX29/j5+v/EAB8BAAMBAQEBAQEBAQEAAAAAAAABAgMEBQYHCAkKC//EALURAAIBAgQEAwQHBQQEAAECdwABAgMRBAUhMQYSQVEHYXETIjKBCBRCkaGxwQkjM1LwFWJy0QoWJDThJfEXGBkaJicoKSo1Njc4OTpDREVGR0hJSlNUVVZXWFlaY2RlZmdoaWpzdHV2d3h5eoKDhIWGh4iJipKTlJWWl5iZmqKjpKWmp6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW19jZ2uLj5OXm5+jp6vLz9PX29/j5+v/bAEMAAgICAgICAwICAwUDAwMFBgUFBQUGCAYGBgYGCAoICAgICAgKCgoKCgoKCgwMDAwMDA4ODg4ODw8PDw8PDw8PD//bAEMBAgICBAQEBwQEBxALCQsQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEP/dAAQAAf/aAAwDAQACEQMRAD8Akooor+Kz/UA//9k='), (c) => c.charCodeAt(0));
-    const upload = (data: Uint8Array<ArrayBuffer>) => call('editor', 'POST', '/admin/media/uploads', undefined, { data, type: 'image/jpeg' });
+    const upload = (data: Uint8Array<ArrayBuffer>) => call('betsson_admin', 'POST', '/admin/media/uploads', undefined, { data, type: 'image/jpeg' });
     expect(await upload(jpeg)).toMatchObject({ status: 201, body: { width: 16, height: 9 } });
     expect(await upload(new Uint8Array([...jpeg, 1, 2, 0xff, 0xd9]))).toMatchObject({ status: 422, body: { details: { reason: 'trailing_data' } } });
     // A scan with no tables before it.
@@ -95,8 +95,8 @@ describe('mock imports', () => {
   it('names a row the store refuses at apply in the import report, as the API does', async () => {
     const { call } = mock();
     const item = { type: 'media', data: { key: 'ghost', url: null, uploadId: '0f8c6f0e-2c1a-4b7e-9d0a-5a1f3c2b7e01', width: 10, height: 10, author: null, license: null, source: null } };
-    expect((await call('editor', 'POST', '/admin/content/imports/preview', { items: [item] })).body).toMatchObject({ counts: { error: 0 } });
-    const applied = await call('editor', 'POST', '/admin/content/imports', { batchKey: 'test:ghost-image', items: [item] });
+    expect((await call('betsson_admin', 'POST', '/admin/content/imports/preview', { items: [item] })).body).toMatchObject({ counts: { error: 0 } });
+    const applied = await call('betsson_admin', 'POST', '/admin/content/imports', { batchKey: 'test:ghost-image', items: [item] });
     expect(applied).toMatchObject({ status: 422, body: { code: 'validation', details: { counts: { error: 1 }, rows: [{ action: 'error', issues: [{ code: 'rule', path: 'data.uploadId' }] }] } } });
   });
 });
@@ -104,22 +104,40 @@ describe('mock imports', () => {
 describe('mock releases', () => {
   it('hold only the images they show, and keep their own history', async () => {
     const { call, advance } = mock();
-    const up = await call('editor', 'POST', '/admin/media/uploads', undefined, { data: PNG, type: 'image/png' });
-    const image = await call('editor', 'POST', '/admin/content/media', { data: { key: 'unused', url: null, uploadId: up.body.id, width: 16, height: 9, author: 'A', license: 'CC0', source: 'S' } });
-    const ready = await call('editor', 'POST', `/admin/content/media/${image.body.id}/ready`, { version: 1 });
-    expect((await call('publisher', 'POST', `/admin/content/media/${image.body.id}/approve`, { version: ready.body.version })).status).toBe(200);
+    const up = await call('betsson_admin', 'POST', '/admin/media/uploads', undefined, { data: PNG, type: 'image/png' });
+    const image = await call('betsson_admin', 'POST', '/admin/content/media', { data: { key: 'unused', url: null, uploadId: up.body.id, width: 16, height: 9, author: 'A', license: 'CC0', source: 'S' } });
+    const ready = await call('betsson_admin', 'POST', `/admin/content/media/${image.body.id}/ready`, { version: 1 });
+    expect((await call('betsson_admin', 'POST', `/admin/content/media/${image.body.id}/approve`, { version: ready.body.version })).status).toBe(200);
     // An approved image nothing shows is no release change.
-    expect((await call('editor', 'POST', '/admin/releases/validate')).body).toMatchObject({ unchanged: true, changes: { types: [] } });
+    expect((await call('betsson_admin', 'POST', '/admin/releases/validate')).body).toMatchObject({ unchanged: true, changes: { types: [] } });
 
-    const list = await call('editor', 'GET', '/admin/releases');
+    const list = await call('betsson_admin', 'GET', '/admin/releases');
     const current = list.body.pointer.releaseId;
-    const before = (await call('editor', 'GET', `/admin/releases/${current}`)).body.manifest.practice;
-    const practice = (await call('editor', 'GET', '/admin/content/practice-questions?q=practice-01')).body.items[0];
-    const edited = await call('editor', 'PATCH', `/admin/content/practice-questions/${practice.id}`, { version: practice.version, data: { ...practice.data, difficulty: 'hard' } });
-    const again = await call('editor', 'POST', `/admin/content/practice-questions/${practice.id}/ready`, { version: edited.body.version });
-    expect((await call('publisher', 'POST', `/admin/content/practice-questions/${practice.id}/approve`, { version: again.body.version })).status).toBe(200);
-    expect((await call('editor', 'GET', `/admin/releases/${current}`)).body.manifest.practice).toEqual(before);
+    const before = (await call('betsson_admin', 'GET', `/admin/releases/${current}`)).body.manifest.practice;
+    const practice = (await call('betsson_admin', 'GET', '/admin/content/practice-questions?q=practice-01')).body.items[0];
+    const edited = await call('betsson_admin', 'PATCH', `/admin/content/practice-questions/${practice.id}`, { version: practice.version, data: { ...practice.data, difficulty: 'hard' } });
+    const again = await call('betsson_admin', 'POST', `/admin/content/practice-questions/${practice.id}/ready`, { version: edited.body.version });
+    expect((await call('betsson_admin', 'POST', `/admin/content/practice-questions/${practice.id}/approve`, { version: again.body.version })).status).toBe(200);
+    expect((await call('betsson_admin', 'GET', `/admin/releases/${current}`)).body.manifest.practice).toEqual(before);
     advance(0);
+  });
+
+  it('take their dailies from the game’s code packs, Stat Sniper among them, whatever the daily content on file says', async () => {
+    const { call } = mock();
+    const report = (await call('betsson_admin', 'POST', '/admin/releases/validate')).body;
+    expect(Object.keys(report.dailies)).toEqual(['statSniper', 'putInOrder', 'careerPath']);
+    for (const daily of Object.values(report.dailies)) expect(daily).toEqual({ covered: 30, missing: [] });
+    expect(report.errors.filter((issue: { code: string; message: string }) => issue.code === 'dailies' || /settings/.test(issue.message))).toEqual([]);
+    // Archiving the legacy daily settings changes nothing a release holds.
+    const settings = (await call('betsson_admin', 'GET', '/admin/content/daily-settings?game=footballLogic')).body.items[0];
+    expect((await call('betsson_admin', 'POST', `/admin/content/daily-settings/${settings.id}/archive`, { version: settings.version })).status).toBe(200);
+    const after = (await call('betsson_admin', 'POST', '/admin/releases/validate')).body;
+    expect(after.dailies).toEqual(report.dailies);
+    expect(after.changes.types).toEqual([]);
+    const current = (await call('betsson_admin', 'GET', '/admin/releases')).body.pointer.releaseId;
+    const detail = (await call('betsson_admin', 'GET', `/admin/releases/${current}`)).body;
+    expect(Object.keys(detail.manifest.dailies)).toEqual(['statSniper', 'putInOrder', 'careerPath']);
+    expect(detail.members.some((member: { type: string }) => ['football-logic', 'put-in-order', 'career-path', 'daily-schedule', 'daily-settings'].includes(member.type))).toBe(false);
   });
 
   it('check a roll back again as it runs: a release that stops serving today fails', async () => {
@@ -127,7 +145,7 @@ describe('mock releases', () => {
     // Just before Georgian midnight (sessions last 15 mock minutes, so this is where it signs in).
     let clock = Date.parse('2026-09-30T19:59:59.600Z');
     const server = createMockTdApi({ storage: () => storage, latencyMs: 0, now: () => clock, blobs: memoryBlobStore(), lock: undefined });
-    const login = await server(`${BASE}/admin/auth/login`, { method: 'POST', body: JSON.stringify({ email: 'publisher@demo.tablederby.test', password: MOCK_PASSWORD }) });
+    const login = await server(`${BASE}/admin/auth/login`, { method: 'POST', body: JSON.stringify({ email: 'admin@demo.tablederby.test', password: MOCK_PASSWORD }) });
     const token = ((await login.json()) as { accessToken: string }).accessToken;
     const as = (method: string, path: string, body?: unknown) =>
       server(`${BASE}${path}`, { method, headers: { Authorization: `Bearer ${token}` }, body: body === undefined ? undefined : JSON.stringify(body) }).then((r) => r.json());
@@ -145,7 +163,7 @@ describe('mock releases', () => {
   it('take a picture shipped with the player app on a practice question only, as the API does', async () => {
     const storage = new MemoryStorage();
     const server = createMockTdApi({ storage: () => storage, latencyMs: 0, now: () => Date.parse('2026-10-24T08:00:00Z'), blobs: memoryBlobStore(), lock: undefined });
-    const login = await server(`${BASE}/admin/auth/login`, { method: 'POST', body: JSON.stringify({ email: 'publisher@demo.tablederby.test', password: MOCK_PASSWORD }) });
+    const login = await server(`${BASE}/admin/auth/login`, { method: 'POST', body: JSON.stringify({ email: 'admin@demo.tablederby.test', password: MOCK_PASSWORD }) });
     const token = ((await login.json()) as { accessToken: string }).accessToken;
     const validate = () => server(`${BASE}/admin/releases/validate`, { method: 'POST', headers: { Authorization: `Bearer ${token}` } }).then((r) => r.json());
     await validate();
@@ -157,7 +175,8 @@ describe('mock releases', () => {
     storage.setItem('td_mock_db', JSON.stringify(db));
     const fine = await validate();
     expect(fine.errors).toEqual([]);
-    expect(snapshotOf(db, Date.parse('2026-10-24T08:00:00Z')).format).toBe(3);
+    // Contract 12: every release carries Stat Sniper, so it is format 4 whatever its pictures.
+    expect(snapshotOf(db, Date.parse('2026-10-24T08:00:00Z')).format).toBe(4);
     expect(fine.warnings.some((w: { code: string }) => w.code === 'image_external')).toBe(false);
     const card = db.rows.find((r) => r.type === 'cards' && r.approved)!;
     card.data = card.approved = { ...card.approved!, imageKey: picture.key };
@@ -167,7 +186,7 @@ describe('mock releases', () => {
 
   it('refuse to roll back to a release that has no daily set for today', async () => {
     const { call } = mock();
-    expect(await call('publisher', 'POST', '/admin/releases/r-00000000000000a1/rollback', { idemKey: 'rollback:old-one' })).toMatchObject({
+    expect(await call('betsson_admin', 'POST', '/admin/releases/r-00000000000000a1/rollback', { idemKey: 'rollback:old-one' })).toMatchObject({
       status: 409,
       body: { code: 'release_unrunnable' },
     });

@@ -4,7 +4,8 @@ import { useContext, useMemo, useRef, useState } from 'react';
 import { ExternalLink, ImageIcon, ImageOff, Loader2, Search, Upload, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { TdDialogContent } from '@/components/td/td-dialog';
 import { Input } from '@/components/ui/input';
 import { TdStatusChip } from '@/components/td/content/td-status';
 import { TdErrorPanel } from '@/components/td/td-error-panel';
@@ -217,7 +218,7 @@ function TdMediaPickerDialog({
   }, [rows, q]);
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[85vh] overflow-hidden bg-(--td-surface-2) sm:max-w-2xl">
+      <TdDialogContent className="max-h-[85vh] overflow-hidden bg-(--td-surface-2) sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>{t('Choose an image')}</DialogTitle>
           <DialogDescription>{t('An image is approved with the question that shows it.')}</DialogDescription>
@@ -255,12 +256,12 @@ function TdMediaPickerDialog({
             </li>
           ))}
         </ul>
-      </DialogContent>
+      </TdDialogContent>
     </Dialog>
   );
 }
 
-/** Saves an upload as an image (a media draft) so it can be picked; a publisher approves it later. */
+/** Saves an upload as an image (a media draft) so it can be picked; it is approved later, with what uses it. */
 function NewImageForm({ upload, suggestedKey, onCancel, onSaved }: { upload: MediaUpload; suggestedKey?: string; onCancel: () => void; onSaved: (key: string) => void }) {
   const write = useTdWrite();
   const reportBusy = useTdUploadingReport();

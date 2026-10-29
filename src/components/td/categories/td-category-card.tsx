@@ -10,7 +10,6 @@ import { useTdCategoryImagePrefetch } from '@/hooks/use-td-image-prefetch';
 import { tdAdmin } from '@/lib/td/client';
 import { tdErrorText } from '@/lib/td/errors';
 import { t } from '@/lib/td/i18n';
-import { isTdPublisher } from '@/lib/td/workflow';
 import { cn } from '@/lib/utils';
 import { useTdAuth } from '@/providers/td-auth-provider';
 import { TdCategoryDeleteModal } from './td-category-delete-modal';
@@ -36,9 +35,8 @@ export function TdCategoryCard({ category, count, description, onEdit }: TdCateg
   const type = categoryTypeOf(category);
   const name = categoryName(category);
   const archived = category.status === 'archived';
-  const publisher = user ? isTdPublisher(user.role) : false;
-  // An editor deletes only a draft of their own that was never approved; the confirmation reads the history for the rest.
-  const canDelete = publisher || (category.approvedVersion === null && category.lastEditor.id === user?.id);
+  const publisher = Boolean(user);
+  const canDelete = publisher;
   const StatusIcon = TD_STATUS_ICONS[category.status];
   const CountIcon = type === 'card-categories' ? Layers : FileQuestion;
   const prefetch = useTdCategoryImagePrefetch(category.data.key);
@@ -77,7 +75,7 @@ export function TdCategoryCard({ category, count, description, onEdit }: TdCateg
         className="group/card relative flex w-full cursor-pointer items-center gap-3 rounded-2xl border border-gray-200/70 bg-white px-4 py-3 shadow-sm transition-all hover:shadow-md"
       >
         {/* Approved or not, as the Quizball card's dot */}
-        <span aria-hidden className={cn('h-2.5 w-2.5 shrink-0 rounded-full', category.status === 'approved' ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.4)]' : category.status === 'ready' ? 'bg-amber-400' : 'border-2 border-gray-200')} />
+        <span aria-hidden className={cn('h-2.5 w-2.5 shrink-0 rounded-full', category.status === 'approved' ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.4)]' : 'border-2 border-gray-200')} />
         <div className="min-w-0 flex-1">
           <h3 title={name} className="truncate text-sm font-bold text-slate-900">
             {name}

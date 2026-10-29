@@ -4,7 +4,6 @@ import { checkContract } from '../contract';
 import type { MockBatch, MockRow } from './db';
 import { actorOf, audit, createRow, inRelease, nowIso, rowLabel, type MockContext } from './content';
 import { MOCK_MODELS, type Data } from './model';
-import { isPublisher } from './staff';
 import { canonicalJson, clone, MockError, paginate, sha256Hex, uuid } from './util';
 
 type Issue = { code: 'invalid' | 'duplicate' | 'duplicate_in_batch' | 'missing_reference' | 'rule'; message: string; path: string };
@@ -143,8 +142,6 @@ function keepReason(ctx: MockContext, row: MockRow): MockBatch['rows'][number]['
 
 export function undo(ctx: MockContext, id: string) {
   const batch = getBatch(ctx, id);
-  if (batch.createdBy.id !== ctx.staff.id && !isPublisher(ctx.staff.role))
-    throw new MockError(403, 'forbidden', 'Your role cannot do this');
   if (batch.status !== 'applied') return batchView(batch);
   // Children before the rows they refer to.
   for (const entry of [...batch.rows].reverse()) {

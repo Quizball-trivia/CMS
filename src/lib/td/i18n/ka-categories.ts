@@ -34,7 +34,7 @@ export const KA_CATEGORIES: Record<string, string> = {
 
   // categories/td-category-delete-modal.tsx
   'Delete Category: "{name}"': 'კატეგორიის წაშლა: „{name}“',
-  'Are you sure you want to delete this category? It leaves the game at the next publish. Nothing is lost: it moves to Archived at the bottom of the page, and a publisher can restore it.':
-    'ნამდვილად გსურთ ამ კატეგორიის წაშლა? თამაშიდან ის მომდევნო გამოქვეყნებისას ამოვა. არაფერი იკარგება: კატეგორია გადავა გვერდის ბოლოს, განყოფილებაში „დაარქივებული“, და გამომქვეყნებელს შეუძლია მისი აღდგენა.',
+  'Are you sure you want to delete this category? It leaves the game at the next publish. Nothing is lost: it moves to Archived at the bottom of the page, and you can restore it.':
+    'ნამდვილად გსურთ ამ კატეგორიის წაშლა? თამაშიდან ის მომდევნო გამოქვეყნებისას ამოვა. არაფერი იკარგება: კატეგორია გადავა გვერდის ბოლოს, განყოფილებაში „დაარქივებული“, და შეგიძლიათ აღადგინოთ.',
   'Deleting...': 'იშლება...',
 };

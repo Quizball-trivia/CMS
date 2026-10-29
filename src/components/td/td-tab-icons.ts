@@ -1,5 +1,4 @@
 import {
-  CalendarDays,
   FileQuestion,
   FolderKanban,
   LayoutDashboard,
@@ -16,7 +15,6 @@ export const TD_TAB_ICONS: Record<TdTabKey, LucideIcon> = {
   dashboard: LayoutDashboard,
   questions: FileQuestion,
   categories: FolderKanban,
-  dailies: CalendarDays,
   players: Users,
   leaderboard: Trophy,
   integration: Webhook,

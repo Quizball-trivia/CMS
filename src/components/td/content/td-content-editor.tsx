@@ -1,33 +1,37 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState, type MutableRefObject, type ReactNode } from 'react';
-import { Archive, ArchiveRestore, CheckCircle2, ChevronLeft, ChevronRight, Edit, Eye, Loader2, RefreshCw, Send, TriangleAlert } from 'lucide-react';
+import { Archive, ArchiveRestore, CheckCircle2, ChevronLeft, ChevronRight, Edit, Loader2, RefreshCw, Rocket, TriangleAlert } from 'lucide-react';
+import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { TdDialogContent } from '@/components/td/td-dialog';
 import { TdErrorPanel } from '@/components/td/td-error-panel';
-import { useTdAllRows, useTdContentRow, useTdHistory, useTdWrite } from '@/hooks/use-td-content';
+import { TdReleasesTab } from '@/components/td/tabs/releases-tab';
+import { tdKeys, useTdAllRows, useTdContentRow, useTdWrite } from '@/hooks/use-td-content';
 import { TD_CONTENT_SCHEMA_NAMES, type TdContentData, type TdContentRow, type TdContentType } from '@/lib/td/admin-api';
 import { TdApiError } from '@/lib/td/api-client';
-import { tdAdmin } from '@/lib/td/client';
+import { tdAdmin, tdTokens } from '@/lib/td/client';
 import { contentWriteIssues, editorialIssues, TD_MERGE_UNITS } from '@/lib/td/content-rules';
 import type { SchemaIssue } from '@/lib/td/contract';
+import { tdActorName } from '@/lib/td/actors';
 import { describeTdError } from '@/lib/td/errors';
 import { formatGeorgiaTime } from '@/lib/td/georgia';
 import { withShownAnswer } from '@/lib/td/answers';
-import { findImage, moveImagesAlong } from '@/lib/td/images';
+import { findImage } from '@/lib/td/images';
 import { t, tc, TD_LANG, tn } from '@/lib/td/i18n';
 import { mergeDrafts, resolveConflicts, sameDraft, type TdDraft, type TdFieldConflict } from '@/lib/td/merge';
+import { approveForPublish, categoryHeldText, publishable } from '@/lib/td/publish-rows';
 import { contentActions } from '@/lib/td/workflow';
 import { cn } from '@/lib/utils';
 import { useTdAuth } from '@/providers/td-auth-provider';
 import { TD_TYPE_CONFIG } from './content-types';
-import { TdCategoryApproval } from './td-category-approval';
 import { TdOpenImageContext } from './td-open-row';
 import { TdUploadingContext } from './td-uploading';
 import { TdInvalidInputContext, TdPendingInputContext } from './td-form';
 import { hasPreview, TdPreview } from './td-preview';
-import { TD_STATUS_LABELS, TD_STATUS_WORDS } from './td-status';
+import { TD_SHOWN_WORDS, TD_STATUS_LABELS, useTdShownStatus } from './td-status';
 
 export interface TdEditorTarget<T extends TdContentType = TdContentType> {
   type: T;
@@ -40,7 +44,10 @@ export interface TdEditorTarget<T extends TdContentType = TdContentType> {
 
 const draftOf = (row: TdContentRow): TdDraft => ({ data: row.data as Record<string, unknown>, position: row.position, note: row.note });
 
-const CATEGORY_TYPES = new Set<TdContentType>(['card-categories', 'box-categories']);
+/** Published from their own dialog, one at a time or from the list: draft → live in one step. */
+const PUBLISHED_ALONE = new Set<TdContentType>(['cards', 'whoami-subjects', 'box-questions', 'penalty-questions', 'practice-questions']);
+/** Published with their day, from the Dailies page. */
+const PUBLISHED_BY_DAY = new Set<TdContentType>(['football-logic', 'put-in-order', 'career-path']);
 const CATEGORY_OF: Partial<Record<TdContentType, 'card-categories' | 'box-categories'>> = { cards: 'card-categories', 'box-questions': 'box-categories' };
 
 type Mode = 'view' | 'edit';
@@ -72,6 +79,7 @@ export function TdContentEditorDialog({
   target,
   onClose,
   onSaved,
+  onPublished,
   nav,
   startOn = 'edit',
   types,
@@ -79,6 +87,8 @@ export function TdContentEditorDialog({
   target: TdEditorTarget | null;
   onClose: () => void;
   onSaved?: (row: TdContentRow) => void;
+  /** Given where the page starts the release itself (the Questions page); otherwise the dialog opens it after a publish. */
+  onPublished?: () => void;
   nav?: TdEditorNav | null;
   startOn?: 'edit' | 'preview';
   types?: TdTypeChoice;
@@ -94,7 +104,7 @@ export function TdContentEditorDialog({
   const leaveRef = useRef<() => boolean>(() => true);
   return (
     <Dialog open={target !== null} onOpenChange={(open) => !open && leaveRef.current() && onClose()}>
-      <DialogContent
+      <TdDialogContent
         className={cn(
           'rounded-[1.5rem] border border-slate-200 bg-white shadow-2xl focus:outline-none',
           mode === 'view' ? 'flex max-h-[92vh] w-[min(94vw,920px)] max-w-none flex-col gap-0 overflow-hidden p-0 sm:max-w-none' : 'max-h-[calc(100vh-2rem)] w-full overflow-y-auto p-5 sm:max-w-2xl sm:p-6',
@@ -106,6 +116,7 @@ export function TdContentEditorDialog({
             target={target}
             leaveRef={leaveRef}
             onSaved={onSaved}
+            onPublished={onPublished}
             onClose={onClose}
             nav={target.row ? (nav ?? null) : null}
             mode={mode}
@@ -113,7 +124,7 @@ export function TdContentEditorDialog({
             types={target.row ? undefined : types}
           />
         )}
-      </DialogContent>
+      </TdDialogContent>
     </Dialog>
   );
 }
@@ -129,6 +140,7 @@ function EditorBody({
   target,
   leaveRef,
   onSaved,
+  onPublished,
   onClose,
   nav,
   mode,
@@ -138,6 +150,7 @@ function EditorBody({
   target: TdEditorTarget;
   leaveRef: MutableRefObject<() => boolean>;
   onSaved?: (row: TdContentRow) => void;
+  onPublished?: () => void;
   onClose: () => void;
   nav: TdEditorNav | null;
   mode: Mode;
@@ -187,8 +200,11 @@ function EditorBody({
   const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [conflict, setConflict] = useState<Conflict | null>(null);
-  const [approving, setApproving] = useState(false);
+  const [releasing, setReleasing] = useState(false);
+  const queryClient = useQueryClient();
   const [confirmArchive, setConfirmArchive] = useState(false);
+  const [confirmPublish, setConfirmPublish] = useState(false);
+  const shownStatus = useTdShownStatus();
   const markRef = useRef<HTMLSpanElement>(null);
 
   const creating = row === null;
@@ -227,7 +243,6 @@ function EditorBody({
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [nav, go, mode]);
-  const history = useTdHistory(type, row?.id ?? null);
   const categoryType = CATEGORY_OF[type];
   const categories = useTdAllRows(categoryType ?? 'card-categories', {}, categoryType !== undefined && mode === 'view');
 
@@ -274,7 +289,7 @@ function EditorBody({
       const theirs = (view.current ?? null) as TdContentRow | null;
       if (!dirty && theirs) {
         adopt(theirs);
-        setNotice(t('It changed meanwhile ({name}, {time}); this is the row as it is now. Check it and try again.', { name: theirs.updatedBy.name, time: formatGeorgiaTime(theirs.updatedAt) }));
+        setNotice(t('It changed meanwhile ({name}, {time}); this is the row as it is now. Check it and try again.', { name: tdActorName(theirs.updatedBy.name), time: formatGeorgiaTime(theirs.updatedAt) }));
         return;
       }
       const merge = theirs ? mergeDrafts(base, draft, draftOf(theirs), TD_MERGE_UNITS[type]) : { merged: draft, conflicts: [] };
@@ -320,20 +335,11 @@ function EditorBody({
     setMode('view');
   };
 
-  const transition = (action: 'ready' | 'approve' | 'archive' | 'restore', done: string) => {
+  const transition = (action: 'archive' | 'restore', done: string) => {
     if (!row || !user) return;
     const { id, version } = row;
-    const saved = row;
     setConfirmArchive(false);
-    void run(
-      action,
-      () =>
-        write(async (operation) => {
-          if (action === 'ready' || action === 'approve') await moveImagesAlong(type, [saved], action, operation);
-          return action === 'approve' ? api.approve(id, version, undefined, operation) : api[action](id, version, operation);
-        }),
-      done,
-    );
+    void run(action, () => write((operation) => api[action](id, version, operation)), done);
   };
 
   // The image a form names opens over it, for its approval.
@@ -342,27 +348,46 @@ function EditorBody({
     const found = await findImage(key);
     if (found) setImage({ type: 'media', row: found as TdContentRow });
   }, []);
-  const approve = () => (CATEGORY_TYPES.has(type) ? setApproving(true) : transition('approve', tc('Approved', 'it happened')));
+  const publisher = Boolean(user);
+  const oneStep = Boolean(publisher && row && PUBLISHED_ALONE.has(type) && (publishable(row) || (row.status === 'approved' && shownStatus(row) !== 'live')));
+  const publish = async () => {
+    if (!row) return;
+    setConfirmPublish(false);
+    const target = row;
+    let held: string | null = null;
+    const ok = await run(
+      'publish',
+      () =>
+        write(async (operation) => {
+          const { results, categories } = await approveForPublish(tdTokens, type, [target], operation);
+          const result = results[0];
+          if (!result) throw new TdApiError(409, 'forbidden_transition', t('Only a draft is published.'));
+          if (!result.ok) throw result.error;
+          if (categories[0]) held = categoryHeldText(categories[0].error, true);
+          return result.value;
+        }),
+      t('Published'),
+    );
+    if (!ok) return;
+    if (held) setNotice(held);
+    else if (onPublished) onPublished();
+    else setReleasing(true);
+  };
 
-  // A trail whose last refresh failed may be stale: it does not count.
-  const actions = row && user ? contentActions(row, user, history.isError ? null : (history.data ?? null)) : null;
+  const actions = row && user ? contentActions(row) : null;
   const Editor = config.Editor;
   const question = hasPreview(type);
   const name = config.title(draft.data as never) || config.singular;
   const title =
     mode === 'view' ? t('Question Preview') : creating ? (question ? t('New Question') : t('New {type}', { type: config.singular })) : question ? t('Edit Question') : t('Edit {type}', { type: config.singular });
   const approvedDiffers = Boolean(row?.approved && !sameDraft({ data: row.approved as Record<string, unknown>, position: row.approvedPosition ?? 0, note: '' }, { data: row.data as Record<string, unknown>, position: row.position, note: '' }));
-  const reason = actions && (actions.approve.reason ?? actions.restore.reason);
+  const reason = !actions || oneStep ? null : publisher && PUBLISHED_BY_DAY.has(type) && row?.status !== 'archived' ? t('It is published with its day, on the Dailies page.') : actions.restore.reason;
 
   const workflow = actions && (
     <>
-      {actions.approve.allowed ? (
-        <QuickAction tone="go" busy={busy === 'approve'} disabled={busy !== null || dirty || held} onClick={approve} icon={<Eye className="mr-2 h-4 w-4" />}>
-          {t('Approve')}
-        </QuickAction>
-      ) : actions.ready.allowed ? (
-        <QuickAction tone="go" busy={busy === 'ready'} disabled={busy !== null || dirty || held} onClick={() => transition('ready', t('Marked ready for review'))} icon={<Send className="mr-2 h-4 w-4" />}>
-          {t('Mark ready')}
+      {oneStep ? (
+        <QuickAction tone="go" busy={busy === 'publish'} disabled={busy !== null || dirty || held} onClick={() => (confirmPublish ? void publish() : setConfirmPublish(true))} icon={<Rocket className="mr-2 h-4 w-4" />}>
+          {confirmPublish ? t('Confirm?') : t('Publish')}
         </QuickAction>
       ) : actions.restore.allowed ? (
         <QuickAction tone="go" busy={busy === 'restore'} disabled={busy !== null || dirty || held} onClick={() => transition('restore', t('Restored'))} icon={<ArchiveRestore className="mr-2 h-4 w-4" />}>
@@ -370,6 +395,24 @@ function EditorBody({
         </QuickAction>
       ) : null}
     </>
+  );
+  const releaseDialog = (
+    <Dialog
+      open={releasing}
+      onOpenChange={(isOpen) => {
+        if (isOpen) return;
+        setReleasing(false);
+        void queryClient.invalidateQueries({ queryKey: tdKeys.releases });
+      }}
+    >
+      <TdDialogContent className="flex max-h-[90vh] w-full flex-col gap-0 overflow-hidden rounded-[2rem] border-slate-200 bg-white p-0 sm:max-w-5xl">
+        <DialogHeader className="border-b border-slate-100 px-6 pb-4 pt-5">
+          <DialogTitle className="text-2xl font-black tracking-tight text-slate-900">{t('Publish')}</DialogTitle>
+          <DialogDescription>{t('Your questions are published; the game gets them with this release.')}</DialogDescription>
+        </DialogHeader>
+        <div className="min-h-0 flex-1 overflow-y-auto p-6">{releasing && <TdReleasesTab autoPublish />}</div>
+      </TdDialogContent>
+    </Dialog>
   );
   const archive = actions?.archive.allowed && (
     <Button
@@ -405,7 +448,7 @@ function EditorBody({
         )}
       </div>
       {!row && target?.note && <p className="mt-1 text-sm font-medium text-slate-600">{target.note}</p>}
-      <DialogDescription className="sr-only">{row ? revisionLine(row) : t('Saved as a draft; mark it ready when it is done, then a publisher approves it.')}</DialogDescription>
+      <DialogDescription className="sr-only">{row ? revisionLine(row) : t('Saved as a draft until you publish it to players.')}</DialogDescription>
     </DialogHeader>
   );
 
@@ -430,7 +473,7 @@ function EditorBody({
               )}
               <span className="rounded-full border border-slate-200 bg-slate-50/50 px-3 py-1 text-[10px] font-black uppercase tracking-widest text-slate-700">{config.singular}</span>
               {categoryName && <span className="rounded-full border border-slate-200 bg-slate-50/50 px-3 py-1 text-[10px] font-black uppercase tracking-widest text-slate-700">{categoryName}</span>}
-              <span className={cn('rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-widest', row.status === 'approved' ? 'bg-slate-900 text-white shadow-sm' : 'bg-slate-100 text-slate-500')}>{TD_STATUS_WORDS[row.status]}</span>
+              <span className={cn('rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-widest', shownStatus(row) === 'live' || shownStatus(row) === 'approved' ? 'bg-slate-900 text-white shadow-sm' : 'bg-slate-100 text-slate-500')}>{TD_SHOWN_WORDS[shownStatus(row)]}</span>
             </div>
             {approvedDiffers && (
               <p className="flex items-start gap-2 rounded-xl bg-amber-50 px-3 py-2 text-xs font-medium text-amber-700">
@@ -442,6 +485,11 @@ function EditorBody({
             <TdPreview type={type} data={data} />
             <TdErrorPanel error={error} />
             {reason && <p className="text-xs font-medium text-slate-400">{reason}</p>}
+            {confirmPublish && (
+              <p role="status" className="rounded-xl bg-emerald-50 px-3 py-2 text-xs font-medium text-emerald-800">
+                {t('Publish this question? Players get it in a minute, with anything else waiting to publish; matches already under way finish with the questions they started with.')}
+              </p>
+            )}
             <div className="flex gap-3 border-t border-slate-100 pt-4">
               {workflow}
               {actions?.save.allowed && (
@@ -454,18 +502,7 @@ function EditorBody({
             </div>
           </div>
         </div>
-        {approving && CATEGORY_TYPES.has(type) && (
-          <TdCategoryApproval
-            type={type as 'card-categories' | 'box-categories'}
-            category={row as TdContentRow<'card-categories'>}
-            onClose={() => setApproving(false)}
-            onApproved={(next) => {
-              adopt(next);
-              setApproving(false);
-              onSaved?.(next);
-            }}
-          />
-        )}
+        {releaseDialog}
       </>
     );
   }
@@ -565,18 +602,7 @@ function EditorBody({
           </>
         )}
       </div>
-      {approving && row && CATEGORY_TYPES.has(type) && (
-        <TdCategoryApproval
-          type={type as 'card-categories' | 'box-categories'}
-          category={row as TdContentRow<'card-categories'>}
-          onClose={() => setApproving(false)}
-          onApproved={(next) => {
-            adopt(next);
-            setApproving(false);
-            onSaved?.(next);
-          }}
-        />
-      )}
+      {releaseDialog}
       <span className="sr-only">{name}</span>
       <TdContentEditorDialog target={image} onClose={() => setImage(null)} />
     </>
@@ -606,10 +632,10 @@ const capitalise = (text: string) => (TD_LANG === 'en' ? text.charAt(0).toUpperC
 
 /** The header line of a saved row: its revision, its content version, who approved and who last edited it. */
 function revisionLine(row: TdContentRow): string {
-  const vars = { revision: row.version, content: row.contentVersion, editor: row.lastEditor.name };
+  const vars = { revision: row.version, content: row.contentVersion, editor: tdActorName(row.lastEditor.name) };
   if (row.approvedVersion === null) return t('Revision {revision} · content v{content} · last edit by {editor}', vars);
   if (!row.approvedBy) return t('Revision {revision} · content v{content} · approved v{approved} · last edit by {editor}', { ...vars, approved: row.approvedVersion });
-  return t('Revision {revision} · content v{content} · approved v{approved} by {approver} · last edit by {editor}', { ...vars, approved: row.approvedVersion, approver: row.approvedBy.name });
+  return t('Revision {revision} · content v{content} · approved v{approved} by {approver} · last edit by {editor}', { ...vars, approved: row.approvedVersion, approver: tdActorName(row.approvedBy.name) });
 }
 
 export function showValue(value: unknown): string {
@@ -619,7 +645,30 @@ export function showValue(value: unknown): string {
   return String(value);
 }
 
-const fieldName = (field: string) => field.replace(/^data\./, '').split('+').join(' + ');
+/** A field as its form names it, for the merge choices (the API's key where no form names it). */
+const FIELD_LABELS: Record<string, string> = {
+  categoryKey: t('Category'),
+  category: t('Category'),
+  value: tc('Value', 'points of a card'),
+  lines: t('Clue lines'),
+  display: t('Answer (as shown)'),
+  aliases: t('Accepted spellings'),
+  photo: t('SoFIFA face'),
+  imageKey: t('Image'),
+  clues: t('Clues, in the order they are read'),
+  q: t('Question'),
+  prompt: t('Question'),
+  title: t('Title'),
+  difficulty: t('Difficulty'),
+  options: t('Options (choose the right one)'),
+  answer: t('Options (choose the right one)'),
+  explanation: t('Explanation (optional)'),
+  position: t('Order in the list'),
+  note: t('Note'),
+};
+const labelOf = (field: string) => FIELD_LABELS[field] ?? field;
+
+const fieldName = (field: string) => [...new Set(field.replace(/^data\./, '').split('+').map(labelOf))].join(' + ');
 
 /** A unit's value (an object of its fields) one field a line; any other value as showValue has it. */
 function UnitValue({ conflict, value }: { conflict: TdFieldConflict; value: unknown }) {
@@ -629,7 +678,7 @@ function UnitValue({ conflict, value }: { conflict: TdFieldConflict; value: unkn
     <span className="flex flex-col gap-0.5">
       {(fields.length ? fields : conflict.unit).map((field) => (
         <span key={field} className="break-words">
-          <span className="font-mono text-[10px] text-(--td-text-3)">{field}: </span>
+          <span className="text-[10px] text-(--td-text-3)">{labelOf(field)}: </span>
           {showValue((value as Record<string, unknown>)[field])}
         </span>
       ))}
@@ -663,13 +712,13 @@ function ConflictPanel({
         <p className="font-semibold">{t('Someone changed this while you were editing')}</p>
         <p className="mt-1 text-sm text-(--td-text-2)">
           {t('{name} saved revision {revision} ({status}) at {time}.', {
-            name: theirs.updatedBy.name,
+            name: tdActorName(theirs.updatedBy.name),
             revision: theirs.version,
             status: TD_STATUS_LABELS[theirs.status].toLowerCase(),
             time: formatGeorgiaTime(theirs.updatedAt),
           })}{' '}
           {archived
-            ? t('It is archived now: a publisher restores it before anyone edits it.')
+            ? t('It is archived now: restore it before editing.')
             : t('Their changes to fields you did not touch are kept; where you both changed a field, choose which to keep.')}
         </p>
       </div>
@@ -677,7 +726,7 @@ function ConflictPanel({
         <ul className="flex flex-col gap-3">
           {conflict.conflicts.map((c) => (
             <li key={c.field} className="rounded-lg border border-border p-3">
-              <p className="font-mono text-xs text-(--td-text-3)">{fieldName(c.field)}</p>
+              <p className="text-xs font-semibold text-(--td-text-3)">{fieldName(c.field)}</p>
               <div className="mt-2 grid gap-2 sm:grid-cols-2">
                 {(['theirs', 'mine'] as const).map((side) => (
                   <label key={side} className={cn('flex cursor-pointer gap-2 rounded-lg border p-2 text-sm', (conflict.choices[c.field] ?? 'mine') === side ? 'border-primary bg-primary/5' : 'border-border')}>

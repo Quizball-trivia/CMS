@@ -32,15 +32,15 @@ export const KA_CONTENT: Record<string, string> = {
   // content/td-status.tsx — the status as one short word (filter pills, the row's pill, history lines)
   draft: 'დრაფტი',
   ready: 'მზადაა შესამოწმებლად',
-  approved: 'დამტკიცებული',
+  approved: 'გამოქვეყნებული',
   archived: 'დაარქივებული',
 
   // The list and the question page share these (content/td-content-list.tsx, tabs/questions-tab.tsx)
   '{n} selected': 'მონიშნულია: {n}',
   'Mark {n} ready': 'მზადად მონიშვნა ({n})',
-  'Approve {n}': 'დამტკიცება ({n})',
+  'Approve {n}': 'გამოქვეყნება ({n})',
   '{n} marked ready': 'მზადად მოინიშნა: {n}',
-  '{n} approved': 'დამტკიცდა: {n}',
+  '{n} approved': 'გამოქვეყნდა: {n}',
   '{n} refused': 'ვერ შესრულდა: {n}',
   'Select all shown': 'ყველა ნაჩვენების მონიშვნა',
   'Select {label}': 'მონიშვნა: {label}',
@@ -55,20 +55,20 @@ export const KA_CONTENT: Record<string, string> = {
   // content/td-content-editor.tsx — the header
   'New {type}': 'ახალი {type}',
   'Revision {revision} · content v{content} · last edit by {editor}': 'რევიზია {revision} · კონტენტი v{content} · ბოლო ცვლილება: {editor}',
-  'Revision {revision} · content v{content} · approved v{approved} · last edit by {editor}': 'რევიზია {revision} · კონტენტი v{content} · დამტკიცებულია v{approved} · ბოლო ცვლილება: {editor}',
-  'Revision {revision} · content v{content} · approved v{approved} by {approver} · last edit by {editor}': 'რევიზია {revision} · კონტენტი v{content} · დამტკიცებულია v{approved} ({approver}) · ბოლო ცვლილება: {editor}',
+  'Revision {revision} · content v{content} · approved v{approved} · last edit by {editor}': 'რევიზია {revision} · კონტენტი v{content} · გამოქვეყნებულია v{approved} · ბოლო ცვლილება: {editor}',
+  'Revision {revision} · content v{content} · approved v{approved} by {approver} · last edit by {editor}': 'რევიზია {revision} · კონტენტი v{content} · გამოქვეყნებულია v{approved} ({approver}) · ბოლო ცვლილება: {editor}',
   'Not in the current release.': 'მიმდინარე გამოშვებაში არ არის.',
   'In the current release at content v{version}.': 'მიმდინარე გამოშვებაშია: კონტენტი v{version}.',
   'In the current release at content v{version} (an older version).': 'მიმდინარე გამოშვებაშია: კონტენტი v{version} (ძველი ვერსია).',
-  'Saved as a draft; mark it ready when it is done, then a publisher approves it.': 'შეინახება დრაფტად; როცა დაასრულებთ, მონიშნეთ მზადად — შემდეგ მას გამომქვეყნებელი დაამტკიცებს.',
+  'Saved as a draft until you publish it to players.': 'ინახება დრაფტად, სანამ მოთამაშეებისთვის არ გამოაქვეყნებთ.',
   Content: 'კონტენტი',
-  'Approved questions reach players when they are published.': 'დამტკიცებული კითხვები მოთამაშეებამდე გამოქვეყნების შემდეგ მიდის.',
+  'Approved questions reach players when they are published.': 'გამოქვეყნებული კითხვები მოთამაშეებამდე თამაშის განახლებისას მიდის.',
   History: 'ისტორია',
-  'Approved version': 'დამტკიცებული ვერსია',
+  'Approved version': 'გამოქვეყნებული ვერსია',
 
   // content/td-content-editor.tsx — the form, its notices and toasts
   'This draft differs from the last approved version (v{version}). A release carries the approved version until this one is approved. {compare}':
-    'ეს დრაფტი განსხვავდება ბოლო დამტკიცებული ვერსიისგან (v{version}). სანამ ეს არ დამტკიცდება, გამოშვებაში დამტკიცებული ვერსია ხვდება. {compare}',
+    'ეს დრაფტი განსხვავდება ბოლო გამოქვეყნებული ვერსიისგან (v{version}). სანამ ეს არ გამოქვეყნდება, გამოშვებაში გამოქვეყნებული ვერსია ხვდება. {compare}',
   Compare: 'შედარება',
   'It changed meanwhile ({name}, {time}); this is the row as it is now. Check it and try again.': 'ამასობაში ჩანაწერი შეიცვალა ({name}, {time}); აქ მისი ახლანდელი ვერსიაა. გადაამოწმეთ და სცადეთ ხელახლა.',
   'Merged onto the newer version. Review it, then save.': 'ცვლილებები ახალ ვერსიას შეუერთდა. გადახედეთ და შეინახეთ.',
@@ -87,7 +87,7 @@ export const KA_CONTENT: Record<string, string> = {
     'ჩანაწერი წაიშალა, სანამ მას არედაქტირებდით (ატვირთვის გაუქმება შლის ჩანაწერებს, რომლებიც არავის შეუცვლია). დააკოპირეთ, რაც გჭირდებათ, და დახურეთ.',
   'Someone changed this while you were editing': 'სანამ არედაქტირებდით, ეს ჩანაწერი სხვამ შეცვალა',
   '{name} saved revision {revision} ({status}) at {time}.': 'ბოლო შენახვა: {name}, {time} — რევიზია {revision} ({status}).',
-  'It is archived now: a publisher restores it before anyone edits it.': 'ახლა ის დაარქივებულია: რედაქტირებამდე გამომქვეყნებელმა უნდა აღადგინოს.',
+  'It is archived now: restore it before editing.': 'ახლა ის დაარქივებულია: რედაქტირებამდე აღადგინეთ.',
   'Their changes to fields you did not touch are kept; where you both changed a field, choose which to keep.':
     'მათი ცვლილებები იმ ველებში, რომლებსაც თქვენ არ შეხებიხართ, შენარჩუნებულია; სადაც ერთი და იგივე ველი ორივემ შეცვალეთ, აირჩიეთ, რომელი დარჩეს.',
   Theirs: 'მათი',
@@ -120,26 +120,27 @@ export const KA_CONTENT: Record<string, string> = {
   Remove: 'წაშლა',
   'Remove {value}': 'წაშლა: {value}',
   'Accepted spellings': 'მისაღები ვარიანტები',
+  'Order in the list': 'რიგითობა სიაში',
   'Only other names that count: nicknames, a different spelling. The shown answer always counts, and the game already forgives typos, accents, capitals and Georgian or Latin letters. Press Enter after each.': 'მხოლოდ სხვა სახელები, რომლებიც ითვლება: მეტსახელი, განსხვავებული დაწერილობა. ნაჩვენები პასუხი ყოველთვის ითვლება, თამაში კი ისედაც ითმენს შეცდომებს, აქცენტებს, დიდ ასოებს და ქართულ ან ლათინურ ასოებს. ყოველის შემდეგ დააჭირეთ Enter-ს.',
   'e.g. messi, lionel messi': 'მაგ. მესი, ლიონელ მესი',
 
   // content/td-category-approval.tsx
-  'Approve the category with its cards': 'კატეგორიის დამტკიცება ბარათებთან ერთად',
-  'Approve the category with its questions': 'კატეგორიის დამტკიცება კითხვებთან ერთად',
+  'Approve the category with its cards': 'კატეგორიის გამოქვეყნება ბარათებთან ერთად',
+  'Approve the category with its questions': 'კატეგორიის გამოქვეყნება კითხვებთან ერთად',
   'Every live card of “{key}” is approved already or approved now, in one step. A release then carries them together.':
-    'კატეგორიის „{key}“ ყველა მოქმედი ბარათი ან უკვე დამტკიცებულია, ან ახლა მტკიცდება — ერთ ნაბიჯად. გამოშვებაში ისინი ერთად ხვდება.',
+    'კატეგორიის „{key}“ ყველა მოქმედი ბარათი ან უკვე გამოქვეყნებულია, ან ახლა ქვეყნდება — ერთ ნაბიჯად. გამოშვებაში ისინი ერთად ხვდება.',
   'Every live question of “{key}” is approved already or approved now, in one step. A release then carries them together.':
-    'კატეგორიის „{key}“ ყველა მოქმედი კითხვა ან უკვე დამტკიცებულია, ან ახლა მტკიცდება — ერთ ნაბიჯად. გამოშვებაში ისინი ერთად ხვდება.',
+    'კატეგორიის „{key}“ ყველა მოქმედი კითხვა ან უკვე გამოქვეყნებულია, ან ახლა ქვეყნდება — ერთ ნაბიჯად. გამოშვებაში ისინი ერთად ხვდება.',
   'Loading its cards…': 'ბარათები იტვირთება…',
   'Loading its questions…': 'კითხვები იტვირთება…',
-  'This category has more rows than the CMS loads at once; approve some on their own first.': 'ამ კატეგორიაში იმაზე მეტი ჩანაწერია, ვიდრე CMS ერთ ჯერზე ტვირთავს; ნაწილი ჯერ ცალ-ცალკე დაამტკიცეთ.',
-  '{ready} ready to approve with it · {approved} approved already': 'ერთად დასამტკიცებელი: {ready} · უკვე დამტკიცებული: {approved}',
-  '{ready} ready to approve with it · {approved} approved already · {held} holding it up': 'ერთად დასამტკიცებელი: {ready} · უკვე დამტკიცებული: {approved} · ხელს უშლის: {held}',
+  'This category has more rows than the CMS loads at once; approve some on their own first.': 'ამ კატეგორიაში იმაზე მეტი ჩანაწერია, ვიდრე CMS ერთ ჯერზე ტვირთავს; ნაწილი ჯერ ცალ-ცალკე გამოაქვეყნეთ.',
+  '{ready} ready to approve with it · {approved} approved already': 'ერთად გამოსაქვეყნებელი: {ready} · უკვე გამოქვეყნებული: {approved}',
+  '{ready} ready to approve with it · {approved} approved already · {held} holding it up': 'ერთად გამოსაქვეყნებელი: {ready} · უკვე გამოქვეყნებული: {approved} · ხელს უშლის: {held}',
   'Still a draft: mark it ready (or archive it) first.': 'ისევ დრაფტია: ჯერ მონიშნეთ მზადად (ან დააარქივეთ).',
-  'At most {max} can be approved with the category in one step; approve some of them on their own first.': 'კატეგორიასთან ერთად ერთ ნაბიჯად მაქსიმუმ {max} ჩანაწერი მტკიცდება; ნაწილი ჯერ ცალ-ცალკე დაამტკიცეთ.',
-  'A category needs at least one approved row.': 'კატეგორიას მინიმუმ ერთი დამტკიცებული ჩანაწერი სჭირდება.',
-  'A card changed meanwhile. The list is refreshed: check it and approve again.': 'ამასობაში ერთ-ერთი ბარათი შეიცვალა. სია განახლდა: გადაამოწმეთ და ხელახლა დაამტკიცეთ.',
-  'A question changed meanwhile. The list is refreshed: check it and approve again.': 'ამასობაში ერთ-ერთი კითხვა შეიცვალა. სია განახლდა: გადაამოწმეთ და ხელახლა დაამტკიცეთ.',
+  'At most {max} can be approved with the category in one step; approve some of them on their own first.': 'კატეგორიასთან ერთად ერთ ნაბიჯად მაქსიმუმ {max} ჩანაწერი ქვეყნდება; ნაწილი ჯერ ცალ-ცალკე გამოაქვეყნეთ.',
+  'A category needs at least one approved row.': 'კატეგორიას მინიმუმ ერთი გამოქვეყნებული ჩანაწერი სჭირდება.',
+  'A card changed meanwhile. The list is refreshed: check it and approve again.': 'ამასობაში ერთ-ერთი ბარათი შეიცვალა. სია განახლდა: გადაამოწმეთ და ხელახლა გამოაქვეყნეთ.',
+  'A question changed meanwhile. The list is refreshed: check it and approve again.': 'ამასობაში ერთ-ერთი კითხვა შეიცვალა. სია განახლდა: გადაამოწმეთ და ხელახლა გამოაქვეყნეთ.',
   'The category changed meanwhile. Close this and look at it again.': 'ამასობაში კატეგორია შეიცვალა. დახურეთ ეს ფანჯარა და ხელახლა ნახეთ.',
 
   // content/td-preview.tsx
@@ -155,16 +156,12 @@ export const KA_CONTENT: Record<string, string> = {
   'Nothing to show yet.': 'საჩვენებელი ჯერ არაფერია.',
   'Shown with the image {name}': 'ჩანს სურათთან ერთად: {name}',
   'Also accepted:': 'ასევე მიიღება:',
-  'Right order': 'სწორი თანმიმდევრობა',
 
   // tabs/questions-tab.tsx — the game modes
   'Round I · ბარათონი': 'I ტური · ბარათონი',
   'Round II · გამარჯობა': 'II ტური · გამარჯობა',
   'Round III · პაპა კარლოს ყუთი': 'III ტური · პაპა კარლოს ყუთი',
   'Practice · ივარჯიშე': 'ივარჯიშე',
-  'Daily · Football Logic': 'ყოველდღიური · საფეხბურთო ლოგიკა',
-  'Daily · Put in Order': 'ყოველდღიური · დაალაგე სწორად',
-  'Daily · Career Path': 'ყოველდღიური · კარიერის გზა',
 
   // tabs/questions-tab.tsx — what a mode's rows are called: the button, the empty list, the count
   'New Card': 'ახალი ბარათი',
@@ -204,15 +201,13 @@ export const KA_CONTENT: Record<string, string> = {
   '{count} clues': '{count} მინიშნება',
   '{count} points': '{count} ქულა',
   '{count} options': '{count} პასუხის ვარიანტი',
-  '{count} items': '{count} ელემენტი',
-  '{count} clubs': '{count} კლუბი',
   easy: 'მარტივი',
   medium: 'საშუალო',
   hard: 'რთული',
 
   // tabs/categories-tab.tsx
-  'Each category holds cards worth 1 to 3 points. A category is approved with its cards.': 'თითო კატეგორიაში 1-დან 3 ქულამდე ღირებულების ბარათებია. კატეგორია თავის ბარათებთან ერთად მტკიცდება.',
-  "Each category holds the box's questions. A category is approved with its questions.": 'თითო კატეგორიაში ყუთის კითხვებია. კატეგორია თავის კითხვებთან ერთად მტკიცდება.',
+  'Each category holds cards worth 1 to 3 points. A category is approved with its cards.': 'თითო კატეგორიაში 1-დან 3 ქულამდე ღირებულების ბარათებია. კატეგორია თავის ბარათებთან ერთად ქვეყნდება.',
+  "Each category holds the box's questions. A category is approved with its questions.": 'თითო კატეგორიაში ყუთის კითხვებია. კატეგორია თავის კითხვებთან ერთად ქვეყნდება.',
   'New category': 'ახალი კატეგორია',
   'No card categories yet': 'ბარათის კატეგორიები ჯერ არ არის',
   'No box categories yet': 'ყუთის კატეგორიები ჯერ არ არის',
@@ -226,10 +221,7 @@ export const KA_CONTENT: Record<string, string> = {
   'Football Logic and Put in Order have seconds; Career Path has none': '„საფეხბურთო ლოგიკასა“ და „დაალაგე სწორად“-ს წამები აქვს; „კარიერის გზას“ — არა',
 
   // lib/td/workflow.ts — why an action is not offered
-  'Ready for a publisher to approve.': 'მზადაა: ელოდება გამომქვეყნებლის დამტკიცებას.',
-  'Editors archive only their own drafts that nobody else has touched and that were never approved.': 'რედაქტორი მხოლოდ საკუთარ დრაფტს აარქივებს — ისეთს, რომელიც სხვას არ შეუცვლია და არასდროს დამტკიცებულა.',
   'Restore it before editing.': 'რედაქტირებამდე აღადგინეთ.',
-  'A publisher restores archived content.': 'დაარქივებულ კონტენტს გამომქვეყნებელი აღადგენს.',
 
   // Stepping through the list from the editor
   Previous: 'წინა',

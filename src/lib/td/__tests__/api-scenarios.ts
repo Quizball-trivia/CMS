@@ -9,7 +9,7 @@ import { expect, it } from 'vitest';
 import examples from '../contract/pinned/fixtures/examples.json';
 import { TD_CONTENT_TYPES, type TdContentType } from '../admin-api';
 import { addDays } from '../georgia';
-import { pngBlob, type Harness } from './api-harness';
+import { pngBlob, type Harness, type Role } from './api-harness';
 
 type Row = { id: string; version: number; contentVersion: number; status: string; approvedVersion: number | null; data: Record<string, unknown>; approved: Record<string, unknown> | null };
 type Body = Record<string, unknown>;
@@ -52,16 +52,16 @@ export function apiScenarios(h: () => Harness) {
   };
 
   it('uploads an image: checked by its bytes, readable back, refused when it is not one', async () => {
-    const up = await h().call('editor', 'POST', '/admin/media/uploads', { raw: pngBlob(), contentType: 'image/png' });
+    const up = await h().call('betsson_admin', 'POST', '/admin/media/uploads', { raw: pngBlob(), contentType: 'image/png' });
     expect(up.status, JSON.stringify(up.body)).toBe(201);
     expect(up.body).toMatchObject({ contentType: 'image/png', width: 16, height: 9 });
     uploadId = (up.body as { id: string }).id;
-    expect((await h().call('editor', 'GET', `/admin/media/uploads/${uploadId}`)).status).toBe(200);
-    const file = await h().call('editor', 'GET', `/admin/media/uploads/${uploadId}/file`);
+    expect((await h().call('betsson_admin', 'GET', `/admin/media/uploads/${uploadId}`)).status).toBe(200);
+    const file = await h().call('betsson_admin', 'GET', `/admin/media/uploads/${uploadId}/file`);
     expect(file.status).toBe(200);
     expect(file.contentType).toMatch(/^image\/png/);
     expect((file.body as ArrayBuffer).byteLength).toBeGreaterThan(8);
-    const text = await h().call('editor', 'POST', '/admin/media/uploads', { raw: new Blob(['hello'], { type: 'text/plain' }), contentType: 'text/plain' });
+    const text = await h().call('betsson_admin', 'POST', '/admin/media/uploads', { raw: new Blob(['hello'], { type: 'text/plain' }), contentType: 'text/plain' });
     expect(text).toMatchObject({ status: 422, body: { code: 'invalid_image', details: { reason: 'type' } } });
   });
 
@@ -70,15 +70,15 @@ export function apiScenarios(h: () => Harness) {
     const order: TdContentType[] = ['media', 'clubs', 'card-categories', 'cards', 'whoami-subjects', 'box-categories', 'box-questions', 'penalty-questions', 'practice-questions', 'football-logic', 'put-in-order', 'career-path', 'daily-schedule'];
     expect(new Set([...order, 'daily-settings'])).toEqual(new Set(TD_CONTENT_TYPES));
     for (const type of order) {
-      const row = await create('editor', type, sample(type));
+      const row = await create('betsson_admin', type, sample(type));
       expect(row).toMatchObject({ status: 'draft', version: 1, contentVersion: 1, approvedVersion: null });
-      expect((await h().call('editor', 'GET', `/admin/content/${type}/${row.id}`)).body).toMatchObject({ id: row.id });
-      expect((await h().call('editor', 'GET', `/admin/content/${type}/${row.id}/history`)).body).toMatchObject({ items: [{ action: 'create' }] });
-      const listed = await h().call('editor', 'GET', `/admin/content/${type}?status=draft&sort=created&dir=desc&limit=200`);
+      expect((await h().call('betsson_admin', 'GET', `/admin/content/${type}/${row.id}`)).body).toMatchObject({ id: row.id });
+      expect((await h().call('betsson_admin', 'GET', `/admin/content/${type}/${row.id}/history`)).body).toMatchObject({ items: [{ action: 'create' }] });
+      const listed = await h().call('betsson_admin', 'GET', `/admin/content/${type}?status=draft&sort=created&dir=desc&limit=200`);
       expect((listed.body as { items: Row[] }).items.some((r) => r.id === row.id), type).toBe(true);
-      const noted = ok(await h().call('editor', 'PATCH', `/admin/content/${type}/${row.id}`, { body: { version: 1, data: row.data, note: 'checked' } }));
+      const noted = ok(await h().call('betsson_admin', 'PATCH', `/admin/content/${type}/${row.id}`, { body: { version: 1, data: row.data, note: 'checked' } }));
       expect(noted).toMatchObject({ version: 2, contentVersion: 1, status: 'draft' });
-      made[type] = ok(await step('editor', type, noted, 'ready'));
+      made[type] = ok(await step('betsson_admin', type, noted, 'ready'));
       expect(made[type]!.status).toBe('ready');
     }
   });
@@ -86,63 +86,57 @@ export function apiScenarios(h: () => Harness) {
   it('approves in dependency order; a category with its listed children', async () => {
     const order: TdContentType[] = ['media', 'clubs', 'whoami-subjects', 'penalty-questions', 'practice-questions', 'football-logic', 'put-in-order', 'career-path', 'daily-schedule'];
     for (const type of order) {
-      const approved = ok(await step('publisher', type, made[type]!, 'approve'));
+      const approved = ok(await step('betsson_admin', type, made[type]!, 'approve'));
       expect(approved, type).toMatchObject({ status: 'approved', approvedVersion: approved.contentVersion });
       made[type] = approved;
     }
     // Children listed at their versions are approved with their category, in one step.
     const cards = made.cards!;
-    const conflict = await step('publisher', 'card-categories', made['card-categories']!, 'approve', { children: [{ id: cards.id, version: cards.version + 5 }] });
+    const conflict = await step('betsson_admin', 'card-categories', made['card-categories']!, 'approve', { children: [{ id: cards.id, version: cards.version + 5 }] });
     expect(conflict).toMatchObject({ status: 409, body: { code: 'revision_conflict', details: { child: { type: 'cards', id: cards.id }, current: { id: made['card-categories']!.id } } } });
-    const without = await step('publisher', 'card-categories', made['card-categories']!, 'approve');
+    const without = await step('betsson_admin', 'card-categories', made['card-categories']!, 'approve');
     expect(without).toMatchObject({ status: 409, body: { code: 'dependency_unapproved', details: { refs: [{ type: 'cards', id: cards.id }] } } });
-    made['card-categories'] = ok(await step('publisher', 'card-categories', made['card-categories']!, 'approve', { children: [{ id: cards.id, version: cards.version }] }));
-    made.cards = (await h().call('editor', 'GET', `/admin/content/cards/${cards.id}`)).body as Row;
+    made['card-categories'] = ok(await step('betsson_admin', 'card-categories', made['card-categories']!, 'approve', { children: [{ id: cards.id, version: cards.version }] }));
+    made.cards = (await h().call('betsson_admin', 'GET', `/admin/content/cards/${cards.id}`)).body as Row;
     expect(made.cards.status).toBe('approved');
     // Once its category is approved, a new card is approved on its own.
-    const late = await create('editor', 'cards', { ...sample('cards'), key: `late-${run}` });
-    expect(ok(await step('publisher', 'cards', ok(await step('editor', 'cards', late, 'ready')), 'approve')).status).toBe('approved');
-    made['box-questions'] = ok(await step('publisher', 'box-questions', made['box-questions']!, 'approve'));
-    made['box-categories'] = ok(await step('publisher', 'box-categories', made['box-categories']!, 'approve'));
+    const late = await create('betsson_admin', 'cards', { ...sample('cards'), key: `late-${run}` });
+    expect(ok(await step('betsson_admin', 'cards', ok(await step('betsson_admin', 'cards', late, 'ready')), 'approve')).status).toBe('approved');
+    made['box-questions'] = ok(await step('betsson_admin', 'box-questions', made['box-questions']!, 'approve'));
+    made['box-categories'] = ok(await step('betsson_admin', 'box-categories', made['box-categories']!, 'approve'));
   });
 
-  it('refuses a stale version with the row as it is now, and self-approval', async () => {
+  it('refuses a stale version with the row as it is now; a member approves their own edit', async () => {
     const pen = made['penalty-questions']!;
-    const stale = await h().call('editor', 'PATCH', `/admin/content/penalty-questions/${pen.id}`, { body: { version: pen.version - 1, data: pen.data } });
+    const stale = await h().call('betsson_admin', 'PATCH', `/admin/content/penalty-questions/${pen.id}`, { body: { version: pen.version - 1, data: pen.data } });
     expect(stale).toMatchObject({ status: 409, body: { code: 'revision_conflict', details: { current: { id: pen.id, version: pen.version } } } });
-    const fixed = await h().call('editor', 'PATCH', `/admin/content/penalty-questions/${pen.id}`, { body: { version: pen.version, data: { ...pen.data, key: `renamed-${run}` } } });
+    const fixed = await h().call('betsson_admin', 'PATCH', `/admin/content/penalty-questions/${pen.id}`, { body: { version: pen.version, data: { ...pen.data, key: `renamed-${run}` } } });
     expect(fixed).toMatchObject({ status: 422, body: { code: 'validation' } });
     // An edit of approved content is a draft again, keeping what was approved.
-    const edited = ok(await h().call('publisher', 'PATCH', `/admin/content/penalty-questions/${pen.id}`, { body: { version: pen.version, data: { ...pen.data, display: 'Changed' } } }));
+    const edited = ok(await h().call('betsson_admin', 'PATCH', `/admin/content/penalty-questions/${pen.id}`, { body: { version: pen.version, data: { ...pen.data, display: 'Changed' } } }));
     expect(edited).toMatchObject({ status: 'draft', contentVersion: pen.contentVersion + 1, approvedVersion: pen.contentVersion, approved: { display: 'Answer' } });
-    const ready = ok(await step('publisher', 'penalty-questions', edited, 'ready'));
-    expect(await step('editor', 'penalty-questions', ready, 'approve')).toMatchObject({ status: 403, body: { code: 'forbidden' } });
-    expect(await step('publisher', 'penalty-questions', ready, 'ready')).toMatchObject({ status: 403, body: { code: 'forbidden_transition' } });
-    // As in the Quizball CMS, a publisher approves their own last edit.
-    made['penalty-questions'] = ok(await step('publisher', 'penalty-questions', ready, 'approve'));
-    const taken = await h().call('editor', 'POST', '/admin/content/penalty-questions', { body: { data: sample('penalty-questions') } });
+    const ready = ok(await step('betsson_admin', 'penalty-questions', edited, 'ready'));
+    expect(await step('betsson_admin', 'penalty-questions', ready, 'ready')).toMatchObject({ status: 403, body: { code: 'forbidden_transition' } });
+    // As in the Quizball CMS, a member approves their own last edit.
+    made['penalty-questions'] = ok(await step('betsson_admin', 'penalty-questions', ready, 'approve'));
+    const taken = await h().call('betsson_admin', 'POST', '/admin/content/penalty-questions', { body: { data: sample('penalty-questions') } });
     expect(taken).toMatchObject({ status: 409, body: { code: 'already_exists' } });
   });
 
-  it('archives and restores: editors only their own untouched drafts; referenced rows stay', async () => {
-    const own = await create('editor', 'box-categories', { key: `own-${run}`, title: 'Own' });
-    const archived = ok(await step('editor', 'box-categories', own, 'archive'));
+  it('archives and restores; referenced rows stay', async () => {
+    const own = await create('betsson_admin', 'box-categories', { key: `own-${run}`, title: 'Own' });
+    const archived = ok(await step('betsson_admin', 'box-categories', own, 'archive'));
     expect(archived.status).toBe('archived');
-    expect(await h().call('editor', 'PATCH', `/admin/content/box-categories/${own.id}`, { body: { version: archived.version, data: own.data } })).toMatchObject({
+    expect(await h().call('betsson_admin', 'PATCH', `/admin/content/box-categories/${own.id}`, { body: { version: archived.version, data: own.data } })).toMatchObject({
       status: 403,
       body: { code: 'forbidden_transition' },
     });
-    expect(await step('editor', 'box-categories', archived, 'restore')).toMatchObject({ status: 403, body: { code: 'forbidden' } });
-    expect(ok(await step('publisher', 'box-categories', archived, 'restore')).status).toBe('draft');
+    expect(ok(await step('betsson_admin', 'box-categories', archived, 'restore')).status).toBe('draft');
 
-    const touched = await create('editor', 'box-categories', { key: `touched-${run}`, title: 'Touched' });
-    const noted = ok(await h().call('publisher', 'PATCH', `/admin/content/box-categories/${touched.id}`, { body: { version: 1, data: touched.data, note: 'by someone else' } }));
-    expect(await step('editor', 'box-categories', noted, 'archive')).toMatchObject({ status: 403, body: { code: 'forbidden' } });
-
-    expect(await step('publisher', 'media', made.media!, 'archive')).toMatchObject({ status: 409, body: { code: 'in_use' } });
-    expect(await h().call('editor', 'DELETE', `/admin/media/uploads/${uploadId}`)).toMatchObject({ status: 409, body: { code: 'in_use' } });
-    const spare = await h().call('editor', 'POST', '/admin/media/uploads', { raw: pngBlob(), contentType: 'image/png' });
-    expect((await h().call('editor', 'DELETE', `/admin/media/uploads/${(spare.body as { id: string }).id}`)).status).toBe(204);
+    expect(await step('betsson_admin', 'media', made.media!, 'archive')).toMatchObject({ status: 409, body: { code: 'in_use' } });
+    expect(await h().call('betsson_admin', 'DELETE', `/admin/media/uploads/${uploadId}`)).toMatchObject({ status: 409, body: { code: 'in_use' } });
+    const spare = await h().call('betsson_admin', 'POST', '/admin/media/uploads', { raw: pngBlob(), contentType: 'image/png' });
+    expect((await h().call('betsson_admin', 'DELETE', `/admin/media/uploads/${(spare.body as { id: string }).id}`)).status).toBe(204);
   });
 
   it('every content type: archive and restore refuse a stale version', async () => {
@@ -150,46 +144,46 @@ export function apiScenarios(h: () => Harness) {
       if (type === 'daily-settings') continue;
       const row = made[type]!;
       const stale = { ...row, version: row.version + 9 };
-      expect(await step('publisher', type, stale, 'archive'), type).toMatchObject({ status: 409, body: { code: 'revision_conflict' } });
-      expect(await step('publisher', type, stale, 'restore'), type).toMatchObject({ status: 409, body: { code: 'revision_conflict' } });
+      expect(await step('betsson_admin', type, stale, 'archive'), type).toMatchObject({ status: 409, body: { code: 'revision_conflict' } });
+      expect(await step('betsson_admin', type, stale, 'restore'), type).toMatchObject({ status: 409, body: { code: 'revision_conflict' } });
     }
   });
 
   it('daily settings: one per game, a note never changes the content, transitions follow the status', async () => {
-    const list = await h().call('editor', 'GET', '/admin/content/daily-settings?game=footballLogic');
+    const list = await h().call('betsson_admin', 'GET', '/admin/content/daily-settings?game=footballLogic');
     const row = (list.body as { items: Row[] }).items[0];
     expect(row).toBeDefined();
-    expect((await h().call('editor', 'GET', `/admin/content/daily-settings/${row.id}`)).status).toBe(200);
-    expect((await h().call('editor', 'GET', `/admin/content/daily-settings/${row.id}/history?limit=5`)).status).toBe(200);
-    expect(await h().call('editor', 'POST', '/admin/content/daily-settings', { body: { data: row.data } })).toMatchObject({ status: 409, body: { code: 'already_exists' } });
-    const noted = ok(await h().call('editor', 'PATCH', `/admin/content/daily-settings/${row.id}`, { body: { version: row.version, data: row.data, note: `scenario ${run}` } }));
+    expect((await h().call('betsson_admin', 'GET', `/admin/content/daily-settings/${row.id}`)).status).toBe(200);
+    expect((await h().call('betsson_admin', 'GET', `/admin/content/daily-settings/${row.id}/history?limit=5`)).status).toBe(200);
+    expect(await h().call('betsson_admin', 'POST', '/admin/content/daily-settings', { body: { data: row.data } })).toMatchObject({ status: 409, body: { code: 'already_exists' } });
+    const noted = ok(await h().call('betsson_admin', 'PATCH', `/admin/content/daily-settings/${row.id}`, { body: { version: row.version, data: row.data, note: `scenario ${run}` } }));
     expect(noted).toMatchObject({ contentVersion: row.contentVersion, status: row.status });
     if (noted.status === 'approved') {
-      expect(await step('editor', 'daily-settings', noted, 'ready')).toMatchObject({ status: 403, body: { code: 'forbidden_transition' } });
-      expect(await step('publisher', 'daily-settings', noted, 'approve')).toMatchObject({ status: 403, body: { code: 'forbidden_transition' } });
+      expect(await step('betsson_admin', 'daily-settings', noted, 'ready')).toMatchObject({ status: 403, body: { code: 'forbidden_transition' } });
+      expect(await step('betsson_admin', 'daily-settings', noted, 'approve')).toMatchObject({ status: 403, body: { code: 'forbidden_transition' } });
     }
     const stale = { ...noted, version: noted.version + 9 };
-    expect(await step('publisher', 'daily-settings', stale, 'archive')).toMatchObject({ status: 409, body: { code: 'revision_conflict' } });
-    expect(await step('publisher', 'daily-settings', stale, 'restore')).toMatchObject({ status: 409, body: { code: 'revision_conflict' } });
+    expect(await step('betsson_admin', 'daily-settings', stale, 'archive')).toMatchObject({ status: 409, body: { code: 'revision_conflict' } });
+    expect(await step('betsson_admin', 'daily-settings', stale, 'restore')).toMatchObject({ status: 409, body: { code: 'revision_conflict' } });
   });
 
   it('lists filter by what each type has, and refuse a filter it has not', async () => {
-    const cards = await h().call('editor', 'GET', `/admin/content/cards?category=cat-${run}`);
+    const cards = await h().call('betsson_admin', 'GET', `/admin/content/cards?category=cat-${run}`);
     expect((cards.body as { items: Row[] }).items.map((r) => r.data.key)).toEqual([`card-${run}`, `late-${run}`]);
-    const puzzle = await h().call('editor', 'GET', `/admin/content/football-logic?puzzle=flp-${run}`);
+    const puzzle = await h().call('betsson_admin', 'GET', `/admin/content/football-logic?puzzle=flp-${run}`);
     expect((puzzle.body as { items: Row[] }).items).toHaveLength(1);
-    const calendar = await h().call('editor', 'GET', `/admin/content/daily-schedule?game=footballLogic&from=${farDate}&to=${farDate}`);
+    const calendar = await h().call('betsson_admin', 'GET', `/admin/content/daily-schedule?game=footballLogic&from=${farDate}&to=${farDate}`);
     expect((calendar.body as { items: Row[] }).items).toHaveLength(1);
-    expect((await h().call('editor', 'GET', '/admin/content/penalty-questions?category=x')).status).toBe(400);
-    const page = await h().call('editor', 'GET', '/admin/content/penalty-questions?limit=2');
+    expect((await h().call('betsson_admin', 'GET', '/admin/content/penalty-questions?category=x')).status).toBe(400);
+    const page = await h().call('betsson_admin', 'GET', '/admin/content/penalty-questions?limit=2');
     const next = (page.body as { nextCursor: string | null }).nextCursor;
     expect(next).toEqual(expect.any(String));
-    expect((await h().call('editor', 'GET', `/admin/content/penalty-questions?limit=2&cursor=${next}`)).status).toBe(200);
+    expect((await h().call('betsson_admin', 'GET', `/admin/content/penalty-questions?limit=2&cursor=${next}`)).status).toBe(200);
   });
 
   it('imports: preview judges each item; apply is all or none, once per key; undo keeps what changed', async () => {
     const item = (n: number) => ({ type: 'penalty-questions', data: { key: `imp-${run}-${n}`, q: 'Imported?', display: 'Yes', aliases: ['yes'] } });
-    const preview = await h().call('editor', 'POST', '/admin/content/imports/preview', {
+    const preview = await h().call('betsson_admin', 'POST', '/admin/content/imports/preview', {
       body: { items: [item(1), { type: 'penalty-questions', data: { key: 'Bad Key' } }, { type: 'cards', data: { ...sample('cards'), key: `imp-card-${run}`, categoryKey: `missing-${run}` } }] },
     });
     expect(preview.status).toBe(200);
@@ -197,76 +191,75 @@ export function apiScenarios(h: () => Harness) {
     const codes = (preview.body as { rows: { issues: { code: string }[] }[] }).rows.map((r) => r.issues.map((i) => i.code));
     expect(codes[1]).toContain('invalid');
     expect(codes[2]).toContain('missing_reference');
-    const refused = await h().call('editor', 'POST', '/admin/content/imports', { body: { batchKey: `scenario:${run}:bad`, items: [item(1), { type: 'x' }] } });
+    const refused = await h().call('betsson_admin', 'POST', '/admin/content/imports', { body: { batchKey: `scenario:${run}:bad`, items: [item(1), { type: 'x' }] } });
     expect(refused).toMatchObject({ status: 422, body: { code: 'validation', details: { counts: { error: 1 } } } });
     const key = `scenario:${run}:good`;
-    const applied = await h().call('editor', 'POST', '/admin/content/imports', { body: { batchKey: key, items: [item(1), item(2)] } });
+    const applied = await h().call('betsson_admin', 'POST', '/admin/content/imports', { body: { batchKey: key, items: [item(1), item(2)] } });
     expect(applied).toMatchObject({ status: 201, body: { created: true, batch: { status: 'applied', itemCount: 2 } } });
     const batch = (applied.body as { batch: { id: string; rows: { id: string }[] } }).batch;
-    expect(await h().call('editor', 'POST', '/admin/content/imports', { body: { batchKey: key, items: [item(1), item(2)] } })).toMatchObject({ status: 200, body: { created: false } });
-    expect(await h().call('editor', 'POST', '/admin/content/imports', { body: { batchKey: key, items: [item(3)] } })).toMatchObject({ status: 409, body: { code: 'conflict' } });
-    expect((await h().call('editor', 'GET', '/admin/content/imports?limit=5')).status).toBe(200);
-    expect((await h().call('editor', 'GET', `/admin/content/imports/${batch.id}`)).body).toMatchObject({ rows: [{ outcome: 'created' }, { outcome: 'created' }] });
-    const first = (await h().call('editor', 'GET', `/admin/content/penalty-questions/${batch.rows[0].id}`)).body as Row;
-    ok(await step('editor', 'penalty-questions', first, 'ready'));
-    const undone = await h().call('editor', 'POST', `/admin/content/imports/${batch.id}/undo`);
+    expect(await h().call('betsson_admin', 'POST', '/admin/content/imports', { body: { batchKey: key, items: [item(1), item(2)] } })).toMatchObject({ status: 200, body: { created: false } });
+    expect(await h().call('betsson_admin', 'POST', '/admin/content/imports', { body: { batchKey: key, items: [item(3)] } })).toMatchObject({ status: 409, body: { code: 'conflict' } });
+    expect((await h().call('betsson_admin', 'GET', '/admin/content/imports?limit=5')).status).toBe(200);
+    expect((await h().call('betsson_admin', 'GET', `/admin/content/imports/${batch.id}`)).body).toMatchObject({ rows: [{ outcome: 'created' }, { outcome: 'created' }] });
+    const first = (await h().call('betsson_admin', 'GET', `/admin/content/penalty-questions/${batch.rows[0].id}`)).body as Row;
+    ok(await step('betsson_admin', 'penalty-questions', first, 'ready'));
+    const undone = await h().call('betsson_admin', 'POST', `/admin/content/imports/${batch.id}/undo`);
     expect(undone).toMatchObject({ status: 200, body: { status: 'partly_undone', counts: { removed: 1, kept: 1 }, rows: [{ outcome: 'kept', reason: 'edited' }, { outcome: 'removed' }] } });
-    expect((await h().call('editor', 'GET', `/admin/content/penalty-questions/${batch.rows[1].id}`)).status).toBe(404);
+    expect((await h().call('betsson_admin', 'GET', `/admin/content/penalty-questions/${batch.rows[1].id}`)).status).toBe(404);
   });
 
   it('releases: validate, publish with a key (again: the same run), progress by phase, roll back', async () => {
-    const report = await h().call('editor', 'POST', '/admin/releases/validate');
+    const report = await h().call('betsson_admin', 'POST', '/admin/releases/validate');
     expect(report.status).toBe(200);
     expect(report.body, JSON.stringify((report.body as { errors: unknown }).errors)).toMatchObject({ ok: true });
     const key = `publish:${run}`;
-    expect(await h().call('editor', 'POST', '/admin/releases/publish', { body: { idemKey: key } })).toMatchObject({ status: 403 });
-    const started = await h().call('publisher', 'POST', '/admin/releases/publish', { body: { idemKey: key } });
+    const started = await h().call('betsson_admin', 'POST', '/admin/releases/publish', { body: { idemKey: key } });
     expect(started.status).toBe(202);
     const id = (started.body as { id: string }).id;
     if (!h().real) {
-      expect(await h().call('publisher', 'POST', '/admin/releases/publish', { body: { idemKey: `${key}:other` } })).toMatchObject({
+      expect(await h().call('betsson_admin', 'POST', '/admin/releases/publish', { body: { idemKey: `${key}:other` } })).toMatchObject({
         status: 409,
         body: { code: 'publication_in_progress', details: { publicationId: id } },
       });
     }
-    expect(await h().call('publisher', 'POST', '/admin/releases/publish', { body: { idemKey: key } })).toMatchObject({ status: 200, body: { id } });
+    expect(await h().call('betsson_admin', 'POST', '/admin/releases/publish', { body: { idemKey: key } })).toMatchObject({ status: 200, body: { id } });
     let publication = started.body as { status: string; releaseId: string; previousReleaseId: string | null; notify: { state: string }; phases: { state: string }[] };
     for (let i = 0; i < 120 && (publication.status === 'running' || publication.notify.state === 'pending' || publication.notify.state === 'none'); i++) {
       await h().wait(500);
-      publication = (await h().call('editor', 'GET', `/admin/publications/${id}`)).body as typeof publication;
+      publication = (await h().call('betsson_admin', 'GET', `/admin/publications/${id}`)).body as typeof publication;
       if (publication.status === 'failed') break;
     }
     expect(publication, JSON.stringify(publication)).toMatchObject({ status: 'published' });
     expect(publication.phases.every((p) => p.state === 'done' || p.state === 'skipped')).toBe(true);
-    const list = await h().call('editor', 'GET', '/admin/releases?limit=10');
+    const list = await h().call('betsson_admin', 'GET', '/admin/releases?limit=10');
     expect(list.body).toMatchObject({ pointer: { releaseId: publication.releaseId }, active: null });
-    const detail = await h().call('editor', 'GET', `/admin/releases/${publication.releaseId}`);
+    const detail = await h().call('betsson_admin', 'GET', `/admin/releases/${publication.releaseId}`);
     expect(detail.status).toBe(200);
     expect((detail.body as { members: { id: string }[] }).members.some((m) => m.id === made.media!.id)).toBe(true);
-    expect(await h().call('publisher', 'POST', `/admin/releases/${publication.releaseId}/rollback`, { body: { idemKey: key } })).toMatchObject({
+    expect(await h().call('betsson_admin', 'POST', `/admin/releases/${publication.releaseId}/rollback`, { body: { idemKey: key } })).toMatchObject({
       status: 409,
       body: { code: 'idempotency_conflict' },
     });
-    expect(await h().call('publisher', 'POST', `/admin/releases/${publication.releaseId}/rollback`, { body: { idemKey: `rollback:${run}:current` } })).toMatchObject({
+    expect(await h().call('betsson_admin', 'POST', `/admin/releases/${publication.releaseId}/rollback`, { body: { idemKey: `rollback:${run}:current` } })).toMatchObject({
       status: 409,
       body: { code: 'not_rollback_target' },
     });
-    const back = await h().call('publisher', 'POST', `/admin/releases/${publication.previousReleaseId}/rollback`, { body: { idemKey: `rollback:${run}` } });
+    const back = await h().call('betsson_admin', 'POST', `/admin/releases/${publication.previousReleaseId}/rollback`, { body: { idemKey: `rollback:${run}` } });
     expect(back.status, JSON.stringify(back.body)).toBe(202);
     let rolled = back.body as { id: string; status: string };
     for (let i = 0; i < 60 && rolled.status === 'running'; i++) {
       await h().wait(500);
-      rolled = (await h().call('editor', 'GET', `/admin/publications/${rolled.id}`)).body as typeof rolled;
+      rolled = (await h().call('betsson_admin', 'GET', `/admin/publications/${rolled.id}`)).body as typeof rolled;
     }
     expect(rolled.status).toBe('published');
-    expect(((await h().call('editor', 'GET', '/admin/releases')).body as { pointer: { releaseId: string } }).pointer.releaseId).toBe(publication.previousReleaseId);
+    expect(((await h().call('betsson_admin', 'GET', '/admin/releases')).body as { pointer: { releaseId: string } }).pointer.releaseId).toBe(publication.previousReleaseId);
   });
 
   it('dashboard is any member’s; players, the leaderboard and settings follow the roles', async () => {
-    expect(await h().staffId('editor')).toEqual(expect.any(String));
-    expect((await h().call('editor', 'GET', '/admin/dashboard')).body).toMatchObject({ timezone: 'Asia/Tbilisi' });
-    expect(await h().call('editor', 'GET', '/admin/players?q=a')).toMatchObject({ status: 403 });
-    expect(await h().call('editor', 'GET', '/admin/leaderboard')).toMatchObject({ status: 403 });
+    expect(await h().staffId('betsson_admin')).toEqual(expect.any(String));
+    expect((await h().call('betsson_admin', 'GET', '/admin/dashboard')).body).toMatchObject({ timezone: 'Asia/Tbilisi' });
+    expect((await h().call('betsson_admin', 'GET', '/admin/players?q=a')).status).toBe(200);
+    expect((await h().call('betsson_admin', 'GET', '/admin/leaderboard')).status).toBe(200);
     expect(await h().call('betsson_admin', 'GET', '/admin/settings')).toMatchObject({ status: 403 });
     expect(await h().call('betsson_admin', 'GET', '/admin/reviews')).toMatchObject({ status: 403 });
     expect((await h().call('betsson_admin', 'GET', '/admin/staff')).status).toBe(200);
@@ -338,10 +331,7 @@ export function apiScenarios(h: () => Harness) {
   });
 
   it('integration: webhooks are for Betsson admins and ops to read, and for ops to retry', async () => {
-    expect(await h().call('editor', 'GET', '/admin/integration/webhooks')).toMatchObject({ status: 403 });
-    expect(await h().call('publisher', 'GET', '/admin/integration/webhooks')).toMatchObject({ status: 403 });
-    expect(await h().call('editor', 'GET', '/admin/integration/webhooks/no-such-event')).toMatchObject({ status: 403 });
-    expect(await h().call('publisher', 'POST', '/admin/integration/webhooks/no-such-event/retry', { body: {} })).toMatchObject({ status: 403 });
+    expect(await h().call('betsson_admin', 'POST', '/admin/integration/webhooks/no-such-event/retry', { body: {} })).toMatchObject({ status: 403 });
     expect((await h().call('betsson_admin', 'GET', '/admin/integration/webhooks?limit=5')).status).toBe(200);
     expect((await h().call('ops', 'GET', '/admin/integration/webhooks?status=dead')).status).toBe(200);
     expect(await h().call('ops', 'GET', '/admin/integration/webhooks?status=lost')).toMatchObject({ status: 400, body: { code: 'invalid_request' } });
@@ -435,10 +425,11 @@ export function apiScenarios(h: () => Harness) {
     // Passwords compare after NFKC: set with "ﬁ", a fullwidth "Ａ" and a composed "ä"; signed in with "fi", "A" and "a" + accent.
     const second = `second ﬁnal Ａnswer pässword ${run}`;
     const secondDecomposed = second.normalize('NFKD');
-    expect(await h().call('editor', 'POST', '/admin/staff/invite', { body: { email, role: 'editor' } })).toMatchObject({ status: 403 });
     expect(await h().call('betsson_admin', 'POST', '/admin/staff/invite', { body: { email, role: 'ops' } })).toMatchObject({ status: 403 });
-    const invited = await h().call('betsson_admin', 'POST', '/admin/staff/invite', { body: { email, role: 'editor', name: 'Invitee' } });
-    expect(invited).toMatchObject({ status: 201, body: { member: { email, role: 'editor', status: 'invited' } } });
+    // Betsson's team has one role: the earlier editor and publisher roles are not taken.
+    expect(await h().call('betsson_admin', 'POST', '/admin/staff/invite', { body: { email, role: 'editor' } })).toMatchObject({ status: 400, body: { code: 'invalid_request' } });
+    const invited = await h().call('betsson_admin', 'POST', '/admin/staff/invite', { body: { email, role: 'betsson_admin', name: 'Invitee' } });
+    expect(invited).toMatchObject({ status: 201, body: { member: { email, role: 'betsson_admin', status: 'invited' } } });
     const { token, member } = invited.body as { token: string; member: { id: string } };
     expect(await h().call('betsson_admin', 'POST', `/admin/staff/${member.id}/reset-link`)).toMatchObject({ status: 409, body: { code: 'conflict' } });
 
@@ -446,10 +437,10 @@ export function apiScenarios(h: () => Harness) {
     expect(await h().anon('POST', '/admin/auth/accept-invite', { token: `x${token.slice(1)}`, password: first, name: 'Invitee' })).toMatchObject({ status: 400, body: { code: 'invalid_token' } });
     const accepted = await h().anon('POST', '/admin/auth/accept-invite', { token, password: first, name: 'Invitee' });
     expect(accepted.status).toBe(200);
-    expect((await h().as((accepted.body as { accessToken: string }).accessToken, 'GET', '/admin/me')).body).toMatchObject({ id: member.id, email, role: 'editor', name: 'Invitee' });
+    expect((await h().as((accepted.body as { accessToken: string }).accessToken, 'GET', '/admin/me')).body).toMatchObject({ id: member.id, email, role: 'betsson_admin', name: 'Invitee' });
     // Once only; and an active member cannot be invited again.
     expect(await h().anon('POST', '/admin/auth/accept-invite', { token, password: first, name: 'Invitee' })).toMatchObject({ status: 400, body: { code: 'invalid_token' } });
-    expect(await h().call('betsson_admin', 'POST', '/admin/staff/invite', { body: { email, role: 'editor' } })).toMatchObject({ status: 409, body: { code: 'already_exists' } });
+    expect(await h().call('betsson_admin', 'POST', '/admin/staff/invite', { body: { email, role: 'betsson_admin' } })).toMatchObject({ status: 409, body: { code: 'already_exists' } });
 
     const reset = await h().call('betsson_admin', 'POST', `/admin/staff/${member.id}/reset-link`);
     expect(reset.status).toBe(201);
@@ -460,55 +451,70 @@ export function apiScenarios(h: () => Harness) {
     expect((await h().anon('POST', '/admin/auth/login', { email, password: first })).status).toBe(401);
     expect(secondDecomposed).not.toBe(second);
     expect((await h().anon('POST', '/admin/auth/login', { email, password: secondDecomposed })).status).toBe(200);
+
+    // A team manager disables them (signing them out), never themselves or an ops member.
+    const session = (await h().anon('POST', '/admin/auth/login', { email, password: second })).body as { accessToken: string };
+    const patch = (role: Role, id: string, body: unknown) => h().call(role, 'PATCH', `/admin/staff/${id}`, { body });
+    expect(await patch('betsson_admin', await h().staffId('betsson_admin'), { status: 'disabled' })).toMatchObject({ status: 403 });
+    expect(await patch('betsson_admin', await h().staffId('ops'), { status: 'disabled' })).toMatchObject({ status: 403 });
+    expect(await patch('betsson_admin', member.id, { role: 'ops' })).toMatchObject({ status: 403 });
+    expect(await patch('betsson_admin', member.id, {})).toMatchObject({ status: 400, body: { code: 'invalid_request' } });
+    expect(await patch('betsson_admin', '00000000-0000-4000-8000-00000000abcd', { status: 'disabled' })).toMatchObject({ status: 404 });
+    expect(await patch('betsson_admin', member.id, { role: 'publisher' })).toMatchObject({ status: 400, body: { code: 'invalid_request' } });
+    expect(await patch('betsson_admin', member.id, { role: 'betsson_admin' })).toMatchObject({ status: 200, body: { id: member.id, role: 'betsson_admin', status: 'active' } });
+    expect(await patch('betsson_admin', member.id, { status: 'disabled' })).toMatchObject({ status: 200, body: { status: 'disabled' } });
+    expect((await h().as(session.accessToken, 'GET', '/admin/me')).status).toBe(401);
+    expect((await h().anon('POST', '/admin/auth/login', { email, password: second })).status).toBe(401);
+    expect(await patch('betsson_admin', member.id, { status: 'active' })).toMatchObject({ status: 200, body: { role: 'betsson_admin', status: 'active' } });
+    expect((await h().anon('POST', '/admin/auth/login', { email, password: second })).status).toBe(200);
   });
 
-  it('dailies: whole days are published onto the next free dates, a short one is refused, publishers only', async () => {
+  it('dailies: whole days are published onto the next free dates, a short one is refused', async () => {
     const day = `fld-${run}`;
-    for (let i = 0; i < 10; i++) await create('editor', 'football-logic', { ...sample('football-logic'), key: `fld-${run}-${i}`, puzzle: day });
+    for (let i = 0; i < 10; i++) await create('betsson_admin', 'football-logic', { ...sample('football-logic'), key: `fld-${run}-${i}`, puzzle: day });
     const short = `fls-${run}`;
-    await create('editor', 'football-logic', { ...sample('football-logic'), key: `fls-${run}-0`, puzzle: short });
-    expect(await h().call('editor', 'POST', '/admin/dailies/footballLogic/publish', { body: { puzzles: [day] } })).toMatchObject({ status: 403 });
-    expect(await h().call('publisher', 'POST', '/admin/dailies/footballLogic/publish', { body: { puzzles: [day, short] } })).toMatchObject({
+    await create('betsson_admin', 'football-logic', { ...sample('football-logic'), key: `fls-${run}-0`, puzzle: short });
+    expect(await h().call('betsson_admin', 'POST', '/admin/dailies/footballLogic/publish', { body: { puzzles: [day, short] } })).toMatchObject({
       status: 422,
       body: { code: 'validation', details: { issues: [{ path: short, message: '1 of 10 questions' }] } },
     });
-    const published = await h().call('publisher', 'POST', '/admin/dailies/footballLogic/publish', { body: { puzzles: [day] } });
+    const published = await h().call('betsson_admin', 'POST', '/admin/dailies/footballLogic/publish', { body: { puzzles: [day] } });
     expect(published.status, JSON.stringify(published.body)).toBe(200);
     const body = published.body as { days: { puzzle: string; date: string }[]; cycle: { sets: string[] } | null };
     expect(body.days.map((d) => d.puzzle)).toEqual([day]);
     expect(body.cycle?.sets).toContain(day);
     // Again: nothing moves.
-    expect((await h().call('publisher', 'POST', '/admin/dailies/footballLogic/publish', { body: { puzzles: [day] } })).body).toMatchObject({ days: body.days });
+    expect((await h().call('betsson_admin', 'POST', '/admin/dailies/footballLogic/publish', { body: { puzzles: [day] } })).body).toMatchObject({ days: body.days });
   });
 
   it('dailies: the uploaded pictures a day’s questions show are approved with the day, and stay while they are used', async () => {
-    const picture = (key: string) => create('editor', 'media', { ...sample('media'), key });
+    const picture = (key: string) => create('betsson_admin', 'media', { ...sample('media'), key });
     const [a, b] = [await picture(`flpa-${run}`), await picture(`flpb-${run}`)];
     const day = `flpic-${run}`;
     const rows: Row[] = [];
     for (let i = 0; i < 10; i++)
-      rows.push(await create('editor', 'football-logic', { ...sample('football-logic'), key: `${day}-${i}`, puzzle: day, imageAKey: a.data.key, imageBKey: i === 0 ? b.data.key : null }));
+      rows.push(await create('betsson_admin', 'football-logic', { ...sample('football-logic'), key: `${day}-${i}`, puzzle: day, imageAKey: a.data.key, imageBKey: i === 0 ? b.data.key : null }));
     // On its own a question waits for its pictures.
-    const ready = ok(await h().call('editor', 'POST', `/admin/content/football-logic/${rows[0]!.id}/ready`, { body: { version: rows[0]!.version } }));
-    expect(await h().call('publisher', 'POST', `/admin/content/football-logic/${ready.id}/approve`, { body: { version: ready.version } })).toMatchObject({
+    const ready = ok(await h().call('betsson_admin', 'POST', `/admin/content/football-logic/${rows[0]!.id}/ready`, { body: { version: rows[0]!.version } }));
+    expect(await h().call('betsson_admin', 'POST', `/admin/content/football-logic/${ready.id}/approve`, { body: { version: ready.version } })).toMatchObject({
       status: 409,
       body: { code: 'dependency_unapproved' },
     });
-    const published = await h().call('publisher', 'POST', '/admin/dailies/footballLogic/publish', { body: { puzzles: [day] } });
+    const published = await h().call('betsson_admin', 'POST', '/admin/dailies/footballLogic/publish', { body: { puzzles: [day] } });
     expect(published.status, JSON.stringify(published.body)).toBe(200);
     for (const row of [a, b]) {
-      const now = (await h().call('editor', 'GET', `/admin/content/media/${row.id}`)).body as Row;
+      const now = (await h().call('betsson_admin', 'GET', `/admin/content/media/${row.id}`)).body as Row;
       expect(now).toMatchObject({ status: 'approved' });
-      expect(await h().call('publisher', 'POST', `/admin/content/media/${row.id}/archive`, { body: { version: now.version } })).toMatchObject({ status: 409, body: { code: 'in_use' } });
+      expect(await h().call('betsson_admin', 'POST', `/admin/content/media/${row.id}/archive`, { body: { version: now.version } })).toMatchObject({ status: 409, body: { code: 'in_use' } });
     }
   });
 
   it('dailies: days stay whole when questions move between them; a date an archived entry holds is skipped only when its day is gone', async () => {
-    const publish = (puzzles: string[]) => h().call('publisher', 'POST', '/admin/dailies/footballLogic/publish', { body: { puzzles } });
-    const read = async (type: TdContentType, row: Row) => (await h().call('editor', 'GET', `/admin/content/${type}/${row.id}`)).body as Row;
+    const publish = (puzzles: string[]) => h().call('betsson_admin', 'POST', '/admin/dailies/footballLogic/publish', { body: { puzzles } });
+    const read = async (type: TdContentType, row: Row) => (await h().call('betsson_admin', 'GET', `/admin/content/${type}/${row.id}`)).body as Row;
     const fill = async (puzzle: string, from = 0, to = 10) => {
       const rows: Row[] = [];
-      for (let i = from; i < to; i++) rows.push(await create('editor', 'football-logic', { ...sample('football-logic'), key: `${puzzle}-${i}`, puzzle }));
+      for (let i = from; i < to; i++) rows.push(await create('betsson_admin', 'football-logic', { ...sample('football-logic'), key: `${puzzle}-${i}`, puzzle }));
       return rows;
     };
     const datesOf = (res: { body: unknown }) => (res.body as { days: { puzzle: string; date: string }[] }).days;
@@ -523,7 +529,7 @@ export function apiScenarios(h: () => Harness) {
     const b = `flb-${run}`;
     await fill(b, 0, 9);
     const mover = await read('football-logic', aRows[0]!);
-    ok(await h().call('editor', 'PATCH', `/admin/content/football-logic/${mover.id}`, { body: { version: mover.version, data: { ...mover.data, puzzle: b } } }));
+    ok(await h().call('betsson_admin', 'PATCH', `/admin/content/football-logic/${mover.id}`, { body: { version: mover.version, data: { ...mover.data, puzzle: b } } }));
     expect(await publish([b])).toMatchObject({
       status: 422,
       body: { code: 'validation', details: { issues: [{ path: a, message: '9 of 10 approved questions once the moves are approved' }] } },
@@ -541,12 +547,12 @@ export function apiScenarios(h: () => Harness) {
     // An archived entry on the next date whose day has since gone: that date stays its own, the day after is used.
     const gone = `flg-${run}`;
     const goneRows = await fill(gone);
-    for (const row of goneRows) ok(await step('publisher', 'football-logic', ok(await step('editor', 'football-logic', row, 'ready')), 'approve'));
+    for (const row of goneRows) ok(await step('betsson_admin', 'football-logic', ok(await step('betsson_admin', 'football-logic', row, 'ready')), 'approve'));
     const held = addDays(bDate, 1);
-    const entry = await create('editor', 'daily-schedule', { game: 'footballLogic', date: held, puzzle: gone });
-    const approvedEntry = ok(await step('publisher', 'daily-schedule', ok(await step('editor', 'daily-schedule', entry, 'ready')), 'approve'));
-    ok(await step('publisher', 'daily-schedule', approvedEntry, 'archive'));
-    for (const row of goneRows) ok(await step('publisher', 'football-logic', await read('football-logic', row), 'archive'));
+    const entry = await create('betsson_admin', 'daily-schedule', { game: 'footballLogic', date: held, puzzle: gone });
+    const approvedEntry = ok(await step('betsson_admin', 'daily-schedule', ok(await step('betsson_admin', 'daily-schedule', entry, 'ready')), 'approve'));
+    ok(await step('betsson_admin', 'daily-schedule', approvedEntry, 'archive'));
+    for (const row of goneRows) ok(await step('betsson_admin', 'football-logic', await read('football-logic', row), 'archive'));
     const c = `flc-${run}`;
     await fill(c);
     const third = await publish([c]);
@@ -555,9 +561,9 @@ export function apiScenarios(h: () => Harness) {
     expect((await read('daily-schedule', entry)).status).toBe('archived');
 
     // An archived entry whose day is still there comes back with the new day.
-    const kept = await create('editor', 'daily-schedule', { game: 'footballLogic', date: addDays(held, 2), puzzle: a });
-    const approvedKept = ok(await step('publisher', 'daily-schedule', ok(await step('editor', 'daily-schedule', kept, 'ready')), 'approve'));
-    ok(await step('publisher', 'daily-schedule', approvedKept, 'archive'));
+    const kept = await create('betsson_admin', 'daily-schedule', { game: 'footballLogic', date: addDays(held, 2), puzzle: a });
+    const approvedKept = ok(await step('betsson_admin', 'daily-schedule', ok(await step('betsson_admin', 'daily-schedule', kept, 'ready')), 'approve'));
+    ok(await step('betsson_admin', 'daily-schedule', approvedKept, 'archive'));
     const d = `fld2-${run}`;
     await fill(d);
     const fourth = await publish([d]);

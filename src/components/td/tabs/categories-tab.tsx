@@ -3,7 +3,8 @@
 import { useRef, useState } from 'react';
 import { Plus, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { TdDialogContent } from '@/components/td/td-dialog';
 import { TdCategoryForm } from '@/components/td/categories/td-category-form';
 import { TdCategoryList } from '@/components/td/categories/td-category-list';
 import { categoryName, TD_CATEGORY_ROUNDS, useTdCategoryCounts, type TdCategoryRow } from '@/components/td/categories/td-category-data';
@@ -61,8 +62,8 @@ export function TdCategoriesTab() {
         </header>
 
         {/* Control Row */}
-        <div className="flex items-center justify-between gap-4">
-          <div className="relative w-72 group">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+          <div className="relative w-full sm:w-72 group">
             <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
               <Plus className="h-4 w-4 text-gray-400 rotate-45 group-focus-within:text-primary transition-colors" />
             </div>
@@ -124,7 +125,7 @@ export function TdCategoriesTab() {
       </div>
 
       <Dialog open={dialogOpen} onOpenChange={(open) => (open ? setDialogOpen(true) : leaveRef.current() && handleClose())}>
-        <DialogContent className="sm:max-w-[760px] max-h-[90vh] p-0 overflow-hidden border-none shadow-2xl rounded-[2rem] flex flex-col">
+        <TdDialogContent className="sm:max-w-[760px] max-h-[90vh] p-0 overflow-hidden border-none shadow-2xl rounded-[2rem] flex flex-col">
           <DialogHeader className="p-8 pb-4 shrink-0">
             <DialogTitle className="text-2xl font-bold tracking-tight">{isEditing ? t('Edit Category') : t('Create Category')}</DialogTitle>
             <DialogDescription className="text-gray-500 font-medium">{isEditing ? t('Update the category details below.') : t('Define a new content bucket for your questions.')}</DialogDescription>
@@ -132,7 +133,7 @@ export function TdCategoriesTab() {
           <div className="px-8 pb-8 overflow-y-auto flex-1">
             <TdCategoryForm key={editingCategory?.id ?? 'new'} category={editingCategory} leaveRef={leaveRef} onSuccess={handleClose} />
           </div>
-        </DialogContent>
+        </TdDialogContent>
       </Dialog>
     </div>
   );

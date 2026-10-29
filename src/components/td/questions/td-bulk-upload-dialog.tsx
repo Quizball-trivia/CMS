@@ -1,10 +1,11 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ComponentProps } from 'react';
 import { toast } from 'sonner';
 import { useQueryClient } from '@tanstack/react-query';
-import { AlertCircle, CheckCircle2, ChevronLeft, ChevronRight, Info, Loader2, Trash2, Upload } from 'lucide-react';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { AlertCircle, CheckCircle2, ChevronLeft, ChevronRight, Info, Link2, Loader2, Trash2, Upload } from 'lucide-react';
+import { Dialog, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { TdDialogContent } from '@/components/td/td-dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -15,6 +16,7 @@ import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
 import { getDifficultyVariant } from '@/components/ui/difficulty-signal';
+import { cardFaceSrc } from '@/components/td/content/td-card-image';
 import { releasedImage, TdMediaThumb, uploadProblem } from '@/components/td/media/td-media';
 import { tdKeys, useTdAllRows, useTdWrite } from '@/hooks/use-td-content';
 import type { TdContentRow, TdContentType } from '@/lib/td/admin-api';
@@ -24,25 +26,26 @@ import { SESSION_CHANGED, TdApiError } from '@/lib/td/api-client';
 import { tdAdmin, tdTokens } from '@/lib/td/client';
 import type { ContentImportReport } from '@/lib/td/contract';
 import { contentWriteIssues } from '@/lib/td/content-rules';
-import { tdErrorText } from '@/lib/td/errors';
+import { tdApiMessage, tdErrorText } from '@/lib/td/errors';
 import { canonicalJson, sha256Hex } from '@/lib/td/hash';
 import { t, tc, tn } from '@/lib/td/i18n';
-import { TD_IMPORT_MAX_BYTES, TD_IMPORT_MAX_ITEMS, tdImportLimits } from '@/lib/td/import-format';
-import { gameOfType, TD_DAILY_DAY_SIZES, uploadDays, type TdDailyGameKey } from '@/lib/td/dailies';
+import { TD_IMPORT_MAX_BYTES, TD_IMPORT_MAX_ITEMS, tdImportLimits, toItem } from '@/lib/td/import-format';
 import { batchKeyFor, markSent, retireBatchKey } from '@/lib/td/import-keys';
-import { beginOperation, type TdOperation } from '@/lib/td/operation';
+import { downloadLinkPicture, linkPictureReason, type LinkPictureFailure } from '@/lib/td/link-pictures';
+import { beginOperation, operationIsCurrent, type TdOperation } from '@/lib/td/operation';
 import {
-  careerClubs,
+  categoryName,
   imageKeyIn,
+  isPictureLink,
+  newBoxCategoryKey,
   parseTdUpload,
   pictureFilesOf,
+  pictureName,
+  QUESTION_START,
   TD_UPLOAD_EXAMPLES,
-  TD_UPLOAD_TYPES,
   tdQuestionSummary,
-  questionKey,
   toTdImportItem,
   type ParsedCard,
-  type TdClubRef,
   type TdParseError,
   type TdParsedQuestion,
   type TdUploadContext,
@@ -51,15 +54,33 @@ import {
 import { cn } from '@/lib/utils';
 import { useTdAuth } from '@/providers/td-auth-provider';
 
-type UploadQuestionType = TdUploadType;
+/** The dailies ship with the game's code (contract 12): only the match rounds and practice are uploaded here. */
+type UploadQuestionType = Exclude<TdUploadType, 'football-logic' | 'put-in-order' | 'career-path'>;
+type UploadedQuestion = Extract<TdParsedQuestion, { kind: UploadQuestionType }>;
 
 type RowIssue = ContentImportReport['rows'][number]['issues'][number];
 
-type ParsedRow = TdParsedQuestion & { id: string };
+type ParsedRow = UploadedQuestion & { id: string };
 
 interface UploadState {
   parseErrors: TdParseError[];
+  /** The file's lines, to show the question an error is about. */
+  lines?: string[];
   isUploading: boolean;
+}
+
+/** The question around a line of the file: from its numbered first line (or a blank line) to the next question
+ *  (or blank line); questions need no blank line between them. */
+function questionLines(lines: readonly string[], lineNumber: number): string[] {
+  const starts = (i: number) => QUESTION_START.test(lines[i]!.trim());
+  const at = Math.min(Math.max(lineNumber - 1, 0), lines.length - 1);
+  let from = at;
+  while (from > 0 && !starts(from) && lines[from - 1]!.trim()) from--;
+  let to = at + 1;
+  while (to < lines.length && lines[to]!.trim() && !starts(to)) to++;
+  // A long one is cut around the line the error names.
+  const first = Math.max(from, at - 20);
+  return lines.slice(first, Math.min(to, first + 30));
 }
 
 /** What the check says of one question, with where it stands in the list. */
@@ -74,12 +95,32 @@ interface QuestionWithSelection {
   updates: TdContentRow<'cards'> | null;
 }
 
-/** A picture chosen with the file: saved as an image under a key made from its bytes, so the same picture is one image. */
+/** A picture chosen with the file, or downloaded from a link the file gives (its name is then the link): saved as an
+ *  image under a key made from its bytes, so the same picture is one image. */
 interface Picture {
   name: string;
   file: File;
   key: string;
   url: string;
+  /** The link it was downloaded from, kept as the image's source. */
+  source: string | null;
+}
+
+/** A link's picture while it downloads, or why it could not be. */
+type LinkState = { status: 'loading' } | { status: 'failed'; reason: LinkPictureFailure };
+
+const LINK_DOWNLOADS_AT_ONCE = 2;
+// How long a check the API refused as too many waits before it is asked again.
+const CHECK_RETRY_MS = 5_000;
+// The API takes 30 pictures a minute from a member (UPLOADS_PER_MINUTE): one refused as too many waits and goes again.
+const PICTURE_RETRY_MS = 10_000;
+const PICTURE_RETRIES = 12;
+
+/** Why a question's picture is not there yet: not chosen, still downloading, or not downloadable. */
+function missingPictureText(name: string, state: LinkState | undefined): string {
+  if (!isPictureLink(name)) return t('Choose the picture {name} under Pictures', { name });
+  if (state?.status === 'failed') return t('The picture at its link could not be downloaded: {reason}', { reason: linkPictureReason(state.reason) });
+  return t('Downloading the picture from its link…');
 }
 
 const plainName = (text: string) => text.normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
@@ -87,6 +128,8 @@ const plainName = (text: string) => text.normalize('NFKD').replace(/[\u0300-\u03
 const NEW = '__new__';
 const MAX_MB = TD_IMPORT_MAX_BYTES / 1024 / 1024;
 const PAGE_SIZE = 100;
+// The questions with a problem named in the summary; the list has them all.
+const PROBLEMS_LISTED = 10;
 const STATUSES = 'draft,ready,approved';
 
 const TYPE_OPTIONS: Array<{ value: UploadQuestionType; label: string }> = [
@@ -95,23 +138,17 @@ const TYPE_OPTIONS: Array<{ value: UploadQuestionType; label: string }> = [
   { value: 'box-questions', label: t('Round III · პაპა კარლოს ყუთი') },
   { value: 'penalty-questions', label: t('Penalties') },
   { value: 'practice-questions', label: t('Practice · ივარჯიშე') },
-  { value: 'football-logic', label: t('Daily · Football Logic') },
-  { value: 'put-in-order', label: t('Daily · Put in Order') },
-  { value: 'career-path', label: t('Daily · Career Path') },
 ];
 
 const FORMAT_NOTES: Partial<Record<UploadQuestionType, string[]>> = {
   cards: [
     t('Answer: the first name is what the card shows. Add others only for nicknames or a very different spelling: the game already forgives typos, accents, capitals and Georgian or Latin letters, and the surname alone counts.'),
-    t('Points is 1, 2 or 3. The picture, optional: “Photo: 158023 | 24” is the player’s SoFIFA number and version (from the player’s address on sofifa.com), or “Image: buffon.jpg” the file name of a picture chosen below under Pictures.'),
-    t('A card whose answer is already in the category updates that card (its picture, points and clues) instead of adding a second one. Clue lines may then be left out to keep the card’s own.'),
   ],
+  'box-questions': [t('Optional: “Category: მუნდიალი” puts the question in that category, and the upload makes the category when there is none of that name. When every question has one, no category needs to be chosen.')],
   'whoami-subjects': [t('Five clues per player, hardest first: a match shows the first 5, one every few seconds, and the first to buzz answers. No points and no pictures in this round.')],
-  'practice-questions': [t('Optional: “Image: stadium.jpg” is the file name of a picture chosen below under Pictures, or the key of an image already uploaded.')],
-  'football-logic': [t('Image A and Image B are optional. Each is the file name of a picture chosen below under Pictures (barcelona.png), the key of an image already uploaded, a web address starting with https://, or a path starting with /.')],
-  'put-in-order': [t('The items are listed in the order they are shown; the Answer lists them in the right order.')],
-  'career-path': [
-    t('Each club is matched by its name to the clubs list for its crest; a club that is not on the list has no crest. Players are asked “Whose career is this?” unless a “Prompt:” line says otherwise.'),
+  'practice-questions': [
+    t('Optional: “Image: stadium.jpg” is the file name of a picture chosen below under Pictures, “Image: https://…” a link to a picture (the CMS downloads it and keeps its own copy), or the key of an image already uploaded.'),
+    t('Optional: “Category: ოქროს ბურთი” gives the question its own category instead of the one chosen above. When every question has one, no category needs to be chosen.'),
   ],
 };
 
@@ -121,7 +158,6 @@ const WORDS = {
   problem: tc('Problem', 'upload'),
   selected: tc('Selected', 'upload'),
   options: tc('Options', 'upload'),
-  items: tc('Items', 'upload'),
   explanation: tc('Explanation', 'upload'),
   error: tc('error', 'upload'),
   warning: tc('warning', 'upload'),
@@ -129,7 +165,8 @@ const WORDS = {
 
 const DIFFICULTY_LABELS: Record<string, string> = { easy: t('Easy'), medium: t('Medium'), hard: t('Hard') };
 
-const isUploadType = (type: TdContentType | undefined): type is UploadQuestionType => TD_UPLOAD_TYPES.includes(type as UploadQuestionType);
+const isUploadType = (type: TdContentType | undefined): type is UploadQuestionType => TYPE_OPTIONS.some((option) => option.value === type);
+const isUploaded = (question: TdParsedQuestion): question is UploadedQuestion => TYPE_OPTIONS.some((option) => option.value === question.kind);
 
 function readFile(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -163,26 +200,17 @@ function updatedCard(question: ParsedCard, card: TdContentRow<'cards'>, imageKey
 
 const PICTURE_NAME = /\.(?:jpe?g|png|webp)$/i;
 
-/** How many days a daily file makes, and whether its last one is short of a whole day. */
-function DaysSummary({ game, count }: { game: TdDailyGameKey; count: number }) {
-  const size = TD_DAILY_DAY_SIZES[game];
-  const whole = Math.floor(count / size);
-  const rest = count % size;
-  return (
-    <p className="mt-1 text-sm text-muted-foreground">
-      {tn(Math.ceil(count / size), 'These make {count} new day of {size}.', 'These make {count} new days of {size}.', { size })}{' '}
-      {rest > 0 && <span className="text-amber-700">{t('The last day has {n} of {size}: it stays a draft until it has {size}.', { n: rest, size })}</span>}
-      {whole > 0 && rest === 0 && t('Each day is published as a whole on the Daily page.')}
-    </p>
-  );
-}
-
-const issueText = (issue: RowIssue) => `${ISSUE_TITLES[issue.code]}${issue.path ? ` (${issue.path})` : ''}: ${issue.message}`;
+/** A problem's own words: the CMS's, or the API's in the workspace's language (its kind alone when it has none). */
+const issueMessage = (issue: RowIssue) => tdApiMessage(issue.message) ?? ISSUE_TITLES[issue.code];
+const issueText = (issue: RowIssue) => {
+  const said = tdApiMessage(issue.message);
+  return `${ISSUE_TITLES[issue.code]}${issue.path ? ` (${issue.path})` : ''}${said ? `: ${said}` : ''}`;
+};
 
 export interface TdBulkUploadDialogProps {
   /** The game mode to open on (the one the Questions page shows). */
   initialType?: TdContentType;
-  /** A category's key (Round I, Round III) or label (Practice, Football Logic) to open on. */
+  /** A category's key (Round I, Round III) or label (Practice) to open on. */
   initialCategory?: string | null;
   /** The game modes it offers (all by default); with one, no choice is shown. */
   types?: readonly TdContentType[];
@@ -207,9 +235,9 @@ export function TdBulkUploadDialog({ initialType, initialCategory, types }: TdBu
           {t('Upload Questions')}
         </Button>
       </DialogTrigger>
-      <DialogContent className="!max-w-6xl overflow-hidden flex flex-col p-6" style={{ maxHeight: '95vh', height: '95vh' }}>
+      <TdDialogContent className="!max-w-6xl overflow-hidden flex flex-col p-6" style={{ maxHeight: '95vh', height: '95vh' }}>
         <UploadBody open={open} initialType={initialType} initialCategory={initialCategory ?? null} types={types} onBusy={setBusy} onClose={() => setOpen(false)} />
-      </DialogContent>
+      </TdDialogContent>
     </Dialog>
   );
 }
@@ -221,7 +249,7 @@ function UploadBody({ open, initialType, initialCategory, types, onBusy, onClose
   const queryClient = useQueryClient();
   const typeOptions = types ? TYPE_OPTIONS.filter((option) => types.includes(option.value)) : TYPE_OPTIONS;
   const [selectedQuestionType, setSelectedQuestionType] = useState<UploadQuestionType>(isUploadType(initialType) && typeOptions.some((o) => o.value === initialType) ? initialType : typeOptions[0]!.value);
-  // The category's key (Round I, Round III) or label (Practice, Football Logic); NEW: the one typed below.
+  // The category's key (Round I, Round III) or label (Practice); NEW: the one typed below.
   const [selectedCategory, setSelectedCategory] = useState<string>(initialCategory ?? '');
   const [newCategory, setNewCategory] = useState('');
   const uploadInFlightRef = useRef(false);
@@ -231,9 +259,13 @@ function UploadBody({ open, initialType, initialCategory, types, onBusy, onClose
   // What the check said, by the import item it was asked of: an item changed by a choice is asked again, one removed from the list is not.
   const [checked, setChecked] = useState<Map<string, RowIssue[]>>(new Map());
   const [uploadCount, setUploadCount] = useState(0);
+  // The pictures wait for the API's per-minute limit.
+  const [pacing, setPacing] = useState(false);
   const [page, setPage] = useState(1);
   const [previewIndex, setPreviewIndex] = useState<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  // The .txt being read or read: its chooser names it (the file input itself is emptied on each choosing).
+  const [fileName, setFileName] = useState<string | null>(null);
   const [pictures, setPictures] = useState<Picture[]>([]);
   // Counts every choosing of a file: one still being read for an earlier choice is dropped.
   const reading = useRef(0);
@@ -244,6 +276,7 @@ function UploadBody({ open, initialType, initialCategory, types, onBusy, onClose
   useEffect(() => () => void (reading.current += 1), []);
   // The choosing the list comes from, and the one whose earlier import has been looked for.
   const [read, setRead] = useState(0);
+  const [checkRetry, setCheckRetry] = useState(0);
   const [replayed, setReplayed] = useState(0);
   const replayStarted = useRef(0);
   // What an upload would import now: the new questions still ticked (a replay sends nothing else).
@@ -253,27 +286,21 @@ function UploadBody({ open, initialType, initialCategory, types, onBusy, onClose
 
   const type = selectedQuestionType;
   const keyCategory = type === 'cards' || type === 'box-questions';
-  const labelCategory = type === 'practice-questions' || type === 'football-logic';
-  // Football Logic's own label, shown above its question in the game; its category is the puzzle.
-  const topic = type === 'football-logic';
+  const labelCategory = type === 'practice-questions';
 
   const categoryRows = useTdAllRows(type === 'cards' ? 'card-categories' : 'box-categories', { status: STATUSES }, keyCategory);
   const practiceRows = useTdAllRows('practice-questions', { status: STATUSES }, type === 'practice-questions');
-  const logicRows = useTdAllRows('football-logic', { status: STATUSES }, type === 'football-logic');
-  const clubRows = useTdAllRows('clubs', { status: STATUSES }, type === 'career-path');
   // Every type whose questions may name an uploaded image by its key.
-  const mediaRows = useTdAllRows('media', { status: STATUSES }, type === 'cards' || type === 'practice-questions' || type === 'football-logic');
-  const takesPictures = type === 'cards' || type === 'practice-questions' || type === 'football-logic';
+  const mediaRows = useTdAllRows('media', { status: STATUSES }, type === 'cards' || type === 'practice-questions');
+  const takesPictures = type === 'cards' || type === 'practice-questions';
 
   const categoryOptions = useMemo(() => {
     if (keyCategory) return (categoryRows.data?.rows ?? []).map((row) => ({ value: row.data.key, label: 'prompt' in row.data ? row.data.prompt : row.data.title }));
-    const rows = type === 'practice-questions' ? practiceRows.data?.rows : type === 'football-logic' ? logicRows.data?.rows : undefined;
+    const rows = type === 'practice-questions' ? practiceRows.data?.rows : undefined;
     const labels = new Set((rows ?? []).map((row) => row.data.category).filter(Boolean));
     if (selectedCategory && selectedCategory !== NEW) labels.add(selectedCategory);
     return [...labels].sort((a, b) => a.localeCompare(b)).map((label) => ({ value: label, label }));
-  }, [keyCategory, type, categoryRows.data, practiceRows.data, logicRows.data, selectedCategory]);
-
-  const clubs = useMemo<TdClubRef[]>(() => (clubRows.data?.rows ?? []).map((row) => ({ key: row.data.key, label: row.data.label, value: row.data.value })), [clubRows.data]);
+  }, [keyCategory, type, categoryRows.data, practiceRows.data, selectedCategory]);
   const mediaByKey = useMemo(() => {
     const found = new Map<string, { uploadId: string | null; url: string | null }>();
     for (const row of mediaRows.data?.rows ?? []) {
@@ -283,21 +310,59 @@ function UploadBody({ open, initialType, initialCategory, types, onBusy, onClose
     return found;
   }, [mediaRows.data]);
 
+  // Round III questions that name their category: the one of that name on file, or one the upload makes (the first items of its import).
+  const boxNames = useMemo(
+    () => (type === 'box-questions' ? [...new Map(questions.flatMap((question) => (question.kind === 'box-questions' && question.category ? [[categoryName(question.category), question.category] as const] : []))).entries()] : []),
+    [type, questions],
+  );
+  const { categoryKeys, newCategories, titlesOnFile } = useMemo(() => {
+    const keys = new Map<string, string>();
+    const titles = new Map<string, string>();
+    const made: Array<{ key: string; title: string }> = [];
+    const rows = type === 'box-questions' ? ((categoryRows.data?.rows ?? []) as TdContentRow<'box-categories'>[]) : [];
+    for (const [name, title] of boxNames) {
+      const found = rows.find((row) => categoryName(row.data.title) === name);
+      const key = found?.data.key ?? newBoxCategoryKey(title);
+      keys.set(name, key);
+      if (found) titles.set(name, found.data.title);
+      else made.push({ key, title });
+    }
+    return { categoryKeys: keys, newCategories: made, titlesOnFile: titles };
+  }, [type, boxNames, categoryRows.data]);
+  /** The categories to make for these items, sent first: the import makes them, or none of it. */
+  const withCategories = useCallback(
+    (items: unknown[]) => {
+      const used = new Set(items.map((item) => (item as { data: { categoryKey?: string } }).data.categoryKey));
+      const made = newCategories.filter((made) => used.has(made.key)).map((made) => toItem('box-categories', { key: made.key, title: made.title }));
+      return { sent: [...made, ...items], offset: made.length };
+    },
+    [newCategories],
+  );
+
   const category = selectedCategory === NEW ? newCategory.trim() : selectedCategory;
   const categoryProblem = selectedCategory === NEW && newCategory !== '' && (category.length === 0 || category.length > 200) ? t('At most {max} characters, with no spaces at the start or end', { max: 200 }) : null;
   // The cards already in the category: a question with one's answer updates it.
   const categoryCards = useTdAllRows('cards', { category, status: STATUSES }, type === 'cards' && category !== '');
+  // Practice questions that each give their own category (a “Category:” line) need none chosen for the file.
+  const ownCategories =
+    (type === 'practice-questions' || type === 'box-questions') && questions.length > 0 && questions.every((question) => (question.kind === 'practice-questions' || question.kind === 'box-questions') && question.category !== null);
   const ready =
-    (!keyCategory && !labelCategory ? true : keyCategory ? category !== '' : category !== '' && category.length <= 200) &&
-    (type !== 'career-path' || !clubRows.isLoading) &&
+    (!keyCategory && !labelCategory ? true : keyCategory ? category !== '' || ownCategories : ownCategories || (category !== '' && category.length <= 200)) &&
+    // Every category on file must be known: one not read would be made again.
+    (boxNames.length === 0 || (categoryRows.isSuccess && categoryRows.data.complete)) &&
     // Every card of the category must be known: one not read would be added again instead of updated.
     (type !== 'cards' || (categoryCards.isSuccess && categoryCards.data.complete && !mediaRows.isLoading));
   const cardsUnread = type === 'cards' && category !== '' && (categoryCards.isError || (categoryCards.isSuccess && !categoryCards.data.complete));
-  const pictureKeys = useMemo(() => new Map(pictures.map((picture) => [picture.name.toLowerCase(), picture.key])), [pictures]);
+  const pictureKeys = useMemo(() => new Map(pictures.map((picture) => [pictureName(picture.name), picture.key])), [pictures]);
   const missingPictures = useMemo(
-    () => [...new Set(questions.flatMap((question) => pictureFilesOf(question).filter((name) => !pictureKeys.has(name.toLowerCase()))))],
+    () => [...new Set(questions.flatMap((question) => pictureFilesOf(question).filter((name) => !pictureKeys.has(pictureName(name)))))],
     [questions, pictureKeys],
   );
+  const missingFiles = useMemo(() => missingPictures.filter((name) => !isPictureLink(name)), [missingPictures]);
+  const missingLinks = useMemo(() => missingPictures.filter(isPictureLink), [missingPictures]);
+  const [links, setLinks] = useState<Map<string, LinkState>>(new Map());
+  const failedLinks = useMemo(() => missingLinks.flatMap((link) => { const state = links.get(link); return state?.status === 'failed' ? [{ link, reason: state.reason }] : []; }), [missingLinks, links]);
+  const loadingLinks = missingLinks.length - failedLinks.length;
   const existingCard = useCallback(
     (question: TdParsedQuestion): TdContentRow<'cards'> | null => {
       if (question.kind !== 'cards') return null;
@@ -323,30 +388,22 @@ function UploadBody({ open, initialType, initialCategory, types, onBusy, onClose
   );
 
   const context = useMemo<TdUploadContext>(
-    () => ({ categoryKey: keyCategory ? category : '', category: labelCategory ? category : '', puzzle: '', clubs, pictures: pictureKeys }),
-    [keyCategory, labelCategory, category, clubs, pictureKeys],
+    () => ({ categoryKey: keyCategory ? category : '', category: labelCategory ? category : '', puzzle: '', clubs: [], pictures: pictureKeys, categoryKeys }),
+    [keyCategory, labelCategory, category, pictureKeys, categoryKeys],
   );
-  // A daily game's file is cut into days of its size, each a new day (its key made from its questions).
-  const game = gameOfType(type);
-  // What is imported (the topic included), so the same questions under another topic are another day.
-  const days = useMemo(() => (game ? uploadDays(game, questions, (question) => questionKey(question, context)) : null), [game, questions, context]);
   // `item` is what is imported; the check is asked of `checked` (a picture's image does not exist before the upload saves it).
   const entries = useMemo(
     () =>
       ready
-        ? questions.map((question, index) => {
-            const item = toTdImportItem(question, days ? { ...context, puzzle: days[index]!.key } : context);
+        ? questions.map((question) => {
+            const item = toTdImportItem(question, context);
             // A picture's image does not exist before the upload saves it: the check is asked without it.
             const pictured = pictureFilesOf(question).length > 0;
-            const unsaved =
-              question.kind === 'football-logic'
-                ? { ...(question.imageAFile ? { imageAKey: null } : {}), ...(question.imageBFile ? { imageBKey: null } : {}) }
-                : { imageKey: null };
-            const asked = pictured ? { ...item, data: { ...(item.data as Record<string, unknown>), ...unsaved } } : item;
+            const asked = pictured ? { ...item, data: { ...(item.data as Record<string, unknown>), imageKey: null } } : item;
             return { item, asked, signature: canonicalJson(asked), updates: existingCard(question) };
           })
         : [],
-    [ready, questions, context, days, existingCard],
+    [ready, questions, context, existingCard],
   );
   // More than an import takes is not checked: it is shortened first.
   const tooMany = entries.length > TD_IMPORT_MAX_ITEMS;
@@ -361,17 +418,56 @@ function UploadBody({ open, initialType, initialCategory, types, onBusy, onClose
   const rows = useMemo<QuestionWithSelection[]>(() => {
     // The first question of the file that updates each card.
     const updater = new Map<string, number>();
+    // The first question of the file with each import key: a later one is the repeat, named by its question number.
+    const firstWithKey = new Map<string, number>();
+    entries.forEach((entry, index) => {
+      const key = String((entry.item as { data: { key?: unknown } }).data.key ?? '');
+      if (key && !firstWithKey.has(key)) firstWithKey.set(key, index);
+    });
+    // A repeat is found here too, not only by the import's check: that check does not run while the file has errors.
+    const textOf = (index: number) => {
+      const said = { ...(entries[index]!.item as { data: Record<string, unknown> }).data };
+      delete said.key;
+      delete said.imageKey;
+      return canonicalJson(said);
+    };
+    // Among the questions to upload: one left out repeats nothing, and is not repeated.
+    const kept = (index: number) => !unselected.has(questions[index]!.id);
+    const firstWithText = new Map<string, number>();
+    entries.forEach((_, index) => {
+      const text = textOf(index);
+      if (kept(index) && !firstWithText.has(text)) firstWithText.set(text, index);
+    });
+    const repeated = (index: number): RowIssue[] => {
+      if (!kept(index)) return [];
+      const first = firstWithText.get(textOf(index));
+      if (first === undefined || first === index) return [];
+      const pictures = (i: number) => pictureFilesOf(questions[i]!).join('\n');
+      const n = questions[first]!.questionNumber;
+      return [
+        pictures(first) === pictures(index)
+          ? { code: 'duplicate_in_batch', path: '', message: t('The same question as question {n} of this file: remove one of them', { n }) }
+          : { code: 'duplicate_in_batch', path: 'Image', message: t('The same question as question {n} of this file, with another picture: remove one of them', { n }) },
+      ];
+    };
+    const repeatsOf = (index: number, issues: RowIssue[]): RowIssue[] =>
+      issues.flatMap((issue) => {
+        if (issue.code !== 'duplicate_in_batch') return [issue];
+        const first = firstWithKey.get(String((entries[index]!.item as { data: { key?: unknown } }).data.key ?? ''));
+        if (first === undefined || first === index) return [];
+        return [{ ...issue, path: '', message: t('The same question as question {n} of this file: remove one of them', { n: questions[first]!.questionNumber }) }];
+      });
     return questions.map((question, index) => {
         const entry = entries[index];
         const updates = entry?.updates ?? null;
         const signature = entry?.signature ?? null;
         const issues = signature && !updates ? (checked.get(signature) ?? []) : [];
         const isDuplicate = issues.some((issue) => issue.code === 'duplicate');
-        // A picture the file names must be among those chosen.
-        const missingPicture = pictureFilesOf(question).find((name) => !pictureKeys.has(name.toLowerCase()));
+        // A picture the file names must be among those chosen, or downloaded from its link.
+        const missingPicture = pictureFilesOf(question).find((name) => !pictureKeys.has(pictureName(name)));
         const problems: RowIssue[] = [
-          ...(isDuplicate ? [] : issues),
-          ...(missingPicture ? [{ code: 'missing_reference' as const, path: 'Image', message: t('Choose the picture {name} under Pictures', { name: missingPicture }) }] : []),
+          ...(entry && !updates && repeated(index).length ? repeated(index) : isDuplicate ? [] : repeatsOf(index, issues)),
+          ...(missingPicture ? [{ code: 'missing_reference' as const, path: 'Image', message: missingPictureText(missingPicture, links.get(missingPicture)) }] : []),
         ];
         if (question.kind === 'cards' && updates) {
           // What the card would become is checked as the edit it is, before anything is saved.
@@ -386,8 +482,6 @@ function UploadBody({ open, initialType, initialCategory, types, onBusy, onClose
           else if (!unselected.has(question.id)) updater.set(updates.id, question.questionNumber);
         } else if (sharedName(question)) {
           problems.push({ code: 'invalid' as const, path: 'Answer', message: t('Two cards in this category have this name: change the one meant on its own page') });
-        } else if (question.kind === 'football-logic' && !question.prompt.trim() && ![question.imageA, question.imageB, question.imageAKey, question.imageBKey, question.imageAFile, question.imageBFile].some(Boolean)) {
-          problems.push({ code: 'invalid' as const, path: 'Prompt', message: t('A question needs its text or a picture') });
         } else if (question.kind === 'cards' && question.clues.length === 0 && !question.photo && !question.imageKey && !question.imageFile) {
           problems.push({ code: 'invalid' as const, path: 'Clue 1', message: t('A new card needs a clue line or a picture') });
         }
@@ -401,7 +495,7 @@ function UploadBody({ open, initialType, initialCategory, types, onBusy, onClose
           updates,
         };
       });
-  }, [questions, entries, checked, unselected, pictureKeys, context, mediaByKey, mediaRows.isError, mediaRows.isSuccess, sharedName]);
+  }, [questions, entries, checked, unselected, pictureKeys, links, context, mediaByKey, mediaRows.isError, mediaRows.isSuccess, sharedName]);
 
   const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
     // The .txt and the pictures it names may be chosen together.
@@ -429,6 +523,7 @@ function UploadBody({ open, initialType, initialCategory, types, onBusy, onClose
     }
 
     const mine = ++reading.current;
+    setFileName(file.name);
     // Begun before reading, so a replay cannot go out under a sign-in made meanwhile.
     readOperation.current = user && tdTokens.read()?.staffId === user.id ? beginOperation(tdTokens) : null;
 
@@ -442,7 +537,7 @@ function UploadBody({ open, initialType, initialCategory, types, onBusy, onClose
     if (reading.current !== mine) return;
 
     const result = parseTdUpload(content, selectedQuestionType);
-    setState((prev) => ({ ...prev, parseErrors: result.errors }));
+    setState((prev) => ({ ...prev, parseErrors: result.errors, lines: content.split(/\r?\n/) }));
     setPreviewIndex(null);
 
     if (result.questions.length === 0) {
@@ -452,7 +547,7 @@ function UploadBody({ open, initialType, initialCategory, types, onBusy, onClose
     }
 
     // Initialize with all questions selected
-    setQuestions(result.questions.map((q, idx) => ({ ...q, id: `${q.questionNumber}-${q.lineNumber}-${idx}` })));
+    setQuestions(result.questions.filter(isUploaded).map((q, idx) => ({ ...q, id: `${q.questionNumber}-${q.lineNumber}-${idx}` })));
     setUnselected(new Set());
     setPage(1);
     setRead(mine);
@@ -482,27 +577,63 @@ function UploadBody({ open, initialType, initialCategory, types, onBusy, onClose
   }, [pictures]);
   useEffect(() => () => shownPictures.current.forEach((picture) => URL.revokeObjectURL(picture.url)), []);
 
-  /** Adds the pictures to those chosen; one of a name already chosen replaces it. */
-  const addPictures = async (files: File[]) => {
+  /** Adds the pictures to those chosen (a downloaded one under its link); one of a name already chosen replaces it. */
+  const addPictures = async (files: File[], link: string | null = null): Promise<string | null> => {
     const chosen: Picture[] = [];
+    let refused: string | null = null;
     for (const file of files) {
       const problem = uploadProblem(file);
       if (problem) {
-        toast.error(`${file.name}: ${problem}`);
+        refused = problem;
+        if (!link) toast.error(`${file.name}: ${problem}`);
         continue;
       }
       const key = `pic-${(await sha256Hex(await file.arrayBuffer())).slice(0, 24)}`;
-      chosen.push({ name: file.name, file, key, url: URL.createObjectURL(file) });
+      chosen.push({ name: link ?? file.name, file, key, url: URL.createObjectURL(file), source: link });
     }
     setPictures((current) => {
-      const byName = new Map(current.map((picture) => [picture.name.toLowerCase(), picture]));
+      const byName = new Map(current.map((picture) => [pictureName(picture.name), picture]));
       for (const picture of chosen) {
-        const replaced = byName.get(picture.name.toLowerCase());
+        const replaced = byName.get(pictureName(picture.name));
         if (replaced) URL.revokeObjectURL(replaced.url);
-        byName.set(picture.name.toLowerCase(), picture);
+        byName.set(pictureName(picture.name), picture);
       }
       return [...byName.values()];
     });
+    return refused;
+  };
+
+  // The links the file gives are downloaded as soon as it is read, a few at a time; a failed one waits for Try again.
+  const [linkRetry, setLinkRetry] = useState(0);
+  const linksAsked = useRef(new Set<string>());
+  const addPicturesRef = useRef(addPictures);
+  useEffect(() => {
+    addPicturesRef.current = addPictures;
+  });
+  useEffect(() => {
+    const fresh = missingLinks.filter((link) => !linksAsked.current.has(link));
+    if (fresh.length === 0) return;
+    for (const link of fresh) linksAsked.current.add(link);
+    setLinks((prev) => new Map([...prev, ...fresh.map((link) => [link, { status: 'loading' }] as const)]));
+    const queue = [...fresh];
+    const next = async (): Promise<void> => {
+      const link = queue.shift();
+      if (!link) return;
+      const result = await downloadLinkPicture(link);
+      const refused = result.ok ? await addPicturesRef.current([result.file], link) : null;
+      setLinks((prev) => {
+        const after = new Map(prev);
+        if (result.ok && !refused) after.delete(link);
+        else after.set(link, { status: 'failed', reason: result.ok ? 'too_big' : result.reason });
+        return after;
+      });
+      return next();
+    };
+    void Promise.all(Array.from({ length: Math.min(LINK_DOWNLOADS_AT_ONCE, queue.length) }, next));
+  }, [missingLinks, linkRetry]);
+  const retryLinks = () => {
+    for (const { link } of failedLinks) linksAsked.current.delete(link);
+    setLinkRetry((n) => n + 1);
   };
 
   const handleRemoveQuestion = (id: string) => {
@@ -511,11 +642,11 @@ function UploadBody({ open, initialType, initialCategory, types, onBusy, onClose
 
   /** The answers of a refused import, row by row, filed under the check of each item it was sent. */
   const absorb = useCallback(
-    (items: unknown[], report: ContentImportReport) => {
+    (items: unknown[], report: ContentImportReport, offset: number) => {
       const askedOf = new Map(entries.map((entry) => [canonicalJson(entry.item), entry.signature]));
       setChecked((prev) => {
         const next = new Map(prev);
-        items.forEach((item, index) => next.set(askedOf.get(canonicalJson(item)) ?? canonicalJson(item), report.rows.find((row) => row.index === index)?.issues ?? []));
+        items.forEach((item, index) => next.set(askedOf.get(canonicalJson(item)) ?? canonicalJson(item), report.rows.find((row) => row.index === index + offset)?.issues ?? []));
         return next;
       });
     },
@@ -526,7 +657,8 @@ function UploadBody({ open, initialType, initialCategory, types, onBusy, onClose
   const importItems = useCallback(
     async (items: unknown[], replay?: TdOperation, close = true, current: () => boolean = () => true): Promise<'done' | 'spent' | 'failed'> => {
       if (!user) return 'failed';
-      const hash = await sha256Hex(canonicalJson(items));
+      const { sent, offset } = withCategories(items);
+      const hash = await sha256Hex(canonicalJson(sent));
       // A replay whose file was replaced (or whose dialog closed) meanwhile sends nothing.
       if (!current()) return 'failed';
       const saved = batchKeyFor(user.id, hash);
@@ -538,7 +670,7 @@ function UploadBody({ open, initialType, initialCategory, types, onBusy, onClose
         onBusy(true);
       }
       try {
-        const out = await write((operation) => tdAdmin.imports.apply(saved.key, items, operation), [tdKeys.content, tdKeys.releases, tdKeys.imports], replay);
+        const out = await write((operation) => tdAdmin.imports.apply(saved.key, sent, operation), [tdKeys.content, tdKeys.releases, tdKeys.imports], replay);
         if (!out.created && out.batch.status !== 'applied') {
           // Imported before and undone since: this key is spent.
           retireBatchKey(user.id, saved.key);
@@ -552,7 +684,7 @@ function UploadBody({ open, initialType, initialCategory, types, onBusy, onClose
         if (caught instanceof TdApiError && (caught.code === 'validation' || caught.code === 'conflict')) markSent(user.id, hash, false);
         // A check that passed can still lose a race: the API answers with the whole report.
         if (caught instanceof TdApiError && caught.code === 'validation' && caught.details && typeof caught.details === 'object' && 'rows' in caught.details) {
-          absorb(items, caught.details as ContentImportReport);
+          absorb(items, caught.details as ContentImportReport, offset);
         }
         toast.error(tdErrorText(caught));
         return 'failed';
@@ -563,7 +695,7 @@ function UploadBody({ open, initialType, initialCategory, types, onBusy, onClose
         }
       }
     },
-    [user, write, onBusy, onClose, absorb],
+    [user, write, onBusy, onClose, absorb, withCategories],
   );
 
   // The items of a file read again went out once without a final answer: asked with the saved key first, since a check
@@ -587,7 +719,7 @@ function UploadBody({ open, initialType, initialCategory, types, onBusy, onClose
       // Questions removed or unticked since the file was read are not what went out: nothing is replayed then.
       const asRead = canonicalJson(items);
       const changed = () => canonicalJson(uploadable.current) !== asRead;
-      const saved = user && operation && items.length > 0 ? batchKeyFor(user.id, await sha256Hex(asRead)) : null;
+      const saved = user && operation && items.length > 0 ? batchKeyFor(user.id, await sha256Hex(canonicalJson(withCategories(items).sent))) : null;
       if (superseded()) return;
       if (saved?.sent && operation && !changed()) {
         // The questions cannot be changed while it is out: what a retry sends is what is shown.
@@ -614,24 +746,32 @@ function UploadBody({ open, initialType, initialCategory, types, onBusy, onClose
       }
       setReplayed(mine);
     })();
-  }, [read, replayed, ready, entries, questions, user, importItems, onClose, onBusy, sharedName]);
+  }, [read, replayed, ready, entries, questions, user, importItems, onClose, onBusy, sharedName, withCategories]);
 
-  // The check: which of the questions the API would refuse, asked once for each item.
+  // The check: which of the questions the API would refuse, asked once for each item. A picture still downloading
+  // changes its question's key when it arrives, so the check waits for the downloads.
   useEffect(() => {
-    if (!ready || read === 0 || replayed !== read || pending.length === 0 || checking.current) return;
+    if (!ready || read === 0 || replayed !== read || pending.length === 0 || loadingLinks > 0 || checking.current) return;
     checking.current = true;
     const asked = pending;
     void (async () => {
       try {
-        const report = await write((operation) => tdAdmin.imports.preview(asked.map((entry) => entry.asked), operation), []);
+        const { sent, offset } = withCategories(asked.map((entry) => entry.asked));
+        const report = await write((operation) => tdAdmin.imports.preview(sent, operation), []);
         checking.current = false;
         setChecked((prev) => {
           const next = new Map(prev);
-          asked.forEach((entry, index) => next.set(entry.signature, report.rows.find((row) => row.index === index)?.issues ?? []));
+          asked.forEach((entry, index) => next.set(entry.signature, report.rows.find((row) => row.index === index + offset)?.issues ?? []));
           return next;
         });
-      } catch {
+      } catch (caught) {
         checking.current = false;
+        // Another member signed in meanwhile: the check was theirs to drop, not a failure.
+        if (caught instanceof TdApiError && caught.code === SESSION_CHANGED) return;
+        if (caught instanceof TdApiError && caught.status === 429) {
+          setTimeout(() => setCheckRetry((n) => n + 1), CHECK_RETRY_MS);
+          return;
+        }
         toast.error(t('Failed to check the questions. You can still proceed with upload.'));
         // Keep all questions selected on error
         setChecked((prev) => {
@@ -641,7 +781,7 @@ function UploadBody({ open, initialType, initialCategory, types, onBusy, onClose
         });
       }
     })();
-  }, [ready, read, replayed, pending, write]);
+  }, [ready, read, replayed, pending, loadingLinks, checkRetry, write, withCategories]);
 
   const handleUpload = async () => {
     if (uploadInFlightRef.current || state.isUploading) {
@@ -656,7 +796,7 @@ function UploadBody({ open, initialType, initialCategory, types, onBusy, onClose
     }
 
     if (!ready) {
-      toast.error(topic ? t('Please select a topic and a category') : t('Please select a category'));
+      toast.error(t('Please select a category'));
       return;
     }
 
@@ -680,9 +820,9 @@ function UploadBody({ open, initialType, initialCategory, types, onBusy, onClose
       // 1. The pictures the chosen questions name, saved as images first: the questions refer to them.
       const named = new Set(selectedRows.flatMap((index) => {
         const question = rows[index]!.question;
-        return pictureFilesOf(question).map((name) => name.toLowerCase());
+        return pictureFilesOf(question).map(pictureName);
       }));
-      const saved = await savePictures(pictures.filter((picture) => named.has(picture.name.toLowerCase())), operation);
+      const saved = await savePictures(pictures.filter((picture) => named.has(pictureName(picture.name))), operation);
       if (!saved) return;
       // 2. The new questions, all or none, as one import.
       if (items.length > 0) {
@@ -712,19 +852,31 @@ function UploadBody({ open, initialType, initialCategory, types, onBusy, onClose
 
   /** Uploads each picture and saves it as an image; one saved before (the same bytes) is used again. */
   const savePictures = async (chosen: Picture[], operation: TdOperation): Promise<boolean> => {
-    for (const picture of chosen) {
-      try {
-        if (await findImage(picture.key, operation)) continue;
-        await write(async (op) => {
-          const upload = await tdAdmin.media.upload(picture.file, picture.file.type, op);
-          return tdAdmin.content('media').create({ data: { key: picture.key, url: null, uploadId: upload.id, width: upload.width, height: upload.height, author: null, license: null, source: null } }, op);
-        }, undefined, operation);
-      } catch (caught) {
-        toast.error(t('The picture {name} could not be saved: {error}', { name: picture.name, error: tdErrorText(caught) }));
-        return false;
+    try {
+      for (const picture of chosen) {
+        for (let attempt = 0; ; attempt++) {
+          try {
+            if (await findImage(picture.key, operation)) break;
+            await write(async (op) => {
+              const upload = await tdAdmin.media.upload(picture.file, picture.file.type, op);
+              return tdAdmin.content('media').create({ data: { key: picture.key, url: null, uploadId: upload.id, width: upload.width, height: upload.height, author: null, license: null, source: picture.source } }, op);
+            }, undefined, operation);
+            break;
+          } catch (caught) {
+            if (caught instanceof TdApiError && caught.status === 429 && attempt < PICTURE_RETRIES && operationIsCurrent(tdTokens, operation)) {
+              setPacing(true);
+              await new Promise((resolve) => setTimeout(resolve, PICTURE_RETRY_MS));
+              continue;
+            }
+            toast.error(t('The picture {name} could not be saved: {error}', { name: picture.source ? picture.file.name : picture.name, error: tdErrorText(caught) }));
+            return false;
+          }
+        }
       }
+      return true;
+    } finally {
+      setPacing(false);
     }
-    return true;
   };
 
   /** Each card the file names again, as updatedCard makes it. A changed sign-in stops them all. */
@@ -751,7 +903,8 @@ function UploadBody({ open, initialType, initialCategory, types, onBusy, onClose
 
   const clearFile = () => {
     reading.current += 1;
-    setState({ parseErrors: [], isUploading: false });
+    setFileName(null);
+    setState({ parseErrors: [], lines: undefined, isUploading: false });
     setQuestions([]);
     setUnselected(new Set());
     setPreviewIndex(null);
@@ -774,7 +927,8 @@ function UploadBody({ open, initialType, initialCategory, types, onBusy, onClose
   const selectedCount = rows.filter((row) => row.isSelected).length;
   const updateCount = rows.filter((row) => row.isSelected && row.updates).length;
   const duplicateCount = rows.filter((row) => row.isDuplicate).length;
-  const problemCount = rows.filter((row) => row.problems.length > 0).length;
+  const problemRows = rows.flatMap((row, index) => (row.problems.length > 0 ? [{ row, index }] : []));
+  const problemCount = problemRows.length;
   const selectedProblemCount = rows.filter((row) => row.isSelected && row.problems.length > 0).length;
   const parseErrorCount = state.parseErrors.filter((error) => error.severity === 'error').length;
   const parseWarningCount = state.parseErrors.filter((error) => error.severity === 'warning').length;
@@ -785,6 +939,22 @@ function UploadBody({ open, initialType, initialCategory, types, onBusy, onClose
   const pageStart = (currentPage - 1) * PAGE_SIZE;
   const pageQuestions = rows.slice(pageStart, pageStart + PAGE_SIZE);
   const showsLevel = type === 'practice-questions' || type === 'cards';
+  const showsPicture = type === 'practice-questions' || type === 'cards';
+  const showsCategory = boxNames.length > 0;
+  const madeKeys = new Set(newCategories.map((made) => made.key));
+  /** A Round III question's own category, as the list shows it: marked when the upload makes it. */
+  const ownCategoryOf = (question: TdParsedQuestion) =>
+    question.kind === 'box-questions' && question.category
+      ? { name: titlesOnFile.get(categoryName(question.category)) ?? question.category, made: madeKeys.has(categoryKeys.get(categoryName(question.category)) ?? '') }
+      : null;
+  /** The category a question goes into, for its preview: its own line's, or the one chosen above (new when typed in, or not on file). */
+  const categoryOfQuestion = (question: TdParsedQuestion): { name: string; made: boolean } | null => {
+    const own = ownCategoryOf(question);
+    if (own) return own;
+    if (question.kind === 'practice-questions' && question.category) return { name: question.category, made: !categoryOptions.some((option) => option.value === question.category) };
+    if (!(keyCategory || labelCategory) || !category) return null;
+    return { name: categoryOptions.find((option) => option.value === category)?.label ?? category, made: selectedCategory === NEW };
+  };
 
   return (
     <>
@@ -792,7 +962,9 @@ function UploadBody({ open, initialType, initialCategory, types, onBusy, onClose
         <DialogTitle>{t('Bulk Upload Questions')}</DialogTitle>
         <DialogDescription>
           {state.isUploading
-            ? tn(uploadCount, 'Creating {count} question…', 'Creating {count} questions…')
+            ? pacing
+              ? t('The API takes 30 pictures a minute: the rest go up in a moment.')
+              : tn(uploadCount, 'Creating {count} question…', 'Creating {count} questions…')
             : isChecking
               ? tn(questions.length, 'Checking {count} question…', 'Checking {count} questions…')
               : t('Upload a .txt file with multiple questions to create them all at once. Maximum {max} questions per upload.', { max: TD_IMPORT_MAX_ITEMS })}
@@ -827,10 +999,13 @@ function UploadBody({ open, initialType, initialCategory, types, onBusy, onClose
             {/* Category Selection */}
             {(keyCategory || labelCategory) && (
               <div className="space-y-2">
-                <Label htmlFor="category">{topic ? t('Topic') : t('Category')} *</Label>
+                <Label htmlFor="category">
+                  {t('Category')}
+                  {ownCategories ? '' : ' *'}
+                </Label>
                 <Select value={selectedCategory} onValueChange={setSelectedCategory}>
                   <SelectTrigger id="category" className="max-w-full">
-                    <SelectValue placeholder={topic ? t('Select a topic') : t('Select a category')} />
+                    <SelectValue placeholder={t('Select a category')} />
                   </SelectTrigger>
                   <SelectContent>
                     {categoryOptions.map((option) => (
@@ -838,7 +1013,7 @@ function UploadBody({ open, initialType, initialCategory, types, onBusy, onClose
                         {option.label}
                       </SelectItem>
                     ))}
-                    {labelCategory && <SelectItem value={NEW}>{topic ? t('New topic…') : t('New category…')}</SelectItem>}
+                    {labelCategory && <SelectItem value={NEW}>{t('New category…')}</SelectItem>}
                     {keyCategory && categoryOptions.length === 0 && (
                       <SelectItem value="none" disabled>
                         {categoryRows.isLoading ? t('Loading categories...') : t('No categories available')}
@@ -846,7 +1021,7 @@ function UploadBody({ open, initialType, initialCategory, types, onBusy, onClose
                     )}
                   </SelectContent>
                 </Select>
-                {selectedCategory === NEW && <Input aria-label={topic ? t('New topic') : t('New category')} value={newCategory} onChange={(event) => setNewCategory(event.target.value)} placeholder={topic ? t('Topic') : t('Category')} />}
+                {selectedCategory === NEW && <Input aria-label={t('New category')} value={newCategory} onChange={(event) => setNewCategory(event.target.value)} placeholder={t('Category')} />}
                 {categoryProblem && <p className="text-sm text-destructive">{categoryProblem}</p>}
               </div>
             )}
@@ -854,10 +1029,10 @@ function UploadBody({ open, initialType, initialCategory, types, onBusy, onClose
             {/* File Input */}
             <div className="space-y-2">
               <Label htmlFor="file">{t('Question File')} *</Label>
-              <Input
+              <FileChooser
                 ref={fileInputRef}
                 id="file"
-                type="file"
+                chosen={fileName}
                 accept={takesPictures ? '.txt,image/jpeg,image/png,image/webp' : '.txt'}
                 multiple={takesPictures}
                 onChange={handleFileSelect}
@@ -887,19 +1062,44 @@ function UploadBody({ open, initialType, initialCategory, types, onBusy, onClose
           {takesPictures && (
             <div className="space-y-2">
               <Label htmlFor="pictures">{t('Pictures')}</Label>
-              {missingPictures.length > 0 && (
+              {missingFiles.length > 0 && (
                 <Alert className="border-amber-300 bg-amber-50 text-amber-900">
                   <AlertCircle className="h-4 w-4" />
                   <AlertDescription>
-                    {tn(missingPictures.length, 'The file names a picture not chosen yet: {names}. Choose it here.', 'The file names {count} pictures not chosen yet: {names}. Choose them here.', {
-                      names: missingPictures.length > 4 ? `${missingPictures.slice(0, 4).join(', ')}…` : missingPictures.join(', '),
+                    {tn(missingFiles.length, 'The file names a picture not chosen yet: {names}. Choose it here.', 'The file names {count} pictures not chosen yet: {names}. Choose them here.', {
+                      names: missingFiles.length > 4 ? `${missingFiles.slice(0, 4).join(', ')}…` : missingFiles.join(', '),
                     })}
                   </AlertDescription>
                 </Alert>
               )}
-              <Input
+              {loadingLinks > 0 && (
+                <Alert>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <AlertDescription>{tn(loadingLinks, 'Downloading {count} picture from its link…', 'Downloading {count} pictures from their links…')}</AlertDescription>
+                </Alert>
+              )}
+              {failedLinks.length > 0 && (
+                <Alert variant="destructive">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription className="space-y-2">
+                    <p>{tn(failedLinks.length, 'A picture could not be downloaded from its link: save it and choose it here, or give another link.', '{count} pictures could not be downloaded from their links: save them and choose them here, or give other links.')}</p>
+                    <ul className="space-y-1 text-xs">
+                      {failedLinks.slice(0, 6).map(({ link, reason }) => (
+                        <li key={link} className="break-all">
+                          {link}: {linkPictureReason(reason)}
+                        </li>
+                      ))}
+                      {failedLinks.length > 6 && <li>…</li>}
+                    </ul>
+                    <Button type="button" variant="outline" size="sm" onClick={retryLinks}>
+                      {t('Try again')}
+                    </Button>
+                  </AlertDescription>
+                </Alert>
+              )}
+              <FileChooser
                 id="pictures"
-                type="file"
+                chosen={pictures.length ? tn(pictures.length, '{count} picture', '{count} pictures') : null}
                 multiple
                 accept="image/jpeg,image/png,image/webp"
                 onChange={(event) => void addPictures([...(event.target.files ?? [])])}
@@ -908,16 +1108,17 @@ function UploadBody({ open, initialType, initialCategory, types, onBusy, onClose
                   event.currentTarget.value = '';
                 }}
               />
-              <p className="text-sm text-muted-foreground">{t('The pictures the file names on its Image lines: JPEG, PNG or WebP, at most 2 MB each. Pictures chosen again are added.')}</p>
+              <p className="text-sm text-muted-foreground">{t('The pictures the file names on its Image lines: JPEG, PNG or WebP, at most 2 MB each. Pictures chosen again are added. An Image line with a link needs nothing here: its picture is downloaded.')}</p>
               {pictures.length > 0 && (
                 <div className="rounded-lg border p-3">
                   <div className="flex flex-wrap gap-2">
                     {pictures.map((picture) => (
                       <figure key={picture.name} className="w-16">
-                        {/* eslint-disable-next-line @next/next/no-img-element -- an object URL of a file chosen here */}
-                        <img src={picture.url} alt={picture.name} className="h-20 w-16 rounded-md border object-cover" />
-                        <figcaption className="mt-1 truncate text-[10px] text-muted-foreground" title={picture.name}>
-                          {picture.name}
+                        {/* eslint-disable-next-line @next/next/no-img-element -- an object URL of a file chosen or downloaded here */}
+                        <img src={picture.url} alt={picture.file.name} className="h-20 w-16 rounded-md border object-cover" />
+                        <figcaption className="mt-1 flex items-center gap-0.5 truncate text-[10px] text-muted-foreground" title={picture.name}>
+                          {picture.source && <Link2 className="h-3 w-3 shrink-0" aria-label={t('From a link')} />}
+                          <span className="truncate">{picture.file.name}</span>
                         </figcaption>
                       </figure>
                     ))}
@@ -964,8 +1165,18 @@ function UploadBody({ open, initialType, initialCategory, types, onBusy, onClose
                 <ul className="list-disc list-inside space-y-1 text-sm">
                   {state.parseErrors.slice(0, 5).map((err, i) => (
                     <li key={i}>
-                      <span className="font-medium capitalize">{err.severity === 'error' ? WORDS.error : WORDS.warning}</span>: {t('Line {line}', { line: err.lineNumber })}
-                      {err.questionNumber && ` (${t('Question {n}', { n: err.questionNumber })})`}: {err.message}
+                      {/* Not in the list below (it could not be read): its lines from the file are shown instead. */}
+                      <details className="inline">
+                        <summary className="cursor-pointer">
+                          <span className="font-medium capitalize">{err.severity === 'error' ? WORDS.error : WORDS.warning}</span>: {t('Line {line}', { line: err.lineNumber })}
+                          {err.questionNumber && ` (${t('Question {n}', { n: err.questionNumber })})`}: {err.message}
+                        </summary>
+                        {state.lines && (
+                          <pre className="mt-1 max-h-48 overflow-auto whitespace-pre-wrap rounded-md border border-border bg-(--td-input) p-2 font-mono text-xs text-foreground">
+                            {questionLines(state.lines, err.lineNumber).join('\n')}
+                          </pre>
+                        )}
+                      </details>
                     </li>
                   ))}
                   {state.parseErrors.length > 5 && <li>{t('...and {n} more', { n: state.parseErrors.length - 5 })}</li>}
@@ -982,9 +1193,30 @@ function UploadBody({ open, initialType, initialCategory, types, onBusy, onClose
                   <div className="space-y-1">
                     <p className="font-semibold">{tn(selectedCount, '{count} question selected for upload', '{count} questions selected for upload')}</p>
                     {updateCount > 0 && <p className="text-sm text-muted-foreground">{tn(updateCount, '{count} of them updates a card already in the category', '{count} of them update cards already in the category')}</p>}
-                    {duplicateCount > 0 && <p className="text-sm text-muted-foreground">{tn(duplicateCount, '{count} duplicate found and unselected', '{count} duplicates found and unselected')}</p>}
+                    {duplicateCount > 0 && (
+                      <p className="text-sm text-muted-foreground">
+                        {tn(duplicateCount, '{count} duplicate found and unselected.', '{count} duplicates found and unselected.')}{' '}
+                        {t('They were uploaded before and are in the CMS already: find them in the Questions list under {mode}.', { mode: TYPE_OPTIONS.find((option) => option.value === type)?.label ?? '' })}
+                      </p>
+                    )}
                     {problemCount > 0 && (
-                      <p className="text-sm text-muted-foreground">{tn(problemCount, '{count} question has a problem: remove it or fix the file', '{count} questions have problems: remove them or fix the file')}</p>
+                      <>
+                        <p className="text-sm text-muted-foreground">{tn(problemCount, '{count} question has a problem: remove it or fix the file', '{count} questions have problems: remove them or fix the file')}</p>
+                        <ul className="space-y-1 text-sm">
+                          {problemRows.slice(0, PROBLEMS_LISTED).map(({ row, index }) => (
+                            <li key={row.question.id}>
+                              <button type="button" className="text-left hover:underline" onClick={() => setPreviewIndex(index)}>
+                                <span className="font-medium text-amber-900">
+                                  {t('Question {n}', { n: row.question.questionNumber })} · {t('Line {line}', { line: row.question.lineNumber })}
+                                </span>
+                                {': '}
+                                <span className="text-amber-800">{row.problems.map(issueMessage).join(' · ')}</span>
+                              </button>
+                            </li>
+                          ))}
+                          {problemCount > PROBLEMS_LISTED && <li className="text-muted-foreground">{t('...and {n} more', { n: problemCount - PROBLEMS_LISTED })}</li>}
+                        </ul>
+                      </>
                     )}
                   </div>
                 </AlertDescription>
@@ -998,7 +1230,6 @@ function UploadBody({ open, initialType, initialCategory, types, onBusy, onClose
               <div className="flex items-center justify-between">
                 <div>
                   <Label className="text-base font-semibold">{t('Parsed Questions ({n})', { n: rows.length })}</Label>
-                  {game && days && days.length > 0 && <DaysSummary game={game} count={days.length} />}
                 </div>
                 {rows.length > TD_IMPORT_MAX_ITEMS && <Badge variant="destructive">{t('Maximum {max} questions allowed', { max: TD_IMPORT_MAX_ITEMS })}</Badge>}
               </div>
@@ -1022,8 +1253,9 @@ function UploadBody({ open, initialType, initialCategory, types, onBusy, onClose
                         })()}
                       </TableHead>
                       <TableHead className="w-12">#</TableHead>
+                      {showsPicture && <TableHead className="w-16">{t('Picture')}</TableHead>}
                       <TableHead>{type === 'cards' || type === 'whoami-subjects' ? t('Answer') : t('Question')}</TableHead>
-                      {days && <TableHead className="w-20">{t('Day')}</TableHead>}
+                      {showsCategory && <TableHead className="w-44">{t('Category')}</TableHead>}
                       {showsLevel && <TableHead className="w-24">{type === 'cards' ? t('Points') : t('Difficulty')}</TableHead>}
                       <TableHead className="w-32">{t('Status')}</TableHead>
                       <TableHead className="w-12"></TableHead>
@@ -1048,8 +1280,17 @@ function UploadBody({ open, initialType, initialCategory, types, onBusy, onClose
                           />
                         </TableCell>
                         <TableCell className="font-medium">{q.question.questionNumber}</TableCell>
+                        {showsPicture && (
+                          <TableCell>
+                            <RowPicture question={q.question} pictures={pictures} links={links} media={mediaByKey} />
+                          </TableCell>
+                        )}
                         <TableCell className="max-w-md truncate">{tdQuestionSummary(q.question)}</TableCell>
-                        {days && <TableCell className="text-sm text-muted-foreground">{t('Day {n}', { n: days[pageStart + rowIndex]?.day ?? 0 })}</TableCell>}
+                        {showsCategory && (
+                          <TableCell className="text-sm">
+                            <CategoryCell own={ownCategoryOf(q.question)} />
+                          </TableCell>
+                        )}
                         {showsLevel && (
                           <TableCell>
                             <Badge variant="outline">
@@ -1120,11 +1361,10 @@ function UploadBody({ open, initialType, initialCategory, types, onBusy, onClose
           row={rows[previewIndex]}
           currentIndex={previewIndex}
           totalQuestions={rows.length}
-          clubs={clubs}
-          clubsLoaded={!clubRows.isLoading}
           media={mediaByKey}
           mediaLoaded={mediaRows.isSuccess}
           pictures={pictures}
+          category={categoryOfQuestion(rows[previewIndex]!.question)}
           onClose={() => setPreviewIndex(null)}
           onNavigate={setPreviewIndex}
         />
@@ -1146,11 +1386,11 @@ interface ParsedQuestionPreviewDialogProps {
   row: QuestionWithSelection;
   currentIndex: number;
   totalQuestions: number;
-  clubs: readonly TdClubRef[];
-  clubsLoaded: boolean;
   media: Map<string, { uploadId: string | null; url: string | null }>;
   mediaLoaded: boolean;
   pictures: Picture[];
+  /** The category it goes into, and whether the upload makes it. */
+  category: { name: string; made: boolean } | null;
   onClose: () => void;
   onNavigate: (index: number) => void;
 }
@@ -1180,6 +1420,19 @@ function PreviewImage({ label, reference, media, mediaLoaded }: { label: string;
 }
 
 /** A picture the file names, as chosen under Pictures (or a note that it is not). */
+/** A file input whose button and choice read in Georgian: the browser's own says "Choose File" in the browser's language. */
+function FileChooser({ id, chosen, ...props }: Omit<ComponentProps<'input'>, 'type'> & { id: string; chosen: string | null }) {
+  return (
+    <div className="flex h-9 w-full min-w-0 items-center gap-2 rounded-md border border-input px-1 shadow-xs focus-within:border-ring focus-within:ring-[3px] focus-within:ring-ring/50">
+      <input id={id} type="file" className="sr-only" {...props} />
+      <label htmlFor={id} className="inline-flex h-7 shrink-0 cursor-pointer items-center rounded-md bg-secondary px-3 text-sm font-medium text-secondary-foreground hover:bg-secondary/80">
+        {t('Choose a file')}
+      </label>
+      <span className="min-w-0 truncate text-sm text-muted-foreground">{chosen ?? t('No file chosen')}</span>
+    </div>
+  );
+}
+
 function ChosenPicture({ name, pictures, label = t('Image') }: { name: string; pictures: Picture[]; label?: string }) {
   const picture = pictures.find((p) => p.name.toLowerCase() === name.toLowerCase());
   return (
@@ -1198,7 +1451,40 @@ function ChosenPicture({ name, pictures, label = t('Image') }: { name: string; p
   );
 }
 
-function ParsedQuestionPreviewDialog({ row, currentIndex, totalQuestions, clubs, clubsLoaded, media, mediaLoaded, pictures, onClose, onNavigate }: ParsedQuestionPreviewDialogProps) {
+/** A question's picture in the list of what the file gives: its SoFIFA face, its chosen or downloaded picture, or its uploaded image. */
+function CategoryCell({ own }: { own: { name: string; made: boolean } | null }) {
+  if (!own) return <span className="text-muted-foreground">{t('The one chosen above')}</span>;
+  return (
+    <span className="flex min-w-0 items-center gap-1.5">
+      <span className="truncate">{own.name}</span>
+      {own.made && <Badge variant="outline" className="shrink-0 border-emerald-200 bg-emerald-50 text-emerald-700">{t('new')}</Badge>}
+    </span>
+  );
+}
+
+function RowPicture({ question, pictures, links, media }: { question: TdParsedQuestion; pictures: Picture[]; links: Map<string, LinkState>; media: ParsedQuestionPreviewDialogProps['media'] }) {
+  const frame = 'h-12 w-10 rounded-md border bg-slate-100 object-cover';
+  if (question.kind !== 'cards' && question.kind !== 'practice-questions') return null;
+  if (question.imageFile) {
+    const name = question.imageFile;
+    const picture = pictures.find((p) => p.name.toLowerCase() === name.toLowerCase());
+    // eslint-disable-next-line @next/next/no-img-element -- an object URL of a file chosen or downloaded here
+    if (picture) return <img src={picture.url} alt="" className={frame} />;
+    const waiting = isPictureLink(name) && links.get(name)?.status !== 'failed';
+    return <span className={cn(frame, 'grid place-items-center text-slate-400')}>{waiting ? <Loader2 className="size-4 animate-spin" /> : <AlertCircle className="size-4 text-destructive" />}</span>;
+  }
+  if (question.imageKey) {
+    const uploaded = media.get(question.imageKey);
+    return <TdMediaThumb uploadId={uploaded?.uploadId} url={uploaded?.url} alt="" className="h-12 w-10" />;
+  }
+  if (question.kind === 'cards' && question.photo) {
+    // eslint-disable-next-line @next/next/no-img-element -- served by the CMS's own face route
+    return <img src={cardFaceSrc(question.photo)} alt="" loading="lazy" className={frame} />;
+  }
+  return <span className="text-sm text-muted-foreground">—</span>;
+}
+
+function ParsedQuestionPreviewDialog({ row, currentIndex, totalQuestions, media, mediaLoaded, pictures, category, onClose, onNavigate }: ParsedQuestionPreviewDialogProps) {
   const hasPrevious = currentIndex > 0;
   const hasNext = currentIndex < totalQuestions - 1;
   const question = row.question;
@@ -1225,7 +1511,7 @@ function ParsedQuestionPreviewDialog({ row, currentIndex, totalQuestions, clubs,
 
   return (
     <Dialog open onOpenChange={(isOpen) => !isOpen && onClose()}>
-      <DialogContent className="flex max-h-[92vh] w-[min(92vw,760px)] max-w-none flex-col overflow-hidden p-0" aria-describedby={undefined} onClick={(e) => e.stopPropagation()}>
+      <TdDialogContent className="flex max-h-[92vh] w-[min(92vw,760px)] max-w-none flex-col overflow-hidden p-0" aria-describedby={undefined} onClick={(e) => e.stopPropagation()}>
         <DialogHeader className="shrink-0 border-b px-5 py-4 pr-12">
           <div className="flex items-center justify-between">
             <DialogTitle>{t('Question Preview')}</DialogTitle>
@@ -1285,6 +1571,20 @@ function ParsedQuestionPreviewDialog({ row, currentIndex, totalQuestions, clubs,
             {row.isSelected ? <Badge variant="default">{WORDS.selected}</Badge> : <Badge variant="secondary">{t('Not Selected')}</Badge>}
           </div>
 
+          {category && (
+            <div>
+              <Label className="text-xs text-muted-foreground">{t('Category')}</Label>
+              <p className="mt-1 flex flex-wrap items-center gap-2 text-sm font-medium">
+                {category.name}
+                {category.made && (
+                  <Badge variant="outline" className="border-emerald-200 bg-emerald-50 text-emerald-700">
+                    {t('new category: the upload makes it')}
+                  </Badge>
+                )}
+              </p>
+            </div>
+          )}
+
           {/* The question, or for a card or a Round II subject its answer */}
           {question.kind === 'cards' || question.kind === 'whoami-subjects' ? (
             <div>
@@ -1315,7 +1615,11 @@ function ParsedQuestionPreviewDialog({ row, currentIndex, totalQuestions, clubs,
               {question.kind === 'cards' && question.photo && (
                 <div>
                   <Label className="text-xs text-muted-foreground">{t('SoFIFA face')}</Label>
-                  <p className="text-sm mt-1">{t('{id} · version {ver}', { id: question.photo.id, ver: question.photo.ver })}</p>
+                  <div className="mt-1 flex items-center gap-3">
+                    {/* eslint-disable-next-line @next/next/no-img-element -- served by the CMS's own face route */}
+                    <img src={cardFaceSrc(question.photo)} alt={question.display} className="h-32 w-24 rounded-md border bg-slate-100 object-cover" />
+                    <p className="text-sm">{t('{id} · version {ver}', { id: question.photo.id, ver: question.photo.ver })}</p>
+                  </div>
                 </div>
               )}
             </>
@@ -1346,57 +1650,6 @@ function ParsedQuestionPreviewDialog({ row, currentIndex, totalQuestions, clubs,
                 </div>
               </div>
             </>
-          )}
-
-          {question.kind === 'football-logic' && (
-            <>
-              {question.imageAFile ? <ChosenPicture label={t('Image A')} name={question.imageAFile} pictures={pictures} /> : <PreviewImage label={t('Image A')} reference={question.imageAKey ?? question.imageA} {...(question.imageAKey ? { media, mediaLoaded } : {})} />}
-              {question.imageBFile ? <ChosenPicture label={t('Image B')} name={question.imageBFile} pictures={pictures} /> : <PreviewImage label={t('Image B')} reference={question.imageBKey ?? question.imageB} {...(question.imageBKey ? { media, mediaLoaded } : {})} />}
-              <div>
-                <Label className="text-xs text-muted-foreground">{t('Answer')}</Label>
-                <div className="mt-1 rounded-lg border bg-gray-50 p-3 text-sm font-medium">{question.display}</div>
-              </div>
-            </>
-          )}
-
-          {question.kind === 'put-in-order' && (
-            <>
-              <div>
-                <Label className="text-xs text-muted-foreground">{WORDS.items}</Label>
-                <div className="space-y-2 mt-1">
-                  {question.items.map((item, index) => (
-                    <div key={index} className="rounded-lg border bg-gray-50 p-3 text-sm">
-                      {item}
-                    </div>
-                  ))}
-                </div>
-              </div>
-              <div>
-                <Label className="text-xs text-muted-foreground">{t('Right order')}</Label>
-                <div className="space-y-2 mt-1">
-                  {question.order.map((item, index) => (
-                    <div key={index} className="rounded-lg border bg-green-50 p-3 text-sm">
-                      {index + 1}. {item}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </>
-          )}
-
-          {question.kind === 'career-path' && (
-            <div>
-              <Label className="text-xs text-muted-foreground">{t('Clubs ({n})', { n: question.clubs.length })}</Label>
-              <div className="space-y-2 mt-1">
-                {careerClubs(question, clubs).map((club, index) => (
-                  <div key={index} className="flex min-w-0 items-center gap-2 rounded-lg border bg-gray-50 p-3 text-sm">
-                    <span className="font-medium">{index + 1}.</span>
-                    <span className="min-w-0 flex-1 break-words">{club.name}</span>
-                    {clubsLoaded && (club.clubKey ? <span className="font-mono text-xs text-muted-foreground">{club.clubKey}</span> : <span className="text-xs text-muted-foreground">{t('No crest')}</span>)}
-                  </div>
-                ))}
-              </div>
-            </div>
           )}
 
           {aliases.length > 0 && (
@@ -1439,7 +1692,7 @@ function ParsedQuestionPreviewDialog({ row, currentIndex, totalQuestions, clubs,
             </Alert>
           )}
         </div>
-      </DialogContent>
+      </TdDialogContent>
     </Dialog>
   );
 }

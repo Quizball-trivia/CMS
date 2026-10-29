@@ -4,7 +4,8 @@ import { useState } from 'react';
 import { Check, Loader2 } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { TdDialogContent } from '@/components/td/td-dialog';
 import { TdErrorPanel } from '@/components/td/td-error-panel';
 import { tdKeys, useTdAllRows, useTdWrite } from '@/hooks/use-td-content';
 import type { TdContentRow } from '@/lib/td/admin-api';
@@ -107,7 +108,7 @@ export function TdCategoryApproval({
 
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-h-[85vh] overflow-y-auto bg-(--td-surface-2) sm:max-w-xl">
+      <TdDialogContent className="max-h-[85vh] overflow-y-auto bg-(--td-surface-2) sm:max-w-xl">
         <DialogHeader>
           <DialogTitle>{cards ? t('Approve the category with its cards') : t('Approve the category with its questions')}</DialogTitle>
           <DialogDescription>
@@ -163,7 +164,7 @@ export function TdCategoryApproval({
             {t('Approve')}
           </Button>
         </DialogFooter>
-      </DialogContent>
+      </TdDialogContent>
     </Dialog>
   );
 }

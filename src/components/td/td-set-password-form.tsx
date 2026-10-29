@@ -58,11 +58,8 @@ export function linkRefusal(error: unknown, kind: TdLinkKind, unanswered = false
       return t('Too many attempts. Wait a minute and try again.');
     case 'invalid_request':
       return kind === 'invite' ? t('Check your name and password and try again.') : t('Check your password and try again.');
-    case 'busy':
-    case 'internal':
-      return t('The Table Derby API could not take this just now. Try again in a moment.');
     default:
-      return error.message;
+      return t('The Table Derby API could not take this just now. Try again in a moment.');
   }
 }
 

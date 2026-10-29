@@ -225,6 +225,7 @@ export const KA_OPS: Record<string, string> = {
   'Reason codes': 'მიზეზის კოდები',
   'Betsson did not answer within 10 s': 'Betsson-მა 10 წამში არ უპასუხა',
   'Betsson answered with that non-2xx status': 'Betsson-მა ამ სტატუსით უპასუხა (არა 2xx)',
+  'Betsson answered with status {status}': 'Betsson-მა უპასუხა სტატუსით {status}',
   'Given up after 24 hours of retries': 'გაგზავნა შეწყდა 24 საათის განმეორებითი ცდების შემდეგ',
   'HMAC signature does not match': 'HMAC ხელმოწერა არ ემთხვევა',
   'X-Partner-Key-Id is not an active key': 'X-Partner-Key-Id აქტიური გასაღები არ არის',
@@ -272,4 +273,20 @@ export const KA_OPS: Record<string, string> = {
   Result: 'შედეგი',
   Reason: 'მიზეზი',
   Response: 'პასუხი',
+  // Integration: integration-tab.tsx
+  sandbox: 'სატესტო გარემო',
+  production: 'რეალური გარემო',
+  '{ms} ms': '{ms} მწ',
+  'No answer in time': 'დროულად არ უპასუხა',
+  'Address not found (DNS)': 'მისამართი ვერ მოიძებნა (DNS)',
+  'Connection refused': 'კავშირი უარყოფილია',
+  'Connection dropped': 'კავშირი გაწყდა',
+  'Secure connection failed (TLS)': 'დაცული კავშირი ვერ დამყარდა (TLS)',
+  'Network error': 'ქსელის შეცდომა',
+  Stopped: 'შეწყდა',
+  'Sending was cut off': 'გაგზავნა შუაში შეწყდა',
+  // Players: players-tab.tsx PROVIDERS
+  'demo account': 'სადემონსტრაციო ანგარიში',
+  'development account': 'დეველოპერის ანგარიში',
+  'load-test account': 'დატვირთვის ტესტის ანგარიში',
 };

@@ -6,12 +6,14 @@ import { toast } from 'sonner';
 import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet';
+import { Sheet, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet';
+import { TdSheetContent } from '@/components/td/td-dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { TdEmptyState, TdSection } from '@/components/td/td-page';
 import { TdErrorPanel } from '@/components/td/td-error-panel';
 import { tdKeys, useTdWrite } from '@/hooks/use-td-content';
 import { SESSION_CHANGED, TdApiError } from '@/lib/td/api-client';
+import { describeTdError, tdApiMessage, tdErrorText } from '@/lib/td/errors';
 import { tdAdmin, tdTokens } from '@/lib/td/client';
 import type { WebhookEvent, WebhookEventDetail, WebhookEventList } from '@/lib/td/contract';
 import { formatGeorgiaTime } from '@/lib/td/georgia';
@@ -50,6 +52,13 @@ const REASON_CODES: Array<[code: string, meaning: string]> = [
   ['player_blocked', t('Player is blocked or self-excluded')],
   ['rate_limited', t('Too many requests')],
 ];
+
+/** A delivery reason in plain Georgian; an unknown code shows as it came. */
+function reasonText(code: string): string {
+  const http = /^webhook_http_(\d{3})$/.exec(code);
+  if (http) return t('Betsson answered with status {status}', { status: http[1] });
+  return REASON_CODES.find(([known]) => known === code)?.[1] ?? ATTEMPT_ERRORS[code] ?? code;
+}
 
 function StatusChip({ event }: { event: Pick<WebhookEvent, 'status' | 'sending'> }) {
   const status = STATUS[event.status];
@@ -124,14 +133,18 @@ export function TdIntegrationTab() {
                     <TableCell className="px-3 py-2.5 pl-5 text-xs text-(--td-text-2)">{formatGeorgiaTime(e.occurredAt)}</TableCell>
                     <TableCell className="px-3 py-2.5">
                       <span className="block text-sm">{TYPE_LABELS[e.type]}</span>
-                      <span className="block font-mono text-[11px] text-(--td-text-3)">{e.eventId}</span>
+                      <span className="block max-w-36 truncate font-mono text-[11px] text-(--td-text-3)" title={e.eventId}>
+                        {e.eventId}
+                      </span>
                     </TableCell>
                     <TableCell className="px-3 py-2.5 font-mono text-xs">{e.playerId}</TableCell>
                     <TableCell className="px-3 py-2.5">
                       <StatusChip event={e} />
                     </TableCell>
                     <TableCell className="px-3 py-2.5 tabular-nums">{e.attempts}</TableCell>
-                    <TableCell className="px-3 py-2.5 font-mono text-xs text-(--td-text-2)">{e.lastError ?? '—'}</TableCell>
+                    <TableCell className="max-w-56 whitespace-normal px-3 py-2.5 text-xs text-(--td-text-2)" title={e.lastError ?? undefined}>
+                      {e.lastError ? reasonText(e.lastError) : '—'}
+                    </TableCell>
                     <TableCell className="px-3 py-2.5 text-xs text-(--td-text-3)">{e.nextAttemptAt ? formatGeorgiaTime(e.nextAttemptAt) : '—'}</TableCell>
                   </TableRow>
                 ))}
@@ -166,20 +179,35 @@ export function TdIntegrationTab() {
       </TdSection>
 
       <Sheet open={open !== null} onOpenChange={(next) => !next && setOpen(null)}>
-        <SheetContent side="right" className="w-full gap-0 overflow-y-auto border-border bg-(--td-surface) p-0 sm:max-w-3xl">
+        <TdSheetContent className="w-full gap-0 overflow-y-auto border-border bg-(--td-surface) p-0 sm:max-w-3xl">
           {open && <WebhookDetail key={open} eventId={open} />}
-        </SheetContent>
+        </TdSheetContent>
       </Sheet>
     </>
   );
 }
+
+/** Why an attempt got no HTTP answer (the API's attempt error codes). */
+const ATTEMPT_ERRORS: Record<string, string> = {
+  timeout: t('No answer in time'),
+  dns: t('Address not found (DNS)'),
+  refused: t('Connection refused'),
+  reset: t('Connection dropped'),
+  tls: t('Secure connection failed (TLS)'),
+  network: t('Network error'),
+  aborted: t('Stopped'),
+  lease_expired: t('Sending was cut off'),
+};
+
+/** Betsson's environment an event went to. */
+const ENVIRONMENTS: Record<string, string> = { sandbox: t('sandbox'), production: t('production') };
 
 /** What a refused retry means here, in plain words (a conflict says why in the API's own message). */
 export function retryRefusal(error: unknown): string {
   if (!(error instanceof TdApiError)) return t('The retry got no answer. Look at the event again before retrying.');
   switch (error.code) {
     case 'conflict':
-      return error.message;
+      return tdApiMessage(error.message) ?? describeTdError(error).title;
     case 'rate_limited':
       return t('You have retried 60 events in the last hour, the most one member may. Try again later.');
     case 'not_found':
@@ -189,7 +217,7 @@ export function retryRefusal(error: unknown): string {
     case SESSION_CHANGED:
       return t('You signed out or switched accounts; the retry was cancelled.');
     default:
-      return error.message;
+      return tdErrorText(error);
   }
 }
 
@@ -260,7 +288,7 @@ function WebhookDetail({ eventId }: { eventId: string }) {
         <SheetDescription asChild>
           <div className="text-xs text-(--td-text-3)">
             <span className="font-mono">{eventId}</span>
-            {e && ` · ${t('occurred {time}', { time: formatGeorgiaTime(e.occurredAt) })} · ${e.partner} ${e.environment}`}
+            {e && ` · ${t('occurred {time}', { time: formatGeorgiaTime(e.occurredAt) })} · ${e.partner} ${ENVIRONMENTS[e.environment] ?? e.environment}`}
           </div>
         </SheetDescription>
       </SheetHeader>
@@ -287,8 +315,15 @@ function WebhookDetail({ eventId }: { eventId: string }) {
               <Fact label={t('Delivered at')}>{e.sentAt ? formatGeorgiaTime(e.sentAt) : '—'}</Fact>
               <Fact label={t('Given up at')}>{e.deadAt ? formatGeorgiaTime(e.deadAt) : '—'}</Fact>
               <Fact label={t('Retried by hand')}>{e.revivedAt ? formatGeorgiaTime(e.revivedAt) : '—'}</Fact>
-              <Fact label={t('Last error')} mono>
-                {e.lastError ?? '—'}
+              <Fact label={t('Last error')}>
+                {e.lastError ? (
+                  <>
+                    {reasonText(e.lastError)}
+                    <span className="ml-2 font-mono text-xs text-(--td-text-3)">{e.lastError}</span>
+                  </>
+                ) : (
+                  '—'
+                )}
               </Fact>
               <Fact label={t('Address')} mono>
                 {e.destination ?? t('not bound yet')}
@@ -370,11 +405,13 @@ function WebhookDetail({ eventId }: { eventId: string }) {
                         <TableRow key={`${a.attempt}-${a.startedAt}`} className="border-(--td-divider) align-top hover:bg-transparent">
                           <TableCell className="px-3 py-2 tabular-nums text-(--td-text-3)">{a.attempt}</TableCell>
                           <TableCell className="px-3 py-2 text-xs">{formatGeorgiaTime(a.startedAt)}</TableCell>
-                          <TableCell className="px-3 py-2 text-xs tabular-nums">{a.latencyMs === null ? '—' : `${a.latencyMs} ms`}</TableCell>
+                          <TableCell className="px-3 py-2 text-xs tabular-nums">{a.latencyMs === null ? '—' : t('{ms} ms', { ms: a.latencyMs })}</TableCell>
                           <TableCell className={cn('px-3 py-2 text-xs', a.delivered ? 'text-(--td-new)' : 'text-(--td-danger)')}>
-                            {a.httpStatus !== null ? `HTTP ${a.httpStatus}` : (a.error ?? '—')}
+                            {a.httpStatus !== null ? `HTTP ${a.httpStatus}` : a.error ? (ATTEMPT_ERRORS[a.error] ?? a.error) : '—'}
                           </TableCell>
-                          <TableCell className="px-3 py-2 font-mono text-xs">{a.reason ?? '—'}</TableCell>
+                          <TableCell className="px-3 py-2 text-xs" title={a.reason ?? undefined}>
+                            {a.reason ? reasonText(a.reason) : '—'}
+                          </TableCell>
                           <TableCell className="max-w-64 px-3 py-2">
                             {/* The partner's words as text, never markup (the API scrubs credentials out first). */}
                             {a.responseSnippet ? <code className="line-clamp-3 break-all font-mono text-[11px] text-(--td-text-2)">{a.responseSnippet}</code> : '—'}

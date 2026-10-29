@@ -74,14 +74,13 @@ try {
   await page.waitForURL(/\/td\/login\?next=%2Ftd%2Fteam/);
   check('anonymous visit goes to the login page', true);
 
+  // One role for Betsson's team: every tab but Settings, which is Quizball ops only.
   await signIn(page, 'editor@demo.tablederby.test');
+  const memberNavFirst = await navLabels(page);
+  check('a Betsson member sees every tab but Settings', memberNavFirst.includes('Questions') && memberNavFirst.includes('Team') && memberNavFirst.includes('Integration') && !memberNavFirst.includes('Settings'), memberNavFirst.join(', '));
+  await page.goto(`${BASE}/td/settings`);
   await page.getByText('You do not have access to this section').waitFor();
-  check('editor is denied Team', true);
-  const editorNav = await navLabels(page);
-  check('editor sees the 4 content pages only', editorNav.length === 4 && editorNav.includes('Questions') && !editorNav.includes('Team') && !editorNav.includes('Settings') && !editorNav.includes('Integration'), editorNav.join(', '));
-  await page.goto(`${BASE}/td/integration`);
-  await page.getByText('You do not have access to this section').waitFor();
-  check('editor opening Integration directly is denied, and no webhook event is read', !(await page.getByText(/^td-evt-/).count()));
+  check('a Betsson member opening Settings directly is denied', true);
   await page.locator('aside nav > div > a', { hasText: 'Content' }).click();
   await page.locator('aside nav ul a[aria-label="Questions"]').click();
   await page.waitForURL(/\/td\/questions$/);
@@ -149,12 +148,9 @@ try {
   await page.getByRole('button', { name: 'Join' }).click();
   await page.getByText('Smoke Member').first().waitFor();
   const memberNav = await navLabels(page);
-  check('the new member is signed in as an editor', memberNav.length === 4 && !memberNav.includes('Team'), memberNav.join(', '));
+  check('the new member joins with the one Betsson role', memberNav.includes('Team') && !memberNav.includes('Settings'), memberNav.join(', '));
 
-  // Content workflow on the mock API: an editor drafts and marks ready, a publisher approves and publishes.
-  await signOut(page);
-  await page.waitForURL(/\/td\/login/);
-  await signIn(page, 'editor@demo.tablederby.test');
+  // Content workflow on the mock API: one step, a draft published by the member who wrote it.
   await page.goto(`${BASE}/td/questions?mode=penalties`);
   await page.getByRole('button', { name: 'New Question' }).click();
   const sheet = page.locator('[data-slot="dialog-content"]');
@@ -163,9 +159,12 @@ try {
   await sheet.getByRole('textbox', { name: 'Accepted spellings', exact: true }).fill('smoke,');
   await page.getByRole('button', { name: 'Create Question' }).click();
   await page.getByRole('heading', { name: 'Question Preview' }).waitFor();
-  await page.getByRole('button', { name: 'Mark ready' }).click();
-  await page.getByText('Ready for a publisher to approve.').waitFor();
-  check('editor creates a draft and marks it ready; no approve for editors', (await page.getByRole('button', { name: 'Approve' }).count()) === 0);
+  check('a new question waits as a draft, with no Mark ready or Approve', (await page.getByRole('button', { name: /Mark ready|Approve/ }).count()) === 0);
+  await sheet.getByRole('button', { name: 'Publish' }).click();
+  await sheet.getByRole('button', { name: 'Confirm?' }).click();
+  await page.getByText(/is current now\./).waitFor({ timeout: 20_000 });
+  check('the member publishes their draft in one step and sees the release become current', true);
+  await page.keyboard.press('Escape');
   await page.keyboard.press('Escape');
 
   await page.goto(`${BASE}/td/questions?mode=practice`);
@@ -183,27 +182,7 @@ try {
   await upload.getByRole('button', { name: 'Upload 1 Question' }).click();
   await page.getByLabel('Search questions').fill('Uploaded');
   await page.getByText('Uploaded in the smoke test?').waitFor();
-  check('an editor uploads a .txt file of questions and finds them in the list as drafts', true);
-
-  await signOut(page);
-  await page.waitForURL(/\/td\/login/);
-  await signIn(page, 'publisher@demo.tablederby.test');
-  // Ten a page, as the Quizball list shows them: the search finds it on the first.
-  await page.goto(`${BASE}/td/questions?mode=penalties&q=Smoke`);
-  await page.getByText('Smoke test question?').click();
-  await page.getByRole('button', { name: 'Approve' }).click();
-  await page.locator('[data-slot="dialog-content"]').getByText('approved', { exact: true }).waitFor();
-  check('publisher approves the ready question', true);
-  await page.keyboard.press('Escape');
-
-  await page.getByRole('button', { name: 'Publish' }).first().click();
-  const publish = page.locator('[data-slot="dialog-content"]');
-  await publish.getByText('Valid: it can be published.').waitFor();
-  await publish.getByRole('button', { name: 'Publish' }).first().click();
-  await page.getByRole('dialog', { name: 'Publish the approved content?' }).getByRole('button', { name: 'Publish' }).click();
-  await page.getByText(/is current now\./).waitFor({ timeout: 20_000 });
-  check('publisher publishes and sees every phase to current', true);
-  await page.keyboard.press('Escape');
+  check('a member uploads a .txt file of questions and finds them in the list as drafts', true);
 
   await signOut(page);
   await page.waitForURL(/\/td\/login/);

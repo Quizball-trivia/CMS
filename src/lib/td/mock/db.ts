@@ -1,6 +1,7 @@
 import type { TdContentStatus, TdContentType } from '../admin-api';
 import { TD_CONTENT_TYPES } from '../admin-api';
 import type { AdminMatchRecord, OpsReview, Publication, ReleaseDetail, ReleaseReport, Settings } from '../contract';
+import type { TdReleaseDailyGame } from '../dailies';
 import type { DailyCycle } from '../georgia';
 import { addDays, georgiaToday } from '../georgia';
 import type { Data } from './model';
@@ -12,7 +13,8 @@ import { MOCK_STAFF } from './staff';
 // 5: Football Logic's seeded pictures are files the game has (data kept from before named files it never had).
 // 6: Football Logic's rows carry imageAKey and imageBKey (contract v9).
 // 7: no seeded Football Logic question is without text, and the one that asks of a picture has it.
-export const MOCK_DB_SCHEMA = 7;
+// 8: releases take their dailies from the game's code packs, Stat Sniper among them (contract v12).
+export const MOCK_DB_SCHEMA = 8;
 
 export interface Actor {
   id: string | null;
@@ -101,8 +103,9 @@ export interface Member {
 
 export type Manifest = ReleaseDetail['manifest'];
 
-/** Per daily game: its dated sets, its cycle and the sets it holds, as the release has them. */
-export type DailySnapshot = Record<'footballLogic' | 'putInOrder' | 'careerPath', { dates: Record<string, string>; cycle: DailyCycle | null; known: string[] }>;
+/** Per daily game: its dated sets, its cycle and the sets it holds, as the release has them (Football Logic in one
+ *  from before Stat Sniper). */
+export type DailySnapshot = Partial<Record<TdReleaseDailyGame, { dates: Record<string, string>; cycle: DailyCycle | null; known: string[] }>>;
 
 /** What a release holds, fixed when it is made. */
 export interface ReleaseSnapshot {
@@ -225,8 +228,8 @@ export const SEED_UPLOAD_ID = '00000000-0000-4000-8000-00000000f001';
 export const seedId = (group: number, n: number) =>
   `${group.toString(16).padStart(8, '0')}-0000-4000-8000-${n.toString(16).padStart(12, '0')}`;
 
-const staffActor = (role: string): Actor => {
-  const member = MOCK_STAFF.find((s) => s.role === role)!;
+const staffActor = (email: string): Actor => {
+  const member = MOCK_STAFF.find((s) => s.email === email)!;
   return { id: member.id, name: member.name };
 };
 
@@ -266,7 +269,7 @@ export function seedDb(now: number): MockDb {
   }
 
   // Work in progress, so the workflow has something to show.
-  const editor = staffActor('editor');
+  const editor = staffActor('editor@demo.tablederby.test');
   const drafts: Array<[TdContentType, Data, TdContentStatus]> = [
     ['penalty-questions', { key: 'p99', q: 'Who scored the Euro 2024 opener for Georgia?', display: 'Georges Mikautadze', aliases: ['mikautadze', 'მიქაუტაძე'] }, 'ready'],
     ['cards', { categoryKey: 'legends', key: 'guruli', value: 3, lines: ['Georgia', 'Dinamo Tbilisi'], display: 'Aleksandre Guruli', aliases: ['guruli'], photo: null, imageKey: null }, 'draft'],
@@ -304,7 +307,7 @@ export function seedDb(now: number): MockDb {
   // The current release's content is filled in from the seed by the router (completeSeed).
   const releases: MockRelease[] = [
     { id: older, hash: 'a1'.repeat(32), formatVersion: 1, status: 'available', createdAt: at(30), createdBy: SYSTEM, members: [], manifest: null, dailies: null, publicationId: null, replaced: null },
-    { id: current, hash: 'b2'.repeat(32), formatVersion: 2, status: 'available', createdAt: at(20), createdBy: staffActor('publisher'), members: [], manifest: null, dailies: null, publicationId: null, replaced: older },
+    { id: current, hash: 'b2'.repeat(32), formatVersion: 2, status: 'available', createdAt: at(20), createdBy: staffActor('colleague@demo.tablederby.test'), members: [], manifest: null, dailies: null, publicationId: null, replaced: older },
   ];
 
   const { players, matches, ledger } = seedPlay(now);
@@ -317,12 +320,12 @@ export function seedDb(now: number): MockDb {
     audit,
     batches: [],
     uploads: [
-      { id: SEED_UPLOAD_ID, contentType: 'image/png', bytes: 77, width: 16, height: 9, sha256: 'c0'.repeat(32), uploadedBy: staffActor('editor'), createdAt: seededAt, public: true },
+      { id: SEED_UPLOAD_ID, contentType: 'image/png', bytes: 77, width: 16, height: 9, sha256: 'c0'.repeat(32), uploadedBy: editor, createdAt: seededAt, public: true },
     ],
     releases,
-    pointer: { releaseId: current, version: 2, movedAt: at(20), movedBy: staffActor('publisher') },
+    pointer: { releaseId: current, version: 2, movedAt: at(20), movedBy: staffActor('colleague@demo.tablederby.test') },
     pointerHistory: [
-      { version: 2, releaseId: current, previousReleaseId: older, movedAt: at(20), movedBy: staffActor('publisher') },
+      { version: 2, releaseId: current, previousReleaseId: older, movedAt: at(20), movedBy: staffActor('colleague@demo.tablederby.test') },
       { version: 1, releaseId: older, previousReleaseId: null, movedAt: at(30), movedBy: SYSTEM },
     ],
     publications: [],
@@ -334,7 +337,7 @@ export function seedDb(now: number): MockDb {
         id: seedId(0x5000, 1),
         label: 'Week 39 prizes',
         takenAt: at(2),
-        takenBy: staffActor('betsson_admin'),
+        takenBy: staffActor('admin@demo.tablederby.test'),
         rows: standings.slice(0, 8).map((p, i) => ({ rank: i + 1, playerId: p.id, partnerPlayerId: p.partnerPlayerId, displayName: p.displayName, rating: p.rating - 10, games: 6, wins: 4, losses: 2 })),
       },
     ],

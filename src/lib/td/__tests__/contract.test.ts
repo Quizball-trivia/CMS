@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { checkContract, matchContractRoute, TD_ADMIN_CONTRACT_VERSION, TD_CONTRACT } from '../contract';
+import examples from '../contract/pinned/fixtures/examples.json';
 import cases from '../contract/pinned/fixtures/validation-cases.json';
 import { describePattern, unsupportedKeywords, validateSchema } from '../contract/validate';
 import { verifyTdContractPin } from '../contract/verify-pin';
@@ -17,17 +18,24 @@ describe('pinned admin contract', () => {
     expect(TD_CONTRACT.contract).toBe('table-derby-admin');
   });
 
-  it('is v11: the dashboard has the last 7 and 30 days and a point per day; match inputs can be archived or expired; images need no rights; Football Logic takes uploaded images; an upload comes in a small copy; an image kept by URL may be a picture of the player app', () => {
-    expect(TD_ADMIN_CONTRACT_VERSION).toBe(11);
-    expect(TD_CONTRACT.version).toBe(11);
-    expect((TD_CONTRACT.schemas.MediaFileQuery as { properties: { w: { enum: string[] } } }).properties.w.enum).toEqual(['480']);
-    expect((TD_CONTRACT.schemas.FootballLogicData as { required: string[] }).required).toEqual(expect.arrayContaining(['imageAKey', 'imageBKey']));
-    const board = TD_CONTRACT.schemas.Dashboard as { required: string[] };
-    expect(board.required).toEqual(expect.arrayContaining(['today', 'yesterday', 'last7Days', 'last30Days', 'days']));
-    const record = TD_CONTRACT.schemas.AdminMatchRecord as { properties: { inputs: { properties: Record<string, { anyOf?: { enum?: string[] }[] }> } } };
-    const inputs = record.properties.inputs;
-    expect(inputs.properties.missing.anyOf?.[0].enum).toEqual(['redis_lost', 'never_started', 'not_recorded', 'archived', 'expired']);
-    expect(Object.keys(inputs.properties)).toContain('archivedAt');
+  it('is v13: one role for Betsson’s team; a release’s dailies are a record by game (Stat Sniper, or Football Logic in one from before)', () => {
+    expect((TD_CONTRACT as unknown as { roles: string[] }).roles).toEqual(['betsson_admin', 'ops']);
+    expect(TD_ADMIN_CONTRACT_VERSION).toBe(13);
+    expect(TD_CONTRACT.version).toBe(13);
+    type Schema = { type?: string; properties?: Record<string, Schema>; required?: string[]; propertyNames?: { enum: string[] }; additionalProperties?: Schema | boolean };
+    const schemas = TD_CONTRACT.schemas as Record<string, Schema>;
+    const games = ['statSniper', 'footballLogic', 'putInOrder', 'careerPath'];
+    for (const record of [schemas.ReleaseReport!.properties!.dailies!, schemas.ReleaseDetail!.properties!.manifest!.properties!.dailies!]) {
+      expect(record.propertyNames?.enum).toEqual(games);
+      expect(record.required ?? []).toEqual([]);
+    }
+    const report = examples.examples.find((example) => example.name === 'validate what publishing now would give')!.response.body as { dailies: object };
+    expect(Object.keys(report.dailies)).toEqual(['statSniper', 'putInOrder', 'careerPath']);
+    expect(checkContract('ReleaseReport', { ...report, dailies: { footballLogic: { covered: 30, missing: [] } } })).toEqual([]);
+    expect(checkContract('ReleaseReport', { ...report, dailies: { quiz: { covered: 30, missing: [] } } })).toEqual([{ path: 'dailies.quiz', message: 'Not a field of this type' }]);
+    const today = schemas.Dashboard!.properties!.today!.properties!.dailies!;
+    expect(today.required).toEqual(expect.arrayContaining(['statSniper', 'footballLogic', 'putInOrder', 'careerPath']));
+    expect(schemas.AdminPlayer!.properties!.dailies!.properties!.games!.required).toEqual(expect.arrayContaining(['statSniper', 'footballLogic']));
   });
 
   it('refuses an edited copy and a version the client is not written for', () => {
@@ -131,7 +139,7 @@ describe('route matching', () => {
       params: { id: 'abc' },
     });
     expect(matchContractRoute('POST', '/admin/content/cards/r1/approve')).toMatchObject({
-      route: { path: '/admin/content/cards/:id/approve', roles: ['publisher', 'betsson_admin', 'ops'] },
+      route: { path: '/admin/content/cards/:id/approve', roles: ['betsson_admin', 'ops'] },
       params: { id: 'r1' },
     });
     expect(matchContractRoute('GET', '/admin/nothing')).toBeNull();

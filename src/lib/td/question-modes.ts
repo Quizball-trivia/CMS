@@ -1,11 +1,10 @@
 import type { TdContentType } from '@/lib/td/admin-api';
-import { gameOfType } from '@/lib/td/dailies';
 import { t } from '@/lib/td/i18n';
 
 export type TdCategoryType = 'card-categories' | 'box-categories';
 
-/** What one row of a mode is: a card, a subject, a question, a round. */
-export type TdQuestionNoun = 'card' | 'subject' | 'question' | 'round';
+/** What one row of a mode is: a card, a subject, a question. */
+export type TdQuestionNoun = 'card' | 'subject' | 'question';
 
 export interface TdQuestionMode {
   key: string;
@@ -13,12 +12,11 @@ export interface TdQuestionMode {
   type: TdContentType;
   noun: TdQuestionNoun;
   categoryType?: TdCategoryType;
-  /** A daily game: its questions' categories are their puzzle keys. */
-  puzzles?: true;
 }
 
 /** The game modes a question belongs to: the Questions page's Type filter, as
- *  the Quizball CMS's question list filters by question type. */
+ *  the Quizball CMS's question list filters by question type. The dailies ship with the game's code (contract 12),
+ *  so none is here. */
 export const TD_QUESTION_MODES: readonly TdQuestionMode[] = [
   { key: 'round-1', label: t('Round I · ბარათონი'), type: 'cards', noun: 'card', categoryType: 'card-categories' },
   { key: 'round-2', label: t('Round II · გამარჯობა'), type: 'whoami-subjects', noun: 'subject' },
@@ -27,17 +25,8 @@ export const TD_QUESTION_MODES: readonly TdQuestionMode[] = [
   { key: 'practice', label: t('Practice · ივარჯიშე'), type: 'practice-questions', noun: 'question' },
 ];
 
-/** The daily games, on the Daily page (their questions come in days, not in the Questions list). */
-export const TD_DAILY_MODES: readonly TdQuestionMode[] = [
-  { key: 'football-logic', label: t('Daily · Football Logic'), type: 'football-logic', noun: 'question', puzzles: true },
-  { key: 'put-in-order', label: t('Daily · Put in Order'), type: 'put-in-order', noun: 'round', puzzles: true },
-  { key: 'career-path', label: t('Daily · Career Path'), type: 'career-path', noun: 'question', puzzles: true },
-];
-
 /** The page of the question list that holds rows of this type (links from the release report). */
 export function questionsHref(type: TdContentType, q?: string): string | null {
-  const game = gameOfType(type);
-  if (game) return `/td/dailies?game=${game}${q ? `&q=${encodeURIComponent(q)}` : ''}`;
   const mode = TD_QUESTION_MODES.find((m) => m.type === type);
   if (!mode) return null;
   return `/td/questions?mode=${mode.key}${q ? `&q=${encodeURIComponent(q)}` : ''}`;

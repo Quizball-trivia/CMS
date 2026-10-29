@@ -6,7 +6,6 @@ export type TdTabKey =
   | 'dashboard'
   | 'questions'
   | 'categories'
-  | 'dailies'
   | 'players'
   | 'leaderboard'
   | 'integration'
@@ -27,9 +26,8 @@ export interface TdTab {
 }
 
 const ALL = TD_ROLES;
-// Plan §13.2: player data, leaderboard exports, integration logs and team
-// management are Betsson admin + Quizball ops; settings are ops only.
-const ADMINS: readonly TdRole[] = ['betsson_admin', 'ops'];
+// Settings are Quizball ops only; Betsson's team sees everything else.
+const ADMINS = ALL;
 const OPS: readonly TdRole[] = ['ops'];
 
 // The Quizball CMS's sidebar groups (components/layout/sidebar.tsx), in its order.
@@ -66,14 +64,6 @@ export const TD_TABS: readonly TdTab[] = [
     roles: ALL,
   },
   {
-    key: 'dailies',
-    href: `${TD_ROOT}/dailies`,
-    label: t('Daily Challenges'),
-    description: t('Football Logic, Put in Order and Career Path: their days, their questions, and publishing them.'),
-    group: 'content',
-    roles: ALL,
-  },
-  {
     key: 'players',
     href: `${TD_ROOT}/players`,
     label: t('Players'),
@@ -93,7 +83,7 @@ export const TD_TABS: readonly TdTab[] = [
     key: 'team',
     href: `${TD_ROOT}/team`,
     label: t('Team'),
-    description: t('Invite editors and set roles.'),
+    description: t('Invite members and manage the team.'),
     group: 'settings',
     roles: ADMINS,
   },

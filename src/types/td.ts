@@ -1,12 +1,11 @@
 import { t } from '@/lib/td/i18n';
 
-export const TD_ROLES = ['editor', 'publisher', 'betsson_admin', 'ops'] as const;
+/** Betsson's team has one role: a member writes, publishes and invites (2026-10-28). */
+export const TD_ROLES = ['betsson_admin', 'ops'] as const;
 export type TdRole = (typeof TD_ROLES)[number];
 
 export const TD_ROLE_LABELS: Record<TdRole, string> = {
-  editor: t('Editor'),
-  publisher: t('Publisher'),
-  betsson_admin: t('Betsson admin'),
+  betsson_admin: t('Editor'),
   ops: t('Ops (Quizball)'),
 };
 

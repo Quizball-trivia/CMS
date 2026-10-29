@@ -7,9 +7,9 @@ export const KA_PUBLISH: Record<string, string> = {
     '{count} სურათი ჩანს სხვა საიტის საცავის ბმულებით და არა Table Derby-ის საკუთარ საცავში: თუ ის საიტი მათ გადაიტანს, სურათები გაქრება. შესანარჩუნებლად ხელახლა ატვირთეთ.',
   '{count} daily game is missing days.': '{count} ყოველდღიურ თამაშს დღეები აკლია.',
   '{count} daily games are missing days.': '{count} ყოველდღიურ თამაშს დღეები აკლია.',
-  '{count} round has too little approved content for a match.': '{count} ტურს მატჩისთვის საკმარისი დამტკიცებული კონტენტი არ აქვს.',
-  '{count} rounds have too little approved content for a match.': '{count} ტურს მატჩისთვის საკმარისი დამტკიცებული კონტენტი არ აქვს.',
-  'Practice needs more approved questions of a difficulty.': 'ვარჯიშს რომელიმე სირთულის მეტი დამტკიცებული კითხვა სჭირდება.',
+  '{count} round has too little approved content for a match.': '{count} ტურს მატჩისთვის საკმარისი გამოქვეყნებული კონტენტი არ აქვს.',
+  '{count} rounds have too little approved content for a match.': '{count} ტურს მატჩისთვის საკმარისი გამოქვეყნებული კონტენტი არ აქვს.',
+  'Practice needs more approved questions of a difficulty.': 'ვარჯიშს რომელიმე სირთულის მეტი გამოქვეყნებული კითხვა სჭირდება.',
   '{count} uploaded picture’s file is missing.': '{count} ატვირთული სურათის ფაილი აკლია.',
   '{count} uploaded pictures’ files are missing.': '{count} ატვირთული სურათის ფაილი აკლია.',
   '{count} picture has no credit, licence or source.': '{count} სურათს ავტორი, ლიცენზია ან წყარო არ აქვს.',
@@ -21,8 +21,7 @@ export const KA_PUBLISH: Record<string, string> = {
   'Show fewer': 'ნაკლების ჩვენება',
   'The current release came with the first deploy and keeps no list of its rows, so everything shows as new here. From the first publish on, this lists only what changed.':
     'მიმდინარე გამოშვება პირველ განთავსებასთან ერთად შეიქმნა და მისი ჩანაწერების სია არ ინახება, ამიტომ აქ ყველაფერი ახლად ჩანს. პირველი გამოქვეყნების შემდეგ აქ მხოლოდ ცვლილებები გამოჩნდება.',
-  'Only approved content is published: drafts and questions marked ready go out once a publisher approves them.':
-    'ქვეყნდება მხოლოდ დამტკიცებული კონტენტი: დრაფტები და მზადად მონიშნული კითხვები გამოქვეყნდება მას შემდეგ, რაც გამომქვეყნებელი დაამტკიცებს.',
+  'Only published content goes out: a draft goes out once it is published.': 'თამაშში მხოლოდ გამოქვეყნებული კონტენტი ხვდება: დრაფტი გამოქვეყნების შემდეგ მოხვდება.',
   // lib/td/import-format.ts: what each column holds (the cell values a sheet takes, such as easy or yes, stay as typed)
   'The row’s key: lower-case letters, digits, - and _': 'ჩანაწერის ID: ლათინური პატარა ასოები, ციფრები, - და _',
   'Accepted spellings, separated by |': 'მისაღები ვარიანტები, გამოყოფილი | სიმბოლოთი',
@@ -85,7 +84,7 @@ export const KA_PUBLISH: Record<string, string> = {
   // components/td/tabs/import-tab.tsx: reading a sheet
   'Import a spreadsheet': 'ცხრილის ატვირთვა',
   'Every row becomes a draft, all at once or none. Then they go through ready and approval like any other content.':
-    'ყოველი სტრიქონი დრაფტად იქცევა: ან ყველა ერთად, ან არცერთი. შემდეგ ისინი, სხვა კონტენტის მსგავსად, მზადად მოინიშნება და დამტკიცდება.',
+    'ყოველი სტრიქონი დრაფტად იქცევა: ან ყველა ერთად, ან არცერთი. შემდეგ მათ, სხვა კონტენტის მსგავსად, გამომქვეყნებელი აქვეყნებს.',
   'Content type': 'კონტენტის ტიპი',
   Template: 'შაბლონი',
   'Choose a file': 'ფაილის არჩევა',
@@ -131,7 +130,7 @@ export const KA_PUBLISH: Record<string, string> = {
   removed: 'წაიშალა',
   kept: 'დარჩა',
   'kept (changed since)': 'დარჩა (მას შემდეგ შეიცვალა)',
-  'kept (approved)': 'დარჩა (დამტკიცებულია)',
+  'kept (approved)': 'დარჩა (გამოქვეყნებულია)',
   'kept (still referred to)': 'დარჩა (სხვა ჩანაწერი მიუთითებს)',
   'kept (in a release)': 'დარჩა (გამოშვებაშია)',
   'Undo this import': 'ამ ატვირთვის გაუქმება',
@@ -139,11 +138,10 @@ export const KA_PUBLISH: Record<string, string> = {
   // components/td/tabs/releases-tab.tsx: the next release and its validation report
   'Next release': 'შემდეგი გამოშვება',
   'What publishing the approved content now would give. Errors stop a publish; warnings do not.':
-    'ასეთი იქნება გამოშვება, თუ დამტკიცებულ კონტენტს ახლა გამოაქვეყნებთ. შეცდომები გამოქვეყნებას აჩერებს, გაფრთხილებები — არა.',
+    'ასეთი იქნება გამოშვება, თუ გამოქვეყნებულ კონტენტს ახლა გამოუშვებთ. შეცდომები გამოშვებას აჩერებს, გაფრთხილებები — არა.',
   'Check again': 'ხელახლა შემოწმება',
-  'The approved content is the current release': 'დამტკიცებული კონტენტი მიმდინარე გამოშვებას ემთხვევა',
-  'Checking the approved content…': 'მოწმდება დამტკიცებული კონტენტი…',
-  'Publishing and rolling back are for publishers.': 'გამოქვეყნება და უკან დაბრუნება მხოლოდ გამომქვეყნებლებს შეუძლიათ.',
+  'The approved content is the current release': 'გამოქვეყნებული კონტენტი მიმდინარე გამოშვებას ემთხვევა',
+  'Checking the approved content…': 'მოწმდება გამოქვეყნებული კონტენტი…',
   'Valid, and already the current release: nothing to publish.': 'ვალიდურია და უკვე მიმდინარე გამოშვებაა: გამოსაქვეყნებელი არაფერია.',
   'Valid: it can be published.': 'ვალიდურია: შეიძლება გამოქვეყნდეს.',
   '{count} errors stop a publish.': '{count} შეცდომა აჩერებს გამოქვეყნებას.',
@@ -168,7 +166,7 @@ export const KA_PUBLISH: Record<string, string> = {
   'Changes since the current release ({release})': 'ცვლილებები მიმდინარე გამოშვების ({release}) შემდეგ',
 
   // components/td/tabs/releases-tab.tsx: publishing and rolling back
-  'Publish the approved content?': 'გამოქვეყნდეს დამტკიცებული კონტენტი?',
+  'Publish the approved content?': 'გამოქვეყნდეს ცვლილებები?',
   'New matches, dailies and practice runs use it once it is current. Matches already under way keep the release they started with.':
     'როგორც კი მიმდინარე გახდება, მას გამოიყენებს ახალი მატჩები, ყოველდღიური თამაშები და ვარჯიშები. უკვე დაწყებული მატჩები იმ გამოშვებაზე რჩება, რომლითაც დაიწყო.',
   'Roll back to {release}?': 'დავბრუნდეთ უკან გამოშვებაზე {release}?',
@@ -191,7 +189,7 @@ export const KA_PUBLISH: Record<string, string> = {
   // components/td/tabs/releases-tab.tsx: a publication, phase by phase
   'Roll back to {release}': 'უკან დაბრუნება გამოშვებაზე {release}',
   'Asked by {name} at {time}.': 'მოითხოვა: {name}, {time}.',
-  'Snapshot of the approved content': 'დამტკიცებული კონტენტის ასლი',
+  'Snapshot of the approved content': 'გამოქვეყნებული კონტენტის ასლი',
   Validation: 'ვალიდაცია',
   'Images made public': 'სურათების გასაჯაროება',
   'Release file written': 'გამოშვების ფაილის ჩაწერა',
@@ -204,7 +202,7 @@ export const KA_PUBLISH: Record<string, string> = {
   'Game servers pick it up within 30 seconds.': 'თამაშის სერვერები მას 30 წამში თავად აიღებენ.',
   'Failing: removing what it made…': 'ვერ სრულდება: იშლება ის, რაც შეიქმნა…',
   'Failed.': 'ვერ შესრულდა.',
-  'The approved content did not validate at the snapshot. Fix the errors and publish again.': 'დამტკიცებულმა კონტენტმა ასლის აღებისას ვალიდაცია ვერ გაიარა. გაასწორეთ შეცდომები და ხელახლა გამოაქვეყნეთ.',
+  'The approved content did not validate at the snapshot. Fix the errors and publish again.': 'გამოქვეყნებულმა კონტენტმა ასლის აღებისას ვალიდაცია ვერ გაიარა. გაასწორეთ შეცდომები და ხელახლა გამოაქვეყნეთ.',
   'The member who asked was disabled or lost the role before it finished.': 'წევრი, რომელმაც ეს მოითხოვა, დასრულებამდე გაითიშა ან როლი დაკარგა.',
   'The current release moved meanwhile (another tool). The release is stored; a roll back can make it current.':
     'მიმდინარე გამოშვება ამასობაში შეიცვალა (სხვა ხელსაწყოთი). ეს გამოშვება შენახულია; მისი მიმდინარედ დაყენება უკან დაბრუნებით შეიძლება.',
@@ -244,4 +242,60 @@ export const KA_PUBLISH: Record<string, string> = {
   'As the file says (categoryKey column)': 'როგორც ფაილშია (სვეტი categoryKey)',
   'An example file': 'ფაილის ნიმუში',
   'Topic shown above the question': 'კითხვის თავზე ნაჩვენები თემა',
+
+  // Publish in one step (one person writes and publishes)
+  published: 'გამოქვეყნებული',
+  'Publish {n}': 'გამოქვეყნება ({n})',
+  'Published.': 'გამოქვეყნდა.',
+  'Players get it once the game has enough published content in every mode. Still missing:': 'მოთამაშეები მას მიიღებენ, როცა თამაშს ყველა რეჟიმში ექნება საკმარისი გამოქვეყნებული კონტენტი. ჯერ აკლია:',
+  'Round I: {needed} categories with {size}+ cards (now {ready})': 'I ტური: {needed} კატეგორია {size}+ ბარათით (ახლა {ready})',
+  'Round II: {needed} subjects with {clues}+ clues (now {ready})': 'II ტური: {needed} პერსონაჟი {clues}+ მინიშნებით (ახლა {ready})',
+  'Round III: {needed} categories with {questions}+ questions (now {ready})': 'III ტური: {needed} კატეგორია {questions}+ კითხვით (ახლა {ready})',
+  'Penalties: {needed} questions (now {ready})': 'პენალტები: {needed} კითხვა (ახლა {ready})',
+  '{game}: {days} days (now {covered})': '{game}: {days} დღე (ახლა {covered})',
+  'Publish the rest the same way: with the last of it, the game gets everything at once.': 'დანარჩენიც ასევე გამოაქვეყნე: ბოლოს თამაში ყველაფერს ერთად მიიღებს.',
+  'Hide details': 'დეტალების დამალვა',
+  'Details': 'დეტალები',
+  'It is published with its day, on the Dailies page.': 'ის თავის დღესთან ერთად ქვეყნდება, ყოველდღიურის გვერდზე.',
+  'Only the first 200 were published; publish again for the rest.': 'გამოქვეყნდა პირველი 200; დანარჩენისთვის კიდევ ერთხელ დააჭირე გამოქვეყნებას.',
+  'Publish {n} questions? Players get them in a minute, with anything else waiting to publish; matches already under way finish with the questions they started with.':
+    'გამოქვეყნდეს {n} კითხვა? მოთამაშეები მათ ერთ წუთში მიიღებენ, გამოქვეყნების მოლოდინში მყოფ სხვა ცვლილებებთან ერთად; უკვე დაწყებული მატჩები იმ კითხვებით დასრულდება, რომლებითაც დაიწყო.',
+  'Publish this question? Players get it in a minute, with anything else waiting to publish; matches already under way finish with the questions they started with.':
+    'გამოქვეყნდეს ეს კითხვა? მოთამაშეები მას ერთ წუთში მიიღებენ, გამოქვეყნების მოლოდინში მყოფ სხვა ცვლილებებთან ერთად; უკვე დაწყებული მატჩები იმ კითხვებით დასრულდება, რომლებითაც დაიწყო.',
+  'waiting to publish': 'ელოდება გამოქვეყნებას',
+  'Select every matching question': 'ყველა შესაბამისი კითხვის მონიშვნა',
+  'The category goes live once all its questions are published: {count} more still to publish. Select them in the list and publish them together.':
+    'კატეგორია გამოქვეყნდება, როცა მისი ყველა კითხვა გამოქვეყნდება: კიდევ {count} კითხვაა გამოსაქვეყნებელი. მონიშნეთ ისინი სიაში და გამოაქვეყნეთ ერთად.',
+  'Your questions are published; the game gets them with this release.': 'კითხვები გამოქვეყნდა.',
+  'The category could not go live with them: {reason}': 'კატეგორია მათთან ერთად ვერ გამოქვეყნდა: {reason}',
+  'The category could not go live with it: {reason}': 'კატეგორია მასთან ერთად ვერ გამოქვეყნდა: {reason}',
+  'Only a draft is published.': 'გამოქვეყნება მხოლოდ დრაფტს შეიძლება.',
+  'Your questions are approved, but the game was not updated: fix what is listed below, then press Publish.':
+    'კითხვები გამოქვეყნდა, მაგრამ თამაში არ განახლდა: გაასწორეთ ქვემოთ ჩამოთვლილი და დააჭირეთ „გამოქვეყნებას“.',
+  'Its category is archived: restore it first.': 'მისი კატეგორია დაარქივებულია: ჯერ აღადგინეთ.',
+  'Its category does not exist.': 'მისი კატეგორია არ არსებობს.',
+  'Not every question could be loaded, so none were selected. Try again.': 'ყველა კითხვა ვერ ჩაიტვირთა, ამიტომ არცერთი არ მოინიშნა. სცადეთ თავიდან.',
+  'Nothing new for players: the game already has this content.': 'მოთამაშეებისთვის ახალი არაფერია: თამაშს ეს კონტენტი უკვე აქვს.',
+  'Another publish is running or waiting for an answer; press Publish when it is done.':
+    'სხვა გამოქვეყნება მიმდინარეობს ან პასუხს ელოდება; როცა დასრულდება, დააჭირეთ „გამოქვეყნებას“.',
+
+  'The rest of your questions are published; those refused are listed on the page.': 'დანარჩენი კითხვები გამოქვეყნდა; უარყოფილები გვერდზეა ჩამოთვლილი.',
+  // The API's system actors: actors.ts
+  'First deploy': 'პირველი გაშვება',
+  'Starter content': 'საწყისი კონტენტი',
+  'Ops command line': 'ops-ის ბრძანების ხაზი',
+  // The API's report lines: releases-tab.tsx reportLine
+  'Round I needs a category with at least {n} cards.': 'I ტურს სჭირდება კატეგორია, რომელშიც მინიმუმ {n} ბარათია.',
+  'Round II needs {n} subjects with {clues} or more clues; it has {has}.': 'II ტურს სჭირდება {n} პერსონაჟი, თითოეულს {clues} ან მეტი მინიშნებით; ახლა არის {has}.',
+  'Round III needs {n} categories with {questions} or more questions; it has {has}.': 'III ტურს სჭირდება {n} კატეგორია, თითოეულში {questions} ან მეტი კითხვით; ახლა არის {has}.',
+  'Penalties need {n} questions; they have {has}.': 'პენალტებს სჭირდება {n} კითხვა; ახლა არის {has}.',
+  'Two cards have the ID {id}.': 'ორ ბარათს ერთი და იგივე ID აქვს: {id}.',
+  'Two box questions have the ID {id}.': 'ყუთის ორ კითხვას ერთი და იგივე ID აქვს: {id}.',
+  'Practice needs {n} {difficulty} questions; it has {has}.': '„ივარჯიშეს“ სჭირდება {n} კითხვა სირთულით „{difficulty}“; ახლა არის {has}.',
+  '{game} has nothing on {n} of the {days} days from {from} (the first: {first}).': '{game}: {from}-დან {days} დღიდან {n} დღე ცარიელია (პირველი: {first}).',
+  '{game} has no set.': '{game}: ნაკრები არ არის.',
+  '{game} has no date in its calendar.': '{game}: კალენდარში არცერთი თარიღი არ არის.',
+  'The picture {key} is shown from its link, not kept here: upload it to keep it.': 'სურათი {key} ბმულიდან ჩანს და აქ შენახული არ არის: შესანარჩუნებლად ატვირთეთ.',
+  'The uploaded file of the picture {key} is missing.': 'სურათის {key} ატვირთული ფაილი აღარ არსებობს.',
+  'The release shows uploaded pictures, and picture storage is not set up.': 'გამოშვებაში ატვირთული სურათებია, სურათების საცავი კი გამართული არ არის.',
 };

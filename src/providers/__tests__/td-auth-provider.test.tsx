@@ -31,7 +31,7 @@ const { tdTokens } = await import('@/lib/td/client');
 const { TdApiError } = await import('@/lib/td/api-client');
 const { deferred, put, session, tokenSet } = await import('@/lib/td/__tests__/helpers');
 
-const EDITOR: TdStaff = { id: 'staff-editor', email: 'editor@example.test', name: 'Editor', role: 'editor' };
+const EDITOR: TdStaff = { id: 'staff-editor', email: 'editor@example.test', name: 'Editor', role: 'betsson_admin' };
 const OPS: TdStaff = { id: 'staff-ops', email: 'ops@example.test', name: 'Ops', role: 'ops' };
 const PRIVATE = ['td', 'players'];
 
