@@ -5985,9 +5985,6 @@
         "401": [
           "unauthorized"
         ],
-        "403": [
-          "forbidden"
-        ],
         "409": [
           "publication_in_progress",
           "idempotency_conflict",
@@ -6070,9 +6067,6 @@
         ],
         "401": [
           "unauthorized"
-        ],
-        "403": [
-          "forbidden"
         ],
         "404": [
           "not_found"

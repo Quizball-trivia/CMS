@@ -180,21 +180,6 @@
       }
     },
     {
-      "name": "team list as an editor",
-      "method": "GET",
-      "path": "/admin/staff",
-      "headers": {
-        "authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleGFtcGxlIjp0cnVlfQ.c2lnbmF0dXJl"
-      },
-      "response": {
-        "status": 403,
-        "body": {
-          "code": "forbidden",
-          "message": "Your role cannot do this"
-        }
-      }
-    },
-    {
       "name": "invite",
       "method": "POST",
       "path": "/admin/staff/invite",
@@ -11878,24 +11863,6 @@
           "details": {
             "publicationId": "a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c11"
           }
-        }
-      }
-    },
-    {
-      "name": "publish as an editor",
-      "method": "POST",
-      "path": "/admin/releases/publish",
-      "headers": {
-        "authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleGFtcGxlIjp0cnVlfQ.c2lnbmF0dXJl"
-      },
-      "body": {
-        "idemKey": "e2d8f6a4-1b3c-4d5e-8f7a-9b0c1d2e3f41"
-      },
-      "response": {
-        "status": 403,
-        "body": {
-          "code": "forbidden",
-          "message": "Your role cannot do this"
         }
       }
     },
