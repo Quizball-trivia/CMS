@@ -50,7 +50,8 @@ export function TdErrorPanel({ error, className, hideIssues }: { error: unknown;
   if (!error) return null;
   const view = describeTdError(error);
   return (
-    <div role="alert" className={cn('flex items-start gap-2 rounded-lg bg-(--td-danger)/10 px-3 py-2.5 text-sm text-(--td-danger)', className)}>
+    // The API's code stays with it for support (on hover), out of the Georgian text.
+    <div role="alert" title={view.code} className={cn('flex items-start gap-2 rounded-lg bg-(--td-danger)/10 px-3 py-2.5 text-sm text-(--td-danger)', className)}>
       <AlertCircle className="mt-0.5 size-4 shrink-0" />
       <div className="min-w-0">
         <p className="font-medium">{view.title}</p>
@@ -72,7 +73,6 @@ export function TdErrorPanel({ error, className, hideIssues }: { error: unknown;
             ))}
           </ul>
         )}
-        <p className="mt-1 font-mono text-[10px] opacity-70">{view.code}</p>
       </div>
     </div>
   );

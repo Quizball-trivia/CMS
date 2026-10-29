@@ -65,8 +65,8 @@ async function managerLink(kind: 'invite' | 'reset', email = 'new.member@example
   const admin = MOCK_STAFF.find((s) => s.role === 'betsson_admin')!;
   const session = await manager.api.login(admin.email, MOCK_PASSWORD);
   await manager.tokens.transact((tx) => tx.replace({ ...session, generation: 'manager', staffId: admin.id, refreshPendingSince: null }));
-  if (kind === 'invite') return (await manager.admin.staff.invite({ email, role: 'editor' })).token;
-  const editor = MOCK_STAFF.find((s) => s.role === 'editor' && s.status === 'active')!;
+  if (kind === 'invite') return (await manager.admin.staff.invite({ email, role: 'betsson_admin' })).token;
+  const editor = MOCK_STAFF.find((s) => s.email === 'editor@demo.tablederby.test')!;
   const response = await manager.api.post<{ token: string }>(`/admin/staff/${editor.id}/reset-link`);
   return response.token;
 }
@@ -173,7 +173,7 @@ describe('invitation and reset links', () => {
     fill('Repeat the password', 'a brand new passphrase');
     await act(async () => fireEvent.click(await screen.findByRole('button', { name: 'Set password' })));
     await waitFor(() => expect(h.replace).toHaveBeenCalledWith('/td'));
-    const editor = MOCK_STAFF.find((s) => s.role === 'editor' && s.status === 'active')!;
+    const editor = MOCK_STAFF.find((s) => s.email === 'editor@demo.tablederby.test')!;
     expect(screen.getByTestId('who').textContent).toBe(editor.name);
     await expect(h.api.login(editor.email, MOCK_PASSWORD)).rejects.toMatchObject({ status: 401 });
     await expect(h.api.login(editor.email, 'a brand new passphrase')).resolves.toMatchObject({ accessToken: expect.any(String) });

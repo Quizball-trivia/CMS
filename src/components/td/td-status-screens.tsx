@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { Globe, Loader2, ShieldOff, WifiOff } from 'lucide-react';
+import { Globe, Loader2, SearchX, ShieldOff, WifiOff } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { t } from '@/lib/td/i18n';
 import { TD_ROOT } from '@/lib/workspace-guard';
@@ -40,8 +40,24 @@ export function TdAccessDenied() {
     <div className="flex flex-col items-center gap-3 rounded-xl border border-border bg-card px-6 py-16 text-center">
       <ShieldOff className="size-7 text-(--td-text-3)" />
       <p className="text-lg font-semibold">{t('You do not have access to this section')}</p>
-      <p className="max-w-md text-sm text-(--td-text-3)">{t('Your role cannot open this tab. Ask a Betsson admin if you need it.')}</p>
+      <p className="max-w-md text-sm text-(--td-text-3)">{t('Your role cannot open this tab. Ask Quizball if you need it.')}</p>
       <Button asChild variant="secondary" className="mt-2 rounded-lg">
+        <Link href={TD_ROOT}>{t('Back to the dashboard')}</Link>
+      </Button>
+    </div>
+  );
+}
+
+export function TdNotFound() {
+  return (
+    <div className="flex min-h-screen flex-col items-center justify-center gap-5 px-6 text-center">
+      <TdWordmark size="lg" />
+      <div className="flex max-w-sm flex-col items-center gap-2">
+        <SearchX className="size-6 text-(--td-text-3)" />
+        <p className="font-semibold">{t('This page does not exist')}</p>
+        <p className="text-sm text-(--td-text-3)">{t('The link may be old or mistyped.')}</p>
+      </div>
+      <Button asChild className="h-11 rounded-lg px-6">
         <Link href={TD_ROOT}>{t('Back to the dashboard')}</Link>
       </Button>
     </div>

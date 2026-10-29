@@ -42,15 +42,15 @@ const ROUND_3 = 'Round III · პაპა კარლოს ყუთი';
 let server: typeof fetch;
 let generation = 0;
 
-/** A signed-in client of the shared mock server, with its own session store (another browser). */
-async function clientFor(role: TdRole) {
+/** A signed-in client of the shared mock server, with its own session store (another browser); `email` picks a colleague of the role. */
+async function clientFor(role: TdRole, email?: string) {
   const origin = createOrigin();
   const transport = createTransport(BASE, server);
   const tokens = origin.store();
   const refreshLock = origin.lock('td-refresh');
   const coordinator = createRefreshCoordinator({ tokens, refreshLock: () => refreshLock, requestRefresh: (token, id) => requestTokenRefresh(transport, token, id) });
   const api = createTdApiClient({ transport, tokens, coordinator });
-  const staff = MOCK_STAFF.find((s) => s.role === role && s.status === 'active')!;
+  const staff = MOCK_STAFF.find((s) => s.role === role && s.status === 'active' && (email === undefined || s.email === email))!;
   const session = await api.login(staff.email, MOCK_PASSWORD);
   await put(tokens, { ...session, generation: `gen-${++generation}`, staffId: staff.id, refreshPendingSince: null });
   return { api, tokens, admin: createTdAdminApi(api), user: { id: staff.id, email: staff.email, name: staff.name, role: staff.role } };
@@ -123,7 +123,7 @@ afterEach(() => cleanup());
 
 describe('the Categories page', () => {
   it('creates a category in each round and shows it in its round', async () => {
-    const { admin } = await signIn('editor');
+    const { admin } = await signIn('betsson_admin');
     renderPage();
     await createCategory('Famous coaches', 'I');
     await createCategory('Cup finals', 'III');
@@ -132,7 +132,7 @@ describe('the Categories page', () => {
     expect(within(section(ROUND_3)).getByText('Cup finals')).toBeTruthy();
     expect(within(section(ROUND_1)).queryByText('Cup finals')).toBeNull();
 
-    // Each is a draft, with a key the editor never saw.
+    // Each is a draft, with a key nobody typed.
     const [cards] = [await listOf(admin, 'card-categories', { q: 'Famous coaches' })];
     expect(cards).toHaveLength(1);
     expect(cards[0].status).toBe('draft');
@@ -144,7 +144,7 @@ describe('the Categories page', () => {
   });
 
   it('shows the real number of a category’s cards and filters both sections by name', async () => {
-    const { admin } = await signIn('editor');
+    const { admin } = await signIn('betsson_admin');
     const coaches = await admin.content('card-categories').create({ data: { key: 'coaches', prompt: 'Famous coaches' } });
     await admin.content('card-categories').create({ data: { key: 'keepers', prompt: 'Goalkeepers of the 90s' } });
     for (const key of ['ferguson', 'wenger', 'klopp']) await admin.content('cards').create({ data: card(key, 'coaches') });
@@ -163,7 +163,7 @@ describe('the Categories page', () => {
   });
 
   it('opens on the category a publish-report link names by its key', async () => {
-    const { admin } = await signIn('editor');
+    const { admin } = await signIn('betsson_admin');
     await admin.content('card-categories').create({ data: { key: 'coaches', prompt: 'Famous coaches' } });
     await admin.content('card-categories').create({ data: { key: 'keepers', prompt: 'Goalkeepers of the 90s' } });
     window.history.replaceState(null, '', '?q=keepers');
@@ -178,7 +178,7 @@ describe('the Categories page', () => {
   });
 
   it('edits a category’s name; its key stays', async () => {
-    const { admin } = await signIn('editor');
+    const { admin } = await signIn('betsson_admin');
     await admin.content('card-categories').create({ data: { key: 'coaches', prompt: 'Famous coaches' } });
     renderPage();
     const dialog = await openDialog('Famous coaches');
@@ -195,7 +195,7 @@ describe('the Categories page', () => {
   });
 
   it('refuses a name that is too long, in the form', async () => {
-    const { admin } = await signIn('editor');
+    const { admin } = await signIn('betsson_admin');
     renderPage();
     fireEvent.click(screen.getByRole('button', { name: 'New Category' }));
     const dialog = await screen.findByRole('dialog', { name: 'Create Category' });
@@ -205,26 +205,10 @@ describe('the Categories page', () => {
     expect(await listOf(admin, 'card-categories', { q: 'xxxxxxxxxx' })).toHaveLength(0);
   });
 
-  it('marks a draft ready from its dialog, and tells an editor why only a publisher approves', async () => {
-    const { admin } = await signIn('editor');
-    await admin.content('card-categories').create({ data: { key: 'coaches', prompt: 'Famous coaches' } });
-    renderPage();
-    let dialog = await openDialog('Famous coaches');
-    expect(within(dialog).queryByRole('button', { name: 'Approve' })).toBeNull();
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Mark ready' }));
-    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
-    await waitFor(async () => expect((await rowOf(admin, 'coaches')).status).toBe('ready'));
-    expect(await within(cardOf('Famous coaches')).findByText('Ready for review')).toBeTruthy();
-
-    dialog = await openDialog('Famous coaches');
-    expect(within(dialog).queryByRole('button', { name: 'Mark ready' })).toBeNull();
-    expect(within(dialog).queryByRole('button', { name: 'Approve' })).toBeNull();
-    expect(within(dialog).getByText('Ready for a publisher to approve.')).toBeTruthy();
-  });
-
-  it('deletes (archives) a category into the Archived section, and a publisher restores it', async () => {
-    const { admin } = await signIn('editor');
-    await admin.content('card-categories').create({ data: { key: 'mine', prompt: 'Made by me' } });
+  it('deletes (archives) a colleague’s category into the Archived section, and restores it', async () => {
+    const colleague = await clientFor('betsson_admin', 'colleague@demo.tablederby.test');
+    await colleague.admin.content('card-categories').create({ data: { key: 'mine', prompt: 'Made by me' } });
+    const { admin } = await signIn('betsson_admin');
     renderPage();
     expect(screen.queryByRole('heading', { name: 'Archived' })).toBeNull();
     fireEvent.click(within(await screen.findByText('Made by me').then(() => cardOf('Made by me'))).getByRole('button', { name: 'Delete the category' }));
@@ -239,83 +223,49 @@ describe('the Categories page', () => {
     expect(within(section(ROUND_1)).queryByText('Made by me')).toBeNull();
     expect((await rowOf(admin, 'mine')).status).toBe('archived');
 
-    // An editor cannot bring it back.
-    expect(within(cardOf('Made by me')).queryByRole('button', { name: 'Restore the category' })).toBeNull();
-    cleanup();
-
-    const publisher = await signIn('publisher');
-    renderPage();
-    fireEvent.click(within(await screen.findByText('Made by me').then(() => cardOf('Made by me'))).getByRole('button', { name: 'Restore the category' }));
+    fireEvent.click(within(cardOf('Made by me')).getByRole('button', { name: 'Restore the category' }));
     await waitFor(() => expect(screen.queryByRole('heading', { name: 'Archived' })).toBeNull());
     expect(within(section(ROUND_1)).getByText('Made by me')).toBeTruthy();
-    expect((await rowOf(publisher.admin, 'mine')).status).toBe('draft');
+    expect((await rowOf(admin, 'mine')).status).toBe('draft');
   });
 
-  it('does not let an editor delete a category someone else touched, and says why', async () => {
-    const publisher = await clientFor('publisher');
-    await publisher.admin.content('card-categories').create({ data: { key: 'theirs', prompt: 'Made by a publisher' } });
-    const { admin } = await signIn('editor');
-    const touched = await admin.content('card-categories').create({ data: { key: 'touched', prompt: 'Touched by a publisher' } });
-    await publisher.admin.content('card-categories').edit(touched.id, { version: touched.version, data: touched.data, position: touched.position, note: 'Checked' });
-    renderPage();
+  it('publishes a colleague’s draft category with its draft cards in one step, then sends the release', async () => {
+    const colleague = await clientFor('betsson_admin', 'colleague@demo.tablederby.test');
+    await colleague.admin.content('card-categories').create({ data: { key: 'coaches', prompt: 'Famous coaches' } });
+    for (const key of ['ferguson', 'wenger']) await colleague.admin.content('cards').create({ data: card(key, 'coaches') });
 
-    // Another person's draft offers no Delete at all.
-    expect(within(await screen.findByText('Made by a publisher').then(() => cardOf('Made by a publisher'))).queryByRole('button', { name: 'Delete the category' })).toBeNull();
-    expect(within(cardOf('Made by a publisher')).getByRole('button', { name: 'Edit the category' })).toBeTruthy();
-
-    // One of the editor's own that a publisher wrote to: the confirmation reads its history and refuses.
-    fireEvent.click(within(cardOf('Touched by a publisher')).getByRole('button', { name: 'Delete the category' }));
-    const asked = await screen.findByRole('dialog', { name: /Delete Category/ });
-    expect(await within(asked).findByText('Editors archive only their own drafts that nobody else has touched and that were never approved.')).toBeTruthy();
-    expect(within(asked).getByRole('button', { name: 'Delete' }).hasAttribute('disabled')).toBe(true);
-    fireEvent.click(within(asked).getByRole('button', { name: 'Cancel' }));
-    expect((await rowOf(admin, 'touched')).status).toBe('draft');
-  });
-
-  it('approves a category with its ready cards, as a publisher, their own category too', async () => {
-    const editor = await clientFor('editor');
-    const category = await editor.admin.content('card-categories').create({ data: { key: 'coaches', prompt: 'Famous coaches' } });
-    for (const key of ['ferguson', 'wenger']) {
-      const made = await editor.admin.content('cards').create({ data: card(key, 'coaches') });
-      await editor.admin.content('cards').ready(made.id, made.version);
-    }
-    await editor.admin.content('card-categories').ready(category.id, category.version);
-
-    const publisher = await signIn('publisher');
+    const member = await signIn('betsson_admin');
     renderPage();
     const dialog = await openDialog('Famous coaches');
     expect(await within(dialog).findByText('Cards (2)')).toBeTruthy();
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Approve' }));
-    const approval = await screen.findByRole('dialog', { name: /Approve the category with its cards/ });
-    await waitFor(() => expect(within(approval).getByRole('button', { name: 'Approve' }).hasAttribute('disabled')).toBe(false));
-    fireEvent.click(within(approval).getByRole('button', { name: 'Approve' }));
-    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    // No review step in between: nothing to mark ready or approve on its own.
+    expect(within(dialog).queryByRole('button', { name: 'Mark ready' })).toBeNull();
+    expect(within(dialog).queryByRole('button', { name: 'Approve' })).toBeNull();
+    fireEvent.click(await within(dialog).findByRole('button', { name: 'Publish 2' }));
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Confirm?' }));
+    const release = await screen.findByRole('dialog', { name: 'Publish' });
+    expect(within(release).getByText('Your questions are published; the game gets them with this release.')).toBeTruthy();
 
-    expect((await rowOf(publisher.admin, 'coaches')).status).toBe('approved');
-    const cards = (await publisher.admin.content('cards').list({ category: 'coaches' })).items;
+    expect((await rowOf(member.admin, 'coaches')).status).toBe('approved');
+    const cards = (await member.admin.content('cards').list({ category: 'coaches' })).items;
     expect(cards.map((row) => row.status)).toEqual(['approved', 'approved']);
-    expect(within(cardOf('Famous coaches')).getByText('Approved')).toBeTruthy();
     cleanup();
 
-    // As in the Quizball CMS, the publisher approves a category (and cards) they made themselves.
-    const own = await publisher.admin.content('card-categories').create({ data: { key: 'own', prompt: 'My own category' } });
-    const mineCard = await publisher.admin.content('cards').create({ data: card('mourinho', 'own') });
-    await publisher.admin.content('cards').ready(mineCard.id, mineCard.version);
-    await publisher.admin.content('card-categories').ready(own.id, own.version);
+    // A new name for a published category: published on its own, the cards already being out.
+    const live = await rowOf(member.admin, 'coaches');
+    await member.admin.content('card-categories').edit(live.id, { version: live.version, data: { ...live.data, prompt: 'Great coaches' }, position: live.position, note: live.note });
     renderPage();
-    const mine = await openDialog('My own category');
-    expect(await within(mine).findByText('Cards (1)')).toBeTruthy();
-    fireEvent.click(within(mine).getByRole('button', { name: 'Approve' }));
-    const ownApproval = await screen.findByRole('dialog', { name: /Approve the category with its cards/ });
-    await waitFor(() => expect(within(ownApproval).getByRole('button', { name: 'Approve' }).hasAttribute('disabled')).toBe(false));
-    fireEvent.click(within(ownApproval).getByRole('button', { name: 'Approve' }));
-    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
-    expect((await rowOf(publisher.admin, 'own')).status).toBe('approved');
-    expect((await publisher.admin.content('cards').get(mineCard.id)).status).toBe('approved');
+    const renamed = await openDialog('Great coaches');
+    fireEvent.click(await within(renamed).findByRole('button', { name: 'Publish' }));
+    fireEvent.click(within(renamed).getByRole('button', { name: 'Confirm?' }));
+    expect(await screen.findByRole('dialog', { name: 'Publish' })).toBeTruthy();
+    const now = await rowOf(member.admin, 'coaches');
+    expect(now.status).toBe('approved');
+    expect(now.approvedVersion).toBe(now.contentVersion);
   });
 
   it('lists a category’s cards in its dialog', async () => {
-    const { admin } = await signIn('editor');
+    const { admin } = await signIn('betsson_admin');
     await admin.content('box-categories').create({ data: { key: 'finals', title: 'Cup finals' } });
     await admin.content('box-questions').create({ data: { categoryKey: 'finals', key: 'q1', q: 'Who won in 2022?', display: 'Argentina', aliases: ['argentina'] } });
     renderPage();

@@ -55,7 +55,9 @@ export function playerProfile(ctx: MockContext, id: string) {
   const a = aggregates(ctx.db, p);
   const live = ctx.db.matches.find((m) => m.status === 'live' && m.players.some((s) => s.playerId === p.id));
   const seed = p.displayName.length;
-  const games = { footballLogic: { attempts: seed + 2, completed: seed }, putInOrder: { attempts: seed, completed: seed - 1 }, careerPath: { attempts: 3, completed: 2 } };
+  // Football Logic: what they played before Stat Sniper replaced it.
+  const games = { statSniper: { attempts: seed - 1, completed: seed - 2 }, footballLogic: { attempts: 3, completed: 3 }, putInOrder: { attempts: seed, completed: seed - 1 }, careerPath: { attempts: 3, completed: 2 } };
+  const totals = Object.values(games);
   return {
     id: p.id,
     displayName: p.displayName,
@@ -70,8 +72,8 @@ export function playerProfile(ctx: MockContext, id: string) {
     rating: { rating: p.rating, ratingVersion: p.ratingVersion, ...a },
     tickets: { balance: p.balance, perDay: p.ticketsPerDay, refilledOn: p.refilledOn },
     dailies: {
-      attempts: games.footballLogic.attempts + games.putInOrder.attempts + games.careerPath.attempts,
-      completed: games.footballLogic.completed + games.putInOrder.completed + games.careerPath.completed,
+      attempts: totals.reduce((n, game) => n + game.attempts, 0),
+      completed: totals.reduce((n, game) => n + game.completed, 0),
       lastDate: georgiaToday(ctx.now),
       games,
     },
@@ -265,6 +267,7 @@ export const snapshotCsv = (ctx: MockContext, id: string) => csv(findSnapshot(ct
 
 /** How many days the dashboard's chart and its longest period cover. */
 const DASHBOARD_DAYS = 30;
+const STAT_SNIPER_DAYS = 3;
 
 export function dashboard(ctx: MockContext) {
   const { db } = ctx;
@@ -290,13 +293,16 @@ export function dashboard(ctx: MockContext) {
   const day = (date: string, offset: number) => {
     const { from, to } = bounds(date);
     const base = offset < 2 ? 40 - offset * 7 : 24 + ((offset * 11) % 17);
+    // Stat Sniper replaced Football Logic STAT_SNIPER_DAYS days ago; the days before keep Football Logic's figures.
+    const sniper = offset < STAT_SNIPER_DAYS;
     return {
       date,
       from,
       to,
       ...counted(from, to),
       dailies: {
-        footballLogic: { attempts: base, completed: base - 6 },
+        statSniper: sniper ? { attempts: base, completed: base - 6 } : { attempts: 0, completed: 0 },
+        footballLogic: sniper ? { attempts: 0, completed: 0 } : { attempts: base, completed: base - 6 },
         putInOrder: { attempts: base - 9, completed: base - 12 },
         careerPath: { attempts: base - 14, completed: base - 20 },
       },
@@ -309,8 +315,9 @@ export function dashboard(ctx: MockContext) {
     const of = days.slice(-length);
     const [first, last] = [of[0]!, of[of.length - 1]!];
     const sum = (pick: (d: (typeof days)[number]) => number) => of.reduce((n, d) => n + pick(d), 0);
-    const game = (name: 'footballLogic' | 'putInOrder' | 'careerPath') => ({ attempts: sum((d) => d.dailies[name].attempts), completed: sum((d) => d.dailies[name].completed) });
-    const games = { footballLogic: game('footballLogic'), putInOrder: game('putInOrder'), careerPath: game('careerPath') };
+    const game = (name: keyof (typeof days)[number]['dailies']) => ({ attempts: sum((d) => d.dailies[name].attempts), completed: sum((d) => d.dailies[name].completed) });
+    const games = { statSniper: game('statSniper'), footballLogic: game('footballLogic'), putInOrder: game('putInOrder'), careerPath: game('careerPath') };
+    const totals = Object.values(games);
     return {
       fromDate: first.date,
       toDate: last.date,
@@ -318,8 +325,8 @@ export function dashboard(ctx: MockContext) {
       to: last.to,
       ...counted(first.from, last.to),
       dailies: {
-        attempts: games.footballLogic.attempts + games.putInOrder.attempts + games.careerPath.attempts,
-        completed: games.footballLogic.completed + games.putInOrder.completed + games.careerPath.completed,
+        attempts: totals.reduce((n, g) => n + g.attempts, 0),
+        completed: totals.reduce((n, g) => n + g.completed, 0),
         ...games,
       },
       practice: { runs: sum((d) => d.practice.runs) },
@@ -338,7 +345,7 @@ export function dashboard(ctx: MockContext) {
       activePlayers: d.players.active,
       newPlayers: d.players.new,
       matchesSettled: d.matches.settled,
-      dailiesCompleted: d.dailies.footballLogic.completed + d.dailies.putInOrder.completed + d.dailies.careerPath.completed,
+      dailiesCompleted: Object.values(d.dailies).reduce((n, game) => n + game.completed, 0),
       practiceRuns: d.practice.runs,
     })),
   };

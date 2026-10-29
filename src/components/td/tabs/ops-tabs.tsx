@@ -12,6 +12,7 @@ import { TdErrorPanel } from '@/components/td/td-error-panel';
 import { TdIssueText, TdSwitchField } from '@/components/td/content/td-form';
 import { tdKeys, useTdWrite } from '@/hooks/use-td-content';
 import { TdApiError } from '@/lib/td/api-client';
+import { tdErrorText } from '@/lib/td/errors';
 import { tdAdmin } from '@/lib/td/client';
 import { checkContract, TD_ADMIN_CONTRACT_VERSION, type BoardPage, type SchemaIssue, type Settings, type SnapshotList, type SnapshotPage } from '@/lib/td/contract';
 import { downloadText } from '@/lib/td/download';
@@ -62,7 +63,7 @@ function useExport() {
     try {
       downloadText(await write(fetchCsv, []), fileName);
     } catch (caught) {
-      toast.error(caught instanceof TdApiError ? caught.message : t('The export failed'));
+      toast.error(caught instanceof TdApiError ? tdErrorText(caught) : t('The export failed'));
     } finally {
       setBusy(null);
     }

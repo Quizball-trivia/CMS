@@ -10,13 +10,13 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { TdEmptyState, TdSection } from '@/components/td/td-page';
 import { TdErrorPanel } from '@/components/td/td-error-panel';
 import { tdKeys, useTdContentList, type TdListQuery } from '@/hooks/use-td-content';
+import { tdActorName } from '@/lib/td/actors';
 import type { TdContentRow, TdContentStatus, TdContentType } from '@/lib/td/admin-api';
 import { tdAdmin, tdTokens } from '@/lib/td/client';
 import { tdErrorText } from '@/lib/td/errors';
 import { formatGeorgiaTime } from '@/lib/td/georgia';
 import { t } from '@/lib/td/i18n';
 import { beginOperation, runEach } from '@/lib/td/operation';
-import { isTdPublisher } from '@/lib/td/workflow';
 import { cn } from '@/lib/utils';
 import { useTdAuth } from '@/providers/td-auth-provider';
 import { TdStatusChip, TD_STATUS_WORDS } from './td-status';
@@ -90,7 +90,7 @@ export function TdContentList<T extends TdContentType>({
   const rows = useMemo(() => list.data?.pages.flatMap((page) => page.items) ?? [], [list.data]);
   const chosen = rows.filter((row) => selected.has(row.id));
   const readyable = chosen.filter((row) => row.status === 'draft');
-  const approvable = user && isTdPublisher(user.role) && !CATEGORY_TYPES.has(type) ? chosen.filter((row) => row.status === 'ready') : [];
+  const approvable = user && !CATEGORY_TYPES.has(type) ? chosen.filter((row) => row.status === 'ready') : [];
 
   const resetSelection = () => setSelected(new Set());
   const setFilter = (apply: () => void) => {
@@ -281,7 +281,7 @@ export function TdContentList<T extends TdContentType>({
                   </TableCell>
                   <TableCell className="hidden px-3 py-2.5 pr-5 text-xs text-(--td-text-3) lg:table-cell">
                     {formatGeorgiaTime(row.updatedAt)}
-                    <span className="block">{row.updatedBy.name}</span>
+                    <span className="block">{tdActorName(row.updatedBy.name)}</span>
                   </TableCell>
                 </TableRow>
               ))}

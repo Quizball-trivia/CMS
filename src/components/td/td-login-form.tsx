@@ -17,8 +17,6 @@ import { TdFullScreenLoader } from './td-status-screens';
 import { TdWordmark } from './td-wordmark';
 
 const MOCK_ACCOUNTS = [
-  { email: 'editor@demo.tablederby.test', role: 'editor' },
-  { email: 'publisher@demo.tablederby.test', role: 'publisher' },
   { email: 'admin@demo.tablederby.test', role: 'betsson_admin' },
   { email: 'ops@demo.tablederby.test', role: 'ops' },
 ] as const;
@@ -27,8 +25,9 @@ function messageFor(error: unknown): string {
   if (error instanceof TdApiError) {
     if (error.status === 401) return t('Email or password is incorrect.');
     if (error.status === 403) return t('This account has no access to the Table Derby CMS.');
-    if (error.status === 429) return t('Too many attempts. Wait a minute and try again.');
-    return error.message;
+    if (error.status === 429) return t('Too many attempts. Wait a few minutes and try again.');
+    if (error.code === 'invalid_request') return t('Enter your email address as name@example.com.');
+    return t('The Table Derby API could not take this just now. Try again in a moment.');
   }
   return t('Could not reach the Table Derby API. Try again.');
 }

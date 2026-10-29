@@ -35,11 +35,11 @@ export const KA_COMMON: Record<string, string> = {
   // The workflow
   Draft: 'დრაფტი',
   'Ready for review': 'მზადაა შესამოწმებლად',
-  Approved: 'დამტკიცებული',
+  Approved: 'გამოქვეყნებული',
   Archived: 'დაარქივებული',
   Status: 'სტატუსი',
   'Mark ready': 'მზადად მონიშვნა',
-  Approve: 'დამტკიცება',
+  Approve: 'გამოქვეყნება',
   Archive: 'დაარქივება',
   Restore: 'აღდგენა',
   'Create draft': 'დრაფტის შექმნა',
@@ -86,7 +86,9 @@ export const KA_COMMON: Record<string, string> = {
   'Round III': 'III ტური',
   Penalties: 'პენალტები',
   Practice: 'ივარჯიშე',
+  Published: 'გამოქვეყნებული',
   Dailies: 'ყოველდღიური',
+  'Stat Sniper': 'სტატ სნაიპერი',
   'Football Logic': 'საფეხბურთო ლოგიკა',
   'Put in Order': 'დაალაგე სწორად',
   'Career Path': 'კარიერის გზა',
@@ -101,7 +103,7 @@ export const KA_COMMON: Record<string, string> = {
   'Open [not closed yet]': 'ღია',
   'Value [points of a card]': 'ქულა',
   'Staff [heading]': 'გუნდის წევრები',
-  'Approved [it happened]': 'დამტკიცდა',
+  'Approved [it happened]': 'გამოქვეყნდა',
   'Archived [it happened]': 'დაარქივდა',
 
   // What a form says about a field (lib/td/contract/validate.ts)

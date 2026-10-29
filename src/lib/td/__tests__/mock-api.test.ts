@@ -30,13 +30,13 @@ function mockApi(storage = new MemoryStorage(), start = Date.parse('2026-09-28T1
 describe('mock Table Derby API', () => {
   it('signs staff in and returns their profile', async () => {
     const { call, login } = mockApi();
-    const tokens = await login('publisher@demo.tablederby.test');
+    const tokens = await login('colleague@demo.tablederby.test');
     expect(tokens).toMatchObject({ accessToken: expect.any(String), refreshToken: expect.any(String), expiresAt: expect.any(String) });
 
     const me = await call('GET', '/admin/me', { token: tokens.accessToken });
     expect(me).toEqual({
       status: 200,
-      body: { id: '5e1d0000-0000-4000-8000-000000000002', email: 'publisher@demo.tablederby.test', name: 'Demo Publisher', role: 'publisher' },
+      body: { id: '5e1d0000-0000-4000-8000-000000000002', email: 'colleague@demo.tablederby.test', name: 'Demo Colleague', role: 'betsson_admin' },
     });
   });
 
@@ -158,7 +158,7 @@ describe('mock Table Derby API', () => {
       return { status: response.status, body: await response.json() };
     };
     const admin = (await post(first, '/admin/auth/login', { email: 'admin@demo.tablederby.test', password: MOCK_PASSWORD })).body.accessToken as string;
-    const invite = (await post(first, '/admin/staff/invite', { email: 'race@example.test', role: 'editor' }, admin)).body.token as string;
+    const invite = (await post(first, '/admin/staff/invite', { email: 'race@example.test', role: 'betsson_admin' }, admin)).body.token as string;
     // Another tab holds the lock: neither redemption may read the link until it is released.
     const release = deferred<void>();
     const holding = deferred<void>();
@@ -188,22 +188,29 @@ describe('mock Table Derby API', () => {
     const set = 'ﬁnal Ａnswer passphrase';
     expect(set.normalize('NFC')).toBe(set);
     const admin = (await post('/admin/auth/login', { email: 'admin@demo.tablederby.test', password: MOCK_PASSWORD })).body.accessToken as string;
-    const invite = (await post('/admin/staff/invite', { email: 'nfkc@example.test', role: 'editor' }, admin)).body.token as string;
+    const invite = (await post('/admin/staff/invite', { email: 'nfkc@example.test', role: 'betsson_admin' }, admin)).body.token as string;
     expect((await post('/admin/auth/accept-invite', { token: invite, password: set, name: 'NFKC' })).status).toBe(200);
     expect((await post('/admin/auth/login', { email: 'nfkc@example.test', password: 'final Answer passphrase' })).status).toBe(200);
     expect((await post('/admin/auth/login', { email: 'nfkc@example.test', password: 'final answer passphrase' })).status).toBe(401);
   });
 
-  it('lists staff only for Betsson admins and ops', async () => {
+  it('lists staff for Betsson’s team and ops, in Betsson’s one role and ops', async () => {
     const { call, login } = mockApi();
-    const editor = await login('editor@demo.tablederby.test');
-    const admin = await login('admin@demo.tablederby.test');
-    expect((await call('GET', '/admin/staff', { token: editor.accessToken })).status).toBe(403);
-    const staff = await call('GET', '/admin/staff', { token: admin.accessToken });
-    expect(staff.status).toBe(200);
-    expect(staff.body.items.map((member: { role: string }) => member.role)).toEqual(
-      expect.arrayContaining(['editor', 'publisher', 'betsson_admin', 'ops']),
-    );
+    for (const email of ['editor@demo.tablederby.test', 'ops@demo.tablederby.test']) {
+      const staff = await call('GET', '/admin/staff', { token: (await login(email)).accessToken });
+      expect(staff.status).toBe(200);
+      expect(new Set(staff.body.items.map((member: { role: string }) => member.role))).toEqual(new Set(['betsson_admin', 'ops']));
+    }
+  });
+
+  it('invites and changes members only in Betsson’s one role: the earlier editor and publisher roles are refused', async () => {
+    const { call, login } = mockApi();
+    const token = (await login('admin@demo.tablederby.test')).accessToken;
+    for (const role of ['editor', 'publisher'])
+      expect(await call('POST', '/admin/staff/invite', { token, body: { email: `${role}.new@example.test`, role } })).toMatchObject({ status: 400, body: { code: 'invalid_request' } });
+    const colleague = '5e1d0000-0000-4000-8000-000000000002';
+    expect(await call('PATCH', `/admin/staff/${colleague}`, { token, body: { role: 'publisher' } })).toMatchObject({ status: 400, body: { code: 'invalid_request' } });
+    expect(await call('PATCH', `/admin/staff/${colleague}`, { token, body: { role: 'betsson_admin' } })).toMatchObject({ status: 200, body: { role: 'betsson_admin' } });
   });
 
   it('answers a retry of the same refresh request within 60 s with the same pair', async () => {

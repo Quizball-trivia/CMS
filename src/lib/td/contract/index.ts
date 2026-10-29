@@ -8,7 +8,7 @@ export { TD_ADMIN_CONTRACT_VERSION };
 export type { SchemaIssue };
 
 export type TdAdminErrorCode = AdminError['code'];
-type Role = 'editor' | 'publisher' | 'betsson_admin' | 'ops';
+type Role = 'betsson_admin' | 'ops';
 
 /** One route of the pinned contract, as the artifact describes it. */
 export interface ContractRoute {

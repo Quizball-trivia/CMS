@@ -2,7 +2,6 @@
 import type { MockBlobStore } from './blob-store';
 import { actorOf, nowIso, type MockContext } from './content';
 import type { MockUpload } from './db';
-import { isPublisher } from './staff';
 import { MockError, sha256Hex, uuid } from './util';
 
 export const UPLOAD_MAX_BYTES = 2 * 1024 * 1024;
@@ -218,8 +217,6 @@ export function findUpload(ctx: MockContext, id: string): MockUpload {
 
 export async function removeUpload(ctx: MockContext, blobs: MockBlobStore, id: string) {
   const found = findUpload(ctx, id);
-  if (found.uploadedBy.id !== ctx.staff.id && !isPublisher(ctx.staff.role))
-    throw new MockError(403, 'forbidden', 'Your role cannot do this');
   // A running publication only uses uploads an approved media row names, so this covers it too.
   const used = ctx.db.rows.some((row) => row.type === 'media' && (row.data.uploadId === id || row.approved?.uploadId === id));
   if (used) throw new MockError(409, 'in_use', 'Live content still uses this');

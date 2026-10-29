@@ -26,11 +26,7 @@ export const KA_UPLOAD: Record<string, string> = {
     'Points არის 1, 2 ან 3. არასავალდებულოა: „Image: messi-portrait“ უკვე ატვირთული სურათის ID-ა, ხოლო „Photo: 158023 | 25_1“ — SoFIFA-ს მოთამაშის ID და ვერსია. სურათები აქ არ იტვირთება.',
   'Optional: “Image: dinamo-stadium” gives the key of an image already uploaded. Images are not uploaded here.':
     'არასავალდებულოა: „Image: dinamo-stadium“ უკვე ატვირთული სურათის ID-ა. სურათები აქ არ იტვირთება.',
-  'Image A and Image B are optional. Each is the file name of a picture chosen below under Pictures (barcelona.png), the key of an image already uploaded, a web address starting with https://, or a path starting with /.':
-    'Image A და Image B არასავალდებულოა. თითოეული არის ქვემოთ „სურათებში“ არჩეული სურათის ფაილის სახელი (barcelona.png), უკვე ატვირთული სურათის ID, https://-ით დაწყებული ვებმისამართი ან /-ით დაწყებული მისამართი.',
-  'The items are listed in the order they are shown; the Answer lists them in the right order.': 'ელემენტები ჩამოწერილია ჩვენების თანმიმდევრობით; Answer-ში კი — სწორი თანმიმდევრობით.',
-  'Each club is matched by its name to the clubs list for its crest; a club that is not on the list has no crest. Players are asked “Whose career is this?” unless a “Prompt:” line says otherwise.':
-    'თითოეული კლუბი სახელით ემთხვევა კლუბების სიას და იღებს მის ემბლემას; სიაში არარსებულ კლუბს ემბლემა არ ექნება. მოთამაშეებს ეკითხებიან „ვისი კარიერაა?“, თუ „Prompt:“ სტრიქონი სხვას არ ამბობს.',
+  'Every club needs a name before its = (Name=club-key)': 'ყველა კლუბს = ნიშნამდე სახელი სჭირდება (სახელი=კლუბის-გასაღები)',
 
   // Reading the file
   'Please select a .txt file': 'აირჩიეთ .txt ფაილი',
@@ -52,7 +48,10 @@ export const KA_UPLOAD: Record<string, string> = {
   'Parsed Questions ({n})': 'წაკითხული კითხვები ({n})',
   'Maximum {max} questions allowed': 'დასაშვებია მაქსიმუმ {max} კითხვა',
   '{count} questions selected for upload': 'ასატვირთად მონიშნულია {count} კითხვა',
-  '{count} duplicates found and unselected': 'ნაპოვნია {count} დუბლიკატი, მონიშვნა მოხსნილია',
+  '{count} duplicates found and unselected.': 'ნაპოვნია {count} დუბლიკატი, მონიშვნა მოხსნილია.',
+  'No file chosen': 'ფაილი არჩეული არ არის',
+  '{count} pictures': '{count} სურათი',
+  'The API takes 30 pictures a minute: the rest go up in a moment.': 'API წუთში 30 სურათს იღებს: დანარჩენი ცოტა ხანში აიტვირთება.',
   '{count} questions have problems: remove them or fix the file': '{count} კითხვას ხარვეზი აქვს: წაშალეთ ისინი ან გაასწორეთ ფაილი',
   'Duplicate [upload]': 'დუბლიკატი',
   'Problem [upload]': 'ხარვეზი',
@@ -77,8 +76,6 @@ export const KA_UPLOAD: Record<string, string> = {
   'Clue {n}:': 'მინიშნება {n}:',
   '{id} · version {ver}': '{id} · ვერსია {ver}',
   'Options [upload]': 'სავარაუდო პასუხები',
-  'Items [upload]': 'ელემენტები',
-  'Clubs ({n})': 'კლუბები ({n})',
   'Explanation [upload]': 'განმარტება',
   'No uploaded image has this key': 'ამ ID-ით ატვირთული სურათი არ არის',
   'This question already exists.': 'ეს კითხვა უკვე არსებობს.',
@@ -108,8 +105,6 @@ export const KA_UPLOAD: Record<string, string> = {
   'Multiple correct answers marked (only one allowed)': 'მონიშნულია რამდენიმე სწორი პასუხი (დასაშვებია მხოლოდ ერთი)',
   'Missing difficulty level (use “Difficulty: Easy/Medium/Hard”)': 'სირთულე არ არის მითითებული (გამოიყენეთ „Difficulty: Easy/Medium/Hard“)',
   'Difficulty must be Easy, Medium or Hard': 'სირთულე უნდა იყოს Easy, Medium ან Hard',
-  'An image is a path starting with / or a web address starting with https://': 'სურათი არის /-ით დაწყებული მისამართი ან https://-ით დაწყებული ვებმისამართი',
-  'An http:// image may not show in the game: use https://': 'http:// სურათი თამაშში შეიძლება არ გამოჩნდეს: გამოიყენეთ https://',
   'Missing Items section': 'აკლია სექცია Items',
   'Missing Answer section': 'აკლია სექცია Answer',
   'Put in Order needs between 2 and 12 items, found {n}': '„დაალაგე სწორად“-ში უნდა იყოს 2-დან 12-მდე ელემენტი, მოიძებნა {n}',
@@ -123,12 +118,6 @@ export const KA_UPLOAD: Record<string, string> = {
   // Pictures and cards already in the category
   'Answer: the first name is what the card shows. Add others only for nicknames or a very different spelling: the game already forgives typos, accents, capitals and Georgian or Latin letters, and the surname alone counts.':
     'Answer: პირველი სახელი ბარათზე ჩანს. სხვები დაამატეთ მხოლოდ მეტსახელისთვის ან სულ სხვა დაწერილობისთვის: თამაში ისედაც ითმენს შეცდომებს, აქცენტებს, დიდ ასოებს და ქართულ ან ლათინურ ასოებს, გვარიც საკმარისია.',
-  'Points is 1, 2 or 3. The picture, optional: “Photo: 158023 | 24” is the player’s SoFIFA number and version (from the player’s address on sofifa.com), or “Image: buffon.jpg” the file name of a picture chosen below under Pictures.':
-    'Points არის 1, 2 ან 3. სურათი არასავალდებულოა: „Photo: 158023 | 24“ მოთამაშის SoFIFA-ს ნომერი და ვერსიაა (მოთამაშის მისამართიდან sofifa.com-ზე), ხოლო „Image: buffon.jpg“ ქვემოთ, სურათებში არჩეული ფაილის სახელი.',
-  'A card whose answer is already in the category updates that card (its picture, points and clues) instead of adding a second one. Clue lines may then be left out to keep the card’s own.':
-    'ბარათი, რომლის პასუხიც კატეგორიაში უკვე არის, ახალს არ ამატებს — არსებულს განაახლებს (სურათს, ქულას და მინიშნებებს). მინიშნების ხაზები მაშინ შეიძლება გამოტოვოთ და ბარათის საკუთარი დარჩება.',
-  'Optional: “Image: stadium.jpg” is the file name of a picture chosen below under Pictures, or the key of an image already uploaded.':
-    'არასავალდებულო: „Image: stadium.jpg“ ქვემოთ, სურათებში არჩეული ფაილის სახელია, ან უკვე ატვირთული სურათის გასაღები.',
   'Choose the picture {name} under Pictures': 'სურათებში აირჩიეთ {name}',
   'The picture {name} could not be saved: {error}': 'სურათი {name} ვერ შეინახა: {error}',
   'The card {name} was not updated: {error}': 'ბარათი {name} ვერ განახლდა: {error}',
@@ -136,15 +125,12 @@ export const KA_UPLOAD: Record<string, string> = {
   'Updates the card': 'ბარათს განაახლებს',
   '{count} cards updated': 'განახლდა {count} ბარათი',
   '{count} of them update cards already in the category': 'მათგან {count} კატეგორიაში უკვე არსებულ ბარათს განაახლებს',
-  'An image is the file name of a picture chosen with the file (buffon.jpg), or the key of an image already uploaded': 'სურათი არის ფაილთან ერთად არჩეული სურათის სახელი (buffon.jpg), ან უკვე ატვირთული სურათის გასაღები',
   'Topic': 'თემა',
-  'Select a topic': 'აირჩიეთ თემა',
-  'New topic…': 'ახალი თემა…',
-  'New topic': 'ახალი თემა',
-  'Please select a topic and a category': 'აირჩიეთ თემა და კატეგორია',
   'A Credit line goes with an Image line that names a picture file (buffon.jpg)': 'Credit ხაზი უნდა ახლდეს Image ხაზს, რომელიც სურათის ფაილს ასახელებს (buffon.jpg)',
   'A Credit line is “author | licence | source”': 'Credit ხაზი ასეთია: „ავტორი | ლიცენზია | წყარო“',
   'Question {n} updates the same card': 'კითხვა {n} იმავე ბარათს ანახლებს',
+  'The same question as question {n} of this file: remove one of them': 'იგივე კითხვაა, რაც ამ ფაილის კითხვა {n}: ერთ-ერთი წაშალეთ',
+  'The same question as question {n} of this file, with another picture: remove one of them': 'იგივე კითხვაა, რაც ამ ფაილის კითხვა {n}, მხოლოდ სხვა სურათით: ერთ-ერთი წაშალეთ',
   'A new card needs a clue line or a picture': 'ახალ ბარათს მინიშნება ან სურათი სჭირდება',
   'A question needs its text or a picture': 'კითხვას ტექსტი ან სურათი სჭირდება',
   'The sign-in changed, so the upload stopped. Check the cards before you upload again.': 'შესვლა შეიცვალა, ამიტომ ატვირთვა შეჩერდა. ხელახლა ატვირთვამდე ბარათები გადაამოწმეთ.',
@@ -152,14 +138,62 @@ export const KA_UPLOAD: Record<string, string> = {
   'Choose one .txt file, with its pictures if it names any': 'აირჩიეთ ერთი .txt ფაილი და, თუ ასახელებს, მისი სურათები',
   'The .txt file (max {mb} MB), and the pictures it names: choose them together.': '.txt ფაილი (მაქს. {mb} MB) და მასში დასახელებული სურათები: აირჩიეთ ერთად.',
   'Pictures': 'სურათები',
-  'The pictures the file names on its Image lines: JPEG, PNG or WebP, at most 2 MB each. Pictures chosen again are added.': 'სურათები, რომლებსაც ფაილი Image ხაზებზე ასახელებს: JPEG, PNG ან WebP, თითო მაქსიმუმ 2 MB. ხელახლა არჩეული სურათები ემატება.',
+  'Picture': 'სურათი',
   'The file names {count} pictures not chosen yet: {names}. Choose them here.': 'ფაილი ასახელებს {count} სურათს, რომლებიც ჯერ არ არის არჩეული: {names}. აირჩიეთ აქ.',
   'Round II needs at least 5 clues: a match shows the first 5': 'II ტურს მინიმუმ 5 მინიშნება სჭირდება: მატჩში პირველი 5 ჩანს',
   'Five clues per player, hardest first: a match shows the first 5, one every few seconds, and the first to buzz answers. No points and no pictures in this round.': 'თითო მოთამაშეზე ხუთი მინიშნება, ყველაზე რთულით დაწყებული: მატჩში პირველი 5 ჩანს, რამდენიმე წამში ერთი, და ვინც პირველი დააჭერს, ის პასუხობს. ამ ტურში ქულები და სურათები არ არის.',
   'Answer (question {n})': 'პასუხი (კითხვა №{n})',
-  'Day {n}': 'დღე {n}',
-  'Day': 'დღე',
-  'Each day is published as a whole on the Daily page.': 'თითო დღე ყოველდღიურის გვერდზე მთლიანად ქვეყნდება.',
-  'The last day has {n} of {size}: it stays a draft until it has {size}.': 'ბოლო დღეს {size}-დან {n} აქვს: მონახაზად დარჩება, სანამ {size} არ ექნება.',
-  'These make {count} new days of {size}.': 'ესენი {count} ახალ დღეს ქმნის, თითოში {size}.',
+  'An image path starts with / and has no spaces':
+    'სურათის მისამართი /-ით იწყება და გამოტოვებებს არ შეიცავს',
+  'Optional: “Image: stadium.jpg” is the file name of a picture chosen below under Pictures, “Image: https://…” a link to a picture (the CMS downloads it and keeps its own copy), or the key of an image already uploaded.':
+    'არასავალდებულო: „Image: stadium.jpg“ ქვემოთ, სურათებში არჩეული ფაილის სახელია, „Image: https://…“ სურათის ბმული (CMS მას ჩამოტვირთავს და საკუთარ ასლს ინახავს), ან უკვე ატვირთული სურათის გასაღები.',
+  'An image is the file name of a picture chosen with the file (buffon.jpg), a link to a picture (https://…), or the key of an image already uploaded':
+    'სურათი არის ფაილთან ერთად არჩეული სურათის სახელი (buffon.jpg), სურათის ბმული (https://…) ან უკვე ატვირთული სურათის გასაღები',
+  'A picture link is a web address starting with https://, with no spaces':
+    'სურათის ბმული https://-ით დაწყებული ვებმისამართია, გამოტოვებების გარეშე',
+  'The pictures the file names on its Image lines: JPEG, PNG or WebP, at most 2 MB each. Pictures chosen again are added. An Image line with a link needs nothing here: its picture is downloaded.':
+    'სურათები, რომლებსაც ფაილი Image ხაზებზე ასახელებს: JPEG, PNG ან WebP, თითო მაქსიმუმ 2 MB. ხელახლა არჩეული სურათები ემატება. ბმულიან Image ხაზს აქ არაფერი სჭირდება: მისი სურათი ავტომატურად ჩამოიტვირთება.',
+  'Downloading {count} picture from its link…':
+    'ბმულიდან ჩამოიტვირთება {count} სურათი…',
+  'Downloading {count} pictures from their links…':
+    'ბმულიდან ჩამოიტვირთება {count} სურათი…',
+  'A picture could not be downloaded from its link: save it and choose it here, or give another link.':
+    'ერთი სურათი ბმულიდან ვერ ჩამოიტვირთა: შეინახეთ და აქ აირჩიეთ, ან სხვა ბმული მიუთითეთ.',
+  '{count} pictures could not be downloaded from their links: save them and choose them here, or give other links.':
+    '{count} სურათი ბმულიდან ვერ ჩამოიტვირთა: შეინახეთ და აქ აირჩიეთ, ან სხვა ბმული მიუთითეთ.',
+  'The picture at its link could not be downloaded: {reason}':
+    'სურათი ბმულიდან ვერ ჩამოიტვირთა: {reason}',
+  'Downloading the picture from its link…':
+    'სურათი ბმულიდან ჩამოიტვირთება…',
+  'From a link':
+    'ბმულიდან',
+  'this is not a web address the CMS can download from':
+    'ეს ისეთი ვებმისამართი არაა, საიდანაც CMS ჩამოტვირთვას შეძლებს',
+  'this address cannot be downloaded from':
+    'ამ მისამართიდან ჩამოტვირთვა დაუშვებელია',
+  'the site did not answer':
+    'საიტმა არ უპასუხა',
+  'the site is busy: try again in a minute':
+    'საიტი გადატვირთულია: ერთ წუთში სცადეთ ხელახლა',
+  'the site has no picture at this link':
+    'ამ ბმულზე საიტს სურათი არ აქვს',
+  'the picture is bigger than 2 MB':
+    'სურათი 2 MB-ზე დიდია',
+  'the link is not a JPEG, PNG or WebP picture (open the picture itself and copy its address)':
+    'ბმული JPEG, PNG ან WebP სურათი არაა (გახსენით თავად სურათი და მისი მისამართი დააკოპირეთ)',
+  'sign in again to download pictures':
+    'სურათების ჩამოსატვირთად ხელახლა შედით სისტემაში',
+  'the download failed':
+    'ჩამოტვირთვა ვერ მოხერხდა',
+  'A category has 1 to {max} characters':
+    'კატეგორია 1-დან {max} სიმბოლომდეა',
+  'Optional: “Category: ოქროს ბურთი” gives the question its own category instead of the one chosen above. When every question has one, no category needs to be chosen.':
+    'არასავალდებულო: „Category: ოქროს ბურთი“ კითხვას საკუთარ კატეგორიას აძლევს ზემოთ არჩეულის ნაცვლად. თუ ყველა კითხვას აქვს, კატეგორიის არჩევა საჭირო აღარ არის.',
+  'Optional: “Category: მუნდიალი” puts the question in that category, and the upload makes the category when there is none of that name. When every question has one, no category needs to be chosen.':
+    'არასავალდებულო: „Category: მუნდიალი“ კითხვას ამ კატეგორიაში სვამს. თუ ასეთი სახელის კატეგორია ჯერ არ არსებობს, ატვირთვა თვითონ შექმნის. თუ ყველა კითხვას აქვს, ზემოთ კატეგორიის არჩევა საჭირო აღარ არის.',
+  'Penalty questions have no category: remove this line': 'პენალტის კითხვებს კატეგორია არ აქვს: წაშალე ეს სტრიქონი',
+  'The one chosen above': 'ზემოთ არჩეული',
+  'new': 'ახალი',
+  'new category: the upload makes it': 'ახალი კატეგორია: ატვირთვა შექმნის',
+  'They were uploaded before and are in the CMS already: find them in the Questions list under {mode}.': 'ისინი უკვე ატვირთულია და CMS-შია: ნახე კითხვების სიაში, „{mode}“.',
 };

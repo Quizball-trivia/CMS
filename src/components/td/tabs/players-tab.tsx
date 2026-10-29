@@ -6,7 +6,8 @@ import { toast } from 'sonner';
 import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet';
+import { Sheet, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet';
+import { TdSheetContent } from '@/components/td/td-dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Textarea } from '@/components/ui/textarea';
 import { TdEmptyState, TdSection } from '@/components/td/td-page';
@@ -26,6 +27,8 @@ const OUTCOME_LABELS = { win: t('Win'), loss: t('Loss'), noContest: t('No contes
 
 // The API's words for a state or a reason, named for the reader.
 const PLAYER_STATUS = { active: t('active'), blocked: t('blocked'), 'self excluded': t('self excluded'), deleted: t('deleted') };
+// Where an account comes from (the API's provider ids).
+const PROVIDERS = { betsson: 'Betsson', demo: t('demo account'), dev: t('development account'), load: t('load-test account') };
 const MATCH_STATUS = { live: t('live'), settled: t('settled'), void: t('void'), cancelled: t('cancelled') };
 // How a match was decided is the engine's word; the contract leaves it open.
 const DECIDED_BY = { play: t('play'), penalties: t('penalties'), forfeit: t('forfeit'), abandoned: t('abandoned'), cancelled: t('cancelled'), void: t('void'), corrected: t('corrected') };
@@ -95,7 +98,7 @@ export function TdPlayersTab() {
                 {found.map((p) => (
                   <TableRow key={p.id} onClick={() => setPlayer(p.id)} className={cn('cursor-pointer border-(--td-divider) hover:bg-secondary/40', player === p.id && 'bg-secondary/60')}>
                     <TableCell className="px-3 py-2.5 pl-5 font-medium">{p.displayName}</TableCell>
-                    <TableCell className="px-3 py-2.5 font-mono text-xs text-(--td-text-2)">{p.partnerPlayerId ?? `${p.provider}`}</TableCell>
+                    <TableCell className="px-3 py-2.5 font-mono text-xs text-(--td-text-2)">{p.partnerPlayerId ?? named(PROVIDERS, p.provider)}</TableCell>
                     <TableCell className="px-3 py-2.5 tabular-nums">{p.rating}</TableCell>
                     <TableCell className="px-3 py-2.5 tabular-nums">{p.games}</TableCell>
                     <TableCell className="px-3 py-2.5 text-xs capitalize">{named(PLAYER_STATUS, p.status.replace('_', ' '))}</TableCell>
@@ -117,9 +120,9 @@ export function TdPlayersTab() {
       {player && <PlayerDetail key={player} id={player} onMatch={setMatch} />}
       {user?.role === 'ops' && <OpsReviews onMatch={setMatch} />}
       <Sheet open={match !== null} onOpenChange={(open) => !open && setMatch(null)}>
-        <SheetContent side="right" className="w-full gap-0 overflow-y-auto border-border bg-(--td-surface) p-0 sm:max-w-3xl">
+        <TdSheetContent className="w-full gap-0 overflow-y-auto border-border bg-(--td-surface) p-0 sm:max-w-3xl">
           {match && <MatchRecord key={match} id={match} />}
-        </SheetContent>
+        </TdSheetContent>
       </Sheet>
     </>
   );
@@ -153,7 +156,7 @@ function PlayerDetail({ id, onMatch }: { id: string; onMatch: (id: string) => vo
   });
   const p = profile.data;
   if (!p) return <TdErrorPanel error={profile.error} />;
-  const facts = { provider: p.provider, status: named(PLAYER_STATUS, p.status.replace('_', ' ')), joined: formatGeorgiaTime(p.createdAt), seen: formatGeorgiaTime(p.lastSeenAt) };
+  const facts = { provider: named(PROVIDERS, p.provider), status: named(PLAYER_STATUS, p.status.replace('_', ' ')), joined: formatGeorgiaTime(p.createdAt), seen: formatGeorgiaTime(p.lastSeenAt) };
   return (
     <TdSection
       title={p.displayName}

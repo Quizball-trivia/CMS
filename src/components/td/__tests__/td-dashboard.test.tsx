@@ -101,7 +101,7 @@ describe('the dashboard', () => {
     expect(await screen.findByRole('heading', { name: 'Stats' })).toBeTruthy();
 
     const [today, week, month] = [data.today, data.last7Days!, data.last30Days!];
-    const dailies = (of: { dailies: Dashboard['today']['dailies'] }) => of.dailies.footballLogic.attempts + of.dailies.putInOrder.attempts + of.dailies.careerPath.attempts;
+    const dailies = (of: { dailies: Dashboard['today']['dailies'] }) => of.dailies.statSniper.attempts + of.dailies.footballLogic.attempts + of.dailies.putInOrder.attempts + of.dailies.careerPath.attempts;
     const expected: Array<[string, number, string, string]> = [
       ['Players', today.players.active, '1,234', '5,678'],
       ['Matches played', today.matches.settled, figure(week.matches.settled), figure(month.matches.settled)],
@@ -157,26 +157,16 @@ describe('the dashboard', () => {
     expect(container.querySelectorAll('.recharts-area-dots circle')).toHaveLength(1);
   });
 
-  it.each([
-    ['ops', true],
-    ['betsson_admin', true],
-    ['publisher', false],
-    ['editor', false],
-  ] as const)('shows the leaderboard’s top ten to %s: %s', async (role, shown) => {
+  it.each(['ops', 'betsson_admin'] as const)('shows the leaderboard’s top ten to %s', async (role) => {
     const admin = await signIn(role);
     const standings = vi.fn(admin.leaderboard.standings);
     h.admin = { ...admin, leaderboard: { ...admin.leaderboard, standings } };
     renderDashboard();
     // The cards fill in once the figures have come.
     await waitFor(() => expect(card('Players').textContent).not.toContain('—'));
-    if (shown) {
-      expect(await screen.findByText('Leaderboard · top 10')).toBeTruthy();
-      await waitFor(() => expect(within(card('Leaderboard · top 10')).getAllByRole('row')).toHaveLength(11));
-      expect(standings).toHaveBeenCalledWith({ limit: 10 }, expect.anything());
-    } else {
-      expect(screen.queryByText('Leaderboard · top 10')).toBeNull();
-      expect(standings).not.toHaveBeenCalled();
-    }
+    expect(await screen.findByText('Leaderboard · top 10')).toBeTruthy();
+    await waitFor(() => expect(within(card('Leaderboard · top 10')).getAllByRole('row')).toHaveLength(11));
+    expect(standings).toHaveBeenCalledWith({ limit: 10 }, expect.anything());
   });
 
   it('says how many early-quit penalties need a look, and offers the review to ops only', async () => {
@@ -187,14 +177,14 @@ describe('the dashboard', () => {
     expect(screen.getByRole('link', { name: 'Review' }).getAttribute('href')).toBe('/td/players');
     cleanup();
 
-    const publisher = await signIn('publisher');
-    serving(publisher, (d) => ({ ...d, penaltiesToReview: 1 }));
+    const betsson = await signIn('betsson_admin');
+    serving(betsson, (d) => ({ ...d, penaltiesToReview: 1 }));
     renderDashboard();
     expect(await screen.findByText(/^1 early-quit penalty needs a second look/)).toBeTruthy();
     expect(screen.queryByRole('link', { name: 'Review' })).toBeNull();
     cleanup();
 
-    serving(publisher, (d) => ({ ...d, penaltiesToReview: 0 }));
+    serving(betsson, (d) => ({ ...d, penaltiesToReview: 0 }));
     renderDashboard();
     await waitFor(() => expect(screen.getByText(/^Georgian time/)).toBeTruthy());
     expect(screen.queryByText(/early-quit/)).toBeNull();

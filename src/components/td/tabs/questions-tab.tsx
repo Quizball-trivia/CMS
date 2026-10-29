@@ -2,11 +2,12 @@
 
 import { useEffect, useMemo, useRef, useState, type MouseEvent } from 'react';
 import { motion } from 'framer-motion';
-import { Archive, ArchiveRestore, ChevronLeft, ChevronRight, Clock, FileText, HelpCircle, Image as ImageIcon, Layers, Loader2, MoreHorizontal, Plus, Rocket, Search, Send, X } from 'lucide-react';
+import { Archive, ArchiveRestore, ChevronLeft, ChevronRight, FileText, HelpCircle, Image as ImageIcon, Layers, Loader2, MoreHorizontal, Plus, Rocket, Search, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { TdDialogContent } from '@/components/td/td-dialog';
 import { DifficultySignal, getDifficultyTextColor } from '@/components/ui/difficulty-signal';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
@@ -14,23 +15,23 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { TdCardImage } from '@/components/td/content/td-card-image';
 import { TdContentEditorDialog, type TdEditorTarget } from '@/components/td/content/td-content-editor';
 import { TdErrorPanel } from '@/components/td/td-error-panel';
-import { TD_STATUS_LABELS, TD_STATUS_WORDS } from '@/components/td/content/td-status';
+import { TD_SHOWN_WORDS, TD_STATUS_LABELS, TD_STATUS_WORDS, useTdShownStatus, type TdShownStatus } from '@/components/td/content/td-status';
 import { tdKeys, useTdAllRows, useTdContentList, type TdListQuery } from '@/hooks/use-td-content';
 import type { TdContentRow, TdContentStatus, TdContentType } from '@/lib/td/admin-api';
 import { tdAdmin, tdTokens } from '@/lib/td/client';
 import { tdErrorText } from '@/lib/td/errors';
 import { t, tn } from '@/lib/td/i18n';
-import { moveImagesAlong } from '@/lib/td/images';
-import { beginOperation, runEach } from '@/lib/td/operation';
+import { beginOperation, operationIsCurrent, runEach } from '@/lib/td/operation';
+import { approveForPublish, categoryHeldText, publishable } from '@/lib/td/publish-rows';
 import { TD_QUESTION_MODES } from '@/lib/td/question-modes';
-import { isTdPublisher } from '@/lib/td/workflow';
 import { cn } from '@/lib/utils';
 import { useTdAuth } from '@/providers/td-auth-provider';
 import { TdBulkUploadDialog } from '@/components/td/questions/td-bulk-upload-dialog';
 import { TdReleasesTab } from './releases-tab';
 
 const PAGE_SIZE = 10;
-const STATUS_OPTIONS: TdContentStatus[] = ['draft', 'ready', 'approved', 'archived'];
+// A ready row (from the old two-step flow) is a draft here: Draft lists both, and Publish takes either.
+const STATUS_OPTIONS: TdContentStatus[] = ['draft', 'approved', 'archived'];
 const DIFFICULTIES = ['easy', 'medium', 'hard'] as const;
 const DIFFICULTY_WORDS: Record<string, string> = { easy: t('easy'), medium: t('medium'), hard: t('hard') };
 
@@ -39,23 +40,27 @@ const ITEM = 'text-xs font-medium';
 const CHIP = 'flex items-center gap-1.5 rounded-full bg-slate-900 px-3 py-1 text-[11px] font-bold text-white transition-all hover:bg-slate-800';
 const MENU_ITEM = 'gap-3 rounded-lg px-3 py-2.5 font-medium transition-colors';
 
-const STATUS_DOT: Record<TdContentStatus, string> = {
+const STATUS_DOT: Record<TdShownStatus, string> = {
   draft: 'border-2 border-gray-200 bg-transparent',
-  ready: 'bg-amber-400',
+  ready: 'border-2 border-gray-200 bg-transparent',
   approved: 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.4)]',
+  live: 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.4)]',
+  waiting: 'bg-amber-400',
   archived: 'border-2 border-gray-200 bg-gray-100',
 };
 
-const STATUS_PILL: Record<TdContentStatus, string> = {
+const STATUS_PILL: Record<TdShownStatus, string> = {
   draft: 'bg-slate-100 text-slate-400',
-  ready: 'bg-amber-50 text-amber-600',
+  ready: 'bg-slate-100 text-slate-400',
   approved: 'bg-emerald-50 text-emerald-600',
+  live: 'bg-emerald-50 text-emerald-600',
+  waiting: 'bg-amber-50 text-amber-600',
   archived: 'bg-slate-100 text-slate-300',
 };
 
 interface Shown {
   title: string;
-  /** Its category or set. */
+  /** Its category. */
   place: string | null;
   detail: string;
   image: boolean;
@@ -84,18 +89,6 @@ function show(type: TdContentType, row: TdContentRow): Shown {
     case 'practice-questions': {
       const d = (row as TdContentRow<'practice-questions'>).data;
       return { title: d.prompt, place: d.category || null, detail: tn(d.options.length, '{count} option', '{count} options'), image: Boolean(d.imageKey), difficulty: d.difficulty };
-    }
-    case 'football-logic': {
-      const d = (row as TdContentRow<'football-logic'>).data;
-      return { title: d.prompt || d.displayAnswer, place: d.puzzle || null, detail: t('Answer: {answer}', { answer: d.displayAnswer }), image: Boolean(d.imageA || d.imageB || d.imageAKey || d.imageBKey) };
-    }
-    case 'put-in-order': {
-      const d = (row as TdContentRow<'put-in-order'>).data;
-      return { title: d.prompt, place: d.puzzle || null, detail: tn(d.items.length, '{count} item', '{count} items'), image: false };
-    }
-    case 'career-path': {
-      const d = (row as TdContentRow<'career-path'>).data;
-      return { title: d.displayAnswer, place: d.puzzle || null, detail: tn(d.clubs.length, '{count} club', '{count} clubs'), image: false };
     }
     default: {
       const data = row.data as Record<string, unknown>;
@@ -134,6 +127,9 @@ export function TdQuestionsTab() {
   const [archiving, setArchiving] = useState<TdContentRow[] | null>(null);
   const [target, setTarget] = useState<TdEditorTarget | null>(null);
   const [publishing, setPublishing] = useState(false);
+  // Opened by Publish on chosen questions: the release starts on its own.
+  const [autoPublish, setAutoPublish] = useState(false);
+  const [confirming, setConfirming] = useState<TdContentRow[] | null>(null);
   // A step past the last loaded row waits for its page. Closing, another step or a new filter gives the wait up.
   const wait = useRef<object | null>(null);
   const [waiting, setWaiting] = useState(false);
@@ -145,22 +141,22 @@ export function TdQuestionsTab() {
   const byDifficulty = mode.type === 'practice-questions' && difficulty !== 'all';
   // Practice questions carry a category label of their own (no category rows): its filter lists the labels in use.
   const labelled = mode.type === 'practice-questions';
-  const filtered = (mode.categoryType || mode.puzzles || labelled) && category !== ANY_CATEGORY ? category : undefined;
+  const filtered = (mode.categoryType || labelled) && category !== ANY_CATEGORY ? category : undefined;
   const query = useMemo<TdListQuery>(
-    () => ({ q: q || undefined, status: status === 'all' ? undefined : status, ...(mode.puzzles ? { puzzle: filtered } : { category: filtered }) }),
-    [q, status, filtered, mode.puzzles],
+    () => ({ q: q || undefined, status: status === 'all' ? undefined : status === 'draft' ? 'draft,ready' : status, category: filtered }),
+    [q, status, filtered],
   );
   // The API filters by text, status and category; difficulty is read from every practice question.
   const list = useTdContentList(mode.type, query, !byDifficulty);
   const everyPractice = useTdAllRows('practice-questions', query, byDifficulty);
   const categories = useTdAllRows(mode.categoryType ?? 'card-categories', {}, mode.categoryType !== undefined);
-  const dailyRows = useTdAllRows(mode.type, { status: 'draft,ready,approved,archived' }, mode.puzzles === true || labelled);
+  const labelledRows = useTdAllRows(mode.type, { status: 'draft,ready,approved,archived' }, labelled);
   const categoryKeys = useMemo(
     () =>
-      mode.puzzles || labelled
-        ? [...new Set((dailyRows.data?.rows ?? []).map((row) => String((row.data as { puzzle?: string; category?: string })[labelled ? 'category' : 'puzzle'] ?? '')))].filter(Boolean).sort((a, b) => a.localeCompare(b))
+      labelled
+        ? [...new Set((labelledRows.data?.rows ?? []).map((row) => String((row.data as { category?: string }).category ?? '')))].filter(Boolean).sort((a, b) => a.localeCompare(b))
         : (categories.data?.rows ?? []).map((row) => (row.data as { key: string }).key),
-    [mode.puzzles, labelled, dailyRows.data, categories.data],
+    [labelled, labelledRows.data, categories.data],
   );
   const rows = useMemo<TdContentRow[]>(() => {
     if (byDifficulty) return ((everyPractice.data?.rows ?? []) as TdContentRow<'practice-questions'>[]).filter((row) => row.data.difficulty === difficulty);
@@ -227,10 +223,11 @@ export function TdQuestionsTab() {
     });
   };
 
-  const publisher = user ? isTdPublisher(user.role) : false;
-  const canReady = (row: TdContentRow) => row.status === 'draft';
-  const canApprove = (row: TdContentRow) => publisher && row.status === 'ready';
-  // An editor's archive needs the row's whole history (nobody else touched it): the question dialog checks that.
+  // Every member writes and publishes (as in the Quizball CMS); actions wait for the signed-in member.
+  const publisher = Boolean(user);
+  const shownStatus = useTdShownStatus();
+  // An approved one not known to be live publishes again (its release failed, or an answer was lost): only the release is left.
+  const canPublish = (row: TdContentRow) => publisher && (publishable(row) || (row.status === 'approved' && shownStatus(row) !== 'live'));
   const canArchive = (row: TdContentRow) => publisher && row.status !== 'archived';
   const chosen = rows.filter((row) => selected.includes(row.id));
   const visibleIds = pageRows.map((row) => row.id);
@@ -265,7 +262,7 @@ export function TdQuestionsTab() {
       window.history.replaceState(null, '', `?mode=${key}`);
     });
 
-  const run = async (action: 'ready' | 'approve' | 'archive' | 'restore', targets: TdContentRow[]) => {
+  const run = async (action: 'archive' | 'restore', targets: TdContentRow[]) => {
     setRefusals([]);
     setBulk({ completed: 0, total: targets.length, failed: 0 });
     const operation = beginOperation(tdTokens);
@@ -274,8 +271,7 @@ export function TdQuestionsTab() {
     let failed = 0;
     const results = await runEach(tdTokens, operation, targets, async (row) => {
       try {
-        if ((action === 'ready' || action === 'approve') && user) await moveImagesAlong(mode.type, [row], action, operation);
-        return action === 'approve' ? await api.approve(row.id, row.version, undefined, operation) : await api[action](row.id, row.version, operation);
+        return await api[action](row.id, row.version, operation);
       } catch (caught) {
         failed++;
         throw caught;
@@ -286,13 +282,35 @@ export function TdQuestionsTab() {
     });
     const refused = results.filter((r) => !r.ok);
     const done = results.length - refused.length;
-    const words = { ready: t('{n} marked ready', { n: done }), approve: t('{n} approved', { n: done }), archive: t('{n} archived', { n: done }), restore: t('{n} restored', { n: done }) };
+    const words = { archive: t('{n} archived', { n: done }), restore: t('{n} restored', { n: done }) };
     if (done) toast.success(words[action]);
     setRefusals(refused.map((r) => ({ label: show(mode.type, r.item).title || keyOf(r.item), message: tdErrorText(!r.ok ? r.error : null) })));
     setBulk(null);
     setSelected([]);
     await queryClient.invalidateQueries({ queryKey: tdKeys.content });
     await queryClient.invalidateQueries({ queryKey: tdKeys.releases });
+  };
+
+  /** Draft → live in one step: each is approved, then a release goes out with them. */
+  const publishRows = async (targets: TdContentRow[]) => {
+    setRefusals([]);
+    setBulk({ completed: 0, total: targets.length, failed: 0 });
+    const operation = beginOperation(tdTokens);
+    const { results, categories: held } = await approveForPublish(tdTokens, mode.type, targets, operation, (completed, failed) => setBulk({ completed, total: targets.length, failed }));
+    const refused = results.filter((r) => !r.ok);
+    setRefusals([
+      ...refused.map((r) => ({ label: show(mode.type, r.item).title || keyOf(r.item), message: tdErrorText(!r.ok ? r.error : null) })),
+      ...held.map((c) => ({ label: categoryName(c.key), message: categoryHeldText(c.error, false) })),
+    ]);
+    setBulk(null);
+    setSelected([]);
+    await queryClient.invalidateQueries({ queryKey: tdKeys.content });
+    await queryClient.invalidateQueries({ queryKey: tdKeys.releases });
+    // Not after a sign-out or another sign-in meanwhile: the release would go out as someone else.
+    if (results.length > refused.length && operationIsCurrent(tdTokens, operation)) {
+      setAutoPublish(true);
+      setPublishing(true);
+    }
   };
 
   const categoryName = (key: string) => {
@@ -304,6 +322,35 @@ export function TdQuestionsTab() {
     return d.prompt ?? d.title ?? key;
   };
 
+  const [selectingAll, setSelectingAll] = useState(false);
+  // What the list shows now: a selection gathered for other filters is dropped.
+  const listKey = `${mode.type}|${JSON.stringify(query)}|${byDifficulty ? difficulty : ''}`;
+  const listNow = useRef(listKey);
+  useEffect(() => {
+    listNow.current = listKey;
+  }, [listKey]);
+  /** Every question the filters match, not only this page: the rest are loaded first, to the last page. */
+  const selectEverything = async () => {
+    const asked = listKey;
+    setSelectingAll(true);
+    try {
+      let all = rows;
+      if (byDifficulty && !everyPractice.data?.complete) return toast.error(t('Not every question could be loaded, so none were selected. Try again.'));
+      if (!byDifficulty) {
+        let result: { hasNextPage: boolean; isError?: boolean; data?: typeof list.data } = { hasNextPage: Boolean(list.hasNextPage), data: list.data };
+        while (result.hasNextPage) {
+          result = await fetchNextPage();
+          if (listNow.current !== asked) return;
+          if (result.isError) return toast.error(t('Not every question could be loaded, so none were selected. Try again.'));
+        }
+        all = (result.data?.pages.flatMap((p) => p.items) ?? []) as TdContentRow[];
+      }
+      if (listNow.current === asked) setSelected(all.map((row) => row.id));
+    } finally {
+      setSelectingAll(false);
+    }
+  };
+
   const toggleOne = (id: string) => setSelected((current) => (current.includes(id) ? current.filter((x) => x !== id) : [...current, id]));
   const toggleVisible = () => setSelected((current) => (allVisibleSelected ? current.filter((id) => !visibleIds.includes(id)) : [...new Set([...current, ...visibleIds])]));
 
@@ -312,20 +359,27 @@ export function TdQuestionsTab() {
 
   return (
     <div className="mx-auto w-full max-w-[1280px] space-y-8 py-4">
-      <div className="flex items-center justify-between gap-4">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <header className="space-y-1">
           <h1 className="text-4xl font-black tracking-tight text-gray-900">{t('Questions')}</h1>
           <p className="text-base font-medium text-gray-500">{t('Manage and curate your quiz questions library.')}</p>
         </header>
 
-        <div className="flex shrink-0 items-center gap-2">
-          <Button variant="outline" onClick={() => setPublishing(true)}>
+        <div className="flex flex-wrap items-center gap-2 lg:shrink-0">
+          {/* An editor opens the same report, read-only: what the game has and what it still lacks. */}
+          <Button
+            variant="outline"
+            onClick={() => {
+              setAutoPublish(false);
+              setPublishing(true);
+            }}
+          >
             <Rocket className="mr-2 h-4 w-4" />
             {t('Publish')}
           </Button>
           <TdBulkUploadDialog key={`${mode.type}:${category}`} initialType={mode.type} initialCategory={mode.categoryType || labelled ? filtered : null} types={TD_QUESTION_MODES.map((m) => m.type)} />
           <Button
-            onClick={() => open({ type: mode.type, row: null, preset: filtered === undefined ? undefined : mode.puzzles ? { puzzle: filtered } : labelled ? { category: filtered } : { categoryKey: filtered } })}
+            onClick={() => open({ type: mode.type, row: null, preset: filtered === undefined ? undefined : labelled ? { category: filtered } : { categoryKey: filtered } })}
             className="flex h-11 items-center gap-2 rounded-xl bg-gray-900 px-6 text-sm font-bold text-white shadow-lg shadow-gray-200 transition-all hover:bg-gray-800 active:scale-95"
           >
             <Plus className="h-4 w-4" />
@@ -338,7 +392,7 @@ export function TdQuestionsTab() {
         {/* Search & filter bar */}
         <div className="space-y-4">
           <div className="flex flex-wrap items-center gap-3">
-            <div className="group relative min-w-[300px] flex-1">
+            <div className="group relative min-w-full flex-1 sm:min-w-[300px]">
               <Search className="absolute left-3.5 top-2.5 h-4 w-4 text-gray-400 transition-colors group-focus-within:text-gray-900" />
               <Input
                 placeholder={t('Search questions...')}
@@ -362,7 +416,7 @@ export function TdQuestionsTab() {
                   ))}
                 </SelectContent>
               </Select>
-              {(mode.categoryType || mode.puzzles || labelled) && (
+              {(mode.categoryType || labelled) && (
                 <Select value={category} onValueChange={(value) => reset(() => setCategory(value))}>
                   <SelectTrigger aria-label={t('Category')} className={cn(TRIGGER, 'w-[200px]')}>
                     <SelectValue placeholder={t('Category')} />
@@ -430,12 +484,12 @@ export function TdQuestionsTab() {
                   <>
                     <span className="text-xs font-bold text-gray-600">{t('{n} selected', { n: selected.length })}</span>
                     <div className="h-4 w-px bg-gray-200" />
-                    <Button variant="outline" size="sm" className="h-8 rounded-lg text-xs font-bold" disabled={!chosen.some(canApprove)} onClick={() => void run('approve', chosen.filter(canApprove))}>
-                      {t('Approve')}
-                    </Button>
-                    <Button variant="outline" size="sm" className="h-8 rounded-lg text-xs font-bold" disabled={!chosen.some(canReady)} onClick={() => void run('ready', chosen.filter(canReady))}>
-                      {t('Mark ready')}
-                    </Button>
+                    {publisher && (
+                      <Button size="sm" className="h-8 rounded-lg text-xs font-bold" disabled={!chosen.some(canPublish)} onClick={() => setConfirming(chosen.filter(canPublish))}>
+                        <Rocket className="h-3.5 w-3.5" />
+                        {t('Publish {n}', { n: chosen.filter(canPublish).length })}
+                      </Button>
+                    )}
                     <Button variant="destructive" size="sm" className="h-8 rounded-lg text-xs font-bold" disabled={!chosen.some(canArchive)} onClick={() => setArchiving(chosen.filter(canArchive))}>
                       {t('Archive')}
                     </Button>
@@ -519,6 +573,11 @@ export function TdQuestionsTab() {
                   onChange={toggleVisible}
                 />
                 <span className="text-xs font-bold uppercase tracking-widest text-slate-400">{t('Select all')}</span>
+                {allVisibleSelected && (more || rows.length > visibleIds.length) && selected.length < rows.length + (more ? 1 : 0) && (
+                  <button type="button" disabled={selectingAll} onClick={() => void selectEverything()} className="text-xs font-bold text-blue-600 hover:underline disabled:opacity-50">
+                    {selectingAll ? <Loader2 className="inline h-3 w-3 animate-spin" /> : t('Select every matching question')}
+                  </button>
+                )}
               </div>
               {pageRows.map((row, index) => {
                 const shown = show(mode.type, row);
@@ -528,7 +587,7 @@ export function TdQuestionsTab() {
                     initial={{ opacity: 0, x: -10 }}
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: Math.min(index * 0.05, 0.2) }}
-                    className="group relative flex cursor-pointer items-center justify-between border-b border-gray-50 px-6 py-5 transition-all last:border-0 hover:scale-[1.01] hover:bg-slate-50 active:scale-[0.99]"
+                    className="group relative flex cursor-pointer items-center justify-between border-b border-gray-50 px-3 py-5 transition-all sm:px-6 last:border-0 hover:scale-[1.01] hover:bg-slate-50 active:scale-[0.99]"
                     onClick={() => open({ type: mode.type, row })}
                     role="button"
                     tabIndex={0}
@@ -539,7 +598,7 @@ export function TdQuestionsTab() {
                       open({ type: mode.type, row });
                     }}
                   >
-                    <div className="flex min-w-0 flex-1 items-center gap-5">
+                    <div className="flex min-w-0 flex-1 items-center gap-3 sm:gap-5">
                       <input
                         type="checkbox"
                         aria-label={t('Select {label}', { label: shown.title || keyOf(row) })}
@@ -548,7 +607,7 @@ export function TdQuestionsTab() {
                         onChange={() => toggleOne(row.id)}
                         onClick={(event) => event.stopPropagation()}
                       />
-                      <div className={cn('h-2.5 w-2.5 shrink-0 rounded-full transition-all duration-500', STATUS_DOT[row.status])} />
+                      <div className={cn('h-2.5 w-2.5 shrink-0 rounded-full transition-all duration-500', STATUS_DOT[shownStatus(row)])} />
                       {/* ბარათონი is guessing cards: a card shows its picture. */}
                       {mode.type === 'cards' && (
                         <div className="h-14 w-11 shrink-0 overflow-hidden rounded-lg border border-slate-100 bg-slate-50">
@@ -579,10 +638,10 @@ export function TdQuestionsTab() {
                       </div>
                     </div>
 
-                    <div className="ml-4 flex shrink-0 items-center gap-6">
-                      <div className="flex flex-col items-end gap-1 px-4">
+                    <div className="ml-2 flex shrink-0 items-center gap-1 sm:ml-4 sm:gap-6">
+                      <div className="hidden flex-col items-end gap-1 sm:flex sm:px-4">
                         <span className="text-[10px] font-black uppercase tracking-tighter text-slate-300">{t('Status')}</span>
-                        <div className={cn('rounded-md px-2 py-0.5 text-[10px] font-black uppercase tracking-widest', STATUS_PILL[row.status])}>{TD_STATUS_WORDS[row.status]}</div>
+                        <div className={cn('rounded-md px-2 py-0.5 text-[10px] font-black uppercase tracking-widest', STATUS_PILL[shownStatus(row)])}>{TD_SHOWN_WORDS[shownStatus(row)]}</div>
                       </div>
                       <div className="flex items-center gap-1 opacity-0 transition-all duration-300 focus-within:opacity-100 group-hover:opacity-100" onClick={(event) => event.stopPropagation()}>
                         <DropdownMenu>
@@ -592,13 +651,14 @@ export function TdQuestionsTab() {
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end" className="w-52 rounded-[1.25rem] border-slate-100 bg-white/95 p-2 shadow-2xl backdrop-blur-xl">
-                            <DropdownMenuItem onClick={() => void run('approve', [row])} disabled={!canApprove(row) || bulk !== null} className={MENU_ITEM}>
-                              <Send className="h-4 w-4 text-emerald-500" /> {t('Approve')}
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => void run('ready', [row])} disabled={!canReady(row) || bulk !== null} className={MENU_ITEM}>
-                              <Clock className="h-4 w-4 text-slate-400" /> {t('Mark ready')}
-                            </DropdownMenuItem>
-                            <DropdownMenuSeparator className="my-2 bg-slate-50" />
+                            {publisher && (
+                              <>
+                                <DropdownMenuItem onClick={() => setConfirming([row])} disabled={!canPublish(row) || bulk !== null} className={MENU_ITEM}>
+                                  <Rocket className="h-4 w-4 text-emerald-500" /> {t('Publish')}
+                                </DropdownMenuItem>
+                                <DropdownMenuSeparator className="my-2 bg-slate-50" />
+                              </>
+                            )}
                             {row.status === 'archived' ? (
                               <DropdownMenuItem onClick={() => void run('restore', [row])} disabled={!publisher || bulk !== null} className={MENU_ITEM}>
                                 <ArchiveRestore className="h-4 w-4 text-slate-400" /> {t('Restore')}
@@ -651,7 +711,7 @@ export function TdQuestionsTab() {
 
       {/* Archive confirmation, as the Quizball list confirms a delete */}
       <Dialog open={archiving !== null} onOpenChange={(isOpen) => !isOpen && setArchiving(null)}>
-        <DialogContent>
+        <TdDialogContent>
           <DialogHeader>
             <DialogTitle>{t('Archive Question')}</DialogTitle>
             <DialogDescription>
@@ -676,26 +736,73 @@ export function TdQuestionsTab() {
               {t('Archive')}
             </Button>
           </DialogFooter>
-        </DialogContent>
+        </TdDialogContent>
       </Dialog>
 
-      <Dialog open={publishing} onOpenChange={setPublishing}>
-        <DialogContent className="flex max-h-[90vh] w-full flex-col gap-0 overflow-hidden rounded-[2rem] border-slate-200 bg-white p-0 sm:max-w-5xl">
+      <Dialog open={confirming !== null} onOpenChange={(isOpen) => !isOpen && setConfirming(null)}>
+        <TdDialogContent>
+          <DialogHeader>
+            <DialogTitle>{t('Publish')}</DialogTitle>
+            <DialogDescription>
+              {confirming && confirming.length > 1
+                ? t('Publish {n} questions? Players get them in a minute, with anything else waiting to publish; matches already under way finish with the questions they started with.', { n: confirming.length })
+                : t('Publish this question? Players get it in a minute, with anything else waiting to publish; matches already under way finish with the questions they started with.')}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setConfirming(null)}>
+              {t('Cancel')}
+            </Button>
+            <Button
+              disabled={bulk !== null}
+              onClick={() => {
+                const targets = confirming ?? [];
+                setConfirming(null);
+                void publishRows(targets);
+              }}
+            >
+              <Rocket className="h-4 w-4" />
+              {t('Publish')}
+            </Button>
+          </DialogFooter>
+        </TdDialogContent>
+      </Dialog>
+
+      <Dialog
+        open={publishing}
+        onOpenChange={(isOpen) => {
+          setPublishing(isOpen);
+          if (!isOpen) {
+            setAutoPublish(false);
+            void queryClient.invalidateQueries({ queryKey: tdKeys.releases });
+          }
+        }}
+      >
+        <TdDialogContent className="flex max-h-[90vh] w-full flex-col gap-0 overflow-hidden rounded-[2rem] border-slate-200 bg-white p-0 sm:max-w-5xl">
           <DialogHeader className="border-b border-slate-100 px-6 pb-4 pt-5">
             <DialogTitle className="text-2xl font-black tracking-tight text-slate-900">{t('Publish')}</DialogTitle>
-            <DialogDescription>{t('Approved questions reach players when they are published.')}</DialogDescription>
+            <DialogDescription>{autoPublish
+                ? refusals.length
+                  ? t('The rest of your questions are published; those refused are listed on the page.')
+                  : t('Your questions are published; the game gets them with this release.')
+                : t('Approved questions reach players when they are published.')}</DialogDescription>
           </DialogHeader>
           {/* The report's links go to this page: they filter the list here and close the dialog. */}
           <div className="min-h-0 flex-1 overflow-y-auto p-6" onClickCapture={openReportLink}>
-            {publishing && <TdReleasesTab />}
+            {publishing && <TdReleasesTab autoPublish={autoPublish} />}
           </div>
-        </DialogContent>
+        </TdDialogContent>
       </Dialog>
 
       <TdContentEditorDialog
         target={target}
         onClose={() => open(null)}
         startOn="preview"
+        onPublished={() => {
+          open(null);
+          setAutoPublish(true);
+          setPublishing(true);
+        }}
         nav={openIndex >= 0 ? { index: openIndex, total: rows.length, more, waiting, onGo: goTo } : null}
         types={{
           options: TD_QUESTION_MODES.map((m) => ({ type: m.type, label: m.label })),

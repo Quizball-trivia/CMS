@@ -31,6 +31,7 @@ export const SUPPORTED_KEYWORDS = new Set([
   'properties',
   'required',
   'additionalProperties',
+  'propertyNames',
   'items',
   'minItems',
   'maxItems',
@@ -194,6 +195,13 @@ export function validateSchema(schema: JsonSchema, value: unknown, path = ''): S
       if (!Object.hasOwn(record, key)) issues.push({ path: join(path, key), message: t('Required') });
     }
     for (const [key, item] of Object.entries(record)) {
+      if (schema.propertyNames && typeof schema.propertyNames === 'object') {
+        const keyIssues = validateSchema(schema.propertyNames as JsonSchema, key, join(path, key));
+        if (keyIssues.length > 0) {
+          issues.push({ path: join(path, key), message: t('Not a field of this type') });
+          continue;
+        }
+      }
       if (Object.hasOwn(properties, key)) {
         issues.push(...validateSchema(properties[key], item, join(path, key)));
       } else if (schema.additionalProperties === false) {

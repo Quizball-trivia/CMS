@@ -19,7 +19,8 @@ import { TdErrorPanel } from './td-error-panel';
 type Day = Dashboard['today'];
 type Period = NonNullable<Dashboard['last7Days']>;
 
-const GAMES = ['footballLogic', 'putInOrder', 'careerPath'] as const;
+// Football Logic stays for the days before Stat Sniper replaced it (figures are never relabelled).
+const GAMES = ['statSniper', 'footballLogic', 'putInOrder', 'careerPath'] as const;
 
 function fmt(n: number): string {
   return n.toLocaleString(TD_LOCALE);
@@ -139,6 +140,9 @@ function TopPlayers() {
   );
 }
 
+// Recharts starts at -1×-1 until it measures its box and warns about it in the console; a 1×1 start is never seen.
+const BEFORE_MEASURED = { width: 1, height: 1 };
+
 export function TdDashboard() {
   const { user } = useTdAuth();
   const dashboard = useQuery({ queryKey: [...tdKeys.ops, 'dashboard'], queryFn: ({ signal }) => tdAdmin.dashboard({ signal }), refetchInterval: 60_000 });
@@ -149,7 +153,7 @@ export function TdDashboard() {
   const sum = (period: Period | null, of: (of: Day | Period) => number) => (period ? fmt(of(period)) : '—');
 
   return (
-    <div className="space-y-6 p-6">
+    <div className="space-y-6 sm:p-6">
       {/* Header */}
       <div className="flex items-center gap-3">
         <div className="rounded-2xl bg-white p-2.5 shadow-sm border border-gray-200/50">
@@ -180,7 +184,7 @@ export function TdDashboard() {
       {/* Players chart */}
       <ChartCard title={t('Players per day · last 30 days')}>
         {data && (
-          <ResponsiveContainer width="100%" height="100%">
+          <ResponsiveContainer width="100%" height="100%" initialDimension={BEFORE_MEASURED}>
             <AreaChart data={points} margin={{ top: 8, right: 12, left: 0, bottom: 0 }}>
               <defs>
                 <linearGradient id="playersFill" x1="0" y1="0" x2="0" y2="1">
@@ -189,7 +193,7 @@ export function TdDashboard() {
                 </linearGradient>
               </defs>
               <CartesianGrid strokeDasharray="3 3" stroke="#eef2f7" vertical={false} />
-              <XAxis dataKey="date" tickFormatter={formatDate} tick={tick} axisLine={false} tickLine={false} interval={4} minTickGap={16} />
+              <XAxis dataKey="date" tickFormatter={formatDate} tick={tick} axisLine={false} tickLine={false} interval="preserveStartEnd" minTickGap={24} />
               <YAxis tick={tick} axisLine={false} tickLine={false} width={48} allowDecimals={false} />
               <Tooltip contentStyle={tooltipStyle} labelFormatter={day} filterNull={false} formatter={(v) => [v == null ? t('No figure yet') : fmt(Number(v)), t('Players')]} />
               <Area
@@ -210,10 +214,10 @@ export function TdDashboard() {
       {/* Matches chart */}
       <ChartCard title={t('Matches played per day · last 30 days')}>
         {data && (
-          <ResponsiveContainer width="100%" height="100%">
+          <ResponsiveContainer width="100%" height="100%" initialDimension={BEFORE_MEASURED}>
             <BarChart data={points} margin={{ top: 8, right: 12, left: 0, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#eef2f7" vertical={false} />
-              <XAxis dataKey="date" tickFormatter={formatDate} tick={tick} axisLine={false} tickLine={false} interval={4} minTickGap={16} />
+              <XAxis dataKey="date" tickFormatter={formatDate} tick={tick} axisLine={false} tickLine={false} interval="preserveStartEnd" minTickGap={24} />
               <YAxis tick={tick} axisLine={false} tickLine={false} width={48} allowDecimals={false} />
               <Tooltip cursor={{ fill: '#f1f5f9' }} contentStyle={tooltipStyle} labelFormatter={day} filterNull={false} formatter={(v) => [v == null ? t('No figure yet') : fmt(Number(v)), t('Matches played')]} />
               <Bar dataKey="matches" fill="#6366f1" radius={[6, 6, 0, 0]} maxBarSize={48} />

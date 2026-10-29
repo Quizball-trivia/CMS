@@ -1,14 +1,12 @@
 /**
  * Content rows and their workflow, as migrations 0013 and 0015 enforce them:
  * the revision check, allowed jumps, self-approval, approval of a category
- * with its children, dependencies, the editor archive rule, fixed
- * fields, unique keys, list filters and cursors, history.
+ * with its children, dependencies, fixed fields, unique keys, list filters and cursors, history.
  */
 import type { TdContentType } from '../admin-api';
 import type { TdRole } from '@/types/td';
 import { SYSTEM, type Actor, type MockAudit, type MockDb, type MockRow } from './db';
 import { CHILD_TYPE, DAILY_TYPE, MOCK_MODELS, type Data } from './model';
-import { isPublisher } from './staff';
 import { clone, equal, MockError, paginate, uuid, validation } from './util';
 
 export interface MockContext {
@@ -160,10 +158,6 @@ function referenced(db: MockDb, row: MockRow): boolean {
   const puzzle = row.approved?.puzzle;
   return typeof puzzle === 'string' && puzzleNeeded(db, row.type, puzzle, row.id);
 }
-
-/** Every other staff member (or the seed) who ever wrote to the row. */
-const writtenByOthers = (db: MockDb, row: MockRow, staffId: string) =>
-  db.audit.some((entry) => entry.rowId === row.id && entry.actor.id !== staffId);
 
 /* ── writes ───────────────────────────────────────────────────────── */
 
@@ -329,8 +323,6 @@ export function archive(ctx: MockContext, type: TdContentType, id: string, versi
   const row = findRow(ctx.db, type, id);
   checkVersion(row, version);
   if (row.status === 'archived') throw new MockError(403, 'forbidden_transition', 'already archived');
-  if (!isPublisher(ctx.staff.role) && (row.approvedVersion !== null || writtenByOthers(ctx.db, row, ctx.staff.id)))
-    throw new MockError(403, 'forbidden', 'Your role cannot do this');
   if (referenced(ctx.db, row)) throw new MockError(409, 'in_use', 'Live content still uses this');
   const from = row.status;
   row.status = 'archived';

@@ -59,7 +59,7 @@ function dataFor(type: WebhookEvent['type'], i: number, matchId: string, georgia
     case 'match.corrected':
       return { matchId, resultVersion: 2, outcome: 'noContest', ratingDelta: 0, ticketRefunded: true, score: { player: 2, opponent: 3 }, decidedBy: 'void' };
     case 'daily.completed':
-      return { game: 'footballLogic', georgiaDate, solved: true, seconds: 40 + (i % 50) };
+      return { game: 'statSniper', georgiaDate, solved: true, seconds: 40 + (i % 50) };
     case 'practice.completed':
       return { correct: 6 + (i % 5), total: 10 };
   }

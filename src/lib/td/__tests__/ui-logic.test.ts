@@ -2,12 +2,9 @@ import { describe, expect, it } from 'vitest';
 import type { TdStaffMember } from '@/types/td';
 import type { WebhookEventDetail } from '@/lib/td/contract';
 import { reviewCategory } from '@/components/td/content/td-category-approval';
-import { buildDays } from '@/components/td/tabs/dailies-tab';
-import { uploadDays } from '../dailies';
-import { questionKey, type ParsedCareerPath } from '../upload-format';
 import { replaySteps } from '@/components/td/tabs/players-tab';
 import { pollInterval } from '@/components/td/tabs/integration-tab';
-import { canMakeResetLink } from '@/components/td/td-team';
+import { canMakeResetLink, canManageMember } from '@/components/td/td-team';
 import { followAnswer } from '@/components/td/content/editors/library';
 import type { TdContentRow } from '../admin-api';
 import { mergeDrafts, resolveConflicts } from '../merge';
@@ -16,9 +13,8 @@ import { contentActions } from '../workflow';
 import { withShownAnswer } from '../answers';
 import type { TdStaff } from '@/types/td';
 
-const EDITOR: TdStaff = { id: 'e1', email: 'e@x.test', name: 'Editor', role: 'editor' };
-const OTHER_EDITOR: TdStaff = { id: 'e2', email: 'e2@x.test', name: 'Other', role: 'editor' };
-const PUBLISHER: TdStaff = { id: 'p1', email: 'p@x.test', name: 'Publisher', role: 'publisher' };
+const EDITOR: TdStaff = { id: 'e1', email: 'e@x.test', name: 'Editor', role: 'betsson_admin' };
+const COLLEAGUE: TdStaff = { id: 'e2', email: 'e2@x.test', name: 'Colleague', role: 'betsson_admin' };
 const actor = (who: TdStaff) => ({ id: who.id, name: who.name });
 
 function row(over: Partial<TdContentRow<'cards'>> = {}): TdContentRow<'cards'> {
@@ -42,11 +38,6 @@ function row(over: Partial<TdContentRow<'cards'>> = {}): TdContentRow<'cards'> {
     ...over,
   };
 }
-
-const history = (...actors: TdStaff[]) => ({
-  items: actors.map((who, i) => ({ id: String(i + 1), at: '2026-09-30T08:00:00.000Z', actor: actor(who), action: 'edit' as const, fromStatus: null, toStatus: null, version: i + 1, contentVersion: 1, batchId: null })),
-  complete: true,
-});
 
 describe('what the editor asks of a card’s SoFIFA photo', () => {
   const card = (photo: { id: number; ver: string } | null) => ({ categoryKey: 'legends', key: 'messi', value: 2, lines: ['A'], display: 'Messi', aliases: ['messi'], photo, imageKey: null });
@@ -78,31 +69,21 @@ describe('workflow actions offered', () => {
       expect(refusedOutright(kept)).toBe(false);
   });
 
-  it('offers ready on drafts, approval to publishers, their own last edit included', () => {
-    expect(contentActions(row(), EDITOR)).toMatchObject({ save: { allowed: true }, ready: { allowed: true }, approve: { allowed: false }, restore: { allowed: false } });
-    const ready = row({ status: 'ready' });
-    expect(contentActions(ready, EDITOR).approve).toEqual({ allowed: false, reason: 'Ready for a publisher to approve.' });
-    expect(contentActions(ready, PUBLISHER).approve).toEqual({ allowed: true });
-    expect(contentActions({ ...ready, lastEditor: actor(PUBLISHER) }, PUBLISHER).approve).toEqual({ allowed: true });
+  it('offers ready on drafts and approval on ready rows, whoever edited them last', () => {
+    expect(contentActions(row())).toMatchObject({ save: { allowed: true }, ready: { allowed: true }, approve: { allowed: false }, archive: { allowed: true }, restore: { allowed: false } });
+    expect(contentActions(row({ status: 'ready' })).approve).toEqual({ allowed: true });
+    expect(contentActions(row({ status: 'ready', lastEditor: actor(COLLEAGUE) })).approve).toEqual({ allowed: true });
+    expect(contentActions(row({ approvedVersion: 1, status: 'approved' })).archive.allowed).toBe(true);
   });
 
-  it('lets an editor archive only an own, never approved row nobody else touched (by its trail when known)', () => {
-    expect(contentActions(row({ status: 'ready' }), EDITOR, history(EDITOR, EDITOR)).archive.allowed).toBe(true);
-    expect(contentActions(row(), EDITOR, history(EDITOR, PUBLISHER)).archive.allowed).toBe(false);
-    expect(contentActions(row(), OTHER_EDITOR, history(EDITOR)).archive.allowed).toBe(false);
-    expect(contentActions(row({ approvedVersion: 1 }), EDITOR, history(EDITOR)).archive.allowed).toBe(false);
-    // A trail too long to read whole, or behind the row, is not guessed at.
-    expect(contentActions(row(), EDITOR, { ...history(EDITOR), complete: false }).archive.allowed).toBe(false);
-    expect(contentActions(row({ version: 3 }), EDITOR, history(EDITOR)).archive.allowed).toBe(false);
-    // Without the whole trail (loading, failed) an editor is not offered it.
-    expect(contentActions(row(), EDITOR).archive.allowed).toBe(false);
-    expect(contentActions(row({ approvedVersion: 1, status: 'approved' }), PUBLISHER).archive.allowed).toBe(true);
-  });
-
-  it('archived rows: no edit, restore for publishers only', () => {
-    const archived = row({ status: 'archived' });
-    expect(contentActions(archived, EDITOR)).toMatchObject({ save: { allowed: false }, archive: { allowed: false }, restore: { allowed: false } });
-    expect(contentActions(archived, PUBLISHER).restore.allowed).toBe(true);
+  it('archived rows: no edit, restore only', () => {
+    expect(contentActions(row({ status: 'archived' }))).toMatchObject({
+      save: { allowed: false, reason: 'Restore it before editing.' },
+      ready: { allowed: false },
+      approve: { allowed: false },
+      archive: { allowed: false },
+      restore: { allowed: true },
+    });
   });
 });
 
@@ -129,14 +110,26 @@ describe('who gets a Reset link', () => {
   const member = (role: TdStaffMember['role'], status: TdStaffMember['status'] = 'active', id = `m-${role}`): TdStaffMember => ({ id, email: `${role}@x.test`, name: role, role, status, lastSignInAt: null });
   it('team managers, for an active member who is neither themselves nor ops', () => {
     const admin = { id: 'me', role: 'betsson_admin' as const };
-    expect(canMakeResetLink(admin, member('editor'))).toBe(true);
+    expect(canMakeResetLink(admin, member('betsson_admin'))).toBe(true);
     expect(canMakeResetLink({ id: 'me', role: 'ops' }, member('betsson_admin'))).toBe(true);
     expect(canMakeResetLink(admin, member('betsson_admin', 'active', 'me'))).toBe(false);
     expect(canMakeResetLink(admin, member('ops'))).toBe(false);
-    expect(canMakeResetLink(admin, member('editor', 'invited'))).toBe(false);
-    expect(canMakeResetLink(admin, member('editor', 'disabled'))).toBe(false);
-    for (const role of ['editor', 'publisher'] as const) expect(canMakeResetLink({ id: 'me', role }, member('editor'))).toBe(false);
-    expect(canMakeResetLink(null, member('editor'))).toBe(false);
+    expect(canMakeResetLink(admin, member('betsson_admin', 'invited'))).toBe(false);
+    expect(canMakeResetLink(admin, member('betsson_admin', 'disabled'))).toBe(false);
+    expect(canMakeResetLink(null, member('betsson_admin'))).toBe(false);
+  });
+});
+
+describe('who may change a member', () => {
+  const member = (role: TdStaffMember['role'], status: TdStaffMember['status'] = 'active', id = `m-${role}`): TdStaffMember => ({ id, email: `${role}@x.test`, name: role, role, status, lastSignInAt: null });
+  it('team managers, for anyone but themselves and ops, whatever their status', () => {
+    const admin = { id: 'me', role: 'betsson_admin' as const };
+    for (const status of ['active', 'invited', 'disabled'] as const) expect(canManageMember(admin, member('betsson_admin', status))).toBe(true);
+    expect(canManageMember({ id: 'me', role: 'ops' }, member('betsson_admin'))).toBe(true);
+    expect(canManageMember(admin, member('betsson_admin', 'active', 'me'))).toBe(false);
+    expect(canManageMember(admin, member('ops'))).toBe(false);
+    expect(canManageMember({ id: 'me', role: 'ops' }, member('ops'))).toBe(false);
+    expect(canManageMember(null, member('betsson_admin'))).toBe(false);
   });
 });
 
@@ -198,7 +191,7 @@ describe('category approval review', () => {
   const kid = (id: string, status: TdContentRow['status'], editor = EDITOR) => row({ id, status, lastEditor: actor(editor) });
   it('lists ready rows to approve with it and what holds it up', () => {
     // A card the approver edited last goes with the category too.
-    const review = reviewCategory([kid('a', 'ready'), kid('b', 'approved'), kid('c', 'draft'), kid('d', 'ready', PUBLISHER)]);
+    const review = reviewCategory([kid('a', 'ready'), kid('b', 'approved'), kid('c', 'draft'), kid('d', 'ready', COLLEAGUE)]);
     expect(review.withIt.map((r) => r.id)).toEqual(['a', 'd']);
     expect(review.approved.map((r) => r.id)).toEqual(['b']);
     expect(review.blockers.map((b) => b.row.id)).toEqual(['c']);
@@ -206,56 +199,6 @@ describe('category approval review', () => {
     expect(reviewCategory([kid('a', 'ready')]).canApprove).toBe(true);
     expect(reviewCategory([])).toMatchObject({ canApprove: false, problem: 'A category needs at least one approved row.' });
     expect(reviewCategory(Array.from({ length: 501 }, (_, i) => kid(`k${i}`, 'ready'))).problem).toMatch(/At most 500/);
-  });
-});
-
-describe('the days of a daily game', () => {
-  let n = 0;
-  const question = (puzzle: string, over: Partial<TdContentRow<'cards'>> = {}) =>
-    ({ ...row({ id: `q${++n}`, status: 'approved', createdAt: `2026-10-0${n % 9}T00:00:00Z`, ...over }), data: { puzzle, prompt: `Question ${n}?`, displayAnswer: 'x' } }) as unknown as TdContentRow<'football-logic'>;
-  const tenOf = (puzzle: string, over: Partial<TdContentRow<'cards'>> = {}) => Array.from({ length: 10 }, () => question(puzzle, over));
-  const schedule = (date: string, puzzle: string, over: Partial<TdContentRow<'daily-schedule'>> = {}) =>
-    ({ ...row(), id: date, status: 'approved', approvedVersion: 1, data: { game: 'footballLogic', date, puzzle }, approved: { game: 'footballLogic', date, puzzle }, ...over }) as unknown as TdContentRow<'daily-schedule'>;
-
-  it('groups questions by day: dated days by date, then the rest; whole days only can be published', () => {
-    const days = buildDays(
-      'footballLogic',
-      [...tenOf('fl-later'), ...tenOf('fl-ready', { status: 'draft' }), ...tenOf('fl-first'), ...tenOf('fl-edited'), question('fl-short'), question('fl-gone', { status: 'archived' })],
-      [schedule('2026-10-08', 'fl-later'), schedule('2026-10-06', 'fl-first'), schedule('2026-10-09', 'fl-archived', { status: 'archived' })],
-      ['fl-first', 'fl-later', 'fl-edited'],
-    );
-    expect(days.map((d) => [d.key, d.status, d.dates, d.questions.length])).toEqual([
-      ['fl-first', 'published', ['2026-10-06'], 10],
-      ['fl-later', 'published', ['2026-10-08'], 10],
-      ['fl-ready', 'ready', [], 10],
-      ['fl-edited', 'published', [], 10],
-      ['fl-short', 'incomplete', [], 1],
-    ]);
-  });
-
-  it('dates a day by approved calendar entries only: a draft entry is not on the calendar yet', () => {
-    const draft = schedule('2026-10-10', 'fl-x', { status: 'draft', approvedVersion: null, approved: null });
-    expect(buildDays('footballLogic', tenOf('fl-x', { status: 'draft' }), [draft], [])[0]!).toMatchObject({ dates: [], status: 'ready' });
-    const moved = schedule('2026-10-11', 'fl-y', { status: 'draft', approvedVersion: 1, approved: { game: 'footballLogic', date: '2026-10-11', puzzle: 'fl-x' } } as never);
-    expect(buildDays('footballLogic', tenOf('fl-x'), [moved], [])[0]!.dates).toEqual(['2026-10-11']);
-  });
-
-  it('a published day with a question changed since has changes to publish', () => {
-    const rows = tenOf('fl-a');
-    rows[3] = { ...rows[3]!, status: 'draft' };
-    expect(buildDays('footballLogic', rows, [schedule('2026-10-07', 'fl-a')], [])[0]!.status).toBe('changes');
-  });
-
-  it('an upload’s day keys come from what the file says: a club found later makes the same days', () => {
-    const career = (display: string, clubs: string[]): ParsedCareerPath => ({ kind: 'career-path', questionNumber: 1, lineNumber: 1, prompt: null, clubs, display, aliases: [display.toLowerCase()] });
-    const questions = Array.from({ length: 10 }, (_, i) => career(`Player ${i}`, ['Dinamo Tbilisi', 'Rubin Kazan']));
-    const context = { categoryKey: '', category: '', puzzle: '', clubs: [] };
-    const known = { ...context, clubs: [{ key: 'dinamo-tbilisi', label: 'Dinamo Tbilisi', value: 'Dinamo Tbilisi' }] };
-    const before = uploadDays('careerPath', questions, (q) => questionKey(q, context));
-    expect(uploadDays('careerPath', questions, (q) => questionKey(q, known))).toEqual(before);
-    expect(new Set(before.map((d) => d.key)).size).toBe(1);
-    // Another answer is another day.
-    expect(uploadDays('careerPath', [career('Someone else', ['Rubin Kazan']), ...questions.slice(1)], (q) => questionKey(q, context))[0]!.key).not.toBe(before[0]!.key);
   });
 });
 

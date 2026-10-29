@@ -1,20 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import { safeNextPath, tabForSegment, tabsForRole, TD_TABS } from '../navigation';
 
-const CONTENT = ['dashboard', 'categories', 'questions', 'dailies'];
+const CONTENT = ['dashboard', 'categories', 'questions'];
 const keys = (role: Parameters<typeof tabsForRole>[0]) => tabsForRole(role).map((tab) => tab.key);
 
 describe('Table Derby navigation', () => {
   it('has the Quizball CMS’s pages, adapted: the rounds are game modes of the one Questions page', () => {
-    expect(TD_TABS).toHaveLength(9);
+    expect(TD_TABS).toHaveLength(8);
   });
 
-  it('shows editors and publishers only the content tabs', () => {
-    expect(keys('editor')).toEqual(CONTENT);
-    expect(keys('publisher')).toEqual(CONTENT);
-  });
-
-  it('adds players, leaderboard, integration and team for Betsson admins', () => {
+  it('shows Betsson’s team the content, players, leaderboard, team and integration tabs', () => {
     expect(keys('betsson_admin')).toEqual([...CONTENT, 'players', 'leaderboard', 'team', 'integration']);
   });
 
@@ -26,6 +21,8 @@ describe('Table Derby navigation', () => {
     [null, 'dashboard'],
     ['team', 'team'],
     ['questions', 'questions'],
+    // The dailies ship with the game's code since contract 12: no Daily page.
+    ['dailies', null],
     ['round-1', null],
     ['settings', 'settings'],
     ['round-10', null],
