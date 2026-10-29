@@ -73,6 +73,13 @@ export function TdErrorPanel({ error, className, hideIssues }: { error: unknown;
             ))}
           </ul>
         )}
+        {/* Reachable by touch and keyboard too, for support. */}
+        {view.code && (
+          <details className="mt-1 text-xs opacity-80">
+            <summary className="cursor-pointer select-none">{t('Details')}</summary>
+            <span className="font-mono">{view.code}</span>
+          </details>
+        )}
       </div>
     </div>
   );
