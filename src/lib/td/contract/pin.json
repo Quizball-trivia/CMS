@@ -3,12 +3,12 @@
   "version": 13,
   "source": {
     "repo": "Quizball-trivia/table-derby",
-    "commit": "44064fb044d36469bd8f8bf72452e6eddbdd22dd"
+    "commit": "6e2919f94229d02ac3e1d9774ec86331cd98bd48"
   },
   "files": {
     "admin-contract.d.ts": "cd72495030a0408e299ddcdccff4c16883a1b133c61f128872347d3be56e7481",
-    "admin-contract.json": "47980caa3586b696d4d7e9ba4c14cd2b7ff3d14f6f31ac5f757ba12963295865",
-    "fixtures/examples.json": "fb59f9ad25a8d659a9bff19bc022dfefec610cf0eba92341b50564b09d386fdf",
+    "admin-contract.json": "49cb197f5f98eda7ce4f8a32b2903cac3096967efc57bc40e5678372d2395d64",
+    "fixtures/examples.json": "07409771eea44ef00c8ac0d0bbfe5d49cf5d15bc7ec1d011b45d27bf0121e8df",
     "fixtures/refresh-scenarios.json": "862aadaa0be4dc049ae621842adc39c49e6f3baf91ed9eb90df97c951cfea49d",
     "fixtures/validation-cases.json": "91a652b239f0ce2580c98fc55f28a86cff1f552774382f8893914fb13ded5521"
   }
