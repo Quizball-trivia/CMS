@@ -51,9 +51,10 @@ const navGroups: NavGroup[] = [
     title: 'Analytics',
     href: '/stats',
     icon: Activity,
-    routes: ['/stats', '/activity', '/retention'],
+    routes: ['/stats', '/analytics', '/activity', '/retention'],
     children: [
       { title: 'Dashboard', href: '/stats', icon: CircleGauge },
+      { title: 'Analytics (live)', href: '/analytics', icon: ChartColumn },
       { title: 'Activity', href: '/activity', icon: Activity },
       { title: 'Retention', href: '/retention', icon: Mail },
     ],
