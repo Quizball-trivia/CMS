@@ -11,6 +11,7 @@ import {
   ResponsiveContainer,
 } from 'recharts';
 import { useAnalyticsOverview } from '@/hooks/use-admin-analytics';
+import { RealDataGate } from '@/components/analytics/real-data-gate';
 import type { AnalyticsOverview } from '@/types/admin-analytics';
 
 // Categorical palette: validated slot order (dataviz six-checks, light surface).
@@ -80,7 +81,7 @@ function buildModeSeries(data: AnalyticsOverview) {
     .map(([day, modes]) => ({ day: shortDay(day), ...modes }));
 }
 
-export default function AnalyticsPage() {
+function AnalyticsInner() {
   const { data, isLoading, isError } = useAnalyticsOverview();
 
   const modeSeries = useMemo(() => (data ? buildModeSeries(data) : []), [data]);
@@ -241,4 +242,8 @@ export default function AnalyticsPage() {
       </Card>
     </div>
   );
+}
+
+export default function AnalyticsPage() {
+  return <RealDataGate><AnalyticsInner /></RealDataGate>;
 }
