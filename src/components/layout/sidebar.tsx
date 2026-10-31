@@ -4,6 +4,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
+import { useRealAnalyticsVisible } from '@/hooks/use-real-analytics-visible';
 import { useAuth } from '@/providers';
 import { cmsRole, FREECROCO_ROOT, FREECROCO_STAFF, navGroupsForRole, navItemsForRole } from '@/lib/freecroco/access';
 import {
@@ -51,10 +52,11 @@ const navGroups: NavGroup[] = [
     title: 'Analytics',
     href: '/stats',
     icon: Activity,
-    routes: ['/stats', '/analytics', '/activity', '/retention'],
+    routes: ['/stats', '/analytics', '/persons', '/activity', '/retention'],
     children: [
       { title: 'Dashboard', href: '/stats', icon: CircleGauge },
       { title: 'Analytics (live)', href: '/analytics', icon: ChartColumn },
+      { title: 'Persons', href: '/persons', icon: UserSearch },
       { title: 'Activity', href: '/activity', icon: Activity },
       { title: 'Retention', href: '/retention', icon: Mail },
     ],
@@ -110,8 +112,11 @@ const navGroups: NavGroup[] = [
     title: 'Settings',
     href: '/bot-tuning',
     icon: Settings2,
-    routes: ['/bot-tuning'],
-    children: [{ title: 'Bot tuning', href: '/bot-tuning', icon: SlidersHorizontal }],
+    routes: ['/bot-tuning', '/settings'],
+    children: [
+      { title: 'Bot tuning', href: '/bot-tuning', icon: SlidersHorizontal },
+      { title: 'Preferences', href: '/settings', icon: Settings2 },
+    ],
   },
 ];
 
@@ -119,12 +124,18 @@ function matches(pathname: string, route: string): boolean {
   return pathname === route || pathname.startsWith(`${route}/`);
 }
 
+const REAL_DATA_ROUTES = new Set(['/analytics', '/persons']);
+
 export function Sidebar() {
   const pathname = usePathname();
   const { user } = useAuth();
+  const showRealData = useRealAnalyticsVisible();
   const groups = navGroupsForRole(navGroups, user?.role).map((group) => ({
     ...group,
-    children: navItemsForRole(group.children, user?.role),
+    children: navItemsForRole(group.children, user?.role)
+      // Real-data pages stay out of sight unless enabled in Settings, so a
+      // demo never stumbles from the scaled /stats page into production truth.
+      .filter((item) => showRealData || !REAL_DATA_ROUTES.has(item.href)),
   }));
 
   return (
