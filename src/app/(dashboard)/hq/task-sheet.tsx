@@ -109,6 +109,8 @@ function TaskDetail({ task, members }: { task: HqTaskDetail; members: HqMember[]
   const agentWorking = task.status === 'in_progress' && assigneeIsHqAgent;
   // An agent's idea only moves through Do it / Change / Not now (the panel below).
   const isProposal = task.status === 'proposed';
+  // A standup is its agent's daily report; the API refuses to reassign it.
+  const isStandup = (task.kind ?? 'task') === 'standup';
 
   const patch = (data: Parameters<typeof update.mutate>[0]['data'], success?: string) =>
     update.mutate(
@@ -194,9 +196,10 @@ function TaskDetail({ task, members }: { task: HqTaskDetail; members: HqMember[]
               members={activeMembers}
               value={task.assignee?.id ?? null}
               current={task.assignee}
-              disabled={agentWorking || isProposal}
+              disabled={agentWorking || isProposal || isStandup}
               onChange={reassign}
             />
+            {isStandup && <span className="block text-xs text-slate-500">A standup belongs to its agent</span>}
             {agentWorking && <span className="block text-xs text-blue-700">The agent is working on this</span>}
             {isProposal && <span className="block text-xs text-violet-700">{PROPOSAL_LOCKED_HINT}</span>}
           </Field>
