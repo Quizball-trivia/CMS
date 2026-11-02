@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { useQueryClient } from '@tanstack/react-query';
 import {
@@ -148,12 +148,31 @@ export default function HqBoardPage() {
     );
   };
 
+  // Raw viewport pointer position during a drag (dnd-kit's event.delta includes
+  // scroll adjustments, so activator + delta drifts when the board scrolls).
+  const pointerY = useRef<number | null>(null);
+  const stopPointerTracking = useRef<(() => void) | null>(null);
+  useEffect(() => () => stopPointerTracking.current?.(), []);
+
   const handleDragStart = (event: DragStartEvent) => {
     setActiveTask((event.active.data.current?.task as HqTask | undefined) ?? null);
+    const activator = event.activatorEvent as PointerEvent | MouseEvent | null;
+    pointerY.current = activator && 'clientY' in activator ? activator.clientY : null;
+    if (pointerY.current !== null) {
+      const onMove = (e: PointerEvent) => {
+        pointerY.current = e.clientY;
+      };
+      window.addEventListener('pointermove', onMove);
+      stopPointerTracking.current = () => window.removeEventListener('pointermove', onMove);
+    }
   };
 
   const handleDragEnd = async (event: DragEndEvent) => {
     setActiveTask(null);
+    const lastPointerY = pointerY.current;
+    stopPointerTracking.current?.();
+    stopPointerTracking.current = null;
+    pointerY.current = null;
     const task = event.active.data.current?.task as HqTask | undefined;
     const over = event.over;
     if (!task || !over) return;
@@ -176,9 +195,7 @@ export default function HqBoardPage() {
     // Before/after is decided by where the POINTER is (not the dragged card's
     // centre, which depends on where the card was grabbed). Keyboard drags have
     // no pointer and use the card's centre.
-    const activator = event.activatorEvent as PointerEvent | MouseEvent | null;
-    const pointerY = activator && 'clientY' in activator ? activator.clientY + event.delta.y : null;
-    const dropY = pointerY ?? (translated ? translated.top + translated.height / 2 : null);
+    const dropY = lastPointerY ?? (translated ? translated.top + translated.height / 2 : null);
     let direction: 'up' | 'down' | null = null;
     if (overData.type === 'card' && task.status === target) {
       const full = grouped[target];
@@ -272,7 +289,12 @@ export default function HqBoardPage() {
           collisionDetection={boardCollision}
           onDragStart={handleDragStart}
           onDragEnd={handleDragEnd}
-          onDragCancel={() => setActiveTask(null)}
+          onDragCancel={() => {
+            setActiveTask(null);
+            stopPointerTracking.current?.();
+            stopPointerTracking.current = null;
+            pointerY.current = null;
+          }}
         >
           <div className="flex gap-3 overflow-x-auto pb-4">
             {columns.map((status) => {
