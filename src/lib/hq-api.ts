@@ -1,0 +1,143 @@
+// Data layer for the QuizBall HQ admin section (`/admin/hq`).
+//
+// Like `agents-api.ts`, these endpoints are not in the generated OpenAPI spec,
+// so we go through the shared `apiClient` (bearer token, 401 refresh,
+// `ApiClientError`) and type responses with the hand-written `@/types/hq`.
+
+import { apiClient } from '@/services';
+import { normalizeTaskSearch } from '@/lib/hq-board';
+import type {
+  HqCreateMemberRequest,
+  HqCreateScheduleRequest,
+  HqCreateTaskRequest,
+  HqEvent,
+  HqListEventsParams,
+  HqListRunsParams,
+  HqListTasksParams,
+  HqMember,
+  HqMemberDetail,
+  HqMessage,
+  HqOverview,
+  HqPostMessageRequest,
+  HqRun,
+  HqRunDetail,
+  HqSchedule,
+  HqSettings,
+  HqTask,
+  HqTaskDetail,
+  HqUpdateMemberRequest,
+  HqUpdateScheduleRequest,
+  HqUpdateSettingsRequest,
+  HqUpdateTaskRequest,
+} from '@/types';
+
+const BASE = '/admin/hq';
+
+interface ItemsResponse<T> {
+  items: T[];
+}
+
+type QueryParams = Record<string, string | number | boolean | undefined>;
+
+function taskQuery(params?: HqListTasksParams): QueryParams | undefined {
+  if (!params) return undefined;
+  return {
+    status: params.status && params.status.length > 0 ? params.status.join(',') : undefined,
+    assigneeId: params.assigneeId || undefined,
+    q: normalizeTaskSearch(params.q),
+    limit: params.limit,
+  };
+}
+
+export const hqApi = {
+  overview(): Promise<HqOverview> {
+    return apiClient.get<HqOverview>(`${BASE}/overview`);
+  },
+
+  // ── Members ──
+  listMembers(includeArchived = false): Promise<ItemsResponse<HqMember>> {
+    return apiClient.get<ItemsResponse<HqMember>>(`${BASE}/members`, includeArchived ? { includeArchived: true } : undefined);
+  },
+  getMember(id: string): Promise<HqMemberDetail> {
+    return apiClient.get<HqMemberDetail>(`${BASE}/members/${id}`);
+  },
+  createMember(data: HqCreateMemberRequest): Promise<HqMember> {
+    return apiClient.post<HqMember>(`${BASE}/members`, data);
+  },
+  updateMember(id: string, data: HqUpdateMemberRequest): Promise<HqMember> {
+    return apiClient.patch<HqMember>(`${BASE}/members/${id}`, data);
+  },
+  syncHumans(): Promise<ItemsResponse<HqMember>> {
+    return apiClient.post<ItemsResponse<HqMember>>(`${BASE}/members/sync-humans`, {});
+  },
+
+  // ── Tasks ──
+  listTasks(params?: HqListTasksParams): Promise<ItemsResponse<HqTask>> {
+    return apiClient.get<ItemsResponse<HqTask>>(`${BASE}/tasks`, taskQuery(params));
+  },
+  getTask(id: string): Promise<HqTaskDetail> {
+    return apiClient.get<HqTaskDetail>(`${BASE}/tasks/${id}`);
+  },
+  createTask(data: HqCreateTaskRequest): Promise<HqTask> {
+    return apiClient.post<HqTask>(`${BASE}/tasks`, data);
+  },
+  updateTask(id: string, data: HqUpdateTaskRequest): Promise<HqTask> {
+    return apiClient.patch<HqTask>(`${BASE}/tasks/${id}`, data);
+  },
+  approveTask(id: string, note?: string): Promise<HqTask> {
+    return apiClient.post<HqTask>(`${BASE}/tasks/${id}/approve`, note ? { note } : {});
+  },
+  rejectTask(id: string, note: string): Promise<HqTask> {
+    return apiClient.post<HqTask>(`${BASE}/tasks/${id}/reject`, { note });
+  },
+  runTask(id: string): Promise<HqTask> {
+    return apiClient.post<HqTask>(`${BASE}/tasks/${id}/run`, {});
+  },
+  postMessage(taskId: string, data: HqPostMessageRequest): Promise<HqMessage> {
+    return apiClient.post<HqMessage>(`${BASE}/tasks/${taskId}/messages`, data);
+  },
+
+  // ── Runs ──
+  listRuns(params?: HqListRunsParams): Promise<ItemsResponse<HqRun>> {
+    return apiClient.get<ItemsResponse<HqRun>>(`${BASE}/runs`, params as QueryParams | undefined);
+  },
+  getRun(id: string): Promise<HqRunDetail> {
+    return apiClient.get<HqRunDetail>(`${BASE}/runs/${id}`);
+  },
+
+  // ── Events ──
+  listEvents(params?: HqListEventsParams): Promise<ItemsResponse<HqEvent>> {
+    return apiClient.get<ItemsResponse<HqEvent>>(`${BASE}/events`, params as QueryParams | undefined);
+  },
+
+  // ── Schedules ──
+  listSchedules(): Promise<ItemsResponse<HqSchedule>> {
+    return apiClient.get<ItemsResponse<HqSchedule>>(`${BASE}/schedules`);
+  },
+  createSchedule(data: HqCreateScheduleRequest): Promise<HqSchedule> {
+    return apiClient.post<HqSchedule>(`${BASE}/schedules`, data);
+  },
+  updateSchedule(id: string, data: HqUpdateScheduleRequest): Promise<HqSchedule> {
+    return apiClient.patch<HqSchedule>(`${BASE}/schedules/${id}`, data);
+  },
+  deleteSchedule(id: string): Promise<void> {
+    return apiClient.delete<void>(`${BASE}/schedules/${id}`);
+  },
+  runScheduleNow(id: string): Promise<HqTask> {
+    return apiClient.post<HqTask>(`${BASE}/schedules/${id}/run-now`, {});
+  },
+
+  // ── Settings / inbox ──
+  getSettings(): Promise<HqSettings> {
+    return apiClient.get<HqSettings>(`${BASE}/settings`);
+  },
+  updateSettings(data: HqUpdateSettingsRequest): Promise<HqSettings> {
+    return apiClient.patch<HqSettings>(`${BASE}/settings`, data);
+  },
+  inbox(): Promise<ItemsResponse<HqMessage>> {
+    return apiClient.get<ItemsResponse<HqMessage>>(`${BASE}/inbox`);
+  },
+  markInboxRead(ids?: number[]): Promise<void> {
+    return apiClient.post<void>(`${BASE}/inbox/read`, ids ? { ids } : {});
+  },
+};

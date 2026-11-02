@@ -36,3 +36,21 @@ it('shows admins every group and the Freecroco Staff page', () => {
   expect(hrefs.has('/categories') || hrefs.has('/quiz-pages')).toBe(true);
   expect(hrefs.has('/users')).toBe(true);
 });
+
+it('puts the HQ section first for admins and shows its pages when active', () => {
+  h.role = 'admin';
+  h.pathname = '/hq/board';
+  render(<Sidebar />);
+  const hrefs = links();
+  expect(hrefs[0]).toBe('/hq');
+  for (const href of ['/hq/board', '/hq/team', '/hq/schedules', '/hq/activity']) {
+    expect(hrefs).toContain(href);
+  }
+});
+
+it('hides HQ from partner staff', () => {
+  h.role = 'partner_staff';
+  h.pathname = '/freecroco';
+  render(<Sidebar />);
+  expect(links().some((href) => href === '/hq' || href?.startsWith('/hq/'))).toBe(false);
+});
