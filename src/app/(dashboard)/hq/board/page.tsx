@@ -103,7 +103,10 @@ export default function HqBoardPage() {
   };
   const finishedMayHaveMore = (finishedTasks?.length ?? 0) >= finishedLimit;
 
-  const runtimeById = useMemo(() => new Map(members.map((m) => [m.id, m.runtime])), [members]);
+  // Runtimes from every member, archived included; undefined until loaded (or if it
+  // failed), and canDropInto then refuses ownership-sensitive moves.
+  const { data: everyone } = useHqMembers(true);
+  const runtimeById = useMemo(() => (everyone ? new Map(everyone.map((m) => [m.id, m.runtime])) : undefined), [everyone]);
 
   // Local text filter only while the server results don't reflect the typed
   // query yet (debounce pending or previous results shown as a placeholder);
