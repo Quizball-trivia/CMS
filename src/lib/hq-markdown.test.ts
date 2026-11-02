@@ -64,3 +64,10 @@ describe('CommonMark container and fence edge cases', () => {
     expect(stripMarkdown(['```md', '> ```', 'inside', '```', 'Real prose'].join('\n'))).toBe('Real prose');
   });
 });
+
+describe('images', () => {
+  it('keeps alt text for inline and reference-style images', () => {
+    expect(stripMarkdown('![Growth chart](https://x/y.png)')).toBe('Growth chart');
+    expect(stripMarkdown('![Growth][chart]\n\n[chart]: https://x/y.png')).toBe('Growth');
+  });
+});
