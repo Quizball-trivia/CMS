@@ -28,3 +28,14 @@ describe('stripMarkdown', () => {
     expect(stripMarkdown('Before\n```ts\nconst a = 1;\n```\nAfter')).toBe('Before After');
   });
 });
+
+describe('stripFencedBlocks', () => {
+  it('drops backtick and tilde fences, honouring fence char and length', () => {
+    const md = ['Before', '~~~', 'tilde code', '~~~', 'Middle', '````', 'has ``` inside', '````', 'After'].join('\n');
+    expect(stripMarkdown(md)).toBe('Before Middle After');
+  });
+  it('a shorter or different closing fence does not end the block', () => {
+    const md = ['A', '````', 'x', '```', 'still code', '~~~~', 'still code', '````', 'B'].join('\n');
+    expect(stripMarkdown(md)).toBe('A B');
+  });
+});

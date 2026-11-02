@@ -68,7 +68,20 @@ const boardCollision: CollisionDetection = (args) => {
   if (others.length) return others;
   // Pointer still over the dragged card's own slot: a no-op drop, not "move to the end".
   const self = hits.filter((h) => h.id === args.active.id);
-  return self.length ? self : hits;
+  if (self.length) return self;
+  // Pointer over a column but between (or below) its cards: resolve to the
+  // nearest card of THAT column, so the drop index (before/after by midpoint)
+  // keeps the intended position. An empty column stays the column target.
+  const column = hits.find((h) => h.data?.droppableContainer?.data?.current?.type === 'column');
+  const status = column?.data?.droppableContainer?.data?.current?.status;
+  if (status) {
+    const cardsInColumn = args.droppableContainers.filter((c) => {
+      const d = c.data.current as { type?: string; task?: { status?: string } } | undefined;
+      return d?.type === 'card' && d.task?.status === status && c.id !== args.active.id;
+    });
+    if (cardsInColumn.length) return closestCorners({ ...args, droppableContainers: cardsInColumn });
+  }
+  return hits;
 };
 
 const FINISHED_PAGE = 100;
