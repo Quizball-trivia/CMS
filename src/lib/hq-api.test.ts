@@ -29,7 +29,13 @@ it('sends task kinds comma-joined and the goal filter', async () => {
 it('lists goals with comma-joined statuses and an optional horizon', async () => {
   get.mockResolvedValue({ items: [] });
   await hqApi.listGoals({ status: ['active', 'achieved'], horizon: 'week' });
-  expect(get).toHaveBeenCalledWith('/admin/hq/goals', { status: 'active,achieved', horizon: 'week' });
+  expect(get).toHaveBeenCalledWith('/admin/hq/goals', { status: 'active,achieved', horizon: 'week', limit: undefined, before: undefined });
   await hqApi.listGoals();
-  expect(get.mock.calls[1][1]).toEqual({ status: undefined, horizon: undefined });
+  expect(get.mock.calls[1][1]).toEqual({ status: undefined, horizon: undefined, limit: undefined, before: undefined });
+});
+
+it('pages past goals with limit + the previous page cursor', async () => {
+  get.mockResolvedValue({ items: [], nextCursor: null });
+  await hqApi.listGoals({ status: ['achieved', 'dropped'], limit: 30, before: 'g-41' });
+  expect(get).toHaveBeenCalledWith('/admin/hq/goals', { status: 'achieved,dropped', horizon: undefined, limit: 30, before: 'g-41' });
 });

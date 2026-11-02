@@ -11,6 +11,7 @@ import type {
   HqAnalytics,
   HqGoal,
   HqGoalHorizon,
+  HqGoalPage,
   HqGoalStatus,
   HqGoalUpdateRequest,
   HqGoalWriteRequest,
@@ -142,10 +143,19 @@ export const hqApi = {
   },
 
   // ── Goals ──
-  listGoals(params: { status?: HqGoalStatus[]; horizon?: HqGoalHorizon } = {}): Promise<ItemsResponse<HqGoal>> {
-    return apiClient.get<ItemsResponse<HqGoal>>(`${BASE}/goals`, {
+  /**
+   * Goals. No `status` → active goals only (board order, `nextCursor` null).
+   * Lists that include achieved/dropped are paged newest first: pass the
+   * previous page's `nextCursor` as `before`.
+   */
+  listGoals(
+    params: { status?: HqGoalStatus[]; horizon?: HqGoalHorizon; limit?: number; before?: string } = {}
+  ): Promise<HqGoalPage> {
+    return apiClient.get<HqGoalPage>(`${BASE}/goals`, {
       status: params.status && params.status.length > 0 ? params.status.join(',') : undefined,
       horizon: params.horizon,
+      limit: params.limit,
+      before: params.before,
     });
   },
   createGoal(data: HqGoalWriteRequest): Promise<HqGoal> {

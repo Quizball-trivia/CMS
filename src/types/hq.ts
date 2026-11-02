@@ -375,6 +375,12 @@ export interface HqGoal {
   updatedAt: string;
 }
 
+export interface HqGoalPage {
+  items: HqGoal[];
+  /** Cursor for the next (older) page; null when there's no more (always null for active-only lists). */
+  nextCursor: string | null;
+}
+
 export interface HqGoalWriteRequest {
   horizon: HqGoalHorizon;
   title: string;
