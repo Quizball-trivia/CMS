@@ -203,6 +203,11 @@ export function SchedulesTable({
   const { openTask } = useTaskSheet();
   const [editing, setEditing] = useState<HqSchedule | null>(null);
   const [creating, setCreating] = useState(false);
+  // Schedules can only run active/paused HQ agents (the backend 422s otherwise).
+  // `members` excludes archived members, so an owner missing from a loaded list
+  // (or the profile of an archived member) can't be run.
+  const ownerArchived = (s: HqSchedule) =>
+    (fixedMemberId === s.member.id && !canCreate) || (members.length > 0 && !members.some((m) => m.id === s.member.id));
 
   return (
     <div className="space-y-2">
@@ -299,8 +304,8 @@ export function SchedulesTable({
                       <Button
                         size="icon-sm"
                         variant="ghost"
-                        title="Run now"
-                        disabled={runNow.isPending}
+                        title={ownerArchived(s) ? 'Restore this agent to run its automations' : 'Run now'}
+                        disabled={runNow.isPending || ownerArchived(s)}
                         onClick={() =>
                           runNow.mutate(s.id, {
                             onSuccess: (task) => {
