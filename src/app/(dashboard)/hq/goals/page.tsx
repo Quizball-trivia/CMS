@@ -1,9 +1,10 @@
 'use client';
 
 import { useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { ChevronDown, Loader2, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { useHqGoals } from '@/hooks';
+import { hqKeys, useHqGoals, useHqPastGoals } from '@/hooks';
 import { cn } from '@/lib/utils';
 import type { HqGoal, HqGoalHorizon } from '@/types';
 import { AddGoalCard, GoalCard, GoalDialog, HORIZON_LABELS, NorthStarCard } from '../goal-ui';
@@ -19,9 +20,12 @@ export default function GoalsPage() {
   const [now] = useState(() => new Date());
   const [dialog, setDialog] = useState<{ goal: HqGoal | null; horizon: HqGoalHorizon } | null>(null);
   const [showPast, setShowPast] = useState(false);
+  // Past goals are fetched only when the section is opened, a page at a time.
+  const pastQuery = useHqPastGoals(showPast);
+  const queryClient = useQueryClient();
+  const past = pastQuery.data?.pages.flatMap((p) => p.items) ?? [];
 
   const active = (goals ?? []).filter((g) => g.status === 'active').sort((a, b) => a.position - b.position);
-  const past = (goals ?? []).filter((g) => g.status !== 'active').sort((a, b) => b.periodEnd.localeCompare(a.periodEnd));
   const northStar = active.find((g) => g.horizon === 'north_star') ?? null;
   const edit = (goal: HqGoal) => setDialog({ goal, horizon: goal.horizon });
 
@@ -75,17 +79,57 @@ export default function GoalsPage() {
               className="flex items-center gap-2 text-xl font-bold text-slate-600 hover:text-slate-900"
             >
               <ChevronDown className={cn('h-5 w-5 transition', showPast && 'rotate-180')} />
-              Past goals <span className="text-base font-medium text-slate-400">({past.length})</span>
+              Past goals
+              {showPast && pastQuery.data && (
+                <span className="text-base font-medium text-slate-400">
+                  ({past.length}
+                  {pastQuery.hasNextPage ? '+' : ''})
+                </span>
+              )}
             </button>
             {showPast &&
-              (past.length === 0 ? (
-                <p className="mt-3 text-slate-400">Achieved and dropped goals will collect here.</p>
+              (!pastQuery.data ? (
+                pastQuery.isLoading ? (
+                  <div className="mt-4 flex items-center gap-2 text-slate-500">
+                    <Loader2 className="h-4 w-4 animate-spin" /> Loading past goals…
+                  </div>
+                ) : (
+                  <div className="mt-4">
+                    <LoadErrorState error={pastQuery.error} fallback="Could not load past goals." onRetry={() => void pastQuery.refetch()} />
+                  </div>
+                )
               ) : (
-                <div className="mt-5 grid gap-5 opacity-80 sm:grid-cols-2 xl:grid-cols-3">
-                  {past.map((g) => (
-                    <GoalCard key={g.id} goal={g} onEdit={edit} now={now} />
-                  ))}
-                </div>
+                <>
+                  {pastQuery.isError && (
+                    // Cached pages stay visible; a failed "Load more" (e.g. the
+                    // cursor goal was deleted) must still be visible and
+                    // recoverable — restart paging from the newest page.
+                    <div className="mt-4">
+                      <LoadErrorState
+                        error={pastQuery.error}
+                        fallback="Could not load more past goals."
+                        onRetry={() => void queryClient.resetQueries({ queryKey: hqKeys.pastGoals() })}
+                      />
+                    </div>
+                  )}
+                  {past.length === 0 ? (
+                    <p className="mt-3 text-slate-400">Achieved and dropped goals will collect here.</p>
+                  ) : (
+                    <div className="mt-5 grid gap-5 opacity-80 sm:grid-cols-2 xl:grid-cols-3">
+                      {past.map((g) => (
+                        <GoalCard key={g.id} goal={g} onEdit={edit} now={now} />
+                      ))}
+                    </div>
+                  )}
+                  {pastQuery.hasNextPage && past.length > 0 && (
+                    <div className="mt-6 flex justify-center">
+                      <Button variant="outline" onClick={() => void pastQuery.fetchNextPage({ cancelRefetch: false })} disabled={pastQuery.isFetching}>
+                        {pastQuery.isFetching && <Loader2 className="h-4 w-4 animate-spin" />}
+                        Load more
+                      </Button>
+                    </div>
+                  )}
+                </>
               ))}
           </section>
         </>

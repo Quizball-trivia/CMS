@@ -45,6 +45,7 @@ export const hqKeys = {
   departments: () => [...hqKeys.all, 'departments'] as const,
   goals: () => [...hqKeys.all, 'goals'] as const,
   goalsList: (status?: HqGoalStatus[]) => [...hqKeys.goals(), 'list', ...(status && status.length ? [status] : [])] as const,
+  pastGoals: () => [...hqKeys.goals(), 'past'] as const,
   standup: () => [...hqKeys.all, 'standup'] as const,
   standupFor: (date?: string) => [...hqKeys.standup(), ...(date ? [date] : [])] as const,
   analytics: (days: number) => [...hqKeys.all, 'analytics', days] as const,
@@ -380,12 +381,25 @@ export function useMarkHqInboxRead() {
 
 // ── v3: goals, standup, proposals, analytics ──
 
-/** Goals; `status` filters (e.g. ['active']) — omit for all, incl. past ones. */
-export function useHqGoals(status?: HqGoalStatus[]) {
+/** Active goals (the backend's default), in board order — one page, no cursor. */
+export function useHqGoals() {
   return useQuery({
-    queryKey: hqKeys.goalsList(status),
-    queryFn: async () => (await hqApi.listGoals({ status })).items,
+    queryKey: hqKeys.goalsList(),
+    queryFn: async () => (await hqApi.listGoals({ limit: 200 })).items,
     refetchInterval: 30_000,
+  });
+}
+
+const PAST_GOALS_PAGE = 30;
+
+/** Achieved + dropped goals, newest first, paged with the backend's cursor. */
+export function useHqPastGoals(enabled = true) {
+  return useInfiniteQuery({
+    queryKey: hqKeys.pastGoals(),
+    initialPageParam: undefined as string | undefined,
+    queryFn: ({ pageParam }) => hqApi.listGoals({ status: ['achieved', 'dropped'], limit: PAST_GOALS_PAGE, before: pageParam }),
+    getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
+    enabled,
   });
 }
 
