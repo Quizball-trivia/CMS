@@ -49,7 +49,8 @@ export function stripMarkdown(md: string): string {
 
   return lines
     .join(' ')
-    .replace(/\*\*|__|~~|`/g, '') // inline emphasis / code tokens
+    .replace(/\*\*|~~|`/g, '') // inline emphasis / code tokens
+    .replace(/(^|[\s(])__(?=\S)(.*?\S)__(?=$|[\s).,!?:;])/g, '$1$2') // __bold__ (word-bounded, so user__id survives)
     .replace(/(^|[\s(])\*(?=\S)([^*]*?\S)\*(?=$|[\s).,!?:;])/g, '$1$2') // *italic*
     .replace(/(^|[\s(])_(?=\S)([^_]*?\S)_(?=$|[\s).,!?:;])/g, '$1$2') // _italic_ (word-bounded, so user_id survives)
     .replace(/\s+/g, ' ')

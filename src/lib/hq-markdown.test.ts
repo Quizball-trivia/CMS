@@ -49,3 +49,9 @@ describe('stripFencedBlocks edge cases', () => {
     expect(stripMarkdown(md)).toBe('Intro item Outro');
   });
 });
+
+describe('double underscores', () => {
+  it('keeps identifiers with __ but strips __bold__', () => {
+    expect(stripMarkdown('see user__id and __important__ now')).toBe('see user__id and important now');
+  });
+});

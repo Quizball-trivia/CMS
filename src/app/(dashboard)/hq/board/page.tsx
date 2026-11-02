@@ -173,6 +173,12 @@ export default function HqBoardPage() {
     // Dropped on a card: before or after it depending on which half the dragged
     // card's centre is in, so a card can also land below the last one.
     const translated = event.active.rect.current.translated;
+    // Before/after is decided by where the POINTER is (not the dragged card's
+    // centre, which depends on where the card was grabbed). Keyboard drags have
+    // no pointer and use the card's centre.
+    const activator = event.activatorEvent as PointerEvent | MouseEvent | null;
+    const pointerY = activator && 'clientY' in activator ? activator.clientY + event.delta.y : null;
+    const dropY = pointerY ?? (translated ? translated.top + translated.height / 2 : null);
     let direction: 'up' | 'down' | null = null;
     if (overData.type === 'card' && task.status === target) {
       const full = grouped[target];
@@ -182,7 +188,7 @@ export default function HqBoardPage() {
     }
     const index =
       overData.type === 'card'
-        ? dropIndex(column, overData.task.id, translated ? translated.top + translated.height / 2 : null, over.rect, direction)
+        ? dropIndex(column, overData.task.id, dropY, over.rect, direction)
         : column.length;
     const position = positionForIndex(column, index);
 

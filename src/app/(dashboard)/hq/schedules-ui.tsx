@@ -207,7 +207,7 @@ export function SchedulesTable({
   // `members` excludes archived members, so an owner missing from a loaded list
   // (or the profile of an archived member) can't be run.
   const ownerArchived = (s: HqSchedule) =>
-    (fixedMemberId === s.member.id && !canCreate) || (members.length > 0 && !members.some((m) => m.id === s.member.id));
+    (fixedMemberId === s.member.id && !canCreate) || !members.some((m) => m.id === s.member.id);
 
   return (
     <div className="space-y-2">
