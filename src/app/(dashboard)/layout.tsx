@@ -1,10 +1,11 @@
 'use client';
 
-import { useEffect } from 'react';
+import { Suspense, useEffect } from 'react';
 import { notFound, usePathname, useRouter } from 'next/navigation';
 import { useAuth } from '@/providers';
 import { Sidebar, Header, EnvironmentBanner } from '@/components/layout';
-import { guardRedirect } from '@/lib/freecroco/access';
+import { cmsRole, guardRedirect } from '@/lib/freecroco/access';
+import { DepartmentBar } from '@/components/hq/department-bar';
 import { Loader2 } from 'lucide-react';
 
 export default function DashboardLayout({
@@ -60,6 +61,12 @@ export default function DashboardLayout({
           <Header />
           <main className="flex-1 p-6 overflow-y-auto animate-in fade-in duration-500">
             <div className="max-w-[1800px] mx-auto space-y-6">
+              {/* Ties each existing tool page to its HQ department (admins only; not on HQ pages). */}
+              {cmsRole(user?.role) === 'admin' && (
+                <Suspense fallback={null}>
+                  <DepartmentBar pathname={pathname} />
+                </Suspense>
+              )}
               {children}
             </div>
           </main>

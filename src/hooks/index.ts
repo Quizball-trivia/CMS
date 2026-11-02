@@ -13,3 +13,4 @@ export * from './use-bot-tuning';
 export * from './use-campaign-quiz-pages';
 export * from './use-retention';
 export * from './use-freecroco';
+export * from './use-hq';
