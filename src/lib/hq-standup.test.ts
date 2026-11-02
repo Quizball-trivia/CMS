@@ -276,3 +276,14 @@ describe('Change dialog snapshot', () => {
     expect(buildProposalChange(snapshotProposal(live), 'Better title', 'Plan A')).toEqual({ title: 'Better title' });
   });
 });
+
+describe('buildProposalChange with a live proposal (Save anyway after a conflict)', () => {
+  it('renders the body from the live proposal, keeping the edited plan', () => {
+    const snap = { title: 'Idea', body: '', proposal: { why: 'old why', plan: 'old plan', expectedImpact: 'old impact', effort: 's' as const } };
+    snap.body = proposalBody(snap.proposal);
+    const live = { why: 'NEW why', plan: 'old plan', expectedImpact: 'NEW impact', effort: 'l' as const };
+    const req = buildProposalChange(snap, 'Idea', 'my edited plan', live);
+    expect(req.proposal).toEqual({ plan: 'my edited plan' });
+    expect(req.body).toBe(proposalBody({ ...live, plan: 'my edited plan' }));
+  });
+});

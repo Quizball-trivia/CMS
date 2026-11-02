@@ -163,7 +163,9 @@ export function proposalEditText(task: Pick<HqTask, 'body' | 'proposal'>): strin
 export function buildProposalChange(
   task: Pick<HqTask, 'title' | 'body' | 'proposal'>,
   title: string,
-  text: string
+  text: string,
+  /** The server's current proposal (after a conflict): the body is rendered from it so other fields aren't stale. */
+  liveProposal?: HqTask['proposal']
 ): HqAcceptProposalRequest {
   const req: HqAcceptProposalRequest = {};
   const t = title.trim();
@@ -172,7 +174,7 @@ export function buildProposalChange(
     const plan = text.trim();
     if (plan !== task.proposal!.plan.trim()) {
       req.proposal = { plan };
-      req.body = proposalBody({ ...task.proposal!, plan });
+      req.body = proposalBody({ ...(liveProposal ?? task.proposal!), plan });
     }
   } else if (text.trim() !== task.body.trim()) {
     req.body = text.trim();

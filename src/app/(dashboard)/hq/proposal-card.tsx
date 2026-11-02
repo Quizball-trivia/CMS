@@ -114,10 +114,19 @@ function ChangeForm({ task, onDone }: { task: HqTask; onDone: () => void }) {
   const [text, setText] = useState(() => proposalEditText(snapshot));
   const [conflict, setConflict] = useState(false);
 
-  const send = () =>
+  /** Field checks shared by "Do it" and "Save anyway" (which only skips the conflict check). */
+  const valid = () => {
+    if (!title.trim()) return void toast.error('The idea needs a title'), false;
+    if (!text.trim()) return void toast.error(mode === 'plan' ? 'The plan can’t be empty' : 'The instructions can’t be empty'), false;
+    return true;
+  };
+
+  const send = () => {
+    if (!valid()) return;
     accept.mutate(
-      // Diffed against the snapshot: a title-only change sends just { title }.
-      { id: task.id, data: buildProposalChange(snapshot, title, text) },
+      // Diffed against the snapshot (a title-only change sends just { title });
+      // the body is rendered from the server's current proposal.
+      { id: task.id, data: buildProposalChange(snapshot, title, text, task.proposal) },
       {
         onSuccess: () => {
           toast.success(`On it — ${task.assignee?.name ?? 'the agent'} starts your version`);
@@ -126,10 +135,10 @@ function ChangeForm({ task, onDone }: { task: HqTask; onDone: () => void }) {
         onError: (e) => toast.error(errorMessage(e, 'Could not start this idea')),
       }
     );
+  };
 
   const submit = () => {
-    if (!title.trim()) return toast.error('The idea needs a title');
-    if (!text.trim()) return toast.error(mode === 'plan' ? 'The plan can’t be empty' : 'The instructions can’t be empty');
+    if (!valid()) return;
     if (proposalChangedSince(snapshot, task)) {
       setConflict(true);
       return;
