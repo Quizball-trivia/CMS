@@ -188,11 +188,14 @@ export function SchedulesTable({
   members,
   showMember = true,
   fixedMemberId,
+  canCreate = true,
 }: {
   schedules: HqSchedule[];
   members: HqMember[];
   showMember?: boolean;
   fixedMemberId?: string;
+  /** False for an archived member: schedules can only run active/paused HQ agents. */
+  canCreate?: boolean;
 }) {
   const update = useUpdateHqSchedule();
   const remove = useDeleteHqSchedule();
@@ -203,11 +206,13 @@ export function SchedulesTable({
 
   return (
     <div className="space-y-2">
-      <div className="flex justify-end">
-        <Button size="sm" variant="outline" onClick={() => setCreating(true)}>
-          <Plus className="h-4 w-4" /> New automation
-        </Button>
-      </div>
+      {canCreate && (
+        <div className="flex justify-end">
+          <Button size="sm" variant="outline" onClick={() => setCreating(true)}>
+            <Plus className="h-4 w-4" /> New automation
+          </Button>
+        </div>
+      )}
       {schedules.length === 0 ? (
         <EmptyState>No automations yet. Add one to have an agent do this work on a schedule.</EmptyState>
       ) : (
