@@ -39,3 +39,13 @@ describe('stripFencedBlocks', () => {
     expect(stripMarkdown(md)).toBe('A B');
   });
 });
+
+describe('stripFencedBlocks edge cases', () => {
+  it('an inline span with backticks at line start is not a fence', () => {
+    expect(stripMarkdown('```value``` is the key\nMore text')).toBe('value is the key More text');
+  });
+  it('removes fences inside blockquotes and list items', () => {
+    const md = ['Intro', '> ```js', '> const x = 1;', '> ```', '- item', '    ```', '    code', '    ```', 'Outro'].join('\n');
+    expect(stripMarkdown(md)).toBe('Intro item Outro');
+  });
+});

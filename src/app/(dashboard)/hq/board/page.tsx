@@ -8,19 +8,17 @@ import {
   DragOverlay,
   KeyboardSensor,
   PointerSensor,
-  closestCorners,
-  pointerWithin,
   useDraggable,
   useDroppable,
   useSensor,
   useSensors,
-  type CollisionDetection,
   type DragEndEvent,
   type DragStartEvent,
 } from '@dnd-kit/core';
 import { sortableKeyboardCoordinates } from '@dnd-kit/sortable';
 import { KanbanSquare, Loader2, MessageSquare, Plus, Search } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { boardCollision } from '@/lib/hq-board-collision';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -55,34 +53,6 @@ const COLUMN_ACCENTS: Record<HqTaskStatus, string> = {
 
 const OPEN_STATUSES: HqTaskStatus[] = ['backlog', 'todo', 'in_progress', 'needs_approval', 'blocked'];
 const OPEN_LIMIT = 500;
-/**
- * What's under the pointer wins (a card, else the column it's in), so a card
- * dropped on an empty column next to a tall one lands there. Keyboard drags
- * have no pointer and fall back to closest corners.
- */
-const boardCollision: CollisionDetection = (args) => {
-  const hits = pointerWithin(args);
-  if (hits.length === 0) return closestCorners(args);
-  const isCard = (h: (typeof hits)[number]) => h.data?.droppableContainer?.data?.current?.type === 'card';
-  const others = hits.filter((h) => isCard(h) && h.id !== args.active.id);
-  if (others.length) return others;
-  // Pointer still over the dragged card's own slot: a no-op drop, not "move to the end".
-  const self = hits.filter((h) => h.id === args.active.id);
-  if (self.length) return self;
-  // Pointer over a column but between (or below) its cards: resolve to the
-  // nearest card of THAT column, so the drop index (before/after by midpoint)
-  // keeps the intended position. An empty column stays the column target.
-  const column = hits.find((h) => h.data?.droppableContainer?.data?.current?.type === 'column');
-  const status = column?.data?.droppableContainer?.data?.current?.status;
-  if (status) {
-    const cardsInColumn = args.droppableContainers.filter((c) => {
-      const d = c.data.current as { type?: string; task?: { status?: string } } | undefined;
-      return d?.type === 'card' && d.task?.status === status && c.id !== args.active.id;
-    });
-    if (cardsInColumn.length) return closestCorners({ ...args, droppableContainers: cardsInColumn });
-  }
-  return hits;
-};
 
 const FINISHED_PAGE = 100;
 // GET /admin/hq/tasks accepts limit ≤ 500.
