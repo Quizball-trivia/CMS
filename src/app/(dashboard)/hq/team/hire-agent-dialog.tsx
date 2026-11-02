@@ -27,6 +27,7 @@ const EMPTY: AgentSettingsValue = {
   tools: ['web'],
   autonomy: 'autonomous' as HqAutonomy,
   maxTurns: 25,
+  department: 'leadership',
 };
 
 export function HireAgentDialog({
@@ -77,6 +78,7 @@ export function HireAgentDialog({
         tools: settings.tools,
         autonomy: settings.autonomy,
         maxTurns: settings.maxTurns,
+        department: settings.department,
       },
       {
         onSuccess: (member) => {

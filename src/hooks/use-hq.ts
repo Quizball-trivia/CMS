@@ -28,15 +28,18 @@ export const hqKeys = {
   membersList: (includeArchived: boolean) => [...hqKeys.members(), 'list', includeArchived] as const,
   member: (id: string) => [...hqKeys.members(), 'detail', id] as const,
   tasks: () => [...hqKeys.all, 'tasks'] as const,
-  tasksList: (params?: HqListTasksParams) => [...hqKeys.tasks(), 'list', params] as const,
+  // Optional params are omitted (not `undefined`) so the parent key is a prefix of every variant.
+  tasksList: (params?: HqListTasksParams) => [...hqKeys.tasks(), 'list', ...(params ? [params] : [])] as const,
   task: (id: string) => [...hqKeys.tasks(), 'detail', id] as const,
   runs: () => [...hqKeys.all, 'runs'] as const,
-  runsList: (params?: HqListRunsParams) => [...hqKeys.runs(), 'list', params] as const,
+  runsList: (params?: HqListRunsParams) => [...hqKeys.runs(), 'list', ...(params ? [params] : [])] as const,
   run: (id: string) => [...hqKeys.runs(), 'detail', id] as const,
-  events: (params?: Omit<HqListEventsParams, 'beforeId'>) => [...hqKeys.all, 'events', params] as const,
+  events: (params?: Omit<HqListEventsParams, 'beforeId'>) => [...hqKeys.all, 'events', ...(params ? [params] : [])] as const,
   schedules: () => [...hqKeys.all, 'schedules'] as const,
   settings: () => [...hqKeys.all, 'settings'] as const,
   inbox: () => [...hqKeys.all, 'inbox'] as const,
+  departments: () => [...hqKeys.all, 'departments'] as const,
+  pulse: () => [...hqKeys.all, 'pulse'] as const,
 };
 
 /** Anything that changes tasks can move overview counters, member stats and the feed. */
@@ -45,6 +48,7 @@ function invalidateWork(queryClient: QueryClient) {
   queryClient.invalidateQueries({ queryKey: hqKeys.overview() });
   queryClient.invalidateQueries({ queryKey: hqKeys.members() });
   queryClient.invalidateQueries({ queryKey: hqKeys.events() });
+  queryClient.invalidateQueries({ queryKey: hqKeys.departments() });
 }
 
 function logFailure(message: string) {
@@ -53,19 +57,45 @@ function logFailure(message: string) {
 
 // ── Queries ──
 
-export function useHqOverview() {
+interface LiveQueryOptions {
+  /** Off for viewers without HQ access (e.g. partner staff) so nothing 403s. */
+  enabled?: boolean;
+  refetchInterval?: number;
+}
+
+export function useHqOverview(options: LiveQueryOptions = {}) {
   return useQuery({
     queryKey: hqKeys.overview(),
     queryFn: () => hqApi.overview(),
-    refetchInterval: HQ_LIVE_REFETCH_MS,
+    enabled: options.enabled ?? true,
+    refetchInterval: options.refetchInterval ?? HQ_LIVE_REFETCH_MS,
   });
 }
 
-export function useHqMembers(includeArchived = false) {
+export function useHqMembers(includeArchived = false, options: LiveQueryOptions = {}) {
   return useQuery({
     queryKey: hqKeys.membersList(includeArchived),
     queryFn: async () => (await hqApi.listMembers(includeArchived)).items,
-    refetchInterval: HQ_LIVE_REFETCH_MS,
+    enabled: options.enabled ?? true,
+    refetchInterval: options.refetchInterval ?? HQ_LIVE_REFETCH_MS,
+  });
+}
+
+export function useHqDepartments(options: LiveQueryOptions = {}) {
+  return useQuery({
+    queryKey: hqKeys.departments(),
+    queryFn: async () => (await hqApi.listDepartments()).items,
+    enabled: options.enabled ?? true,
+    refetchInterval: options.refetchInterval ?? HQ_LIVE_REFETCH_MS,
+  });
+}
+
+/** Company pulse changes slowly; poll once a minute. */
+export function useHqPulse() {
+  return useQuery({
+    queryKey: hqKeys.pulse(),
+    queryFn: () => hqApi.pulse(),
+    refetchInterval: 60_000,
   });
 }
 
@@ -229,6 +259,7 @@ export function useCreateHqMember() {
     mutationFn: (data: HqCreateMemberRequest) => hqApi.createMember(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: hqKeys.members() });
+      queryClient.invalidateQueries({ queryKey: hqKeys.departments() });
       queryClient.invalidateQueries({ queryKey: hqKeys.overview() });
     },
     onError: logFailure('Failed to hire agent'),
@@ -241,6 +272,7 @@ export function useUpdateHqMember() {
     mutationFn: ({ id, data }: { id: string; data: HqUpdateMemberRequest }) => hqApi.updateMember(id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: hqKeys.members() });
+      queryClient.invalidateQueries({ queryKey: hqKeys.departments() });
       queryClient.invalidateQueries({ queryKey: hqKeys.overview() });
       queryClient.invalidateQueries({ queryKey: hqKeys.events() });
     },
@@ -254,6 +286,7 @@ export function useSyncHqHumans() {
     mutationFn: () => hqApi.syncHumans(),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: hqKeys.members() });
+      queryClient.invalidateQueries({ queryKey: hqKeys.departments() });
       queryClient.invalidateQueries({ queryKey: hqKeys.overview() });
     },
     onError: logFailure('Failed to sync staff'),

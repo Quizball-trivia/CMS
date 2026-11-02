@@ -16,6 +16,8 @@ export type HqTaskStatus =
 /** 0 urgent · 1 high · 2 normal · 3 low */
 export type HqPriority = 0 | 1 | 2 | 3;
 
+export type HqDepartmentKey = 'leadership' | 'growth' | 'content' | 'competitions' | 'engineering' | 'partners';
+
 export type HqMemberKind = 'human' | 'agent';
 export type HqRuntime = 'hq' | 'question_agents' | 'bug_triage' | 'none';
 export type HqMemberStatus = 'active' | 'paused' | 'archived';
@@ -52,6 +54,7 @@ export interface HqMember extends HqMemberRef {
   autonomy: HqAutonomy;
   runtime: HqRuntime;
   status: HqMemberStatus;
+  department: HqDepartmentKey;
   maxTurns: number;
   lastActiveAt: string | null;
   createdAt: string;
@@ -181,6 +184,43 @@ export interface HqOverview {
   team: HqMember[];
   latestBriefing: HqTask | null;
   inboxUnread: number;
+  departments: HqDepartment[];
+}
+
+export interface HqDepartment {
+  key: HqDepartmentKey;
+  name: string;
+  emoji: string;
+  /** Non-archived, agents first. */
+  members: HqMemberRef[];
+  counts: { open: number; todo: number; inProgress: number; needsApproval: number; blocked: number; doneToday: number };
+  lastResult: HqTask | null;
+  working: Array<{ member: HqMemberRef; task: { id: string; number: number; title: string } }>;
+}
+
+export interface HqPulsePoint {
+  newUsers: number;
+  matches: number;
+  activePlayers: number;
+}
+
+export interface HqPulse {
+  generatedAt: string;
+  timezone: string;
+  days: number;
+  totals: { registeredUsers: number };
+  /** One entry per day including zero days, oldest → newest. */
+  series: Array<HqPulsePoint & { date: string }>;
+  today: HqPulsePoint;
+  yesterday: HqPulsePoint;
+  avg7d: HqPulsePoint;
+  feedback: {
+    count7d: number;
+    avgRating7d: number | null;
+    lowRatings7d: number;
+    countPrev7d: number;
+    avgRatingPrev7d: number | null;
+  };
 }
 
 export type HqExternalStats =
@@ -210,18 +250,20 @@ export interface HqCreateMemberRequest {
   autonomy?: HqAutonomy;
   maxTurns?: number;
   status?: HqMemberStatus;
+  department?: HqDepartmentKey;
 }
 
 export type HqUpdateMemberRequest = Partial<
   Pick<
     HqMember,
-    'name' | 'title' | 'avatar' | 'color' | 'description' | 'instructions' | 'model' | 'tools' | 'autonomy' | 'maxTurns' | 'status'
+    'name' | 'title' | 'avatar' | 'color' | 'description' | 'instructions' | 'model' | 'tools' | 'autonomy' | 'maxTurns' | 'status' | 'department'
   >
 >;
 
 export interface HqListTasksParams {
   status?: HqTaskStatus[];
   assigneeId?: string;
+  department?: HqDepartmentKey;
   q?: string;
   limit?: number;
 }

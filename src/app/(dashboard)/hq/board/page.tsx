@@ -17,7 +17,7 @@ import {
   type DragStartEvent,
 } from '@dnd-kit/core';
 import { sortableKeyboardCoordinates } from '@dnd-kit/sortable';
-import { Loader2, MessageSquare, Plus, Search } from 'lucide-react';
+import { KanbanSquare, Loader2, MessageSquare, Plus, Search } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
@@ -37,7 +37,7 @@ import {
   positionForIndex,
 } from '@/lib/hq-board';
 import type { HqTask, HqTaskStatus } from '@/types';
-import { LoadErrorState, MemberAvatar, PriorityBadge, RefreshErrorBanner, errorMessage, useTaskSheet } from '../hq-ui';
+import { LoadErrorState, MemberAvatar, PageHeader, PriorityBadge, RefreshErrorBanner, errorMessage, useTaskSheet } from '../hq-ui';
 import { NewTaskDialog } from '../new-task-dialog';
 
 const COLUMN_ACCENTS: Record<HqTaskStatus, string> = {
@@ -204,7 +204,12 @@ export default function HqBoardPage() {
   const people = members.filter((m) => m.kind === 'human');
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
+      <PageHeader
+        icon={<KanbanSquare className="h-6 w-6 text-slate-700" />}
+        title="Work"
+        description="Every task in the company, by stage. Drag a card to move it; give a task to an agent and it starts on its own."
+      />
       <div className="flex flex-wrap items-center gap-3">
         <div className="relative w-64">
           <Search className="pointer-events-none absolute left-2.5 top-2.5 h-4 w-4 text-slate-400" />

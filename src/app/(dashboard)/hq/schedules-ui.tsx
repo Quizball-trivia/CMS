@@ -10,7 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { useCreateHqSchedule, useDeleteHqSchedule, useRunHqScheduleNow, useUpdateHqSchedule } from '@/hooks';
-import { HQ_TIMEZONE, describeCron, formatRelative, formatTbilisi } from '@/lib/hq-board';
+import { HQ_TIMEZONE, changedScheduleFields, describeCron, formatRelative, formatTbilisi } from '@/lib/hq-board';
 import type { HqMember, HqSchedule } from '@/types';
 import { EmptyState, MemberChip, errorMessage, useTaskSheet } from './hq-ui';
 
@@ -84,20 +84,32 @@ function ScheduleForm({
     if (!name.trim() || !taskTitle.trim() || !cron.trim()) return toast.error('Name, schedule and task title are required');
     const done = {
       onSuccess: () => {
-        toast.success(schedule ? 'Schedule saved' : 'Schedule created');
+        toast.success(schedule ? 'Automation saved' : 'Automation created');
         onDone();
       },
-      onError: (e: unknown) => toast.error(errorMessage(e, 'Could not save the schedule')),
+      onError: (e: unknown) => toast.error(errorMessage(e, 'Could not save the automation')),
     };
     const data = { name: name.trim(), cron: cron.trim(), timezone: timezone.trim() || HQ_TIMEZONE, taskTitle: taskTitle.trim(), taskBody, enabled };
-    if (schedule) update.mutate({ id: schedule.id, data }, done);
-    else create.mutate({ memberId, ...data }, done);
+    if (schedule) {
+      // Edit: send only what changed here, never stale copies of other fields.
+      const changed = changedScheduleFields(
+        { name: schedule.name, cron: schedule.cron, timezone: schedule.timezone, taskTitle: schedule.taskTitle, taskBody: schedule.taskBody, enabled: schedule.enabled },
+        data
+      );
+      if (Object.keys(changed).length === 0) {
+        onDone();
+        return;
+      }
+      update.mutate({ id: schedule.id, data: changed }, done);
+    } else {
+      create.mutate({ memberId, ...data }, done);
+    }
   };
 
   return (
     <>
       <DialogHeader>
-        <DialogTitle>{schedule ? 'Edit schedule' : 'New schedule'}</DialogTitle>
+        <DialogTitle>{schedule ? 'Edit automation' : 'New automation'}</DialogTitle>
         <DialogDescription>On each tick, a task is created and assigned to the agent.</DialogDescription>
       </DialogHeader>
       <div className="space-y-3">
@@ -193,11 +205,11 @@ export function SchedulesTable({
     <div className="space-y-2">
       <div className="flex justify-end">
         <Button size="sm" variant="outline" onClick={() => setCreating(true)}>
-          <Plus className="h-4 w-4" /> New schedule
+          <Plus className="h-4 w-4" /> New automation
         </Button>
       </div>
       {schedules.length === 0 ? (
-        <EmptyState>No schedules yet.</EmptyState>
+        <EmptyState>No automations yet. Add one to have an agent do this work on a schedule.</EmptyState>
       ) : (
         <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
           <table className="w-full text-sm">
@@ -205,7 +217,7 @@ export function SchedulesTable({
               <tr>
                 <th className="px-3 py-2 font-semibold">On</th>
                 {showMember && <th className="px-3 py-2 font-semibold">Agent</th>}
-                <th className="px-3 py-2 font-semibold">Schedule</th>
+                <th className="px-3 py-2 font-semibold">Automation</th>
                 <th className="px-3 py-2 font-semibold">When</th>
                 <th className="px-3 py-2 font-semibold">Next run</th>
                 <th className="px-3 py-2 font-semibold">Last run</th>
@@ -245,7 +257,11 @@ export function SchedulesTable({
                   <td className="px-3 py-2 whitespace-nowrap">
                     {s.enabled && s.nextRunAt ? (
                       <>
-                        <div>{formatTbilisi(s.nextRunAt)}</div>
+                        {/* In the schedule's own zone, labelled when it isn't Tbilisi. */}
+                        <div>
+                          {formatTbilisi(s.nextRunAt, s.timezone)}
+                          {s.timezone !== HQ_TIMEZONE && <span className="ml-1 text-xs text-slate-400">({s.timezone})</span>}
+                        </div>
                         <div className="text-xs text-slate-400">{formatRelative(s.nextRunAt)}</div>
                       </>
                     ) : s.enabled ? (
@@ -296,9 +312,9 @@ export function SchedulesTable({
                         title="Delete"
                         className="text-red-600 hover:text-red-700"
                         onClick={() => {
-                          if (!window.confirm(`Delete schedule "${s.name}"?`)) return;
+                          if (!window.confirm(`Delete automation "${s.name}"?`)) return;
                           remove.mutate(s.id, {
-                            onSuccess: () => toast.success('Schedule deleted'),
+                            onSuccess: () => toast.success('Automation deleted'),
                             onError: (e) => toast.error(errorMessage(e, 'Could not delete')),
                           });
                         }}

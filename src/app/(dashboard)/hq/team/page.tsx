@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { toast } from 'sonner';
-import { Loader2, RefreshCw, UserPlus } from 'lucide-react';
+import { Loader2, RefreshCw, UserPlus, Users } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -12,7 +12,8 @@ import { useHqMembers, useSyncHqHumans } from '@/hooks';
 import { cn } from '@/lib/utils';
 import { formatRelative, formatUsd } from '@/lib/hq-board';
 import type { HqMember } from '@/types';
-import { LoadErrorState, MemberAvatar, MemberStatusDot, RefreshErrorBanner, SectionTitle, errorMessage } from '../hq-ui';
+import { EmptyState, LoadErrorState, MemberAvatar, MemberStatusDot, PageHeader, RefreshErrorBanner, errorMessage } from '../hq-ui';
+import { HQ_DEPARTMENTS, departmentHref } from '@/lib/hq-departments';
 import { HireAgentDialog } from './hire-agent-dialog';
 
 const RUNTIME_LABELS: Record<HqMember['runtime'], string> = {
@@ -30,59 +31,77 @@ export default function HqTeamPage() {
   const [hireOpen, setHireOpen] = useState(false);
   const router = useRouter();
 
-  const agents = members.filter((m) => m.kind === 'agent');
-  const people = members.filter((m) => m.kind === 'human');
+  const byDepartment = HQ_DEPARTMENTS.map((d) => ({
+    dept: d,
+    // Agents first, then people — the same order as everywhere else in HQ.
+    members: members
+      .filter((m) => m.department === d.key)
+      .sort((x, y) => (x.kind === y.kind ? x.name.localeCompare(y.name) : x.kind === 'agent' ? -1 : 1)),
+  }));
+  const agentCount = members.filter((m) => m.kind === 'agent').length;
+  const peopleCount = members.length - agentCount;
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-center gap-3">
+      <PageHeader
+        icon={<Users className="h-6 w-6 text-slate-700" />}
+        title="Team"
+        description={`Everyone who works at QuizBall — ${agentCount} AI ${agentCount === 1 ? 'agent' : 'agents'} and ${peopleCount} ${peopleCount === 1 ? 'person' : 'people'} — organised by department.`}
+        actions={
+          <>
+            <Button
+              variant="outline"
+              disabled={sync.isPending}
+              onClick={() =>
+                sync.mutate(undefined, {
+                  onSuccess: (res) => toast.success(`Staff synced — ${res.items.length} people`),
+                  onError: (e) => toast.error(errorMessage(e, 'Could not sync staff')),
+                })
+              }
+            >
+              <RefreshCw className={cn('h-4 w-4', sync.isPending && 'animate-spin')} /> Sync staff
+            </Button>
+            <Button onClick={() => setHireOpen(true)}>
+              <UserPlus className="h-4 w-4" /> Hire agent
+            </Button>
+          </>
+        }
+      />
+
+      <div className="flex items-center gap-3">
         <label className="flex items-center gap-2 text-sm text-slate-600">
           <Checkbox checked={includeArchived} onCheckedChange={(v) => setIncludeArchived(v === true)} />
           Show archived
         </label>
         {isLoading && <Loader2 className="h-4 w-4 animate-spin text-slate-400" />}
-        <div className="ml-auto flex gap-2">
-          <Button
-            variant="outline"
-            disabled={sync.isPending}
-            onClick={() =>
-              sync.mutate(undefined, {
-                onSuccess: (res) => toast.success(`Staff synced — ${res.items.length} people`),
-                onError: (e) => toast.error(errorMessage(e, 'Could not sync staff')),
-              })
-            }
-          >
-            <RefreshCw className={cn('h-4 w-4', sync.isPending && 'animate-spin')} /> Sync staff
-          </Button>
-          <Button onClick={() => setHireOpen(true)}>
-            <UserPlus className="h-4 w-4" /> Hire agent
-          </Button>
-        </div>
       </div>
 
       {error && !data && <LoadErrorState error={error} fallback="Could not load the team." onRetry={() => void refetch()} />}
       {error && data && <RefreshErrorBanner />}
 
-      <section>
-        <SectionTitle count={agents.length}>Agents</SectionTitle>
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-          {agents.map((m) => (
-            <MemberCard key={m.id} member={m} />
-          ))}
-        </div>
-      </section>
-
-      <section>
-        <SectionTitle count={people.length}>People</SectionTitle>
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-          {people.map((m) => (
-            <MemberCard key={m.id} member={m} />
-          ))}
-        </div>
-        {people.length === 0 && !isLoading && (
-          <p className="text-sm text-slate-400">No people yet — press &quot;Sync staff&quot; to add every CMS admin.</p>
-        )}
-      </section>
+      {data &&
+        byDepartment.map(({ dept, members: list }) => (
+          <section key={dept.key}>
+            <div className="mb-2 flex items-center gap-2">
+              <span className="text-lg leading-none" aria-hidden>
+                {dept.emoji}
+              </span>
+              <Link href={departmentHref(dept.key)} className="text-sm font-bold text-slate-800 hover:underline">
+                {dept.name}
+              </Link>
+              <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-bold text-slate-600">{list.length}</span>
+            </div>
+            {list.length === 0 ? (
+              <EmptyState>No one in {dept.name} yet. Hire an agent and pick this department.</EmptyState>
+            ) : (
+              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                {list.map((m) => (
+                  <MemberCard key={m.id} member={m} />
+                ))}
+              </div>
+            )}
+          </section>
+        ))}
 
       <HireAgentDialog
         open={hireOpen}

@@ -17,6 +17,7 @@ vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: h.push, replace: h.replace }),
 }));
 vi.mock('@/providers', () => ({ useAuth: () => h.auth }));
+vi.mock('@/components/hq/department-bar', () => ({ DepartmentBar: () => null }));
 vi.mock('@/components/layout', () => ({
   Sidebar: () => <nav>sidebar</nav>,
   Header: () => <header>header</header>,

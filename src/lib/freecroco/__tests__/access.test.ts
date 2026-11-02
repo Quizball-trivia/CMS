@@ -66,7 +66,7 @@ describe('route access', () => {
 
   it('sends each role home', () => {
     expect(homeForRole('partner_staff')).toBe('/freecroco');
-    expect(homeForRole('admin')).toBe('/categories');
+    expect(homeForRole('admin')).toBe('/hq');
     expect(homeForRole(undefined)).toBe('/no-access');
   });
 
