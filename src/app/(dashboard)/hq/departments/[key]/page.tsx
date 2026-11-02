@@ -8,7 +8,8 @@ import { Button } from '@/components/ui/button';
 import { useHqDepartments, useHqMembers, useHqSchedules, useHqTasks } from '@/hooks';
 import { cn } from '@/lib/utils';
 import { HQ_STATUS_LABELS, compareTasks, defaultDepartmentAssignee, formatRelative } from '@/lib/hq-board';
-import { departmentInfo, type HqDepartmentInfo } from '@/lib/hq-departments';
+import { departmentInfo, toolsForUser, type HqDepartmentInfo } from '@/lib/hq-departments';
+import { useAuth } from '@/providers';
 import type { HqDepartment, HqMember, HqTask, HqTaskStatus } from '@/types';
 import {
   EmptyState,
@@ -44,6 +45,8 @@ export default function DepartmentPage() {
 
 function Department({ info }: { info: HqDepartmentInfo }) {
   const { openTask } = useTaskSheet();
+  const { user } = useAuth();
+  const tools = toolsForUser(info, user?.email);
   const departments = useHqDepartments();
   const membersQuery = useHqMembers();
   const openTasks = useHqTasks({ department: info.key, status: OPEN_ORDER, limit: 200 });
@@ -106,7 +109,7 @@ function Department({ info }: { info: HqDepartmentInfo }) {
 
       <section>
         <SectionHeader title="Tools" subtitle={`The pages ${info.name} works in.`} />
-        {info.tools.length === 0 ? (
+        {tools.length === 0 ? (
           <EmptyState>
             {info.name} has no tools of its own — it runs the company from the{' '}
             <Link href="/hq" className="underline">
@@ -116,7 +119,7 @@ function Department({ info }: { info: HqDepartmentInfo }) {
           </EmptyState>
         ) : (
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            {info.tools.map((tool) => {
+            {tools.map((tool) => {
               const Icon = tool.icon;
               return (
                 <Link

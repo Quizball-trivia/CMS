@@ -8,7 +8,7 @@ import { cn } from '@/lib/utils';
 import { useAuth } from '@/providers';
 import { useHqOverview } from '@/hooks';
 import { cmsRole, FREECROCO_ROOT, navGroupsForRole, navItemsForRole } from '@/lib/freecroco/access';
-import { HQ_DEPARTMENTS, departmentHref } from '@/lib/hq-departments';
+import { HQ_DEPARTMENTS, departmentHref, toolsForUser } from '@/lib/hq-departments';
 import type { HqDepartment, HqDepartmentKey } from '@/types';
 import {
   Activity,
@@ -65,16 +65,19 @@ function rootRoutes(hrefs: string[]): string[] {
 // `routes` (the group's access rule) lists the top-level tools — or the department
 // page when there are none — so the Partners group stays visible to partner staff
 // (just /freecroco) while its admin-only Overview and Staff links are filtered per item.
-const departmentGroups: DepartmentGroup[] = HQ_DEPARTMENTS.map((d) => ({
-  key: d.key,
-  title: d.name,
-  emoji: d.emoji,
-  routes: d.tools.length > 0 ? rootRoutes(d.tools.map((t) => t.href)) : [departmentHref(d.key)],
-  children: [
-    { title: 'Overview', href: departmentHref(d.key), exact: true },
-    ...d.tools.map((t) => ({ title: t.title, href: t.href, icon: t.icon, exact: t.exact })),
-  ],
-}));
+function departmentGroups(email: string | null | undefined): DepartmentGroup[] {
+  return HQ_DEPARTMENTS.map((d) => ({
+    key: d.key,
+    title: d.name,
+    emoji: d.emoji,
+    routes: d.tools.length > 0 ? rootRoutes(d.tools.map((t) => t.href)) : [departmentHref(d.key)],
+    children: [
+      { title: 'Overview', href: departmentHref(d.key), exact: true },
+      // Some tools are limited to specific accounts (e.g. Player activity).
+      ...toolsForUser(d, email).map((t) => ({ title: t.title, href: t.href, icon: t.icon, exact: t.exact })),
+    ],
+  }));
+}
 
 function matches(pathname: string, route: string): boolean {
   return pathname === route || pathname.startsWith(`${route}/`);
@@ -94,7 +97,7 @@ export function Sidebar() {
 
   const company = navItemsForRole(companyItems, user?.role);
   const more = navItemsForRole(moreItems, user?.role);
-  const groups = navGroupsForRole(departmentGroups, user?.role)
+  const groups = navGroupsForRole(departmentGroups(user?.email), user?.role)
     .map((group) => ({ ...group, children: navItemsForRole(group.children, user?.role) }))
     .filter((group) => group.children.length > 0);
 

@@ -26,6 +26,7 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import { FREECROCO_ROOT, FREECROCO_STAFF } from '@/lib/freecroco/access';
+import { ACTIVITY_ALLOWED_EMAIL } from '@/lib/constants';
 import type { HqDepartmentKey } from '@/types';
 
 export interface HqDepartmentTool {
@@ -35,6 +36,8 @@ export interface HqDepartmentTool {
   description: string;
   /** Active only on this exact path (for a tool whose href is a prefix of a sibling's). */
   exact?: boolean;
+  /** Only these accounts may open the page (it redirects everyone else). */
+  allowedEmails?: readonly string[];
 }
 
 export interface HqDepartmentInfo {
@@ -60,7 +63,8 @@ export const HQ_DEPARTMENTS: HqDepartmentInfo[] = [
     mission: 'Brings new players in, keeps them coming back, and listens to what they say.',
     tools: [
       { title: 'Analytics', href: '/stats', icon: BarChart3, description: 'Players, matches and revenue trends.' },
-      { title: 'Player activity', href: '/activity', icon: Activity, description: 'Who played what, and when.' },
+      // The page itself redirects anyone but ACTIVITY_ALLOWED_EMAIL, so only list it for them.
+      { title: 'Player activity', href: '/activity', icon: Activity, description: 'Who played what, and when.', allowedEmails: [ACTIVITY_ALLOWED_EMAIL] },
       { title: 'Retention', href: '/retention', icon: Mail, description: 'Win-back emails and returning players.' },
       { title: 'Users', href: '/users', icon: Users, description: 'Look up and manage player accounts.' },
       { title: 'Announcements', href: '/announcements', icon: Megaphone, description: 'In-app news and banners for players.' },
@@ -117,6 +121,16 @@ export const HQ_DEPARTMENTS: HqDepartmentInfo[] = [
 ];
 
 export const HQ_DEPARTMENT_KEYS = HQ_DEPARTMENTS.map((d) => d.key);
+
+/** Whether this signed-in account may see a tool (most tools: everyone with access to the section). */
+export function canSeeTool(tool: Pick<HqDepartmentTool, 'allowedEmails'>, email: string | null | undefined): boolean {
+  return !tool.allowedEmails || (!!email && tool.allowedEmails.includes(email));
+}
+
+/** A department's tools this account may see (sidebar + department page). */
+export function toolsForUser(dept: Pick<HqDepartmentInfo, 'tools'>, email: string | null | undefined): HqDepartmentTool[] {
+  return dept.tools.filter((t) => canSeeTool(t, email));
+}
 
 /** Icon for the Partners group header in the collapsed sidebar rail. */
 export const PARTNERS_ICON = Egg;

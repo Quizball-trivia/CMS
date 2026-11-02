@@ -17,8 +17,10 @@ export default function HqInboxPage() {
   const approvals = useHqTasks({ status: ['needs_approval'], limit: 200 });
   const blocked = useHqTasks({ status: ['blocked'], limit: 200 });
   const inbox = useHqInbox();
-  const { data: members = [] } = useHqMembers();
-  const memberById = new Map(members.map((m) => [m.id, m]));
+  const membersQuery = useHqMembers();
+  const memberById = new Map((membersQuery.data ?? []).map((m) => [m.id, m]));
+  // Without the team we can't tell which agents will run, so "Try again" is hidden — say so.
+  const membersFailed = !!membersQuery.error && !membersQuery.data;
   const { openTask } = useTaskSheet();
 
   const unread = (inbox.data ?? []).filter((m) => !m.readAt).length;
@@ -77,6 +79,18 @@ export default function HqInboxPage() {
           )}
           onOpen={openTask}
         />
+      )}
+      {tab === 'blocked' && membersFailed && (
+        <div role="alert" className="flex flex-wrap items-center gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm text-amber-800">
+          <span className="min-w-0 flex-1">Couldn’t load the team, so “Try again” is hidden for now.</span>
+          <button
+            type="button"
+            onClick={() => void membersQuery.refetch()}
+            className="rounded-md border border-amber-200 bg-white px-3 py-1 text-xs font-semibold text-amber-800 hover:bg-amber-100"
+          >
+            Retry
+          </button>
+        </div>
       )}
       {tab === 'blocked' && (
         <TaskSection
@@ -172,7 +186,8 @@ function MessagesSection({ query, onOpen }: { query: ListQuery<HqMessage>; onOpe
                     {formatRelative(m.createdAt)}
                   </span>
                 </div>
-                <p className="line-clamp-3 text-sm text-slate-700">{m.body}</p>
+                {/* Messages without a task have nowhere else to be read: show them in full. */}
+                <p className={cn('whitespace-pre-wrap break-words text-sm text-slate-700', m.taskId && 'line-clamp-3')}>{m.body}</p>
               </button>
             </li>
           ))}
