@@ -7,7 +7,7 @@ export const PARTNER_STAFF_ROLE = 'partner_staff';
 export const FREECROCO_ROOT = '/freecroco';
 /** Staff accounts are granted by Quizball admins; a partner editor must never grant access. */
 export const FREECROCO_STAFF = `${FREECROCO_ROOT}/staff`;
-export const ADMIN_HOME = '/categories';
+export const ADMIN_HOME = '/hq';
 
 /** Quizball admins see everything, partner staff only their section; any other account (e.g. a removed staff
  *  member, now a plain user) has no CMS access at all. */

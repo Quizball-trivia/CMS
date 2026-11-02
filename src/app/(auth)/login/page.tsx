@@ -52,7 +52,8 @@ export default function LoginPage() {
     try {
       await login(data);
       toast.success('Successfully signed in');
-      router.push('/categories');
+      // The root page sends each role to its home (admins → HQ, partner staff → Freecroco).
+      router.push('/');
     } catch (err) {
       if (err instanceof ApiClientError) {
         setError(err.message);
