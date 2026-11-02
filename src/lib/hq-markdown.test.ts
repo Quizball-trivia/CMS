@@ -29,7 +29,7 @@ describe('stripMarkdown', () => {
   });
 });
 
-describe('stripFencedBlocks', () => {
+describe('fenced code blocks', () => {
   it('drops backtick and tilde fences, honouring fence char and length', () => {
     const md = ['Before', '~~~', 'tilde code', '~~~', 'Middle', '````', 'has ``` inside', '````', 'After'].join('\n');
     expect(stripMarkdown(md)).toBe('Before Middle After');
@@ -40,7 +40,7 @@ describe('stripFencedBlocks', () => {
   });
 });
 
-describe('stripFencedBlocks edge cases', () => {
+describe('fenced code block edge cases', () => {
   it('an inline span with backticks at line start is not a fence', () => {
     expect(stripMarkdown('```value``` is the key\nMore text')).toBe('value is the key More text');
   });
@@ -53,5 +53,14 @@ describe('stripFencedBlocks edge cases', () => {
 describe('double underscores', () => {
   it('keeps identifiers with __ but strips __bold__', () => {
     expect(stripMarkdown('see user__id and __important__ now')).toBe('see user__id and important now');
+  });
+});
+
+describe('CommonMark container and fence edge cases', () => {
+  it('a fence opened right after a list marker is code', () => {
+    expect(stripMarkdown(['- ```js', '  const x = 1;', '  ```', 'After the list'].join('\n'))).toBe('After the list');
+  });
+  it('a quoted fence line inside a top-level fence stays code', () => {
+    expect(stripMarkdown(['```md', '> ```', 'inside', '```', 'Real prose'].join('\n'))).toBe('Real prose');
   });
 });
