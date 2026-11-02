@@ -24,6 +24,7 @@ export type LogModule =
   | 'agents'
   | 'bot-tuning'
   | 'freecroco'
+  | 'hq'
   | 'general';
 
 interface LogEntry {
@@ -36,7 +37,7 @@ interface LogEntry {
 
 // Enable/disable logging per module (can be controlled via localStorage in browser)
 const getEnabledModules = (): Set<LogModule> => {
-  if (typeof window === 'undefined') return new Set(['questions', 'categories', 'featured', 'auth', 'api', 'form', 'admin-users', 'announcements', 'auction', 'agents', 'bot-tuning', 'general']);
+  if (typeof window === 'undefined') return new Set(['questions', 'categories', 'featured', 'auth', 'api', 'form', 'admin-users', 'announcements', 'auction', 'agents', 'bot-tuning', 'hq', 'general']);
   
   try {
     const stored = localStorage.getItem('cms_log_modules');
@@ -47,7 +48,7 @@ const getEnabledModules = (): Set<LogModule> => {
     // ignore
   }
   // Default: all modules enabled in development
-  return new Set(['questions', 'categories', 'featured', 'auth', 'api', 'form', 'admin-users', 'announcements', 'auction', 'agents', 'bot-tuning', 'general']);
+  return new Set(['questions', 'categories', 'featured', 'auth', 'api', 'form', 'admin-users', 'announcements', 'auction', 'agents', 'bot-tuning', 'hq', 'general']);
 };
 
 const isEnabled = (module: LogModule): boolean => {

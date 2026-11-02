@@ -11,6 +11,8 @@ import {
   Activity,
   ChartColumn,
   Bot,
+  Building2,
+  CalendarClock,
   CalendarDays,
   ChevronRight,
   CircleGauge,
@@ -20,6 +22,8 @@ import {
   Gavel,
   Gamepad,
   Egg,
+  KanbanSquare,
+  LayoutDashboard,
   Send,
   UserSearch,
   Mail,
@@ -48,6 +52,19 @@ type NavGroup = {
 };
 
 const navGroups: NavGroup[] = [
+  {
+    title: 'HQ',
+    href: '/hq',
+    icon: Building2,
+    routes: ['/hq'],
+    children: [
+      { title: 'Overview', href: '/hq', icon: LayoutDashboard, exact: true },
+      { title: 'Board', href: '/hq/board', icon: KanbanSquare },
+      { title: 'Team', href: '/hq/team', icon: Users },
+      { title: 'Schedules', href: '/hq/schedules', icon: CalendarClock },
+      { title: 'Activity', href: '/hq/activity', icon: Activity },
+    ],
+  },
   {
     title: 'Analytics',
     href: '/stats',
