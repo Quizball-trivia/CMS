@@ -6,20 +6,25 @@ const BLOCK_MARKER = /^\s{0,3}(?:#{1,6}|>|[-*+]|\d+\.)\s+/;
 const HORIZONTAL_RULE = /^\s{0,3}([-*_])(?:\s*\1){2,}\s*$/;
 
 /**
- * Drops fenced code blocks. A fence opens with 3+ backticks or tildes; it only
- * closes on a line of the SAME character, at least as long, with nothing but
- * whitespace after it (CommonMark). An unclosed fence runs to the end.
+ * Drops fenced code blocks (CommonMark-ish, tuned for previews):
+ * - container prefixes (blockquote '>' markers, list indentation) are ignored
+ *   when recognising fences, so fences inside quotes and lists are removed too;
+ * - a backtick fence's info string may not contain backticks (so an inline
+ *   span like ```value``` at the start of a line is NOT a fence);
+ * - a fence closes only on the same character, at least as long, with nothing
+ *   but whitespace after it; an unclosed fence runs to the end.
  */
 export function stripFencedBlocks(md: string): string {
   const out: string[] = [];
   let fence: { char: string; len: number } | null = null;
   for (const line of md.split('\n')) {
+    const body = line.replace(/^\s*(?:>\s?)*\s*/, '');
     if (fence) {
-      const close = line.match(/^\s{0,3}(`{3,}|~{3,})\s*$/);
+      const close = body.match(/^(`{3,}|~{3,})\s*$/);
       if (close && close[1][0] === fence.char && close[1].length >= fence.len) fence = null;
       continue;
     }
-    const open = line.match(/^\s{0,3}(`{3,}|~{3,})/);
+    const open = body.match(/^(`{3,})([^`]*)$/) ?? body.match(/^(~{3,})(.*)$/);
     if (open) {
       fence = { char: open[1][0], len: open[1].length };
       continue;
