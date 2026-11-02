@@ -4,6 +4,10 @@ import { hqApi } from '@/lib/hq-api';
 import { logger } from '@/lib/logger';
 import { getErrorLogDetails } from '@/lib/error-feedback';
 import type {
+  HqAcceptProposalRequest,
+  HqGoalStatus,
+  HqGoalUpdateRequest,
+  HqGoalWriteRequest,
   HqCreateMemberRequest,
   HqCreateScheduleRequest,
   HqCreateTaskRequest,
@@ -39,6 +43,12 @@ export const hqKeys = {
   settings: () => [...hqKeys.all, 'settings'] as const,
   inbox: () => [...hqKeys.all, 'inbox'] as const,
   departments: () => [...hqKeys.all, 'departments'] as const,
+  goals: () => [...hqKeys.all, 'goals'] as const,
+  goalsList: (status?: HqGoalStatus[]) => [...hqKeys.goals(), 'list', ...(status && status.length ? [status] : [])] as const,
+  standup: () => [...hqKeys.all, 'standup'] as const,
+  standupFor: (date?: string) => [...hqKeys.standup(), ...(date ? [date] : [])] as const,
+  analytics: (days: number) => [...hqKeys.all, 'analytics', days] as const,
+  posthog: (days: number) => [...hqKeys.all, 'posthog', days] as const,
   pulse: () => [...hqKeys.all, 'pulse'] as const,
 };
 
@@ -49,6 +59,7 @@ function invalidateWork(queryClient: QueryClient) {
   queryClient.invalidateQueries({ queryKey: hqKeys.members() });
   queryClient.invalidateQueries({ queryKey: hqKeys.events() });
   queryClient.invalidateQueries({ queryKey: hqKeys.departments() });
+  queryClient.invalidateQueries({ queryKey: hqKeys.standup() });
 }
 
 function logFailure(message: string) {
@@ -364,5 +375,103 @@ export function useMarkHqInboxRead() {
       queryClient.invalidateQueries({ queryKey: hqKeys.overview() });
     },
     onError: logFailure('Failed to mark inbox read'),
+  });
+}
+
+// ── v3: goals, standup, proposals, analytics ──
+
+/** Goals; `status` filters (e.g. ['active']) — omit for all, incl. past ones. */
+export function useHqGoals(status?: HqGoalStatus[]) {
+  return useQuery({
+    queryKey: hqKeys.goalsList(status),
+    queryFn: async () => (await hqApi.listGoals({ status })).items,
+    refetchInterval: 30_000,
+  });
+}
+
+function invalidateGoals(queryClient: QueryClient) {
+  queryClient.invalidateQueries({ queryKey: hqKeys.goals() });
+  queryClient.invalidateQueries({ queryKey: hqKeys.standup() });
+}
+
+export function useCreateHqGoal() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (data: HqGoalWriteRequest) => hqApi.createGoal(data),
+    onSuccess: () => invalidateGoals(queryClient),
+    onError: logFailure('Failed to create goal'),
+  });
+}
+
+export function useUpdateHqGoal() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, data }: { id: string; data: HqGoalUpdateRequest }) => hqApi.updateGoal(id, data),
+    onSuccess: () => invalidateGoals(queryClient),
+    onError: logFailure('Failed to update goal'),
+  });
+}
+
+export function useDeleteHqGoal() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => hqApi.deleteGoal(id),
+    onSuccess: () => invalidateGoals(queryClient),
+    onError: logFailure('Failed to delete goal'),
+  });
+}
+
+export function useHqStandup(date?: string) {
+  return useQuery({
+    queryKey: hqKeys.standupFor(date),
+    queryFn: () => hqApi.standup(date),
+    refetchInterval: 10_000,
+  });
+}
+
+export function useRunHqStandup() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => hqApi.runStandup(),
+    onSuccess: () => invalidateWork(queryClient),
+    onError: logFailure('Failed to start the standup'),
+  });
+}
+
+/** "Do it" (optionally with the CEO's edits): proposed → todo; the agent picks it up. */
+export function useAcceptHqProposal() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, data }: { id: string; data?: HqAcceptProposalRequest }) => hqApi.acceptProposal(id, data),
+    onSuccess: () => invalidateWork(queryClient),
+    onError: logFailure('Failed to accept the idea'),
+  });
+}
+
+/** "Not now": proposed → cancelled; the optional note reaches the agent at its next standup. */
+export function useDeclineHqProposal() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, note }: { id: string; note?: string }) => hqApi.declineProposal(id, note),
+    onSuccess: () => invalidateWork(queryClient),
+    onError: logFailure('Failed to decline the idea'),
+  });
+}
+
+export function useHqAnalytics(days: number) {
+  return useQuery({
+    queryKey: hqKeys.analytics(days),
+    queryFn: () => hqApi.analytics(days),
+    staleTime: 5 * 60_000,
+    placeholderData: keepPreviousData,
+  });
+}
+
+export function useHqPosthog(days: number) {
+  return useQuery({
+    queryKey: hqKeys.posthog(days),
+    queryFn: () => hqApi.posthog(days),
+    staleTime: 10 * 60_000,
+    placeholderData: keepPreviousData,
   });
 }

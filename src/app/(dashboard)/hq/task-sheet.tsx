@@ -16,6 +16,7 @@ import {
   HQ_STATUS_LABELS,
   OWN_PIPELINE_HINT,
   OWN_PIPELINE_LABEL,
+  PROPOSAL_LOCKED_HINT,
   canDropInto,
   isHqRuntimeAgent,
   isOwnPipelineAgent,
@@ -29,6 +30,7 @@ import {
 import type { HqMember, HqMessage, HqPriority, HqRun, HqTask, HqTaskDetail, HqTaskStatus } from '@/types';
 import { EmptyState, LoadErrorState, Markdown, MemberAvatar, MemberChip, RefreshErrorBanner, RunStatusBadge, TaskStatusBadge, errorMessage, useTaskSheet } from './hq-ui';
 import { ApproveButton, RunAgainButton, SendBackButton, canApprove, canSendBack } from './task-actions';
+import { ProposalPanel } from './proposal-card';
 
 const ALL_STATUSES = Object.keys(HQ_STATUS_LABELS) as HqTaskStatus[];
 const NONE = '__none__';
@@ -99,6 +101,8 @@ function TaskDetail({ task, members }: { task: HqTaskDetail; members: HqMember[]
   const activeMembers = members.filter((m) => m.status !== 'archived');
   // The HQ worker owns a claimed task: people may only cancel, block or finish it.
   const agentWorking = task.status === 'in_progress' && assigneeIsHqAgent;
+  // An agent's idea only moves through Do it / Change / Not now (the panel below).
+  const isProposal = task.status === 'proposed';
 
   const patch = (data: Parameters<typeof update.mutate>[0]['data'], success?: string) =>
     update.mutate(
@@ -166,7 +170,7 @@ function TaskDetail({ task, members }: { task: HqTaskDetail; members: HqMember[]
         {/* Controls */}
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
           <Field label="Status">
-            <Select value={task.status} onValueChange={(v) => changeStatus(v as HqTaskStatus)}>
+            <Select value={task.status} onValueChange={(v) => changeStatus(v as HqTaskStatus)} disabled={isProposal}>
               <SelectTrigger className="w-full">
                 <SelectValue />
               </SelectTrigger>
@@ -183,10 +187,11 @@ function TaskDetail({ task, members }: { task: HqTaskDetail; members: HqMember[]
             <AssigneeSelect
               members={activeMembers}
               value={task.assignee?.id ?? null}
-              disabled={agentWorking}
+              disabled={agentWorking || isProposal}
               onChange={reassign}
             />
             {agentWorking && <span className="block text-xs text-blue-700">The agent is working on this</span>}
+            {isProposal && <span className="block text-xs text-violet-700">{PROPOSAL_LOCKED_HINT}</span>}
           </Field>
           <Field label="Priority">
             <Select value={String(task.priority)} onValueChange={(v) => patch({ priority: Number(v) as HqPriority })}>
@@ -208,14 +213,14 @@ function TaskDetail({ task, members }: { task: HqTaskDetail; members: HqMember[]
         <div className="flex flex-wrap gap-2">
           {canApprove(task) && <ApproveButton task={task} />}
           {canSendBack(task) && <SendBackButton task={task} />}
-          {assigneeRunnable && task.status !== 'in_progress' && task.status !== 'todo' && <RunAgainButton task={task} />}
+          {assigneeRunnable && !isProposal && task.status !== 'in_progress' && task.status !== 'todo' && <RunAgainButton task={task} />}
           {!editing && (
             <Button size="sm" variant="outline" onClick={startEditing}>
               <Pencil className="h-4 w-4" />
               Edit
             </Button>
           )}
-          {task.status !== 'cancelled' && task.status !== 'done' && (
+          {task.status !== 'cancelled' && task.status !== 'done' && !isProposal && (
             <Button
               size="sm"
               variant={agentWorking ? 'outline' : 'ghost'}
@@ -227,6 +232,8 @@ function TaskDetail({ task, members }: { task: HqTaskDetail; members: HqMember[]
             </Button>
           )}
         </div>
+
+        {task.status === 'proposed' && <ProposalPanel task={task} />}
 
         {/* Description */}
         <section>

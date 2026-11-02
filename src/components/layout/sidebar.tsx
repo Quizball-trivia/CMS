@@ -12,11 +12,14 @@ import { HQ_DEPARTMENTS, departmentHref } from '@/lib/hq-departments';
 import type { HqDepartment, HqDepartmentKey } from '@/types';
 import {
   Activity,
+  BarChart3,
   CalendarClock,
   ChevronRight,
   Inbox,
   KanbanSquare,
   LayoutDashboard,
+  Sunrise,
+  Target,
   Users,
   type LucideIcon,
 } from 'lucide-react';
@@ -39,10 +42,16 @@ type DepartmentGroup = {
 };
 
 const companyItems: NavItem[] = [
-  { title: 'Command Center', href: '/hq', icon: LayoutDashboard, exact: true },
-  { title: 'Inbox', href: '/hq/inbox', icon: Inbox },
-  { title: 'Work', href: '/hq/board', icon: KanbanSquare },
+  { title: 'Standup', href: '/hq', icon: Sunrise, exact: true },
+  { title: 'Goals', href: '/hq/goals', icon: Target },
+  { title: 'Analytics', href: '/hq/analytics', icon: BarChart3 },
   { title: 'Team', href: '/hq/team', icon: Users },
+  { title: 'Work', href: '/hq/board', icon: KanbanSquare },
+];
+
+// Less-used HQ pages, kept small at the bottom.
+const moreItems: NavItem[] = [
+  { title: 'Inbox', href: '/hq/inbox', icon: Inbox },
   { title: 'Automations', href: '/hq/schedules', icon: CalendarClock },
   { title: 'Activity', href: '/hq/activity', icon: Activity },
 ];
@@ -84,6 +93,7 @@ export function Sidebar() {
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
 
   const company = navItemsForRole(companyItems, user?.role);
+  const more = navItemsForRole(moreItems, user?.role);
   const groups = navGroupsForRole(departmentGroups, user?.role)
     .map((group) => ({ ...group, children: navItemsForRole(group.children, user?.role) }))
     .filter((group) => group.children.length > 0);
@@ -116,36 +126,9 @@ export function Sidebar() {
         {company.length > 0 && (
           <div className="space-y-1">
             <SectionHeading>Company</SectionHeading>
-            {company.map((item) => {
-              const active = isItemActive(pathname, item);
-              const Icon = item.icon!;
-              const badge = item.href === '/hq/inbox' ? inboxCount : 0;
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  title={item.title}
-                  aria-label={badge ? `${item.title} (${badge})` : item.title}
-                  className={cn(
-                    'relative flex h-10 items-center justify-center gap-3 rounded-lg px-3 text-sm font-semibold transition lg:justify-start',
-                    active ? 'bg-slate-950 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
-                  )}
-                >
-                  <Icon className="size-[18px] shrink-0" />
-                  <span className="hidden min-w-0 flex-1 truncate lg:block">{item.title}</span>
-                  {badge > 0 && (
-                    <span
-                      className={cn(
-                        'absolute right-1.5 top-1 inline-flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[10px] font-bold lg:static lg:h-5 lg:min-w-5 lg:text-[11px]',
-                        active ? 'bg-white text-slate-900' : 'bg-amber-500 text-white'
-                      )}
-                    >
-                      {badge}
-                    </span>
-                  )}
-                </Link>
-              );
-            })}
+            {company.map((item) => (
+              <NavLink key={item.href} item={item} active={isItemActive(pathname, item)} size="lg" />
+            ))}
           </div>
         )}
 
@@ -254,6 +237,19 @@ export function Sidebar() {
             })}
           </div>
         )}
+        {more.length > 0 && (
+          <div className="space-y-0.5">
+            <SectionHeading>More</SectionHeading>
+            {more.map((item) => (
+              <NavLink
+                key={item.href}
+                item={item}
+                active={isItemActive(pathname, item)}
+                badge={item.href === '/hq/inbox' ? inboxCount : 0}
+              />
+            ))}
+          </div>
+        )}
       </nav>
     </aside>
   );
@@ -262,5 +258,34 @@ export function Sidebar() {
 function SectionHeading({ children }: { children: string }) {
   return (
     <div className="mb-1 hidden px-3 text-[11px] font-bold uppercase tracking-wider text-slate-400 lg:block">{children}</div>
+  );
+}
+
+function NavLink({ item, active, badge = 0, size = 'sm' }: { item: NavItem; active: boolean; badge?: number; size?: 'sm' | 'lg' }) {
+  const Icon = item.icon ?? LayoutDashboard;
+  return (
+    <Link
+      href={item.href}
+      title={item.title}
+      aria-label={badge ? `${item.title} (${badge})` : item.title}
+      className={cn(
+        'relative flex items-center justify-center gap-3 rounded-xl px-3 transition lg:justify-start',
+        size === 'lg' ? 'h-11 text-[15px] font-bold' : 'h-9 text-sm font-medium',
+        active ? 'bg-slate-950 text-white shadow-sm' : size === 'lg' ? 'text-slate-700 hover:bg-slate-100 hover:text-slate-950' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-900'
+      )}
+    >
+      <Icon className={cn('shrink-0', size === 'lg' ? 'size-5' : 'size-4')} />
+      <span className="hidden min-w-0 flex-1 truncate lg:block">{item.title}</span>
+      {badge > 0 && (
+        <span
+          className={cn(
+            'absolute right-1.5 top-1 inline-flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[10px] font-bold lg:static lg:h-5 lg:min-w-5 lg:text-[11px]',
+            active ? 'bg-white text-slate-900' : 'bg-amber-500 text-white'
+          )}
+        >
+          {badge}
+        </span>
+      )}
+    </Link>
   );
 }

@@ -12,6 +12,7 @@ const task: HqTask = {
   id: 't1', number: 5, title: 'Write briefing', body: '', status: 'needs_approval', priority: 2, assignee: null, createdBy: null,
   parentId: null, depth: 0, scheduleId: null, result: null, position: 0, attempts: 0, dueAt: null, completedAt: null,
   createdAt: '2026-11-01T00:00:00Z', updatedAt: '2026-11-01T00:00:00Z', messageCount: 0,
+  kind: 'task', goalId: null, proposal: null,
 };
 
 it('opens on Enter/Space pressed on the row itself', () => {

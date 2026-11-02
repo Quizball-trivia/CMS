@@ -7,6 +7,15 @@
 import { apiClient } from '@/services';
 import { normalizeTaskSearch } from '@/lib/hq-board';
 import type {
+  HqAcceptProposalRequest,
+  HqAnalytics,
+  HqGoal,
+  HqGoalHorizon,
+  HqGoalStatus,
+  HqGoalUpdateRequest,
+  HqGoalWriteRequest,
+  HqPosthog,
+  HqStandup,
   HqCreateMemberRequest,
   HqCreateScheduleRequest,
   HqCreateTaskRequest,
@@ -47,6 +56,8 @@ function taskQuery(params?: HqListTasksParams): QueryParams | undefined {
     status: params.status && params.status.length > 0 ? params.status.join(',') : undefined,
     assigneeId: params.assigneeId || undefined,
     department: params.department || undefined,
+    kind: params.kind && params.kind.length > 0 ? params.kind.join(',') : undefined,
+    goalId: params.goalId || undefined,
     q: normalizeTaskSearch(params.q),
     limit: params.limit,
   };
@@ -128,6 +139,45 @@ export const hqApi = {
   },
   runScheduleNow(id: string): Promise<HqTask> {
     return apiClient.post<HqTask>(`${BASE}/schedules/${id}/run-now`, {});
+  },
+
+  // ── Goals ──
+  listGoals(params: { status?: HqGoalStatus[]; horizon?: HqGoalHorizon } = {}): Promise<ItemsResponse<HqGoal>> {
+    return apiClient.get<ItemsResponse<HqGoal>>(`${BASE}/goals`, {
+      status: params.status && params.status.length > 0 ? params.status.join(',') : undefined,
+      horizon: params.horizon,
+    });
+  },
+  createGoal(data: HqGoalWriteRequest): Promise<HqGoal> {
+    return apiClient.post<HqGoal>(`${BASE}/goals`, data);
+  },
+  updateGoal(id: string, data: HqGoalUpdateRequest): Promise<HqGoal> {
+    return apiClient.patch<HqGoal>(`${BASE}/goals/${id}`, data);
+  },
+  deleteGoal(id: string): Promise<void> {
+    return apiClient.delete<void>(`${BASE}/goals/${id}`);
+  },
+
+  // ── Standup + proposals ──
+  standup(date?: string): Promise<HqStandup> {
+    return apiClient.get<HqStandup>(`${BASE}/standup`, date ? { date } : undefined);
+  },
+  runStandup(): Promise<{ created: number }> {
+    return apiClient.post<{ created: number }>(`${BASE}/standup/run`, {});
+  },
+  acceptProposal(id: string, data: HqAcceptProposalRequest = {}): Promise<HqTask> {
+    return apiClient.post<HqTask>(`${BASE}/tasks/${id}/accept-proposal`, data);
+  },
+  declineProposal(id: string, note?: string): Promise<HqTask> {
+    return apiClient.post<HqTask>(`${BASE}/tasks/${id}/decline-proposal`, note ? { note } : {});
+  },
+
+  // ── Analytics ──
+  analytics(days: number): Promise<HqAnalytics> {
+    return apiClient.get<HqAnalytics>(`${BASE}/analytics`, { days });
+  },
+  posthog(days: number): Promise<HqPosthog> {
+    return apiClient.get<HqPosthog>(`${BASE}/analytics/posthog`, { days });
   },
 
   // ── Departments / pulse ──

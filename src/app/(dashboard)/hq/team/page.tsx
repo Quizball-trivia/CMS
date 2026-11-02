@@ -42,7 +42,7 @@ export default function HqTeamPage() {
   const peopleCount = members.length - agentCount;
 
   return (
-    <div className="space-y-6">
+    <div className="mx-auto max-w-7xl space-y-10 pb-16">
       <PageHeader
         icon={<Users className="h-6 w-6 text-slate-700" />}
         title="Team"
@@ -82,19 +82,19 @@ export default function HqTeamPage() {
       {data &&
         byDepartment.map(({ dept, members: list }) => (
           <section key={dept.key}>
-            <div className="mb-2 flex items-center gap-2">
-              <span className="text-lg leading-none" aria-hidden>
+            <div className="mb-4 flex items-center gap-3">
+              <span className="text-3xl leading-none" aria-hidden>
                 {dept.emoji}
               </span>
-              <Link href={departmentHref(dept.key)} className="text-sm font-bold text-slate-800 hover:underline">
+              <Link href={departmentHref(dept.key)} className="text-2xl font-extrabold tracking-tight text-slate-900 hover:underline">
                 {dept.name}
               </Link>
-              <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-bold text-slate-600">{list.length}</span>
+              <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-sm font-bold text-slate-600">{list.length}</span>
             </div>
             {list.length === 0 ? (
               <EmptyState>No one in {dept.name} yet. Hire an agent and pick this department.</EmptyState>
             ) : (
-              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+              <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
                 {list.map((m) => (
                   <MemberCard key={m.id} member={m} />
                 ))}
@@ -118,16 +118,16 @@ function MemberCard({ member: m }: { member: HqMember }) {
     <Link
       href={`/hq/team/${m.id}`}
       className={cn(
-        'flex flex-col gap-3 rounded-xl border border-slate-200 bg-white p-4 transition hover:border-slate-300 hover:shadow-sm',
+        'flex flex-col gap-4 rounded-3xl border border-slate-200 bg-white p-6 shadow-xs transition hover:border-slate-300 hover:shadow-sm',
         m.status === 'archived' && 'opacity-60'
       )}
     >
       <div className="flex items-start gap-3">
-        <MemberAvatar member={m} size="md" />
+        <MemberAvatar member={m} size="lg" />
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
             <MemberStatusDot status={m.status} busy={busy} />
-            <span className="truncate font-bold text-slate-900">{m.name}</span>
+            <span className="truncate text-lg font-bold text-slate-900">{m.name}</span>
           </div>
           <div className="truncate text-xs text-slate-500">
             {m.title || RUNTIME_LABELS[m.runtime]}

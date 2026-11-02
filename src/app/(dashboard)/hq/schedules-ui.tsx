@@ -245,7 +245,12 @@ export function SchedulesTable({
                     </td>
                   )}
                   <td className="px-3 py-2">
-                    <div className="font-semibold text-slate-800">{s.name}</div>
+                    <div className="flex items-center gap-2 font-semibold text-slate-800">
+                      {s.name}
+                      {s.taskKind === 'standup' && (
+                        <span className="rounded-full bg-orange-50 px-2 py-0.5 text-[11px] font-semibold text-orange-700">🌅 Standup</span>
+                      )}
+                    </div>
                     <div className="truncate text-xs text-slate-500">→ {s.taskTitle}</div>
                   </td>
                   <td className="px-3 py-2">
