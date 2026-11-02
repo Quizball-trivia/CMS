@@ -21,7 +21,7 @@ export function stripMarkdown(md: string): string {
       parts.push(node.value ?? '');
       return;
     }
-    if (node.type === 'image') {
+    if (node.type === 'image' || node.type === 'imageReference') {
       if (node.alt) parts.push(node.alt);
       return;
     }
