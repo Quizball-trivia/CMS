@@ -1,7 +1,7 @@
 // Pure helpers for the HQ kanban board and HQ formatting. Kept free of React
 // so they can be unit-tested directly.
 
-import type { HqMemberRef, HqMessage, HqTask, HqTaskStatus } from '@/types';
+import type { HqMember, HqMemberRef, HqMessage, HqTask, HqTaskStatus } from '@/types';
 
 export const HQ_BOARD_COLUMNS: HqTaskStatus[] = [
   'backlog',
@@ -67,6 +67,45 @@ export function positionForIndex(column: HqTask[], index: number): number {
   return (before.position + after.position) / 2;
 }
 
+// ── Agent eligibility ──
+// Only agents with runtime 'hq' are run by the HQ worker. Question Writer
+// (question_agents) and Bug Fixer (bug_triage) run on their own pipelines:
+// a task assigned to them never starts automatically.
+
+type AgentLike = Pick<HqMember, 'kind' | 'runtime'> & Partial<Pick<HqMember, 'status'>>;
+
+/** An agent the HQ worker owns (claims and runs its tasks), whatever its status. */
+export function isHqRuntimeAgent(m: AgentLike | null | undefined): boolean {
+  return !!m && m.kind === 'agent' && m.runtime === 'hq';
+}
+
+/** An agent that will actually pick up a task right now: HQ runtime and active. */
+export function isRunnableHqAgent(m: AgentLike | null | undefined): boolean {
+  return isHqRuntimeAgent(m) && m!.status === 'active';
+}
+
+/** An agent shown in HQ but run by its own pipeline. */
+export function isOwnPipelineAgent(m: AgentLike | null | undefined): boolean {
+  return !!m && m.kind === 'agent' && m.runtime !== 'hq';
+}
+
+export const OWN_PIPELINE_LABEL = "(own pipeline — won't run from HQ)";
+export const OWN_PIPELINE_HINT = 'This agent runs on its own pipeline — a task assigned here won’t start automatically.';
+
+/** Agents for a picker: HQ agents first, own-pipeline agents after; stable otherwise. */
+export function sortAgentsForPicker<T extends AgentLike>(agents: T[]): T[] {
+  return [...agents].sort((a, b) => Number(isOwnPipelineAgent(a)) - Number(isOwnPipelineAgent(b)));
+}
+
+/**
+ * Default assignee for "Give a task" in a department: the first of its
+ * members that is a runnable HQ agent, else nobody (unassigned).
+ */
+export function defaultDepartmentAssignee(candidates: Array<{ id: string }>, members: HqMember[]): string | null {
+  const byId = new Map(members.map((m) => [m.id, m]));
+  return candidates.find((c) => isRunnableHqAgent(byId.get(c.id)))?.id ?? null;
+}
+
 /** Only the HQ worker moves an agent's task into in_progress (by claiming it). */
 export function isHqAgent(member: Pick<HqMemberRef, 'kind'> | null, runtimeById?: Map<string, string>, id?: string): boolean {
   if (!member || member.kind !== 'agent') return false;
@@ -123,11 +162,17 @@ export function formatRelative(iso: string | null | undefined, now: number = Dat
   return fmt(Math.round(abs / 86400), 'd');
 }
 
-/** Absolute time in Tbilisi, e.g. "Nov 2, 08:00". */
-export function formatTbilisi(iso: string | null | undefined): string {
+/** Absolute time in Tbilisi (or another IANA zone), e.g. "2 Nov, 08:00". */
+export function formatTbilisi(iso: string | null | undefined, timeZone: string = HQ_TIMEZONE): string {
   if (!iso) return '—';
+  let zone = timeZone;
+  try {
+    new Intl.DateTimeFormat('en-GB', { timeZone: zone });
+  } catch {
+    zone = HQ_TIMEZONE; // unknown zone string: fall back rather than crash the table
+  }
   return new Intl.DateTimeFormat('en-GB', {
-    timeZone: HQ_TIMEZONE,
+    timeZone: zone,
     month: 'short',
     day: 'numeric',
     hour: '2-digit',
@@ -146,6 +191,28 @@ export function formatDuration(seconds: number | null | undefined): string {
 
 export function formatUsd(cents: number | null | undefined): string {
   return `$${((cents ?? 0) / 100).toFixed(2)}`;
+}
+
+export interface ScheduleFormValues {
+  name: string;
+  cron: string;
+  timezone: string;
+  taskTitle: string;
+  taskBody: string;
+  enabled: boolean;
+}
+
+/**
+ * Only the fields the person actually changed in the edit form, so saving
+ * can't overwrite a concurrent change (e.g. someone toggling `enabled` in the
+ * table) with the stale value the form opened with.
+ */
+export function changedScheduleFields(original: ScheduleFormValues, form: ScheduleFormValues): Partial<ScheduleFormValues> {
+  const changed: Partial<ScheduleFormValues> = {};
+  for (const key of Object.keys(form) as Array<keyof ScheduleFormValues>) {
+    if (form[key] !== original[key]) (changed as Record<string, unknown>)[key] = form[key];
+  }
+  return changed;
 }
 
 /** Human-readable gloss for common 5-field cron expressions; falls back to the raw expression. */

@@ -12,6 +12,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { useHqMember, useHqMembers, useUpdateHqMember } from '@/hooks';
 import { formatRelative, formatUsd } from '@/lib/hq-board';
+import { departmentHref, departmentInfo } from '@/lib/hq-departments';
 import type { HqMemberDetail, HqMemberStatus } from '@/types';
 import { EmptyState, MemberAvatar, MemberStatusDot, RefreshErrorBanner, SectionTitle, TaskRow, errorMessage, useTaskSheet } from '../../hq-ui';
 import { NewTaskDialog } from '../../new-task-dialog';
@@ -88,7 +89,17 @@ function MemberProfile({ member }: { member: HqMemberDetail }) {
               </Badge>
             )}
           </div>
-          <div className="text-sm text-slate-500">{member.title}</div>
+          <div className="flex flex-wrap items-center gap-2 text-sm text-slate-500">
+            {member.title && <span>{member.title}</span>}
+            {departmentInfo(member.department) && (
+              <Link
+                href={departmentHref(member.department)}
+                className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-white px-2 py-0.5 text-xs font-medium text-slate-600 hover:border-slate-300 hover:text-slate-900"
+              >
+                {departmentInfo(member.department)!.emoji} {departmentInfo(member.department)!.name}
+              </Link>
+            )}
+          </div>
           {member.description && <p className="mt-1 max-w-3xl text-sm text-slate-600">{member.description}</p>}
           <div className="mt-2 flex flex-wrap gap-4 text-xs text-slate-500">
             <span>{member.stats.openTasks} open tasks</span>
@@ -148,7 +159,7 @@ function MemberProfile({ member }: { member: HqMemberDetail }) {
 
           {isHqAgent && (
             <section>
-              <SectionTitle count={member.schedules.length}>Schedules</SectionTitle>
+              <SectionTitle count={member.schedules.length}>Automations</SectionTitle>
               <SchedulesTable schedules={member.schedules} members={members} showMember={false} fixedMemberId={member.id} />
             </section>
           )}
@@ -220,6 +231,7 @@ function draftFromMember(member: HqMemberDetail): AgentDraft {
       tools: member.tools,
       autonomy: member.autonomy,
       maxTurns: member.maxTurns,
+      department: member.department,
     },
   };
 }
@@ -250,6 +262,7 @@ function AgentSettingsCard({ member }: { member: HqMemberDetail }) {
           tools: s.tools,
           autonomy: s.autonomy,
           maxTurns: s.maxTurns,
+          department: s.department,
         },
       },
       {

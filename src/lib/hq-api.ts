@@ -10,6 +10,7 @@ import type {
   HqCreateMemberRequest,
   HqCreateScheduleRequest,
   HqCreateTaskRequest,
+  HqDepartment,
   HqEvent,
   HqListEventsParams,
   HqListRunsParams,
@@ -19,6 +20,7 @@ import type {
   HqMessage,
   HqOverview,
   HqPostMessageRequest,
+  HqPulse,
   HqRun,
   HqRunDetail,
   HqSchedule,
@@ -44,6 +46,7 @@ function taskQuery(params?: HqListTasksParams): QueryParams | undefined {
   return {
     status: params.status && params.status.length > 0 ? params.status.join(',') : undefined,
     assigneeId: params.assigneeId || undefined,
+    department: params.department || undefined,
     q: normalizeTaskSearch(params.q),
     limit: params.limit,
   };
@@ -125,6 +128,14 @@ export const hqApi = {
   },
   runScheduleNow(id: string): Promise<HqTask> {
     return apiClient.post<HqTask>(`${BASE}/schedules/${id}/run-now`, {});
+  },
+
+  // ── Departments / pulse ──
+  listDepartments(): Promise<ItemsResponse<HqDepartment>> {
+    return apiClient.get<ItemsResponse<HqDepartment>>(`${BASE}/departments`);
+  },
+  pulse(days = 14): Promise<HqPulse> {
+    return apiClient.get<HqPulse>(`${BASE}/pulse`, { days });
   },
 
   // ── Settings / inbox ──

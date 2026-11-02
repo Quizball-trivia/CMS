@@ -1,14 +1,14 @@
 'use client';
 
 import { useState } from 'react';
-import { Loader2 } from 'lucide-react';
+import { Activity, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useHqEvents, useHqMembers } from '@/hooks';
 import { cn } from '@/lib/utils';
 import { formatRelative, formatTbilisi } from '@/lib/hq-board';
 import type { HqEvent } from '@/types';
-import { EmptyState, LoadErrorState, MemberAvatar, RefreshErrorBanner, useTaskSheet } from '../hq-ui';
+import { EmptyState, LoadErrorState, MemberAvatar, PageHeader, RefreshErrorBanner, useTaskSheet } from '../hq-ui';
 
 const ALL = '__all__';
 
@@ -35,7 +35,12 @@ export default function HqActivityPage() {
   const events = data?.pages.flat() ?? [];
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
+      <PageHeader
+        icon={<Activity className="h-6 w-6 text-slate-700" />}
+        title="Activity"
+        description="A live log of everything that happens in HQ: tasks created and finished, agent runs, hand-offs and messages."
+      />
       <div className="flex items-center gap-3">
         <div className="w-64">
           <Select value={memberId} onValueChange={setMemberId}>

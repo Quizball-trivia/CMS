@@ -38,7 +38,7 @@ const agentRef = { id: 'a1', slug: 'ops-reporter', name: 'Ops Reporter', avatar:
 function member(ref: typeof human | typeof agentRef, runtime: HqMember['runtime']): HqMember {
   return {
     ...ref, userId: null, title: '', description: '', instructions: '', model: null, tools: [], autonomy: 'autonomous',
-    runtime, status: 'active', maxTurns: 25, lastActiveAt: null, createdAt: '', updatedAt: '',
+    runtime, status: 'active', department: 'leadership', maxTurns: 25, lastActiveAt: null, createdAt: '', updatedAt: '',
     stats: { openTasks: 0, runsToday: 0, costTodayCents: 0, currentTask: null, lastRun: null },
   };
 }

@@ -5,49 +5,80 @@ import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useCallback, type ReactNode } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { Activity, CalendarClock, KanbanSquare, LayoutDashboard, Users } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { HQ_PRIORITY_LABELS, HQ_STATUS_LABELS, formatRelative } from '@/lib/hq-board';
 import type { HqMemberRef, HqMemberStatus, HqPriority, HqRunStatus, HqTask, HqTaskStatus } from '@/types';
 
-// ── Tab nav ──
+// ── Page header ──
 
-const HQ_TABS = [
-  { href: '/hq', label: 'Overview', icon: LayoutDashboard, exact: true },
-  { href: '/hq/board', label: 'Board', icon: KanbanSquare },
-  { href: '/hq/team', label: 'Team', icon: Users },
-  { href: '/hq/schedules', label: 'Schedules', icon: CalendarClock },
-  { href: '/hq/activity', label: 'Activity', icon: Activity },
-] as const;
-
-export function HqNav({ inboxUnread }: { inboxUnread?: number }) {
-  const pathname = usePathname();
+/** Consistent header for every HQ page: what it is, and what it's for. */
+export function PageHeader({
+  title,
+  description,
+  eyebrow,
+  icon,
+  actions,
+}: {
+  title: ReactNode;
+  description?: ReactNode;
+  eyebrow?: ReactNode;
+  icon?: ReactNode;
+  actions?: ReactNode;
+}) {
   return (
-    <nav className="flex flex-wrap gap-1 border-b border-slate-200 pb-px" aria-label="HQ sections">
-      {HQ_TABS.map((tab) => {
-        const Icon = tab.icon;
-        const active = 'exact' in tab && tab.exact ? pathname === tab.href : pathname === tab.href || pathname.startsWith(`${tab.href}/`);
-        return (
-          <Link
-            key={tab.href}
-            href={tab.href}
-            className={cn(
-              'flex items-center gap-1.5 rounded-t-lg border-b-2 px-3 py-2 text-sm font-medium transition-colors',
-              active ? 'border-slate-900 text-slate-900' : 'border-transparent text-slate-500 hover:text-slate-800'
-            )}
-          >
-            <Icon className="h-4 w-4" />
-            {tab.label}
-            {tab.href === '/hq' && inboxUnread ? (
-              <span className="ml-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-amber-500 px-1.5 text-[11px] font-bold text-white">
-                {inboxUnread}
-              </span>
-            ) : null}
-          </Link>
-        );
-      })}
-    </nav>
+    <header className="flex flex-wrap items-start gap-4 pb-1">
+      {icon && <div className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-white text-2xl shadow-sm ring-1 ring-slate-200">{icon}</div>}
+      <div className="min-w-0 flex-1">
+        {eyebrow && <div className="mb-0.5 text-xs font-semibold uppercase tracking-wider text-slate-400">{eyebrow}</div>}
+        <h1 className="text-2xl font-bold tracking-tight text-slate-900">{title}</h1>
+        {description && <p className="mt-1 max-w-3xl text-sm text-slate-500">{description}</p>}
+      </div>
+      {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
+    </header>
+  );
+}
+
+// ── Member stack (avatars with status) ──
+
+export type MemberActivity = 'working' | 'idle' | 'paused';
+
+/** Overlapping avatars with a working (blue) / idle (green) / paused (grey) dot each. */
+export function MemberStack({
+  members,
+  activityOf,
+  max = 6,
+  size = 'sm',
+}: {
+  members: HqMemberRef[];
+  activityOf: (id: string) => MemberActivity | undefined;
+  max?: number;
+  size?: 'xs' | 'sm';
+}) {
+  const shown = members.slice(0, max);
+  const extra = members.length - shown.length;
+  return (
+    <div className="flex items-center">
+      <div className="flex -space-x-1.5">
+        {shown.map((m) => {
+          const activity = activityOf(m.id);
+          return (
+            <span key={m.id} className="relative" title={`${m.name}${activity ? ` · ${activity}` : ''}`}>
+              <MemberAvatar member={m} size={size} className="ring-2 ring-white" />
+              {activity && m.kind === 'agent' && (
+                <span
+                  className={cn(
+                    'absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full ring-2 ring-white',
+                    activity === 'working' ? 'animate-pulse bg-blue-500' : activity === 'paused' ? 'bg-slate-300' : 'bg-emerald-500'
+                  )}
+                />
+              )}
+            </span>
+          );
+        })}
+      </div>
+      {extra > 0 && <span className="ml-1.5 text-xs font-medium text-slate-400">+{extra}</span>}
+    </div>
   );
 }
 

@@ -14,7 +14,13 @@ import { cn } from '@/lib/utils';
 import {
   HQ_PRIORITY_LABELS,
   HQ_STATUS_LABELS,
+  OWN_PIPELINE_HINT,
+  OWN_PIPELINE_LABEL,
   canDropInto,
+  isHqRuntimeAgent,
+  isOwnPipelineAgent,
+  isRunnableHqAgent,
+  sortAgentsForPicker,
   formatDuration,
   formatRelative,
   formatTbilisi,
@@ -86,7 +92,10 @@ function TaskDetail({ task, members }: { task: HqTaskDetail; members: HqMember[]
 
   const runtimeById = useMemo(() => new Map(members.map((m) => [m.id, m.runtime])), [members]);
   const assigneeMember = members.find((m) => m.id === task.assignee?.id);
-  const assigneeIsHqAgent = assigneeMember?.kind === 'agent' && assigneeMember.runtime === 'hq';
+  // The worker owns a claimed task even if its agent was paused since, so the
+  // lock uses the runtime; re-running needs an agent that will actually run.
+  const assigneeIsHqAgent = isHqRuntimeAgent(assigneeMember);
+  const assigneeRunnable = isRunnableHqAgent(assigneeMember);
   const activeMembers = members.filter((m) => m.status !== 'archived');
   // The HQ worker owns a claimed task: people may only cancel, block or finish it.
   const agentWorking = task.status === 'in_progress' && assigneeIsHqAgent;
@@ -199,7 +208,7 @@ function TaskDetail({ task, members }: { task: HqTaskDetail; members: HqMember[]
         <div className="flex flex-wrap gap-2">
           {canApprove(task) && <ApproveButton task={task} />}
           {canSendBack(task) && <SendBackButton task={task} />}
-          {assigneeIsHqAgent && task.status !== 'in_progress' && task.status !== 'todo' && <RunAgainButton task={task} />}
+          {assigneeRunnable && task.status !== 'in_progress' && task.status !== 'todo' && <RunAgainButton task={task} />}
           {!editing && (
             <Button size="sm" variant="outline" onClick={startEditing}>
               <Pencil className="h-4 w-4" />
@@ -311,9 +320,11 @@ export function AssigneeSelect({
   disabled?: boolean;
   allowNone?: boolean;
 }) {
-  const agents = members.filter((m) => m.kind === 'agent');
+  const agents = sortAgentsForPicker(members.filter((m) => m.kind === 'agent'));
   const people = members.filter((m) => m.kind === 'human');
+  const selected = members.find((m) => m.id === value);
   return (
+    <>
     <Select value={value ?? NONE} onValueChange={(v) => onChange(v === NONE ? null : v)} disabled={disabled}>
       <SelectTrigger className="w-full">
         <SelectValue placeholder="Unassigned" />
@@ -325,8 +336,7 @@ export function AssigneeSelect({
             <SelectLabel>Agents</SelectLabel>
             {agents.map((m) => (
               <SelectItem key={m.id} value={m.id}>
-                {m.avatar} {m.name}
-                {m.status !== 'active' ? ` (${m.status})` : ''}
+                {agentOptionLabel(m)}
               </SelectItem>
             ))}
           </SelectGroup>
@@ -343,7 +353,19 @@ export function AssigneeSelect({
         )}
       </SelectContent>
     </Select>
+    {isOwnPipelineAgent(selected) && <OwnPipelineHint />}
+    </>
   );
+}
+
+/** "🤖 Name (paused)" / "🛠️ Bug Fixer (own pipeline — won't run from HQ)". */
+export function agentOptionLabel(m: HqMember): string {
+  const note = isOwnPipelineAgent(m) ? ` ${OWN_PIPELINE_LABEL}` : m.status !== 'active' ? ` (${m.status})` : '';
+  return `${m.avatar} ${m.name}${note}`;
+}
+
+export function OwnPipelineHint({ className }: { className?: string }) {
+  return <p className={cn('mt-1 text-xs text-amber-700', className)}>{OWN_PIPELINE_HINT}</p>;
 }
 
 function RelatedTask({ label, task, onOpen }: { label: string; task: HqTask; onOpen: (id: string) => void }) {
@@ -491,7 +513,18 @@ export function RunsTable({ runs, onOpen, showMember = false, showTask = false }
           {runs.map((r) => (
             <tr key={r.id} className="cursor-pointer hover:bg-slate-50" onClick={() => onOpen(r.id)}>
               <td className="px-3 py-2 whitespace-nowrap" title={formatTbilisi(r.startedAt)}>
-                {formatRelative(r.startedAt)}
+                {/* A real button so the row is reachable and openable by keyboard. */}
+                <button
+                  type="button"
+                  aria-label={`Open run details (${r.status}, started ${formatRelative(r.startedAt)})`}
+                  className="rounded text-left font-medium text-slate-800 underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-blue-500"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onOpen(r.id);
+                  }}
+                >
+                  {formatRelative(r.startedAt)}
+                </button>
               </td>
               {showMember && (
                 <td className="px-3 py-2">

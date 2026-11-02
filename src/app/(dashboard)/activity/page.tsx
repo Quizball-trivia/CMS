@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/providers';
+import { ADMIN_HOME } from '@/lib/freecroco/access';
 import {
   useActivity,
   useActivityUsers,
@@ -58,7 +59,7 @@ export default function ActivityPage() {
   // Access control
   useEffect(() => {
     if (!authLoading && user?.email !== ACTIVITY_ALLOWED_EMAIL) {
-      router.push('/categories');
+      router.push(ADMIN_HOME);
     }
   }, [authLoading, user, router]);
 

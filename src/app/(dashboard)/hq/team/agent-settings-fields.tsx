@@ -4,7 +4,8 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
-import type { HqAutonomy, HqToolGroup } from '@/types';
+import type { HqAutonomy, HqDepartmentKey, HqToolGroup } from '@/types';
+import { HQ_DEPARTMENTS } from '@/lib/hq-departments';
 import { HQ_AVATAR_COLOR_NAMES } from '../hq-ui';
 
 export interface AgentSettingsValue {
@@ -14,6 +15,7 @@ export interface AgentSettingsValue {
   tools: string[];
   autonomy: HqAutonomy;
   maxTurns: number;
+  department: HqDepartmentKey;
 }
 
 export const HQ_TOOL_OPTIONS: Array<{ id: HqToolGroup; label: string; hint: string }> = [
@@ -55,6 +57,23 @@ export function AgentSettingsFields({ value, onChange }: { value: AgentSettingsV
           </div>
         </div>
       </div>
+
+      <label className="block space-y-1">
+        <span className="text-xs font-semibold text-slate-500">Department</span>
+        <Select value={value.department} onValueChange={(v) => set('department', v as HqDepartmentKey)}>
+          <SelectTrigger className="w-full sm:w-72">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {HQ_DEPARTMENTS.map((d) => (
+              <SelectItem key={d.key} value={d.key}>
+                {d.emoji} {d.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <span className="block text-xs text-slate-400">Where this agent shows up: its department page, the sidebar and the Command Center.</span>
+      </label>
 
       <div className="space-y-1">
         <span className="text-xs font-semibold text-slate-500">Tools</span>

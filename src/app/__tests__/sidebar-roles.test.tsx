@@ -1,19 +1,32 @@
-import { cleanup, render, screen, within } from '@testing-library/react';
-import { afterEach, expect, it, vi } from 'vitest';
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
+import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { Sidebar } from '@/components/layout/sidebar';
 
-const h = vi.hoisted(() => ({ role: undefined as string | undefined, pathname: '/freecroco' }));
+const h = vi.hoisted(() => ({
+  role: undefined as string | undefined,
+  pathname: '/freecroco',
+  overview: undefined as unknown,
+  overviewEnabled: [] as boolean[],
+}));
 vi.mock('next/navigation', () => ({ usePathname: () => h.pathname }));
 vi.mock('@/providers', () => ({ useAuth: () => ({ user: { role: h.role } }) }));
+vi.mock('@/hooks', () => ({
+  useHqOverview: (opts: { enabled?: boolean } = {}) => {
+    h.overviewEnabled.push(opts.enabled ?? true);
+    return { data: opts.enabled === false ? undefined : h.overview };
+  },
+}));
 
+beforeEach(() => {
+  h.overview = undefined;
+  h.overviewEnabled = [];
+});
 afterEach(cleanup);
 
-const links = () =>
-  within(screen.getByRole('navigation', { name: 'CMS navigation' }))
-    .getAllByRole('link')
-    .map((a) => a.getAttribute('href'));
+const nav = () => screen.getByRole('navigation', { name: 'CMS navigation' });
+const links = () => within(nav()).getAllByRole('link').map((a) => a.getAttribute('href'));
 
-it('shows partner staff the Freecroco section only, without the Staff page', () => {
+it('shows partner staff the Partners department with Freecroco only — no HQ, no Staff page', () => {
   h.role = 'partner_staff';
   h.pathname = '/freecroco';
   render(<Sidebar />);
@@ -23,34 +36,59 @@ it('shows partner staff the Freecroco section only, without the Staff page', () 
     expect(hrefs.has(href)).toBe(true);
   }
   expect(hrefs.has('/freecroco/staff')).toBe(false);
-  expect(screen.queryByText('Content')).toBeNull();
-  expect(screen.queryByText('Users')).toBeNull();
+  expect(hrefs.has('/hq/departments/partners')).toBe(false);
+  expect(within(nav()).queryByText('Company')).toBeNull();
+  expect(within(nav()).queryByText('Content')).toBeNull();
+  // Partner staff can't read HQ, so its live signals are never requested.
+  expect(h.overviewEnabled.every((enabled) => enabled === false)).toBe(true);
 });
 
-it('shows admins every group and the Freecroco Staff page', () => {
+it('shows admins the Company section and every department', () => {
   h.role = 'admin';
-  h.pathname = '/freecroco/staff';
-  render(<Sidebar />);
-  const hrefs = new Set(links());
-  expect(hrefs.has('/freecroco/staff')).toBe(true);
-  expect(hrefs.has('/categories') || hrefs.has('/quiz-pages')).toBe(true);
-  expect(hrefs.has('/users')).toBe(true);
-});
-
-it('puts the HQ section first for admins and shows its pages when active', () => {
-  h.role = 'admin';
-  h.pathname = '/hq/board';
+  h.pathname = '/hq';
   render(<Sidebar />);
   const hrefs = links();
   expect(hrefs[0]).toBe('/hq');
-  for (const href of ['/hq/board', '/hq/team', '/hq/schedules', '/hq/activity']) {
-    expect(hrefs).toContain(href);
+  for (const href of ['/hq/inbox', '/hq/board', '/hq/team', '/hq/schedules', '/hq/activity']) expect(hrefs).toContain(href);
+  for (const key of ['leadership', 'growth', 'content', 'competitions', 'engineering', 'partners']) {
+    expect(hrefs).toContain(`/hq/departments/${key}`);
   }
+  expect(within(nav()).getByText('Work')).toBeTruthy();
+  expect(within(nav()).getByText('Automations')).toBeTruthy();
+  expect(within(nav()).queryByText('Board')).toBeNull();
 });
 
-it('hides HQ from partner staff', () => {
-  h.role = 'partner_staff';
-  h.pathname = '/freecroco';
+it("expands the department that owns the current tool page and lists its tools", () => {
+  h.role = 'admin';
+  h.pathname = '/questions/123';
   render(<Sidebar />);
-  expect(links().some((href) => href === '/hq' || href?.startsWith('/hq/'))).toBe(false);
+  const hrefs = new Set(links());
+  for (const href of ['/questions', '/categories', '/quiz-pages', '/agents']) expect(hrefs.has(href)).toBe(true);
+  expect(hrefs.has('/weekend-league')).toBe(false); // Competitions stays collapsed
+  fireEvent.click(screen.getByRole('button', { name: 'Expand Competitions' }));
+  expect(new Set(links()).has('/weekend-league')).toBe(true);
+});
+
+it('keeps the Freecroco Staff page for admins', () => {
+  h.role = 'admin';
+  h.pathname = '/freecroco/staff';
+  render(<Sidebar />);
+  expect(new Set(links()).has('/freecroco/staff')).toBe(true);
+});
+
+it('badges the Inbox with approvals + unread messages, and flags busy departments', () => {
+  h.role = 'admin';
+  h.pathname = '/hq';
+  h.overview = {
+    countsByStatus: { needs_approval: 2 },
+    needsApproval: [],
+    inboxUnread: 3,
+    departments: [
+      { key: 'growth', counts: { needsApproval: 1 }, working: [{ member: { id: 'a' }, task: { id: 't' } }] },
+    ],
+  };
+  render(<Sidebar />);
+  expect(within(nav()).getByRole('link', { name: 'Inbox (5)' })).toBeTruthy();
+  expect(within(nav()).getByTitle('1 waiting for approval')).toBeTruthy();
+  expect(within(nav()).getAllByLabelText('working').length).toBeGreaterThan(0);
 });
