@@ -27,7 +27,7 @@ import {
   formatTbilisi,
   formatUsd,
 } from '@/lib/hq-board';
-import type { HqMember, HqMessage, HqPriority, HqRun, HqTask, HqTaskDetail, HqTaskStatus } from '@/types';
+import type { HqMember, HqMemberRef, HqMessage, HqPriority, HqRun, HqTask, HqTaskDetail, HqTaskStatus } from '@/types';
 import { EmptyState, LoadErrorState, Markdown, MemberAvatar, MemberChip, RefreshErrorBanner, RunStatusBadge, TaskStatusBadge, errorMessage, useTaskSheet } from './hq-ui';
 import { ApproveButton, RunAgainButton, SendBackButton, canApprove, canSendBack } from './task-actions';
 import { ProposalPanel } from './proposal-card';
@@ -193,6 +193,7 @@ function TaskDetail({ task, members }: { task: HqTaskDetail; members: HqMember[]
             <AssigneeSelect
               members={activeMembers}
               value={task.assignee?.id ?? null}
+              current={task.assignee}
               disabled={agentWorking || isProposal}
               onChange={reassign}
             />
@@ -326,16 +327,20 @@ export function AssigneeSelect({
   onChange,
   disabled,
   allowNone = true,
+  current,
 }: {
   members: HqMember[];
   value: string | null;
   onChange: (id: string | null) => void;
   disabled?: boolean;
   allowNone?: boolean;
+  /** The task's current assignee, shown (disabled) even when it isn't assignable any more (e.g. archived). */
+  current?: HqMemberRef | null;
 }) {
   const agents = sortAgentsForPicker(members.filter((m) => m.kind === 'agent'));
   const people = members.filter((m) => m.kind === 'human');
   const selected = members.find((m) => m.id === value);
+  const orphan = value && !selected && current && current.id === value ? current : null;
   return (
     <>
     <Select value={value ?? NONE} onValueChange={(v) => onChange(v === NONE ? null : v)} disabled={disabled}>
@@ -344,6 +349,11 @@ export function AssigneeSelect({
       </SelectTrigger>
       <SelectContent>
         {allowNone && <SelectItem value={NONE}>Unassigned</SelectItem>}
+        {orphan && (
+          <SelectItem value={orphan.id} disabled>
+            {orphan.avatar} {orphan.name} (archived)
+          </SelectItem>
+        )}
         {agents.length > 0 && (
           <SelectGroup>
             <SelectLabel>Agents</SelectLabel>
