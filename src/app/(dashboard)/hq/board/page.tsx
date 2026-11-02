@@ -9,10 +9,12 @@ import {
   KeyboardSensor,
   PointerSensor,
   closestCorners,
+  pointerWithin,
   useDraggable,
   useDroppable,
   useSensor,
   useSensors,
+  type CollisionDetection,
   type DragEndEvent,
   type DragStartEvent,
 } from '@dnd-kit/core';
@@ -53,6 +55,22 @@ const COLUMN_ACCENTS: Record<HqTaskStatus, string> = {
 
 const OPEN_STATUSES: HqTaskStatus[] = ['backlog', 'todo', 'in_progress', 'needs_approval', 'blocked'];
 const OPEN_LIMIT = 500;
+/**
+ * What's under the pointer wins (a card, else the column it's in), so a card
+ * dropped on an empty column next to a tall one lands there. Keyboard drags
+ * have no pointer and fall back to closest corners.
+ */
+const boardCollision: CollisionDetection = (args) => {
+  const hits = pointerWithin(args);
+  if (hits.length === 0) return closestCorners(args);
+  const isCard = (h: (typeof hits)[number]) => h.data?.droppableContainer?.data?.current?.type === 'card';
+  const others = hits.filter((h) => isCard(h) && h.id !== args.active.id);
+  if (others.length) return others;
+  // Pointer still over the dragged card's own slot: a no-op drop, not "move to the end".
+  const self = hits.filter((h) => h.id === args.active.id);
+  return self.length ? self : hits;
+};
+
 const FINISHED_PAGE = 100;
 // GET /admin/hq/tasks accepts limit ≤ 500.
 const FINISHED_MAX = 500;
@@ -262,7 +280,7 @@ export default function HqBoardPage() {
       {!boardUnavailable && (
         <DndContext
           sensors={sensors}
-          collisionDetection={closestCorners}
+          collisionDetection={boardCollision}
           onDragStart={handleDragStart}
           onDragEnd={handleDragEnd}
           onDragCancel={() => setActiveTask(null)}
