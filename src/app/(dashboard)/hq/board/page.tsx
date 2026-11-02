@@ -48,6 +48,7 @@ const COLUMN_ACCENTS: Record<HqTaskStatus, string> = {
   blocked: 'bg-red-500',
   done: 'bg-emerald-500',
   cancelled: 'bg-slate-300',
+  proposed: 'bg-violet-400',
 };
 
 const OPEN_STATUSES: HqTaskStatus[] = ['backlog', 'todo', 'in_progress', 'needs_approval', 'blocked'];

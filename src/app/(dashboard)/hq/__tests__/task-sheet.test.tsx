@@ -28,6 +28,8 @@ vi.mock('@/hooks', () => ({
   useApproveHqTask: () => mutation(),
   useRejectHqTask: () => mutation(),
   useRunHqTask: () => mutation(),
+  useAcceptHqProposal: () => mutation(),
+  useDeclineHqProposal: () => mutation(),
 }));
 
 const { RunDetailDialog, TaskSheetHost } = await import('../task-sheet');
@@ -48,6 +50,7 @@ function detail(id: string, number: number, title: string, extra: Partial<HqTask
     id, number, title, body: `${title} body`, status: 'todo', priority: 2, assignee: human, createdBy: human,
     parentId: null, depth: 0, scheduleId: null, result: null, position: 0, attempts: 0, dueAt: null, completedAt: null,
     createdAt: '2026-11-01T00:00:00Z', updatedAt: '2026-11-01T00:00:00Z', messageCount: 0,
+    kind: 'task', goalId: null, proposal: null,
     messages: [], runs: [], children: [], parent: null, ...extra,
   };
 }
@@ -167,4 +170,21 @@ describe('composer', () => {
     act(() => h.postMutate.mock.calls[0][1].onError(new Error('offline')));
     expect(composer().value).toBe('Second thought');
   });
+});
+
+it('locks a proposed idea to Do it / Change / Not now', () => {
+  h.tasks['task-a'] = detail('task-a', 1, 'Idea A', {
+    status: 'proposed',
+    kind: 'proposal',
+    assignee: agentRef,
+    proposal: { why: 'Because', plan: 'Plan', expectedImpact: '+5%', effort: 's' },
+  });
+  render(<TaskSheetHost />);
+  expect(screen.getAllByText('Accept or decline this idea first.').length).toBeGreaterThan(0);
+  const [status, assignee] = screen.getAllByRole('combobox') as HTMLButtonElement[];
+  expect(status.disabled).toBe(true);
+  expect(assignee.disabled).toBe(true);
+  expect(screen.queryByRole('button', { name: /cancel task/i })).toBeNull();
+  expect(screen.queryByRole('button', { name: /run again/i })).toBeNull();
+  for (const name of [/do it/i, /change/i, /not now/i]) expect(screen.getByRole('button', { name })).toBeTruthy();
 });

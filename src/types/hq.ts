@@ -11,7 +11,20 @@ export type HqTaskStatus =
   | 'needs_approval'
   | 'blocked'
   | 'done'
-  | 'cancelled';
+  | 'cancelled'
+  /** An agent's idea waiting for the CEO; never runs until accepted. */
+  | 'proposed';
+
+export type HqTaskKind = 'task' | 'standup' | 'proposal';
+
+export type HqEffort = 's' | 'm' | 'l';
+
+export interface HqProposal {
+  why: string;
+  plan: string;
+  expectedImpact: string;
+  effort: HqEffort;
+}
 
 /** 0 urgent · 1 high · 2 normal · 3 low */
 export type HqPriority = 0 | 1 | 2 | 3;
@@ -82,6 +95,9 @@ export interface HqTask {
   createdAt: string;
   updatedAt: string;
   messageCount: number;
+  kind: HqTaskKind;
+  goalId: string | null;
+  proposal: HqProposal | null;
 }
 
 export interface HqMessage {
@@ -141,6 +157,8 @@ export interface HqSchedule {
   timezone: string;
   taskTitle: string;
   taskBody: string;
+  /** 'standup' schedules create the agent's daily standup task. */
+  taskKind: 'task' | 'standup';
   enabled: boolean;
   nextRunAt: string | null;
   lastRunAt: string | null;
@@ -264,6 +282,9 @@ export interface HqListTasksParams {
   status?: HqTaskStatus[];
   assigneeId?: string;
   department?: HqDepartmentKey;
+  /** Sent comma-joined; the backend defaults to task,proposal (standups hidden). */
+  kind?: HqTaskKind[];
+  goalId?: string;
   q?: string;
   limit?: number;
 }
@@ -326,3 +347,124 @@ export interface HqUpdateSettingsRequest {
   dailyRunLimit?: number;
   maxConcurrentRuns?: number;
 }
+
+// ── v3: goals, standup, analytics ──
+
+export type HqGoalHorizon = 'north_star' | 'week' | 'day';
+export type HqGoalMetric = 'new_users' | 'active_players' | 'matches' | 'd7_retention' | 'avg_rating';
+export type HqGoalStatus = 'active' | 'achieved' | 'dropped';
+
+export interface HqGoal {
+  id: string;
+  horizon: HqGoalHorizon;
+  title: string;
+  description: string;
+  metric: HqGoalMetric | null;
+  /** For d7_retention: a percentage 0–100. */
+  target: number | null;
+  manualProgress: number | null;
+  /** YYYY-MM-DD, Tbilisi. */
+  periodStart: string;
+  periodEnd: string;
+  status: HqGoalStatus;
+  department: HqDepartmentKey | null;
+  position: number;
+  /** Computed by the backend for metric goals (d7_retention `current` is a percentage 0–100); `pct` mirrors manualProgress otherwise. */
+  progress: { current: number | null; pct: number | null };
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface HqGoalWriteRequest {
+  horizon: HqGoalHorizon;
+  title: string;
+  description?: string;
+  metric?: HqGoalMetric | null;
+  target?: number | null;
+  manualProgress?: number | null;
+  /** Optional: defaults by horizon (day = today, week = Mon–Sun, north_star = today → +90 days). */
+  periodStart?: string;
+  periodEnd?: string;
+  status?: HqGoalStatus;
+  department?: HqDepartmentKey | null;
+  position?: number;
+}
+
+export type HqGoalUpdateRequest = Partial<HqGoalWriteRequest>;
+
+export interface HqStandupReport {
+  headline: string;
+  yesterday: string;
+  today: string;
+  blockers: string;
+  createdAt: string;
+}
+
+export interface HqStandupEntry {
+  member: HqMemberRef & { title: string; department: HqDepartmentKey };
+  standup: HqStandupReport | null;
+  proposals: HqTask[];
+  working: { id: string; number: number; title: string } | null;
+  finishedYesterday: HqTask[];
+}
+
+/** Today vs yesterday for one KPI; null when the date is outside the data window (render "—"). */
+export interface HqStandupKpi {
+  today: number | null;
+  yesterday: number | null;
+}
+
+export interface HqStandup {
+  date: string;
+  goals: { northStar: HqGoal | null; week: HqGoal[]; day: HqGoal[] };
+  entries: HqStandupEntry[];
+  /** Active HQ agents that haven't reported today. */
+  waitingOn: HqMemberRef[];
+  /** All open proposals, newest first. */
+  proposals: HqTask[];
+  kpis: {
+    newUsers: HqStandupKpi;
+    activePlayers: HqStandupKpi;
+    matches: HqStandupKpi;
+    rating: { current: number | null; previous: number | null; lowRatings7d: number | null };
+  };
+}
+
+export interface HqAcceptProposalRequest {
+  title?: string;
+  body?: string;
+  proposal?: Partial<HqProposal>;
+}
+
+export interface HqAnalytics {
+  generatedAt: string;
+  days: number;
+  series: Array<{ date: string; newUsers: number; activePlayers: number; matches: number }>;
+  actives: { dau: number; wau: number; mau: number };
+  totals: { registeredUsers: number };
+  modes: Array<{ mode: string; matches: number; share: number }>;
+  /** Top modes + 'other' per day: `{ date, [mode]: count }`. */
+  modesByDay: Array<{ date: string } & Record<string, number | string>>;
+  modeLabels: Record<string, string>;
+  /** Top 30 by players. */
+  countries: Array<{ country: string; players: number; registered: number }>;
+  /** Players / registered users across ALL countries (before the top-30 cut), for true shares. */
+  countriesTotalPlayers: number;
+  countriesTotalRegistered: number;
+  /** Shares 0–1; null while the window hasn't elapsed. */
+  retention: Array<{ cohortStart: string; size: number; d1: number | null; d7: number | null; d30: number | null }>;
+}
+
+export type HqPosthog =
+  | { connected: false }
+  | {
+      connected: true;
+      visitorsByDay: Array<{ date: string; visitors: number; pageviews: number }>;
+      topCountries: Array<{ country: string; visitors: number }>;
+      topReferrers: Array<{ source: string; visitors: number }>;
+      topPages: Array<{ path: string; views: number }>;
+      funnel: { visitors: number; signups: number; firstMatch: number };
+      error?: undefined;
+    }
+  /** Configured, but PostHog failed this time. */
+  | { connected: true; error: string };

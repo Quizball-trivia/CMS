@@ -24,6 +24,7 @@ function task(overrides: Partial<HqTask>): HqTask {
     id: 't', number: 1, title: 'Task', body: '', status: 'todo', priority: 2, assignee: null, createdBy: null,
     parentId: null, depth: 0, scheduleId: null, result: null, position: 0, attempts: 0, dueAt: null,
     completedAt: null, createdAt: '2026-11-01T00:00:00Z', updatedAt: '2026-11-01T00:00:00Z', messageCount: 0,
+    kind: 'task', goalId: null, proposal: null,
     ...overrides,
   };
 }
@@ -78,6 +79,14 @@ describe('canDropInto', () => {
       expect(canDropInto(working, target, runtimes).ok).toBe(true);
     }
   });
+  it('blocks every ordinary move of a proposed idea (only Do it / Not now move it)', () => {
+    for (const target of ['todo', 'backlog', 'in_progress', 'blocked', 'done', 'cancelled'] as const) {
+      const check = canDropInto(task({ status: 'proposed', assignee: human }), target, runtimes);
+      expect(check.ok).toBe(false);
+      expect(!check.ok && check.reason).toBe('Accept or decline this idea first.');
+    }
+  });
+
   it('lets people move their own tasks anywhere', () => {
     expect(canDropInto(task({ assignee: human }), 'in_progress', runtimes).ok).toBe(true);
   });

@@ -52,7 +52,12 @@ it('shows admins the Company section and every department', () => {
   render(<Sidebar />);
   const hrefs = links();
   expect(hrefs[0]).toBe('/hq');
-  for (const href of ['/hq/inbox', '/hq/board', '/hq/team', '/hq/schedules', '/hq/activity']) expect(hrefs).toContain(href);
+  for (const href of ['/hq/goals', '/hq/analytics', '/hq/team', '/hq/board', '/hq/inbox', '/hq/schedules', '/hq/activity']) expect(hrefs).toContain(href);
+  // v3 order: Standup, Goals, Analytics, Team, Work up top; Inbox/Automations/Activity under "More".
+  expect(hrefs.slice(0, 5)).toEqual(['/hq', '/hq/goals', '/hq/analytics', '/hq/team', '/hq/board']);
+  expect(within(nav()).getByText('Standup')).toBeTruthy();
+  expect(within(nav()).getByText('More')).toBeTruthy();
+  expect(hrefs.indexOf('/hq/inbox')).toBeGreaterThan(hrefs.indexOf('/hq/departments/partners'));
   for (const key of ['leadership', 'growth', 'content', 'competitions', 'engineering', 'partners']) {
     expect(hrefs).toContain(`/hq/departments/${key}`);
   }

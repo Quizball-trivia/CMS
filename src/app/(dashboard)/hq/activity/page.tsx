@@ -12,7 +12,20 @@ import { EmptyState, LoadErrorState, MemberAvatar, PageHeader, RefreshErrorBanne
 
 const ALL = '__all__';
 
+// Friendly names/icons for well-known event types; anything else renders generically.
+const EVENT_ICONS: Record<string, string> = { standup: '🌅', proposal: '💡', proposal_accepted: '✅', proposal_declined: '✖' };
+const EVENT_LABELS: Record<string, string> = {
+  standup: 'standup',
+  proposal: 'new idea',
+  proposal_accepted: 'idea accepted',
+  proposal_declined: 'idea declined',
+};
+
 const TYPE_STYLES: Record<string, string> = {
+  standup: 'bg-orange-50 text-orange-700',
+  proposal: 'bg-violet-50 text-violet-700',
+  proposal_accepted: 'bg-emerald-50 text-emerald-700',
+  proposal_declined: 'bg-slate-100 text-slate-500',
   task_created: 'bg-slate-100 text-slate-700',
   task_updated: 'bg-slate-100 text-slate-600',
   task_status: 'bg-indigo-50 text-indigo-700',
@@ -99,7 +112,8 @@ function EventRow({ event: e, onOpenTask }: { event: HqEvent; onOpenTask: (id: s
         <div className="flex flex-wrap items-center gap-2 text-xs">
           <span className="font-semibold text-slate-800">{e.member?.name ?? 'System'}</span>
           <span className={cn('rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase', TYPE_STYLES[e.type] ?? 'bg-slate-100 text-slate-600')}>
-            {e.type.replace(/_/g, ' ')}
+            {EVENT_ICONS[e.type] ? `${EVENT_ICONS[e.type]} ` : ''}
+            {EVENT_LABELS[e.type] ?? e.type.replace(/_/g, ' ')}
           </span>
           {e.level !== 'info' && (
             <span className={cn('text-[10px] font-bold uppercase', e.level === 'error' ? 'text-red-600' : 'text-amber-600')}>{e.level}</span>

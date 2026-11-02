@@ -114,6 +114,7 @@ const TASK_STATUS_STYLES: Record<HqTaskStatus, string> = {
   blocked: 'border-red-200 bg-red-50 text-red-700',
   done: 'border-emerald-200 bg-emerald-50 text-emerald-700',
   cancelled: 'border-slate-200 bg-slate-100 text-slate-400 line-through',
+  proposed: 'border-violet-200 bg-violet-50 text-violet-700',
 };
 
 export function TaskStatusBadge({ status, className }: { status: HqTaskStatus; className?: string }) {

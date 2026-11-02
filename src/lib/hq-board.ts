@@ -20,6 +20,7 @@ export const HQ_STATUS_LABELS: Record<HqTaskStatus, string> = {
   blocked: 'Blocked',
   done: 'Done',
   cancelled: 'Cancelled',
+  proposed: 'Idea',
 };
 
 export const HQ_PRIORITY_LABELS = ['Urgent', 'High', 'Normal', 'Low'] as const;
@@ -113,6 +114,9 @@ export function isHqAgent(member: Pick<HqMemberRef, 'kind'> | null, runtimeById?
   return true;
 }
 
+/** A proposed task (an agent's idea) only moves via Do it / Change / Not now. */
+export const PROPOSAL_LOCKED_HINT = 'Accept or decline this idea first.';
+
 /** Where a person may move a task an HQ agent is currently working on (backend rule). */
 export const AGENT_WORKING_EXITS: HqTaskStatus[] = ['cancelled', 'blocked', 'done'];
 
@@ -122,6 +126,12 @@ export function canDropInto(
   runtimeById?: Map<string, string>
 ): { ok: true } | { ok: false; reason: string } {
   if (task.status === target) return { ok: true };
+  if (task.status === 'proposed') {
+    return { ok: false, reason: PROPOSAL_LOCKED_HINT };
+  }
+  if (target === 'proposed') {
+    return { ok: false, reason: 'Only agents propose ideas — use "Do it" or "Not now" on an idea instead.' };
+  }
   if (target === 'in_progress' && task.assignee && isHqAgent(task.assignee, runtimeById, task.assignee.id)) {
     return { ok: false, reason: 'Agents start their own tasks — move it to "To do" and the agent will pick it up.' };
   }
