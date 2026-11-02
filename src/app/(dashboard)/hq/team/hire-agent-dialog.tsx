@@ -15,6 +15,7 @@ export function slugify(name: string): string {
   return name
     .toLowerCase()
     .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '') // drop combining accents: "Müller" → "muller", not "mu-ller"
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '')
     .slice(0, 41);
@@ -117,8 +118,8 @@ export function HireAgentDialog({
                 className={!effectiveSlug || slugValid ? '' : 'border-red-300'}
               />
             </Labeled>
-            <Labeled label="Title / department">
-              <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Marketing" />
+            <Labeled label="Title">
+              <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Community lead" />
             </Labeled>
             <Labeled label="One-line description">
               <Input value={description} onChange={(e) => setDescription(e.target.value)} placeholder="What this agent does, for the team page" />

@@ -131,7 +131,8 @@ function MemberCard({ member: m }: { member: HqMember }) {
           </div>
           <div className="truncate text-xs text-slate-500">
             {m.title || RUNTIME_LABELS[m.runtime]}
-            {m.kind === 'agent' && m.runtime !== 'hq' ? ` · ${RUNTIME_LABELS[m.runtime]}` : ''}
+            {/* Without a title the runtime label is already shown above — don't repeat it. */}
+            {m.title && m.kind === 'agent' && m.runtime !== 'hq' ? ` · ${RUNTIME_LABELS[m.runtime]}` : ''}
           </div>
         </div>
         {m.status !== 'active' && (
