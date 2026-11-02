@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { ChevronDown, Loader2, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { hqKeys, useHqGoals, useHqPastGoals } from '@/hooks';
+import { hqKeys, useHqClock, useHqGoals, useHqPastGoals } from '@/hooks';
 import { cn } from '@/lib/utils';
 import type { HqGoal, HqGoalHorizon } from '@/types';
 import { AddGoalCard, GoalCard, GoalDialog, HORIZON_LABELS, NorthStarCard } from '../goal-ui';
@@ -17,7 +17,7 @@ const SECTIONS: Array<{ horizon: Exclude<HqGoalHorizon, 'north_star'>; emoji: st
 
 export default function GoalsPage() {
   const { data: goals, isLoading, error, refetch } = useHqGoals();
-  const [now] = useState(() => new Date());
+  const now = useHqClock();
   const [dialog, setDialog] = useState<{ goal: HqGoal | null; horizon: HqGoalHorizon } | null>(null);
   const [showPast, setShowPast] = useState(false);
   // Past goals are fetched only when the section is opened, a page at a time.

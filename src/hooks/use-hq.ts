@@ -489,3 +489,17 @@ export function useHqPosthog(days: number) {
     placeholderData: keepPreviousData,
   });
 }
+
+/**
+ * A clock for day-dependent labels (greeting, "today", goal periods) that
+ * advances while the page stays open — e.g. across Tbilisi midnight, when
+ * polling already returns the next day's standup.
+ */
+export function useHqClock(intervalMs = 60_000): Date {
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    const id = setInterval(() => setNow(new Date()), intervalMs);
+    return () => clearInterval(id);
+  }, [intervalMs]);
+  return now;
+}

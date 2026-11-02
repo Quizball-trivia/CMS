@@ -163,7 +163,9 @@ export function proposalEditText(task: Pick<HqTask, 'body' | 'proposal'>): strin
 export function buildProposalChange(
   task: Pick<HqTask, 'title' | 'body' | 'proposal'>,
   title: string,
-  text: string
+  text: string,
+  /** The server's current proposal (after a conflict): the body is rendered from it so other fields aren't stale. */
+  liveProposal?: HqTask['proposal']
 ): HqAcceptProposalRequest {
   const req: HqAcceptProposalRequest = {};
   const t = title.trim();
@@ -172,12 +174,28 @@ export function buildProposalChange(
     const plan = text.trim();
     if (plan !== task.proposal!.plan.trim()) {
       req.proposal = { plan };
-      req.body = proposalBody({ ...task.proposal!, plan });
+      req.body = proposalBody({ ...(liveProposal ?? task.proposal!), plan });
     }
   } else if (text.trim() !== task.body.trim()) {
     req.body = text.trim();
   }
   return req;
+}
+
+export type ProposalSnapshot = Pick<HqTask, 'title' | 'body' | 'proposal'>;
+
+/** Freezes what the Change dialog edits against, the moment it opens. */
+export function snapshotProposal(task: ProposalSnapshot): ProposalSnapshot {
+  return { title: task.title, body: task.body, proposal: task.proposal ? { ...task.proposal } : null };
+}
+
+/** True when the server's copy differs from the snapshot (someone else edited the idea meanwhile). */
+export function proposalChangedSince(snapshot: ProposalSnapshot, live: ProposalSnapshot): boolean {
+  if (snapshot.title !== live.title || snapshot.body !== live.body) return true;
+  const a = snapshot.proposal;
+  const b = live.proposal;
+  if (!a || !b) return a !== b;
+  return a.why !== b.why || a.plan !== b.plan || a.expectedImpact !== b.expectedImpact || a.effort !== b.effort;
 }
 
 /**
@@ -220,10 +238,13 @@ export function modeLabel(mode: string, labels?: Record<string, string>): string
 
 /** Top `n` modes by matches, the rest folded into "Other" (for a donut). */
 export function topModesWithOther(modes: HqAnalytics['modes'], labels?: Record<string, string>, n = 6) {
-  const sorted = [...modes].sort((a, b) => b.matches - a.matches);
-  const total = sorted.reduce((sum, m) => sum + m.matches, 0);
-  const head = sorted.slice(0, n);
-  const rest = sorted.slice(n).reduce((sum, m) => sum + m.matches, 0);
+  // A real `other` mode from the API always joins the remainder bucket, so
+  // there is exactly one Other row (unique React keys, one donut slice).
+  const named = [...modes].filter((m) => m.mode !== 'other').sort((a, b) => b.matches - a.matches);
+  const apiOther = modes.filter((m) => m.mode === 'other').reduce((sum, m) => sum + m.matches, 0);
+  const total = named.reduce((sum, m) => sum + m.matches, 0) + apiOther;
+  const head = named.slice(0, n);
+  const rest = named.slice(n).reduce((sum, m) => sum + m.matches, 0) + apiOther;
   const rows = head.map((m) => ({ mode: m.mode, label: modeLabel(m.mode, labels), matches: m.matches, share: total > 0 ? m.matches / total : 0 }));
   if (rest > 0) rows.push({ mode: 'other', label: 'Other', matches: rest, share: total > 0 ? rest / total : 0 });
   return rows;

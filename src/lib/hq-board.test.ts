@@ -87,6 +87,22 @@ describe('canDropInto', () => {
     }
   });
 
+  it('treats an agent whose runtime is unknown as possibly the worker’s (members loading/failed/archived)', () => {
+    const working = task({ assignee: agent, status: 'in_progress' });
+    for (const map of [undefined, new Map<string, string>(), new Map([['someone-else', 'hq']])]) {
+      for (const target of ['todo', 'backlog'] as const) {
+        const check = canDropInto(working, target, map);
+        expect(check.ok).toBe(false);
+        expect(!check.ok && check.reason).toMatch(/Still loading/);
+      }
+      expect(canDropInto(task({ assignee: agent, status: 'todo' }), 'in_progress', map).ok).toBe(false);
+      // Exits the backend allows for any agent stay open.
+      for (const target of ['done', 'blocked', 'cancelled'] as const) expect(canDropInto(working, target, map).ok).toBe(true);
+    }
+    // People's tasks don't depend on the map.
+    expect(canDropInto(task({ assignee: human, status: 'in_progress' }), 'todo', undefined).ok).toBe(true);
+  });
+
   it('lets people move their own tasks anywhere', () => {
     expect(canDropInto(task({ assignee: human }), 'in_progress', runtimes).ok).toBe(true);
   });

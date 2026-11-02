@@ -27,7 +27,7 @@ import {
   formatTbilisi,
   formatUsd,
 } from '@/lib/hq-board';
-import type { HqMember, HqMessage, HqPriority, HqRun, HqTask, HqTaskDetail, HqTaskStatus } from '@/types';
+import type { HqMember, HqMemberRef, HqMessage, HqPriority, HqRun, HqTask, HqTaskDetail, HqTaskStatus } from '@/types';
 import { EmptyState, LoadErrorState, Markdown, MemberAvatar, MemberChip, RefreshErrorBanner, RunStatusBadge, TaskStatusBadge, errorMessage, useTaskSheet } from './hq-ui';
 import { ApproveButton, RunAgainButton, SendBackButton, canApprove, canSendBack } from './task-actions';
 import { ProposalPanel } from './proposal-card';
@@ -92,17 +92,25 @@ function TaskDetail({ task, members }: { task: HqTaskDetail; members: HqMember[]
     setEditing(true);
   };
 
-  const runtimeById = useMemo(() => new Map(members.map((m) => [m.id, m.runtime])), [members]);
-  const assigneeMember = members.find((m) => m.id === task.assignee?.id);
+  // Runtimes come from every member, archived included, so an archived agent's
+  // task isn't mistaken for a person's. Until they load the map is undefined and
+  // ownership-sensitive moves stay disabled (canDropInto treats it as unknown).
+  const { data: everyone } = useHqMembers(true);
+  const runtimeById = useMemo(() => (everyone ? new Map(everyone.map((m) => [m.id, m.runtime])) : undefined), [everyone]);
+  const assigneeMember = (everyone ?? members).find((m) => m.id === task.assignee?.id);
+  // Unknown runtime: lock like an HQ agent until we know better.
+  const assigneeRuntimeUnknown = !!task.assignee && task.assignee.kind === 'agent' && !assigneeMember;
   // The worker owns a claimed task even if its agent was paused since, so the
   // lock uses the runtime; re-running needs an agent that will actually run.
-  const assigneeIsHqAgent = isHqRuntimeAgent(assigneeMember);
+  const assigneeIsHqAgent = isHqRuntimeAgent(assigneeMember) || assigneeRuntimeUnknown;
   const assigneeRunnable = isRunnableHqAgent(assigneeMember);
   const activeMembers = members.filter((m) => m.status !== 'archived');
   // The HQ worker owns a claimed task: people may only cancel, block or finish it.
   const agentWorking = task.status === 'in_progress' && assigneeIsHqAgent;
   // An agent's idea only moves through Do it / Change / Not now (the panel below).
   const isProposal = task.status === 'proposed';
+  // A standup is its agent's daily report; the API refuses to reassign it.
+  const isStandup = (task.kind ?? 'task') === 'standup';
 
   const patch = (data: Parameters<typeof update.mutate>[0]['data'], success?: string) =>
     update.mutate(
@@ -187,9 +195,11 @@ function TaskDetail({ task, members }: { task: HqTaskDetail; members: HqMember[]
             <AssigneeSelect
               members={activeMembers}
               value={task.assignee?.id ?? null}
-              disabled={agentWorking || isProposal}
+              current={task.assignee}
+              disabled={agentWorking || isProposal || isStandup}
               onChange={reassign}
             />
+            {isStandup && <span className="block text-xs text-slate-500">A standup belongs to its agent</span>}
             {agentWorking && <span className="block text-xs text-blue-700">The agent is working on this</span>}
             {isProposal && <span className="block text-xs text-violet-700">{PROPOSAL_LOCKED_HINT}</span>}
           </Field>
@@ -320,16 +330,20 @@ export function AssigneeSelect({
   onChange,
   disabled,
   allowNone = true,
+  current,
 }: {
   members: HqMember[];
   value: string | null;
   onChange: (id: string | null) => void;
   disabled?: boolean;
   allowNone?: boolean;
+  /** The task's current assignee, shown (disabled) even when it isn't assignable any more (e.g. archived). */
+  current?: HqMemberRef | null;
 }) {
   const agents = sortAgentsForPicker(members.filter((m) => m.kind === 'agent'));
   const people = members.filter((m) => m.kind === 'human');
   const selected = members.find((m) => m.id === value);
+  const orphan = value && !selected && current && current.id === value ? current : null;
   return (
     <>
     <Select value={value ?? NONE} onValueChange={(v) => onChange(v === NONE ? null : v)} disabled={disabled}>
@@ -338,6 +352,11 @@ export function AssigneeSelect({
       </SelectTrigger>
       <SelectContent>
         {allowNone && <SelectItem value={NONE}>Unassigned</SelectItem>}
+        {orphan && (
+          <SelectItem value={orphan.id} disabled>
+            {orphan.avatar} {orphan.name} (archived)
+          </SelectItem>
+        )}
         {agents.length > 0 && (
           <SelectGroup>
             <SelectLabel>Agents</SelectLabel>

@@ -14,7 +14,9 @@ import {
   periodFor,
   proposalBody,
   proposalEditMode,
+  proposalChangedSince,
   proposalEditText,
+  snapshotProposal,
   retentionCellClass,
   retentionPct,
   standupStatusSentence,
@@ -134,6 +136,25 @@ describe('countries', () => {
 });
 
 describe('game modes', () => {
+  it('merges a real "other" mode from the API into the single Other row', () => {
+    const rows = topModesWithOther(
+      [
+        { mode: 'ranked', matches: 50, share: 0.5 },
+        { mode: 'other', matches: 40, share: 0.4 },
+        { mode: 'friendly', matches: 10, share: 0.1 },
+        { mode: 'auction', matches: 5, share: 0.05 },
+      ],
+      undefined,
+      2
+    );
+    expect(rows.map((r) => [r.mode, r.matches])).toEqual([
+      ['ranked', 50],
+      ['friendly', 10],
+      ['other', 45],
+    ]);
+    expect(rows.filter((r) => r.mode === 'other')).toHaveLength(1);
+  });
+
   it('keeps the top N modes and folds the rest into Other', () => {
     const rows = topModesWithOther(
       [
@@ -228,5 +249,41 @@ describe('Change form: body is the single source of truth', () => {
 
   it('sends nothing when nothing changed', () => {
     expect(buildProposalChange(generated, 'Idea', 'Old plan')).toEqual({});
+  });
+});
+
+describe('Change dialog snapshot', () => {
+  const proposal = { why: 'W', plan: 'Plan A', expectedImpact: '+5%', effort: 'm' as const };
+  const live = { title: 'Idea', body: proposalBody(proposal), proposal };
+
+  it('detects edits to title, body or any proposal field since the snapshot', () => {
+    const snap = snapshotProposal(live);
+    expect(proposalChangedSince(snap, live)).toBe(false);
+    expect(proposalChangedSince(snap, { ...live, title: 'Renamed' })).toBe(true);
+    expect(proposalChangedSince(snap, { ...live, body: 'hand edit' })).toBe(true);
+    expect(proposalChangedSince(snap, { ...live, proposal: { ...proposal, effort: 'l' } })).toBe(true);
+    expect(proposalChangedSince(snap, { ...live, proposal: null })).toBe(true);
+  });
+
+  it('copies the proposal so later mutations of the live object do not leak in', () => {
+    const mutable = { ...live, proposal: { ...proposal } };
+    const snap = snapshotProposal(mutable);
+    mutable.proposal.plan = 'Plan B';
+    expect(snap.proposal!.plan).toBe('Plan A');
+  });
+
+  it('a title-only change in plan mode never sends the plan text as body', () => {
+    expect(buildProposalChange(snapshotProposal(live), 'Better title', 'Plan A')).toEqual({ title: 'Better title' });
+  });
+});
+
+describe('buildProposalChange with a live proposal (Save anyway after a conflict)', () => {
+  it('renders the body from the live proposal, keeping the edited plan', () => {
+    const snap = { title: 'Idea', body: '', proposal: { why: 'old why', plan: 'old plan', expectedImpact: 'old impact', effort: 's' as const } };
+    snap.body = proposalBody(snap.proposal);
+    const live = { why: 'NEW why', plan: 'old plan', expectedImpact: 'NEW impact', effort: 'l' as const };
+    const req = buildProposalChange(snap, 'Idea', 'my edited plan', live);
+    expect(req.proposal).toEqual({ plan: 'my edited plan' });
+    expect(req.body).toBe(proposalBody({ ...live, plan: 'my edited plan' }));
   });
 });

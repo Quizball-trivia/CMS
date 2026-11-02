@@ -122,9 +122,12 @@ function MemberProfile({ member }: { member: HqMemberDetail }) {
           )}
         </div>
         <div className="flex flex-wrap gap-2">
-          <Button variant="outline" onClick={() => setNewTaskOpen(true)}>
-            <Plus className="h-4 w-4" /> Assign task
-          </Button>
+          {/* Archived members aren't assignable (the backend rejects them): restore first. */}
+          {member.status !== 'archived' && (
+            <Button variant="outline" onClick={() => setNewTaskOpen(true)}>
+              <Plus className="h-4 w-4" /> Assign task
+            </Button>
+          )}
           {isHqAgent && member.status === 'active' && (
             <Button variant="outline" onClick={() => setStatus('paused', `${member.name} paused`)}>
               <Pause className="h-4 w-4" /> Pause
@@ -160,7 +163,7 @@ function MemberProfile({ member }: { member: HqMemberDetail }) {
           {isHqAgent && (
             <section>
               <SectionTitle count={member.schedules.length}>Automations</SectionTitle>
-              <SchedulesTable schedules={member.schedules} members={members} showMember={false} fixedMemberId={member.id} />
+              <SchedulesTable schedules={member.schedules} members={members} showMember={false} fixedMemberId={member.id} canCreate={member.status !== 'archived'} />
             </section>
           )}
 

@@ -188,11 +188,14 @@ export function SchedulesTable({
   members,
   showMember = true,
   fixedMemberId,
+  canCreate = true,
 }: {
   schedules: HqSchedule[];
   members: HqMember[];
   showMember?: boolean;
   fixedMemberId?: string;
+  /** False for an archived member: schedules can only run active/paused HQ agents. */
+  canCreate?: boolean;
 }) {
   const update = useUpdateHqSchedule();
   const remove = useDeleteHqSchedule();
@@ -200,14 +203,21 @@ export function SchedulesTable({
   const { openTask } = useTaskSheet();
   const [editing, setEditing] = useState<HqSchedule | null>(null);
   const [creating, setCreating] = useState(false);
+  // Schedules can only run active/paused HQ agents (the backend 422s otherwise).
+  // `members` excludes archived members, so an owner missing from a loaded list
+  // (or the profile of an archived member) can't be run.
+  const ownerArchived = (s: HqSchedule) =>
+    (fixedMemberId === s.member.id && !canCreate) || !members.some((m) => m.id === s.member.id);
 
   return (
     <div className="space-y-2">
-      <div className="flex justify-end">
-        <Button size="sm" variant="outline" onClick={() => setCreating(true)}>
-          <Plus className="h-4 w-4" /> New automation
-        </Button>
-      </div>
+      {canCreate && (
+        <div className="flex justify-end">
+          <Button size="sm" variant="outline" onClick={() => setCreating(true)}>
+            <Plus className="h-4 w-4" /> New automation
+          </Button>
+        </div>
+      )}
       {schedules.length === 0 ? (
         <EmptyState>No automations yet. Add one to have an agent do this work on a schedule.</EmptyState>
       ) : (
@@ -294,8 +304,8 @@ export function SchedulesTable({
                       <Button
                         size="icon-sm"
                         variant="ghost"
-                        title="Run now"
-                        disabled={runNow.isPending}
+                        title={ownerArchived(s) ? 'Restore this agent to run its automations' : 'Run now'}
+                        disabled={runNow.isPending || ownerArchived(s)}
                         onClick={() =>
                           runNow.mutate(s.id, {
                             onSuccess: (task) => {

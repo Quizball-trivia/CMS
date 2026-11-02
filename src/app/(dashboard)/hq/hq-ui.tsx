@@ -8,6 +8,7 @@ import remarkGfm from 'remark-gfm';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { HQ_PRIORITY_LABELS, HQ_STATUS_LABELS, formatRelative } from '@/lib/hq-board';
+import { stripMarkdown } from '@/lib/hq-markdown';
 import type { HqMemberRef, HqMemberStatus, HqPriority, HqRunStatus, HqTask, HqTaskStatus } from '@/types';
 
 // ── Page header ──
@@ -309,14 +310,6 @@ export function TaskRow({
   );
 }
 
-function stripMarkdown(md: string): string {
-  return md
-    .replace(/```[\s\S]*?```/g, ' ')
-    .replace(/[#*_>`~|-]+/g, ' ')
-    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
-    .replace(/\s+/g, ' ')
-    .trim();
-}
 
 // ── Markdown ──
 

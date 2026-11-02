@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { useQueryClient } from '@tanstack/react-query';
 import {
@@ -8,7 +8,6 @@ import {
   DragOverlay,
   KeyboardSensor,
   PointerSensor,
-  closestCorners,
   useDraggable,
   useDroppable,
   useSensor,
@@ -19,6 +18,7 @@ import {
 import { sortableKeyboardCoordinates } from '@dnd-kit/sortable';
 import { KanbanSquare, Loader2, MessageSquare, Plus, Search } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { boardCollision } from '@/lib/hq-board-collision';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -53,6 +53,7 @@ const COLUMN_ACCENTS: Record<HqTaskStatus, string> = {
 
 const OPEN_STATUSES: HqTaskStatus[] = ['backlog', 'todo', 'in_progress', 'needs_approval', 'blocked'];
 const OPEN_LIMIT = 500;
+
 const FINISHED_PAGE = 100;
 // GET /admin/hq/tasks accepts limit ≤ 500.
 const FINISHED_MAX = 500;
@@ -103,7 +104,10 @@ export default function HqBoardPage() {
   };
   const finishedMayHaveMore = (finishedTasks?.length ?? 0) >= finishedLimit;
 
-  const runtimeById = useMemo(() => new Map(members.map((m) => [m.id, m.runtime])), [members]);
+  // Runtimes from every member, archived included; undefined until loaded (or if it
+  // failed), and canDropInto then refuses ownership-sensitive moves.
+  const { data: everyone } = useHqMembers(true);
+  const runtimeById = useMemo(() => (everyone ? new Map(everyone.map((m) => [m.id, m.runtime])) : undefined), [everyone]);
 
   // Local text filter only while the server results don't reflect the typed
   // query yet (debounce pending or previous results shown as a placeholder);
@@ -144,12 +148,31 @@ export default function HqBoardPage() {
     );
   };
 
+  // Raw viewport pointer position during a drag (dnd-kit's event.delta includes
+  // scroll adjustments, so activator + delta drifts when the board scrolls).
+  const pointerY = useRef<number | null>(null);
+  const stopPointerTracking = useRef<(() => void) | null>(null);
+  useEffect(() => () => stopPointerTracking.current?.(), []);
+
   const handleDragStart = (event: DragStartEvent) => {
     setActiveTask((event.active.data.current?.task as HqTask | undefined) ?? null);
+    const activator = event.activatorEvent as PointerEvent | MouseEvent | null;
+    pointerY.current = activator && 'clientY' in activator ? activator.clientY : null;
+    if (pointerY.current !== null) {
+      const onMove = (e: PointerEvent) => {
+        pointerY.current = e.clientY;
+      };
+      window.addEventListener('pointermove', onMove);
+      stopPointerTracking.current = () => window.removeEventListener('pointermove', onMove);
+    }
   };
 
   const handleDragEnd = async (event: DragEndEvent) => {
     setActiveTask(null);
+    const lastPointerY = pointerY.current;
+    stopPointerTracking.current?.();
+    stopPointerTracking.current = null;
+    pointerY.current = null;
     const task = event.active.data.current?.task as HqTask | undefined;
     const over = event.over;
     if (!task || !over) return;
@@ -169,6 +192,10 @@ export default function HqBoardPage() {
     // Dropped on a card: before or after it depending on which half the dragged
     // card's centre is in, so a card can also land below the last one.
     const translated = event.active.rect.current.translated;
+    // Before/after is decided by where the POINTER is (not the dragged card's
+    // centre, which depends on where the card was grabbed). Keyboard drags have
+    // no pointer and use the card's centre.
+    const dropY = lastPointerY ?? (translated ? translated.top + translated.height / 2 : null);
     let direction: 'up' | 'down' | null = null;
     if (overData.type === 'card' && task.status === target) {
       const full = grouped[target];
@@ -178,7 +205,7 @@ export default function HqBoardPage() {
     }
     const index =
       overData.type === 'card'
-        ? dropIndex(column, overData.task.id, translated ? translated.top + translated.height / 2 : null, over.rect, direction)
+        ? dropIndex(column, overData.task.id, dropY, over.rect, direction)
         : column.length;
     const position = positionForIndex(column, index);
 
@@ -259,10 +286,15 @@ export default function HqBoardPage() {
       {!boardUnavailable && (
         <DndContext
           sensors={sensors}
-          collisionDetection={closestCorners}
+          collisionDetection={boardCollision}
           onDragStart={handleDragStart}
           onDragEnd={handleDragEnd}
-          onDragCancel={() => setActiveTask(null)}
+          onDragCancel={() => {
+            setActiveTask(null);
+            stopPointerTracking.current?.();
+            stopPointerTracking.current = null;
+            pointerY.current = null;
+          }}
         >
           <div className="flex gap-3 overflow-x-auto pb-4">
             {columns.map((status) => {

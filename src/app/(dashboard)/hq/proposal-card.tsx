@@ -9,7 +9,14 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { useAcceptHqProposal, useDeclineHqProposal } from '@/hooks';
 import { cn } from '@/lib/utils';
-import { EFFORT_LABELS, buildProposalChange, proposalEditMode, proposalEditText } from '@/lib/hq-standup';
+import {
+  EFFORT_LABELS,
+  buildProposalChange,
+  proposalChangedSince,
+  proposalEditMode,
+  proposalEditText,
+  snapshotProposal,
+} from '@/lib/hq-standup';
 import type { HqGoal, HqTask } from '@/types';
 import { MemberAvatar, errorMessage } from './hq-ui';
 
@@ -99,16 +106,27 @@ function ChangeDialog({ task, open, onOpenChange }: { task: HqTask; open: boolea
 
 function ChangeForm({ task, onDone }: { task: HqTask; onDone: () => void }) {
   const accept = useAcceptHqProposal();
-  // Edit the plan while the body is still the generated one; otherwise the hand-edited instructions.
-  const mode = proposalEditMode(task);
-  const [title, setTitle] = useState(task.title);
-  const [text, setText] = useState(() => proposalEditText(task));
+  // Frozen when the dialog opens: polling must not switch the mode or the
+  // baseline mid-edit (that could turn a plan edit into a body overwrite).
+  const [snapshot, setSnapshot] = useState(() => snapshotProposal(task));
+  const mode = proposalEditMode(snapshot);
+  const [title, setTitle] = useState(snapshot.title);
+  const [text, setText] = useState(() => proposalEditText(snapshot));
+  const [conflict, setConflict] = useState(false);
 
-  const submit = () => {
-    if (!title.trim()) return toast.error('The idea needs a title');
-    if (!text.trim()) return toast.error(mode === 'plan' ? 'The plan can’t be empty' : 'The instructions can’t be empty');
+  /** Field checks shared by "Do it" and "Save anyway" (which only skips the conflict check). */
+  const valid = () => {
+    if (!title.trim()) return void toast.error('The idea needs a title'), false;
+    if (!text.trim()) return void toast.error(mode === 'plan' ? 'The plan can’t be empty' : 'The instructions can’t be empty'), false;
+    return true;
+  };
+
+  const send = () => {
+    if (!valid()) return;
     accept.mutate(
-      { id: task.id, data: buildProposalChange(task, title, text) },
+      // Diffed against the snapshot (a title-only change sends just { title });
+      // the body is rendered from the server's current proposal.
+      { id: task.id, data: buildProposalChange(snapshot, title, text, task.proposal) },
       {
         onSuccess: () => {
           toast.success(`On it — ${task.assignee?.name ?? 'the agent'} starts your version`);
@@ -117,6 +135,24 @@ function ChangeForm({ task, onDone }: { task: HqTask; onDone: () => void }) {
         onError: (e) => toast.error(errorMessage(e, 'Could not start this idea')),
       }
     );
+  };
+
+  const submit = () => {
+    if (!valid()) return;
+    if (proposalChangedSince(snapshot, task)) {
+      setConflict(true);
+      return;
+    }
+    send();
+  };
+
+  /** Start over from the server's current version. */
+  const reload = () => {
+    const fresh = snapshotProposal(task);
+    setSnapshot(fresh);
+    setTitle(fresh.title);
+    setText(proposalEditText(fresh));
+    setConflict(false);
   };
 
   return (
@@ -138,12 +174,26 @@ function ChangeForm({ task, onDone }: { task: HqTask; onDone: () => void }) {
           />
         </label>
         {mode === 'instructions' && <p className="text-xs text-slate-400">These instructions were edited by hand, so you’re editing them directly.</p>}
+        {conflict && (
+          <div role="alert" className="space-y-2 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+            <p className="font-semibold">This idea changed while you were editing.</p>
+            <p>Reload to start from the latest version, or save yours anyway.</p>
+            <div className="flex gap-2">
+              <Button size="sm" variant="outline" onClick={reload}>
+                Reload
+              </Button>
+              <Button size="sm" onClick={send} disabled={accept.isPending}>
+                Save anyway
+              </Button>
+            </div>
+          </div>
+        )}
       </div>
       <DialogFooter>
         <Button variant="outline" onClick={onDone}>
           Cancel
         </Button>
-        <Button onClick={submit} disabled={accept.isPending} className="bg-emerald-600 text-white hover:bg-emerald-700">
+        <Button onClick={submit} disabled={accept.isPending || conflict} className="bg-emerald-600 text-white hover:bg-emerald-700">
           <Check className="h-4 w-4" /> Do it
         </Button>
       </DialogFooter>
