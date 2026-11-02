@@ -11,7 +11,8 @@ import {
   isRunnableHqAgent,
   sortAgentsForPicker,
 } from './hq-board';
-import { HQ_DEPARTMENTS, departmentForPath, departmentInfo, withoutHiddenRealData } from './hq-departments';
+import { HQ_DEPARTMENTS, canSeeTool, departmentForPath, departmentInfo, toolsForUser, withoutHiddenRealData } from './hq-departments';
+import { ACTIVITY_ALLOWED_EMAIL } from './constants';
 import { greeting, kpiDelta, taskFromCommand } from './hq-pulse';
 
 describe('departmentForPath', () => {
@@ -170,5 +171,23 @@ describe('main-only pages in the catalog', () => {
     expect(withoutHiddenRealData(growth.tools, false).map((t) => t.href)).not.toEqual(expect.arrayContaining(['/analytics']));
     expect(withoutHiddenRealData(growth.tools, false).map((t) => t.href)).not.toContain('/persons');
     expect(withoutHiddenRealData(growth.tools, true).map((t) => t.href)).toEqual(expect.arrayContaining(['/stats', '/analytics', '/persons']));
+  });
+});
+
+describe('account-limited tools (Player activity)', () => {
+  const growth = departmentInfo('growth')!;
+  it('lists /activity only for the allowed account', () => {
+    expect(toolsForUser(growth, ACTIVITY_ALLOWED_EMAIL).map((t) => t.href)).toContain('/activity');
+    for (const email of ['someone@quizball.com', null, undefined]) {
+      expect(toolsForUser(growth, email).map((t) => t.href)).not.toContain('/activity');
+    }
+  });
+  it('leaves ordinary tools visible to everyone', () => {
+    expect(canSeeTool({}, null)).toBe(true);
+    expect(toolsForUser(growth, null).map((t) => t.href)).toEqual(['/stats', '/analytics', '/persons', '/retention', '/users', '/announcements']);
+    expect(withoutHiddenRealData(toolsForUser(growth, null), false).map((t) => t.href)).toEqual(['/stats', '/retention', '/users', '/announcements']);
+  });
+  it('still maps /activity to Growth for the department bar', () => {
+    expect(departmentForPath('/activity')?.key).toBe('growth');
   });
 });

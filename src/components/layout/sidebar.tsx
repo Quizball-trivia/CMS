@@ -8,7 +8,7 @@ import { cn } from '@/lib/utils';
 import { useAuth } from '@/providers';
 import { useHqOverview } from '@/hooks';
 import { cmsRole, FREECROCO_ROOT, navGroupsForRole, navItemsForRole } from '@/lib/freecroco/access';
-import { HQ_DEPARTMENTS, departmentHref, withoutHiddenRealData } from '@/lib/hq-departments';
+import { HQ_DEPARTMENTS, departmentHref, toolsForUser, withoutHiddenRealData } from '@/lib/hq-departments';
 import { useRealAnalyticsVisible } from '@/hooks/use-real-analytics-visible';
 import type { HqDepartment, HqDepartmentKey } from '@/types';
 import {
@@ -69,7 +69,7 @@ function rootRoutes(hrefs: string[]): string[] {
 // `routes` (the group's access rule) lists the top-level tools — or the department
 // page when there are none — so the Partners group stays visible to partner staff
 // (just /freecroco) while its admin-only Overview and Staff links are filtered per item.
-function departmentGroups(showRealData: boolean): DepartmentGroup[] {
+function departmentGroups(email: string | null | undefined, showRealData: boolean): DepartmentGroup[] {
   return HQ_DEPARTMENTS.map((d) => ({
     key: d.key,
     title: d.name,
@@ -77,8 +77,9 @@ function departmentGroups(showRealData: boolean): DepartmentGroup[] {
     routes: d.tools.length > 0 ? rootRoutes(d.tools.map((t) => t.href)) : [departmentHref(d.key)],
     children: [
       { title: 'Overview', href: departmentHref(d.key), exact: true },
-      // Real-data pages stay out of sight unless enabled in Preferences.
-      ...withoutHiddenRealData(d.tools, showRealData).map((t) => ({ title: t.title, href: t.href, icon: t.icon, exact: t.exact })),
+      // Real-data pages stay out of sight unless enabled in Preferences; some tools are
+      // limited to specific accounts (e.g. Player activity).
+      ...withoutHiddenRealData(toolsForUser(d, email), showRealData).map((t) => ({ title: t.title, href: t.href, icon: t.icon, exact: t.exact })),
     ],
   }));
 }
@@ -102,7 +103,7 @@ export function Sidebar() {
   const company = navItemsForRole(companyItems, user?.role);
   const more = navItemsForRole(moreItems, user?.role);
   const showRealData = useRealAnalyticsVisible();
-  const groups = navGroupsForRole(departmentGroups(showRealData), user?.role)
+  const groups = navGroupsForRole(departmentGroups(user?.email, showRealData), user?.role)
     .map((group) => ({ ...group, children: navItemsForRole(group.children, user?.role) }))
     .filter((group) => group.children.length > 0);
 

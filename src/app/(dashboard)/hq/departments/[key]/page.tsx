@@ -8,8 +8,9 @@ import { Button } from '@/components/ui/button';
 import { useHqDepartments, useHqMembers, useHqSchedules, useHqTasks } from '@/hooks';
 import { cn } from '@/lib/utils';
 import { HQ_STATUS_LABELS, compareTasks, defaultDepartmentAssignee, formatRelative } from '@/lib/hq-board';
-import { departmentInfo, withoutHiddenRealData, type HqDepartmentInfo } from '@/lib/hq-departments';
+import { departmentInfo, toolsForUser, withoutHiddenRealData, type HqDepartmentInfo } from '@/lib/hq-departments';
 import { useRealAnalyticsVisible } from '@/hooks/use-real-analytics-visible';
+import { useAuth } from '@/providers';
 import type { HqDepartment, HqMember, HqTask, HqTaskStatus } from '@/types';
 import {
   EmptyState,
@@ -45,7 +46,8 @@ export default function DepartmentPage() {
 
 function Department({ info }: { info: HqDepartmentInfo }) {
   const { openTask } = useTaskSheet();
-  const tools = withoutHiddenRealData(info.tools, useRealAnalyticsVisible());
+  const { user } = useAuth();
+  const tools = withoutHiddenRealData(toolsForUser(info, user?.email), useRealAnalyticsVisible());
   const departments = useHqDepartments();
   const membersQuery = useHqMembers();
   const openTasks = useHqTasks({ department: info.key, status: OPEN_ORDER, limit: 200 });

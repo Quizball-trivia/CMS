@@ -26,6 +26,7 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import { FREECROCO_ROOT, FREECROCO_STAFF } from '@/lib/freecroco/access';
+import { ACTIVITY_ALLOWED_EMAIL } from '@/lib/constants';
 import type { HqDepartmentKey } from '@/types';
 
 export interface HqDepartmentTool {
@@ -40,6 +41,8 @@ export interface HqDepartmentTool {
    * Preferences, so a demo never wanders from the scaled /stats page into it.
    */
   realData?: boolean;
+  /** Only these accounts may open the page (it redirects everyone else). */
+  allowedEmails?: readonly string[];
 }
 
 export interface HqDepartmentInfo {
@@ -67,7 +70,8 @@ export const HQ_DEPARTMENTS: HqDepartmentInfo[] = [
       { title: 'Dashboard', href: '/stats', icon: BarChart3, description: 'Headline numbers — demo-safe preview.' },
       { title: 'Analytics (live)', href: '/analytics', icon: ChartColumn, description: 'Real players, matches and trends.', realData: true },
       { title: 'Persons', href: '/persons', icon: UserSearch, description: 'Real player journeys, one person at a time.', realData: true },
-      { title: 'Player activity', href: '/activity', icon: Activity, description: 'Who played what, and when.' },
+      // The page itself redirects anyone but ACTIVITY_ALLOWED_EMAIL, so only list it for them.
+      { title: 'Player activity', href: '/activity', icon: Activity, description: 'Who played what, and when.', allowedEmails: [ACTIVITY_ALLOWED_EMAIL] },
       { title: 'Retention', href: '/retention', icon: Mail, description: 'Win-back emails and returning players.' },
       { title: 'Users', href: '/users', icon: Users, description: 'Look up and manage player accounts.' },
       { title: 'Announcements', href: '/announcements', icon: Megaphone, description: 'In-app news and banners for players.' },
@@ -128,6 +132,16 @@ export const HQ_DEPARTMENT_KEYS = HQ_DEPARTMENTS.map((d) => d.key);
 /** Drops real-data tools unless real data is switched on (Preferences → useRealAnalyticsVisible). */
 export function withoutHiddenRealData<T extends Pick<HqDepartmentTool, 'realData'>>(tools: T[], showRealData: boolean): T[] {
   return showRealData ? tools : tools.filter((t) => !t.realData);
+}
+
+/** Whether this signed-in account may see a tool (most tools: everyone with access to the section). */
+export function canSeeTool(tool: Pick<HqDepartmentTool, 'allowedEmails'>, email: string | null | undefined): boolean {
+  return !tool.allowedEmails || (!!email && tool.allowedEmails.includes(email));
+}
+
+/** A department's tools this account may see (sidebar + department page). */
+export function toolsForUser(dept: Pick<HqDepartmentInfo, 'tools'>, email: string | null | undefined): HqDepartmentTool[] {
+  return dept.tools.filter((t) => canSeeTool(t, email));
 }
 
 /** Icon for the Partners group header in the collapsed sidebar rail. */
