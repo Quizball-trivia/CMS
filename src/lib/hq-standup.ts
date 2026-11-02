@@ -180,6 +180,22 @@ export function buildProposalChange(
   return req;
 }
 
+export type ProposalSnapshot = Pick<HqTask, 'title' | 'body' | 'proposal'>;
+
+/** Freezes what the Change dialog edits against, the moment it opens. */
+export function snapshotProposal(task: ProposalSnapshot): ProposalSnapshot {
+  return { title: task.title, body: task.body, proposal: task.proposal ? { ...task.proposal } : null };
+}
+
+/** True when the server's copy differs from the snapshot (someone else edited the idea meanwhile). */
+export function proposalChangedSince(snapshot: ProposalSnapshot, live: ProposalSnapshot): boolean {
+  if (snapshot.title !== live.title || snapshot.body !== live.body) return true;
+  const a = snapshot.proposal;
+  const b = live.proposal;
+  if (!a || !b) return a !== b;
+  return a.why !== b.why || a.plan !== b.plan || a.expectedImpact !== b.expectedImpact || a.effort !== b.effort;
+}
+
 /**
  * Top countries by active players, each with its share. Shares use
  * `allPlayersTotal` (every country, before the backend's top-30 cut) when the

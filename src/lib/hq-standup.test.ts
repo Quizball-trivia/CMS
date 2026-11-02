@@ -14,7 +14,9 @@ import {
   periodFor,
   proposalBody,
   proposalEditMode,
+  proposalChangedSince,
   proposalEditText,
+  snapshotProposal,
   retentionCellClass,
   retentionPct,
   standupStatusSentence,
@@ -247,5 +249,30 @@ describe('Change form: body is the single source of truth', () => {
 
   it('sends nothing when nothing changed', () => {
     expect(buildProposalChange(generated, 'Idea', 'Old plan')).toEqual({});
+  });
+});
+
+describe('Change dialog snapshot', () => {
+  const proposal = { why: 'W', plan: 'Plan A', expectedImpact: '+5%', effort: 'm' as const };
+  const live = { title: 'Idea', body: proposalBody(proposal), proposal };
+
+  it('detects edits to title, body or any proposal field since the snapshot', () => {
+    const snap = snapshotProposal(live);
+    expect(proposalChangedSince(snap, live)).toBe(false);
+    expect(proposalChangedSince(snap, { ...live, title: 'Renamed' })).toBe(true);
+    expect(proposalChangedSince(snap, { ...live, body: 'hand edit' })).toBe(true);
+    expect(proposalChangedSince(snap, { ...live, proposal: { ...proposal, effort: 'l' } })).toBe(true);
+    expect(proposalChangedSince(snap, { ...live, proposal: null })).toBe(true);
+  });
+
+  it('copies the proposal so later mutations of the live object do not leak in', () => {
+    const mutable = { ...live, proposal: { ...proposal } };
+    const snap = snapshotProposal(mutable);
+    mutable.proposal.plan = 'Plan B';
+    expect(snap.proposal!.plan).toBe('Plan A');
+  });
+
+  it('a title-only change in plan mode never sends the plan text as body', () => {
+    expect(buildProposalChange(snapshotProposal(live), 'Better title', 'Plan A')).toEqual({ title: 'Better title' });
   });
 });

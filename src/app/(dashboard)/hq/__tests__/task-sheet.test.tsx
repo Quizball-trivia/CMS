@@ -188,3 +188,11 @@ it('locks a proposed idea to Do it / Change / Not now', () => {
   expect(screen.queryByRole('button', { name: /run again/i })).toBeNull();
   for (const name of [/do it/i, /change/i, /not now/i]) expect(screen.getByRole('button', { name })).toBeTruthy();
 });
+
+it('locks an in-progress task whose agent isn’t in the team list (archived / not loaded yet)', () => {
+  h.members = [member(human, 'none')]; // the assigned agent is missing
+  h.tasks['task-a'] = detail('task-a', 1, 'Task A', { status: 'in_progress', assignee: agentRef });
+  render(<TaskSheetHost />);
+  expect(screen.getByText('The agent is working on this')).toBeTruthy();
+  expect((screen.getAllByRole('combobox')[1] as HTMLButtonElement).disabled).toBe(true);
+});

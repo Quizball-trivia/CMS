@@ -92,11 +92,17 @@ function TaskDetail({ task, members }: { task: HqTaskDetail; members: HqMember[]
     setEditing(true);
   };
 
-  const runtimeById = useMemo(() => new Map(members.map((m) => [m.id, m.runtime])), [members]);
-  const assigneeMember = members.find((m) => m.id === task.assignee?.id);
+  // Runtimes come from every member, archived included, so an archived agent's
+  // task isn't mistaken for a person's. Until they load the map is undefined and
+  // ownership-sensitive moves stay disabled (canDropInto treats it as unknown).
+  const { data: everyone } = useHqMembers(true);
+  const runtimeById = useMemo(() => (everyone ? new Map(everyone.map((m) => [m.id, m.runtime])) : undefined), [everyone]);
+  const assigneeMember = (everyone ?? members).find((m) => m.id === task.assignee?.id);
+  // Unknown runtime: lock like an HQ agent until we know better.
+  const assigneeRuntimeUnknown = !!task.assignee && task.assignee.kind === 'agent' && !assigneeMember;
   // The worker owns a claimed task even if its agent was paused since, so the
   // lock uses the runtime; re-running needs an agent that will actually run.
-  const assigneeIsHqAgent = isHqRuntimeAgent(assigneeMember);
+  const assigneeIsHqAgent = isHqRuntimeAgent(assigneeMember) || assigneeRuntimeUnknown;
   const assigneeRunnable = isRunnableHqAgent(assigneeMember);
   const activeMembers = members.filter((m) => m.status !== 'archived');
   // The HQ worker owns a claimed task: people may only cancel, block or finish it.

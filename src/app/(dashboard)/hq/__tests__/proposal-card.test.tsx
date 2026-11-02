@@ -126,3 +126,44 @@ describe('ProposalCard › Change when the body was edited by hand', () => {
     expect(api.acceptProposal).toHaveBeenCalledWith('t1', { title: 'Derby push' });
   });
 });
+
+describe('ProposalCard › Change while the idea updates in the background', () => {
+  it('keeps the mode/baseline from when the dialog opened and asks before overwriting', async () => {
+    const { rerender } = render(<ProposalCard task={idea} />, { wrapper });
+    fireEvent.click(screen.getByRole('button', { name: /change/i }));
+    expect(screen.getByLabelText('Plan')).toBeTruthy();
+    fireEvent.change(screen.getByLabelText('Idea title'), { target: { value: 'My title' } });
+
+    // Polling brings a hand-edited body: the dialog must stay in plan mode.
+    const changed = { ...idea, body: 'Someone rewrote this.' };
+    rerender(<ProposalCard task={changed} />);
+    expect(screen.getByLabelText('Plan')).toBeTruthy();
+    expect(screen.queryByLabelText('Instructions')).toBeNull();
+
+    // Saving warns instead of silently overwriting.
+    await act(async () => {
+      fireEvent.click(screen.getAllByRole('button', { name: /do it/i }).at(-1)!);
+    });
+    expect(api.acceptProposal).not.toHaveBeenCalled();
+    expect(screen.getByRole('alert').textContent).toMatch(/changed while you were editing/);
+
+    // Save anyway sends only the diff vs the snapshot — never the plan as body.
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /save anyway/i }));
+    });
+    expect(api.acceptProposal).toHaveBeenCalledWith('t1', { title: 'My title' });
+  });
+
+  it('Reload restarts the form from the latest version', async () => {
+    const { rerender } = render(<ProposalCard task={idea} />, { wrapper });
+    fireEvent.click(screen.getByRole('button', { name: /change/i }));
+    rerender(<ProposalCard task={{ ...idea, title: 'Renamed by the agent', body: 'Rewritten instructions' }} />);
+    await act(async () => {
+      fireEvent.click(screen.getAllByRole('button', { name: /do it/i }).at(-1)!);
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Reload' }));
+    expect((screen.getByLabelText('Idea title') as HTMLInputElement).value).toBe('Renamed by the agent');
+    expect((screen.getByLabelText('Instructions') as HTMLTextAreaElement).value).toBe('Rewritten instructions');
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
+});

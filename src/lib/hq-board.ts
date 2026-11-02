@@ -107,15 +107,31 @@ export function defaultDepartmentAssignee(candidates: Array<{ id: string }>, mem
   return candidates.find((c) => isRunnableHqAgent(byId.get(c.id)))?.id ?? null;
 }
 
-/** Only the HQ worker moves an agent's task into in_progress (by claiming it). */
-export function isHqAgent(member: Pick<HqMemberRef, 'kind'> | null, runtimeById?: Map<string, string>, id?: string): boolean {
-  if (!member || member.kind !== 'agent') return false;
-  if (runtimeById && id) return runtimeById.get(id) === 'hq';
-  return true;
+/**
+ * Who runs an assignee's tasks, from a runtime map (member id → runtime).
+ * 'unknown' when we can't tell — no map yet, the members failed to load, or
+ * the agent isn't in it — and callers must then be conservative.
+ */
+export type AssigneeRuntime = 'none' | 'hq' | 'other' | 'unknown';
+
+export function assigneeRuntime(member: Pick<HqMemberRef, 'kind' | 'id'> | null, runtimeById?: Map<string, string>): AssigneeRuntime {
+  if (!member || member.kind !== 'agent') return 'none';
+  const runtime = runtimeById?.get(member.id);
+  if (runtime === undefined) return 'unknown';
+  return runtime === 'hq' ? 'hq' : 'other';
+}
+
+/** Only the HQ worker moves an agent's task into in_progress (by claiming it). Unknown runtime counts as HQ. */
+export function isHqAgent(member: Pick<HqMemberRef, 'kind' | 'id'> | null, runtimeById?: Map<string, string>): boolean {
+  const r = assigneeRuntime(member, runtimeById);
+  return r === 'hq' || r === 'unknown';
 }
 
 /** A proposed task (an agent's idea) only moves via Do it / Change / Not now. */
 export const PROPOSAL_LOCKED_HINT = 'Accept or decline this idea first.';
+
+/** Shown while we can't tell whether the HQ worker owns the task. */
+export const RUNTIME_UNKNOWN_HINT = 'Still loading who runs this agent — try again in a moment.';
 
 /** Where a person may move a task an HQ agent is currently working on (backend rule). */
 export const AGENT_WORKING_EXITS: HqTaskStatus[] = ['cancelled', 'blocked', 'done'];
@@ -132,16 +148,20 @@ export function canDropInto(
   if (target === 'proposed') {
     return { ok: false, reason: 'Only agents propose ideas — use "Do it" or "Not now" on an idea instead.' };
   }
-  if (target === 'in_progress' && task.assignee && isHqAgent(task.assignee, runtimeById, task.assignee.id)) {
-    return { ok: false, reason: 'Agents start their own tasks — move it to "To do" and the agent will pick it up.' };
+  // Ownership-sensitive moves: an unknown runtime (members loading / failed /
+  // archived agent missing from the map) is treated as "maybe the worker's".
+  const runtime = assigneeRuntime(task.assignee, runtimeById);
+  if (target === 'in_progress' && (runtime === 'hq' || runtime === 'unknown')) {
+    return {
+      ok: false,
+      reason: runtime === 'unknown' ? RUNTIME_UNKNOWN_HINT : 'Agents start their own tasks — move it to "To do" and the agent will pick it up.',
+    };
   }
-  if (
-    task.status === 'in_progress' &&
-    task.assignee &&
-    isHqAgent(task.assignee, runtimeById, task.assignee.id) &&
-    !AGENT_WORKING_EXITS.includes(target)
-  ) {
-    return { ok: false, reason: 'The agent is working on this. You can cancel, block or mark it done.' };
+  if (task.status === 'in_progress' && (runtime === 'hq' || runtime === 'unknown') && !AGENT_WORKING_EXITS.includes(target)) {
+    return {
+      ok: false,
+      reason: runtime === 'unknown' ? RUNTIME_UNKNOWN_HINT : 'The agent is working on this. You can cancel, block or mark it done.',
+    };
   }
   return { ok: true };
 }
