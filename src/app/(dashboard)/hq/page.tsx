@@ -5,7 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { ArrowRight, Loader2, MessageCircle, PlayCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { useHqMembers, useHqOverview, useHqStandup, useRunHqStandup } from '@/hooks';
+import { useHqClock, useHqMembers, useHqOverview, useHqStandup, useRunHqStandup } from '@/hooks';
 import { useAuth } from '@/providers';
 import { cn } from '@/lib/utils';
 import { departmentInfo } from '@/lib/hq-departments';
@@ -27,7 +27,7 @@ export default function StandupPage() {
   const { data: overview } = useHqOverview();
   const { data: members = [] } = useHqMembers();
   const { openTask } = useTaskSheet();
-  const [now] = useState(() => new Date());
+  const now = useHqClock();
   const [goalDialog, setGoalDialog] = useState<{ goal: HqGoal | null; horizon: HqGoalHorizon } | null>(null);
   const [askTo, setAskTo] = useState<HqMemberRef | null>(null);
 
