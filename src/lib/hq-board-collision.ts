@@ -32,6 +32,18 @@ export const boardCollision: CollisionDetection = (args) => {
       .filter((x): x is { c: (typeof args.droppableContainers)[number]; r: NonNullable<typeof x.r> } => !!x.r)
       .sort((a, b) => a.r.top - b.r.top);
     const others = inColumn.filter((x) => x.c.id !== args.active.id);
+    // A gap touching the dragged card's own slot (between its neighbours) is
+    // "put it back": a no-op drop, never a move past a neighbour.
+    const slot = inColumn.findIndex((x) => x.c.id === args.active.id);
+    if (slot >= 0) {
+      const prev = inColumn[slot - 1];
+      const next = inColumn[slot + 1];
+      const top = prev ? prev.r.bottom : -Infinity;
+      const bottom = next ? next.r.top : Infinity;
+      if (p.y >= top && p.y <= bottom && (prev || next)) {
+        return [{ id: args.active.id, data: { droppableContainer: inColumn[slot].c, value: 0 } }];
+      }
+    }
     if (others.length) {
       const below = others.find((x) => x.r.top >= p.y);
       if (!below) return column ? [column] : hits;

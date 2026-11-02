@@ -32,8 +32,11 @@ describe('boardCollision', () => {
   it('pointer on a card targets that card', () => {
     expect(run('C', 100, 80)).toEqual(['B']);
   });
-  it('dropping the last card below its own slot keeps it last (column target = append)', () => {
-    expect(run('C', 100, 400)).toEqual(['column:todo']);
+  it('dropping the last card below its own slot keeps it last (a no-op drop)', () => {
+    expect(run('C', 100, 400)).toEqual(['C']);
+  });
+  it('dropping another card below the last card appends (column target)', () => {
+    expect(run('A', 100, 400)).toEqual(['column:todo']);
   });
   it('moving down into a gap targets the card ABOVE the gap (placed after it)', () => {
     // A dragged down into the gap between B and C (y=115) → after B.
@@ -45,6 +48,11 @@ describe('boardCollision', () => {
   });
   it('an empty column is a column target', () => {
     expect(run('A', 300, 300)).toEqual(['column:backlog']);
+  });
+  it('the gaps right next to the dragged card\'s own slot are a no-op drop', () => {
+    // B dragged into the gap just below its slot (between B and C) or just above it (between A and B).
+    expect(run('B', 100, 115)).toEqual(['B']);
+    expect(run('B', 100, 55)).toEqual(['B']);
   });
   it('pointer back on its own slot is a no-op drop', () => {
     expect(run('B', 100, 80)).toEqual(['B']);
