@@ -134,6 +134,25 @@ describe('countries', () => {
 });
 
 describe('game modes', () => {
+  it('merges a real "other" mode from the API into the single Other row', () => {
+    const rows = topModesWithOther(
+      [
+        { mode: 'ranked', matches: 50, share: 0.5 },
+        { mode: 'other', matches: 40, share: 0.4 },
+        { mode: 'friendly', matches: 10, share: 0.1 },
+        { mode: 'auction', matches: 5, share: 0.05 },
+      ],
+      undefined,
+      2
+    );
+    expect(rows.map((r) => [r.mode, r.matches])).toEqual([
+      ['ranked', 50],
+      ['friendly', 10],
+      ['other', 45],
+    ]);
+    expect(rows.filter((r) => r.mode === 'other')).toHaveLength(1);
+  });
+
   it('keeps the top N modes and folds the rest into Other', () => {
     const rows = topModesWithOther(
       [

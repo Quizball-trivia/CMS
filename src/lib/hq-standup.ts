@@ -220,10 +220,13 @@ export function modeLabel(mode: string, labels?: Record<string, string>): string
 
 /** Top `n` modes by matches, the rest folded into "Other" (for a donut). */
 export function topModesWithOther(modes: HqAnalytics['modes'], labels?: Record<string, string>, n = 6) {
-  const sorted = [...modes].sort((a, b) => b.matches - a.matches);
-  const total = sorted.reduce((sum, m) => sum + m.matches, 0);
-  const head = sorted.slice(0, n);
-  const rest = sorted.slice(n).reduce((sum, m) => sum + m.matches, 0);
+  // A real `other` mode from the API always joins the remainder bucket, so
+  // there is exactly one Other row (unique React keys, one donut slice).
+  const named = [...modes].filter((m) => m.mode !== 'other').sort((a, b) => b.matches - a.matches);
+  const apiOther = modes.filter((m) => m.mode === 'other').reduce((sum, m) => sum + m.matches, 0);
+  const total = named.reduce((sum, m) => sum + m.matches, 0) + apiOther;
+  const head = named.slice(0, n);
+  const rest = named.slice(n).reduce((sum, m) => sum + m.matches, 0) + apiOther;
   const rows = head.map((m) => ({ mode: m.mode, label: modeLabel(m.mode, labels), matches: m.matches, share: total > 0 ? m.matches / total : 0 }));
   if (rest > 0) rows.push({ mode: 'other', label: 'Other', matches: rest, share: total > 0 ? rest / total : 0 });
   return rows;
