@@ -4,12 +4,14 @@ import { Sidebar } from '@/components/layout/sidebar';
 
 const h = vi.hoisted(() => ({
   role: undefined as string | undefined,
+  realData: false,
   email: undefined as string | undefined,
   pathname: '/freecroco',
   overview: undefined as unknown,
   overviewEnabled: [] as boolean[],
 }));
 vi.mock('next/navigation', () => ({ usePathname: () => h.pathname }));
+vi.mock('@/hooks/use-real-analytics-visible', () => ({ useRealAnalyticsVisible: () => h.realData }));
 vi.mock('@/providers', () => ({ useAuth: () => ({ user: { role: h.role, email: h.email } }) }));
 vi.mock('@/hooks', () => ({
   useHqOverview: (opts: { enabled?: boolean } = {}) => {
@@ -19,6 +21,7 @@ vi.mock('@/hooks', () => ({
 }));
 
 beforeEach(() => {
+  h.realData = false;
   h.email = undefined;
   h.overview = undefined;
   h.overviewEnabled = [];
@@ -98,6 +101,19 @@ it('badges the Inbox with approvals + unread messages, and flags busy department
   expect(within(nav()).getByRole('link', { name: 'Inbox (5)' })).toBeTruthy();
   expect(within(nav()).getByTitle('1 waiting for approval')).toBeTruthy();
   expect(within(nav()).getAllByLabelText('working').length).toBeGreaterThan(0);
+});
+
+it('keeps the real-data pages under Growth behind the Preferences toggle, and Preferences reachable', () => {
+  h.role = 'admin';
+  h.pathname = '/stats';
+  render(<Sidebar />);
+  expect(links()).toContain('/settings');
+  expect(links()).not.toContain('/analytics');
+  expect(links()).not.toContain('/persons');
+  cleanup();
+  h.realData = true;
+  render(<Sidebar />);
+  expect(links()).toEqual(expect.arrayContaining(['/stats', '/analytics', '/persons']));
 });
 
 it('shows Player activity under Growth only for the allowed account', () => {
