@@ -7,12 +7,22 @@ const CHANGE_EVENT = 'cms-prefs-changed';
 
 export function isRealAnalyticsVisible(): boolean {
   if (typeof window === 'undefined') return false;
-  return window.localStorage.getItem(REAL_ANALYTICS_KEY) === '1';
+  try {
+    return window.localStorage.getItem(REAL_ANALYTICS_KEY) === '1';
+  } catch {
+    return false;
+  }
 }
 
-export function setRealAnalyticsVisible(visible: boolean): void {
-  window.localStorage.setItem(REAL_ANALYTICS_KEY, visible ? '1' : '0');
+/** False when the browser refused to store the preference (blocked or full storage). */
+export function setRealAnalyticsVisible(visible: boolean): boolean {
+  try {
+    window.localStorage.setItem(REAL_ANALYTICS_KEY, visible ? '1' : '0');
+  } catch {
+    return false;
+  }
   window.dispatchEvent(new Event(CHANGE_EVENT));
+  return true;
 }
 
 export function subscribeToPrefs(listener: () => void): () => void {

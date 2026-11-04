@@ -76,7 +76,7 @@ function StatCard({ label, value, before, sub, icon: Icon, accent }: StatCardPro
 function ShareBar({ value, max, color }: { value: number; max: number; color: string }) {
   return (
     <div className="h-2 rounded-sm bg-slate-100">
-      <div className="h-2 rounded-sm" style={{ width: `${Math.max(2, (value / Math.max(max, 1)) * 100)}%`, backgroundColor: color }} />
+      <div className="h-2 rounded-sm" style={{ width: value === 0 ? '0%' : `${Math.max(2, (value / Math.max(max, 1)) * 100)}%`, backgroundColor: color }} />
     </div>
   );
 }
@@ -196,6 +196,7 @@ function AudienceInner() {
 
   const s = data.summary;
   const prev = data.previous;
+  const unknownPlatform = s.newRegistered - s.signupPlatforms.web - s.signupPlatforms.android - s.signupPlatforms.ios;
   const historyNote = !data.coverage.historyComplete;
   // Days not counted yet are left as gaps instead of looking like zero players.
   const trend = data.trend.map((d) => ({
@@ -229,7 +230,8 @@ function AudienceInner() {
         <StatCard label="Players" value={s.active} before={prev?.active}
           sub={`${fmt(s.registered)} registered · ${fmt(s.guests)} guests`} icon={Activity} accent="bg-blue-50 text-blue-600" />
         <StatCard label="New accounts" value={s.newRegistered} before={prev?.newRegistered}
-          sub={`${fmt(s.newRegisteredPlayed)} played · web ${fmt(s.signupPlatforms.web)} · Android ${fmt(s.signupPlatforms.android)} · iOS ${fmt(s.signupPlatforms.ios)}`}
+          sub={`${fmt(s.newRegisteredPlayed)} played · web ${fmt(s.signupPlatforms.web)} · Android ${fmt(s.signupPlatforms.android)} · iOS ${fmt(s.signupPlatforms.ios)}${
+            unknownPlatform > 0 ? ` · unknown ${fmt(unknownPlatform)}` : ''}`}
           icon={UserPlus} accent="bg-emerald-50 text-emerald-600" />
         <StatCard label="New guests" value={s.newGuests} before={prev?.newGuests}
           sub={s.newGuests === null ? 'available once history is counted' : 'guests playing for the first time'}

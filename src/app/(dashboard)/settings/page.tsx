@@ -4,6 +4,7 @@ import { Eye, EyeOff, MonitorSmartphone } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useRealAnalyticsVisible } from '@/hooks/use-real-analytics-visible';
+import { toast } from 'sonner';
 import { setRealAnalyticsVisible } from '@/lib/cms-prefs';
 
 export default function SettingsPage() {
@@ -23,8 +24,8 @@ export default function SettingsPage() {
             Real-data pages
           </CardTitle>
           <CardDescription>
-            Shows or hides <span className="font-medium">Analytics (live)</span> and{' '}
-            <span className="font-medium">Persons</span> in the sidebar. Hidden by default so a
+            Shows or hides <span className="font-medium">Analytics (live)</span>,{' '}
+            <span className="font-medium">Audience</span> and <span className="font-medium">Persons</span> in the sidebar. Hidden by default so a
             demo or screen-share never lands on production truth next to the demo dashboard.
             The demo <span className="font-medium">/stats</span> page is unaffected.
           </CardDescription>
@@ -37,7 +38,9 @@ export default function SettingsPage() {
             </span>{' '}
             in this browser.
           </div>
-          <Button variant={visible ? 'outline' : 'default'} onClick={() => setRealAnalyticsVisible(!visible)}>
+          <Button variant={visible ? 'outline' : 'default'} onClick={() => {
+            if (!setRealAnalyticsVisible(!visible)) toast.error('This browser blocked saving the preference (storage is full or disabled).');
+          }}>
             {visible ? <EyeOff className="mr-2 h-4 w-4" /> : <Eye className="mr-2 h-4 w-4" />}
             {visible ? 'Hide real-data pages' : 'Show real-data pages'}
           </Button>
