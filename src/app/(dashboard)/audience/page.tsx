@@ -129,7 +129,7 @@ function SourcesCard({ data }: { data: Audience }) {
           <>
             <div className="grid gap-2 sm:grid-cols-4">
               {[
-                { label: 'New visitors (PostHog)', value: src.newVisitors, unknown: false },
+                { label: 'New visitors (first visit in 120 days)', value: src.newVisitors, unknown: false },
                 { label: 'New guests who played', value: s.newGuests ?? 0, unknown: s.newGuests === null },
                 { label: 'New accounts', value: s.newRegistered, unknown: false },
                 { label: 'New accounts who played', value: s.newRegisteredPlayed, unknown: false },
@@ -181,7 +181,8 @@ function AudienceInner() {
         <h1 className="text-2xl font-bold tracking-tight text-slate-900">Audience</h1>
         <p className="text-sm text-slate-500">
           Every game, each person counted once (a guest who signs up counts as the member). Real accounts only — no bots,
-          staff or partner players. Days in Asia/Tbilisi. A game counts on the day it was started.
+          staff or partner players. Days in Asia/Tbilisi. A game counts on the day it was started; warm-ups and public
+          quizzes record no plays, so they are not included.
         </p>
       </div>
       {tabs}
@@ -304,7 +305,7 @@ function AudienceInner() {
                   <TableHead className="text-right">Players</TableHead>
                   <TableHead className="text-right">Registered</TableHead>
                   <TableHead className="text-right">Guests</TableHead>
-                  <TableHead className="text-right">Plays</TableHead>
+                  <TableHead className="text-right" title="Games, rounds or daily runs recorded">Sessions</TableHead>
                   <TableHead className="w-1/5" />
                 </TableRow>
               </TableHeader>
