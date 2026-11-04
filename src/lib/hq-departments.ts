@@ -13,6 +13,7 @@ import {
   FolderKanban,
   Gamepad,
   Gavel,
+  Globe2,
   Mail,
   Megaphone,
   PanelsTopLeft,
@@ -69,6 +70,7 @@ export const HQ_DEPARTMENTS: HqDepartmentInfo[] = [
     tools: [
       { title: 'Dashboard', href: '/stats', icon: BarChart3, description: 'Headline numbers — demo-safe preview.' },
       { title: 'Analytics (live)', href: '/analytics', icon: ChartColumn, description: 'Real players, matches and trends.', realData: true },
+      { title: 'Audience', href: '/audience', icon: Globe2, description: 'Who plays, where they come from, which games.', realData: true },
       { title: 'Persons', href: '/persons', icon: UserSearch, description: 'Real player journeys, one person at a time.', realData: true },
       // The page itself redirects anyone but ACTIVITY_ALLOWED_EMAIL, so only list it for them.
       { title: 'Player activity', href: '/activity', icon: Activity, description: 'Who played what, and when.', allowedEmails: [ACTIVITY_ALLOWED_EMAIL] },

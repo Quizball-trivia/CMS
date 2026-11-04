@@ -170,6 +170,7 @@ describe('main-only pages in the catalog', () => {
     const growth = departmentInfo('growth')!;
     expect(withoutHiddenRealData(growth.tools, false).map((t) => t.href)).not.toEqual(expect.arrayContaining(['/analytics']));
     expect(withoutHiddenRealData(growth.tools, false).map((t) => t.href)).not.toContain('/persons');
+    expect(withoutHiddenRealData(growth.tools, false).map((t) => t.href)).not.toContain('/audience');
     expect(withoutHiddenRealData(growth.tools, true).map((t) => t.href)).toEqual(expect.arrayContaining(['/stats', '/analytics', '/persons']));
   });
 });
@@ -184,7 +185,7 @@ describe('account-limited tools (Player activity)', () => {
   });
   it('leaves ordinary tools visible to everyone', () => {
     expect(canSeeTool({}, null)).toBe(true);
-    expect(toolsForUser(growth, null).map((t) => t.href)).toEqual(['/stats', '/analytics', '/persons', '/retention', '/users', '/announcements']);
+    expect(toolsForUser(growth, null).map((t) => t.href)).toEqual(['/stats', '/analytics', '/audience', '/persons', '/retention', '/users', '/announcements']);
     expect(withoutHiddenRealData(toolsForUser(growth, null), false).map((t) => t.href)).toEqual(['/stats', '/retention', '/users', '/announcements']);
   });
   it('still maps /activity to Growth for the department bar', () => {
