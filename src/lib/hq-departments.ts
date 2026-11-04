@@ -13,6 +13,7 @@ import {
   FolderKanban,
   Gamepad,
   Gavel,
+  Globe2,
   Mail,
   Megaphone,
   PanelsTopLeft,
@@ -36,6 +37,11 @@ export interface HqDepartmentTool {
   description: string;
   /** Active only on this exact path (for a tool whose href is a prefix of a sibling's). */
   exact?: boolean;
+  /**
+   * Shows real production numbers: hidden unless "real data" is turned on in
+   * Preferences, so a demo never wanders from the scaled /stats page into it.
+   */
+  realData?: boolean;
   /** Only these accounts may open the page (it redirects everyone else). */
   allowedEmails?: readonly string[];
 }
@@ -62,7 +68,10 @@ export const HQ_DEPARTMENTS: HqDepartmentInfo[] = [
     emoji: '📈',
     mission: 'Brings new players in, keeps them coming back, and listens to what they say.',
     tools: [
-      { title: 'Analytics', href: '/stats', icon: BarChart3, description: 'Players, matches and revenue trends.' },
+      { title: 'Dashboard', href: '/stats', icon: BarChart3, description: 'Headline numbers — demo-safe preview.' },
+      { title: 'Analytics (live)', href: '/analytics', icon: ChartColumn, description: 'Real players, matches and trends.', realData: true },
+      { title: 'Audience', href: '/audience', icon: Globe2, description: 'Who plays, where they come from, which games.', realData: true },
+      { title: 'Persons', href: '/persons', icon: UserSearch, description: 'Real player journeys, one person at a time.', realData: true },
       // The page itself redirects anyone but ACTIVITY_ALLOWED_EMAIL, so only list it for them.
       { title: 'Player activity', href: '/activity', icon: Activity, description: 'Who played what, and when.', allowedEmails: [ACTIVITY_ALLOWED_EMAIL] },
       { title: 'Retention', href: '/retention', icon: Mail, description: 'Win-back emails and returning players.' },
@@ -121,6 +130,11 @@ export const HQ_DEPARTMENTS: HqDepartmentInfo[] = [
 ];
 
 export const HQ_DEPARTMENT_KEYS = HQ_DEPARTMENTS.map((d) => d.key);
+
+/** Drops real-data tools unless real data is switched on (Preferences → useRealAnalyticsVisible). */
+export function withoutHiddenRealData<T extends Pick<HqDepartmentTool, 'realData'>>(tools: T[], showRealData: boolean): T[] {
+  return showRealData ? tools : tools.filter((t) => !t.realData);
+}
 
 /** Whether this signed-in account may see a tool (most tools: everyone with access to the section). */
 export function canSeeTool(tool: Pick<HqDepartmentTool, 'allowedEmails'>, email: string | null | undefined): boolean {
