@@ -7,7 +7,7 @@ import { apiScenarios } from './api-scenarios';
  * Opt-in: the same scenarios against a running Table Derby API, so the mock
  * and the real API are held to the same behaviour. Point it at a LOCAL API on
  * its own database only (the scenarios write content and publish):
- *   TD_REAL_API_URL=http://127.0.0.1:8090 TD_REAL_STAFF='{"editor":{"email":…,"password":…},"publisher":…,"betsson_admin":…,"ops":…}' npx vitest run real-api
+ *   TD_REAL_API_URL=http://127.0.0.1:8090 TD_REAL_STAFF='{"betsson_admin":{"email":…,"password":…},"ops":…}' npx vitest run real-api
  */
 const url = process.env.TD_REAL_API_URL;
 const staff = process.env.TD_REAL_STAFF;

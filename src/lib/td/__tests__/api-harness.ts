@@ -1,6 +1,7 @@
+import type { TdRole } from '@/types/td';
 import { checkContract, matchContractRoute, type SchemaIssue } from '../contract';
 
-export type Role = 'editor' | 'publisher' | 'betsson_admin' | 'ops';
+export type Role = TdRole;
 
 export interface Exchange {
   method: string;

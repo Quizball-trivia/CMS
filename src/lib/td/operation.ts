@@ -1,3 +1,4 @@
+import { t } from '@/lib/td/i18n';
 import { SESSION_CHANGED, TdApiError, type TdRequestOptions } from './api-client';
 
 /**
@@ -22,7 +23,7 @@ export function operationIsCurrent(tokens: SessionReader, operation: TdOperation
   return (tokens.read()?.generation ?? null) === operation.generation;
 }
 
-const sessionChanged = () => new TdApiError(0, SESSION_CHANGED, 'The session changed; the request was cancelled');
+const sessionChanged = () => new TdApiError(0, SESSION_CHANGED, t('The session changed; the request was cancelled'));
 
 /** The contract's `conflict_retry` means "send the same request again"; nothing else is retried. */
 export async function retryConflicts<T>(run: () => Promise<T>, attempts = 3): Promise<T> {

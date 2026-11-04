@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { checkContract } from '../contract';
-import { parseDelimited, parseItemsJson, parseSheet, sheetTemplate, TD_IMPORTABLE_TYPES } from '../import-format';
+import { madeKey, parseDelimited, parseItemsJson, parseSheet, sheetTemplate, TD_IMPORTABLE_TYPES } from '../import-format';
 
 describe('spreadsheet import', () => {
   it('reads quoted fields, doubled quotes and line breaks, with the delimiter from the header', () => {
@@ -56,6 +56,38 @@ describe('spreadsheet import', () => {
     expect((practice.items[0] as { data: { answer: number } }).data.answer).toBe(2);
   });
 
+  it('makes up the ID of a row that has none from what the row says, whatever the order of its columns', () => {
+    const keyOf = (parsed: ReturnType<typeof parseSheet>, i = 0) => (parsed.items[i] as { data: { key: string } }).data.key;
+    const plain = parseSheet('penalty-questions', 'q,display,aliases\nCapital of Georgia?,Tbilisi,tbilisi');
+    expect(plain.problems).toEqual([]);
+    expect(keyOf(plain)).toMatch(/^row-[0-9a-z]+$/);
+    expect(checkContract('ContentImportItem', plain.items[0])).toEqual([]);
+    // The same row again: other column order, an empty key column, a note, a position.
+    expect(keyOf(parseSheet('penalty-questions', 'note,aliases,key,display,position,q\nchecked,tbilisi,,Tbilisi,4,Capital of Georgia?'))).toBe(keyOf(plain));
+    expect(keyOf(parseSheet('penalty-questions', 'q,display,aliases\nCapital of Georgia?,Tbilisi,tbilisi|tiflis'))).not.toBe(keyOf(plain));
+
+    // The category chosen for the upload counts as the row's own.
+    const cards = 'value,display,aliases,lines\n1,Messi,messi,Argentina';
+    const legends = parseSheet('cards', cards, { categoryKey: 'legends' });
+    expect((legends.items[0] as { data: { categoryKey: string } }).data.categoryKey).toBe('legends');
+    expect(keyOf(legends)).toBe(keyOf(parseSheet('cards', 'categoryKey,value,display,aliases,lines\nlegends,1,Messi,messi,Argentina')));
+    expect(keyOf(legends)).not.toBe(keyOf(parseSheet('cards', cards, { categoryKey: 'coaches' })));
+  });
+
+  it('refuses a row with no ID that is written twice, naming the first one', () => {
+    const parsed = parseSheet('penalty-questions', 'q,display,aliases\nCapital of Georgia?,Tbilisi,tbilisi\nWho won in 2022?,Argentina,argentina\nCapital of Georgia?,Tbilisi,tbilisi');
+    expect(parsed.items).toHaveLength(2);
+    expect(parsed.problems).toEqual([{ line: 4, column: null, message: 'The same as line 2: remove one of them.' }]);
+
+    // A JSON cell that says the same with its fields in another order is the same row.
+    const rounds = parseSheet(
+      'put-in-order',
+      'puzzle\tprompt\titems\np1\tOrder\t[{"key":"a","label":"Italy","sortValue":2006},{"key":"b","label":"Spain","sortValue":2010}]\np1\tOrder\t[{"sortValue":2006,"label":"Italy","key":"a"},{"label":"Spain","key":"b","sortValue":2010}]',
+    );
+    expect(rounds.items).toHaveLength(1);
+    expect(rounds.problems).toEqual([expect.objectContaining({ line: 3, message: 'The same as line 2: remove one of them.' })]);
+  });
+
   it('names the line and column of what it cannot read, and refuses unknown or missing columns', () => {
     const parsed = parseSheet('penalty-questions', 'key,q,display,aliases,position\np1,Q,A,a,first\np2,Q,A,a,2');
     expect(parsed.problems).toEqual([{ line: 2, column: 'position', message: '“first” is not a number' }]);
@@ -72,5 +104,17 @@ describe('spreadsheet import', () => {
     expect(parseItemsJson('{"items":[{"type":"clubs"},{"type":"cards"}]}').items).toHaveLength(2);
     expect(parseItemsJson('nope').problems[0].message).toMatch(/not valid JSON/);
     expect(parseItemsJson(JSON.stringify(Array.from({ length: 2001 }, () => ({})))).problems[0].message).toMatch(/At most 2000/);
+  });
+});
+
+describe('the ID made up for a question without one', () => {
+  const said = { puzzle: 'fl-3', category: 'Clubs', prompt: 'What links these?', imageA: '/assets/a.webp', imageB: null, displayAnswer: 'Napoli', acceptedAnswers: ['napoli'] };
+  it('stays what it was for a Football Logic question from before uploaded images, and changes only when one is named', () => {
+    // The ID the same question was given before the two columns existed.
+    expect(madeKey('football-logic', said)).toBe('row-7qlgghtk97d9');
+    expect(madeKey('football-logic', { ...said, imageAKey: null, imageBKey: null })).toBe('row-7qlgghtk97d9');
+    const withA = madeKey('football-logic', { ...said, imageAKey: 'crest-a', imageBKey: null });
+    expect(withA).not.toBe('row-7qlgghtk97d9');
+    expect(madeKey('football-logic', { ...said, imageAKey: null, imageBKey: 'crest-a' })).not.toBe(withA);
   });
 });

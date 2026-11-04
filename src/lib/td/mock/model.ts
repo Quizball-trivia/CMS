@@ -49,7 +49,7 @@ const SHAPES: Record<TdContentType, Shape> = {
   'practice-questions': { filters: { category: 'category' }, refs: image('imageKey') },
   media: {},
   clubs: { refs: image('crestImageKey') },
-  'football-logic': { filters: { category: 'category', puzzle: 'puzzle' } },
+  'football-logic': { filters: { category: 'category', puzzle: 'puzzle' }, refs: (data) => [...image('imageAKey')(data), ...image('imageBKey')(data)] },
   'put-in-order': { filters: { puzzle: 'puzzle' } },
   'career-path': {
     filters: { puzzle: 'puzzle' },

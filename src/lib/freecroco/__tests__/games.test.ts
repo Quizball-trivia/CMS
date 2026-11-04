@@ -49,8 +49,8 @@ describe('games validation', () => {
   });
 
   it('rejects an order outside 1..n', () => {
-    const games = seed().map((g) => (g.gameId === 'quiz-board' ? { ...g, order: 12 } : g));
-    expect(validateGames(games).rows['quiz-board']?.order).toMatch(/1 to 11/);
+    const games = seed().map((g) => (g.gameId === 'quiz-board' ? { ...g, order: 13 } : g));
+    expect(validateGames(games).rows['quiz-board']?.order).toMatch(/1 to 12/);
   });
 });
 
@@ -65,7 +65,7 @@ describe('games editing', () => {
 
   it('ignores a move past either end', () => {
     expect(moveGame(seed(), 'ranked', -1).map((g) => g.gameId)).toEqual(PARTNER_GAME_IDS);
-    expect(moveGame(seed(), 'quiz-board', 1).map((g) => g.gameId)).toEqual(PARTNER_GAME_IDS);
+    expect(moveGame(seed(), 'fake-fact', 1).map((g) => g.gameId)).toEqual(PARTNER_GAME_IDS);
   });
 
   it('renumbers an unsorted list', () => {
@@ -83,7 +83,7 @@ describe('games editing', () => {
   it('builds the PUT body with the loaded version and the whole config', () => {
     const payload = buildGamesPayload(7, moveGame(seed(), 'countdown', -1));
     expect(payload.version).toBe(7);
-    expect(payload.games).toHaveLength(11);
+    expect(payload.games).toHaveLength(12);
     expect(payload.games[2].gameId).toBe('countdown');
   });
 });

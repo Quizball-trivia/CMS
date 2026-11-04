@@ -1,31 +1,29 @@
 import { describe, expect, it } from 'vitest';
 import { safeNextPath, tabForSegment, tabsForRole, TD_TABS } from '../navigation';
 
-const CONTENT = ['dashboard', 'round-1', 'round-2', 'round-3', 'penalties', 'dailies', 'practice', 'clubs', 'media', 'import', 'releases'];
+const CONTENT = ['dashboard', 'categories', 'questions'];
 const keys = (role: Parameters<typeof tabsForRole>[0]) => tabsForRole(role).map((tab) => tab.key);
 
 describe('Table Derby navigation', () => {
-  it('has every tab from plan §13.1', () => {
-    expect(TD_TABS).toHaveLength(16);
+  it('has the Quizball CMS’s pages, adapted: the rounds are game modes of the one Questions page', () => {
+    expect(TD_TABS).toHaveLength(8);
   });
 
-  it('shows editors and publishers only the content tabs', () => {
-    expect(keys('editor')).toEqual(CONTENT);
-    expect(keys('publisher')).toEqual(CONTENT);
-  });
-
-  it('adds players, leaderboard, integration and team for Betsson admins', () => {
-    expect(keys('betsson_admin')).toEqual([...CONTENT, 'players', 'leaderboard', 'integration', 'team']);
+  it('shows Betsson’s team the content, players, leaderboard, team and integration tabs', () => {
+    expect(keys('betsson_admin')).toEqual([...CONTENT, 'players', 'leaderboard', 'team', 'integration']);
   });
 
   it('gives settings to ops only', () => {
-    expect(keys('ops')).toEqual([...CONTENT, 'players', 'leaderboard', 'integration', 'team', 'settings']);
+    expect(keys('ops')).toEqual([...CONTENT, 'players', 'leaderboard', 'team', 'integration', 'settings']);
   });
 
   it.each([
     [null, 'dashboard'],
     ['team', 'team'],
-    ['round-1', 'round-1'],
+    ['questions', 'questions'],
+    // The dailies ship with the game's code since contract 12: no Daily page.
+    ['dailies', null],
+    ['round-1', null],
     ['settings', 'settings'],
     ['round-10', null],
     ['login', null],

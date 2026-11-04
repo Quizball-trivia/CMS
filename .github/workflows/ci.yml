@@ -49,6 +49,8 @@ jobs:
       # The mock runs only in local builds (no NEXT_PUBLIC_CMS_ENV, not on Vercel).
       NEXT_PUBLIC_CMS_WORKSPACE: table-derby
       NEXT_PUBLIC_TD_API_MOCK: "1"
+      # The smoke reads the English source text; deployed builds are Georgian.
+      NEXT_PUBLIC_TD_LANG: en
     steps:
       - uses: actions/checkout@v4
         with:

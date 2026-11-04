@@ -9,8 +9,8 @@ import { TD_CONTENT_TYPES } from '../admin-api';
 import type { ReleaseReport } from '../contract';
 import { daysFrom, georgiaToday, scheduledSet, type DailyCycle } from '../georgia';
 import { actorOf, nowIso, rowLabel, type MockContext } from './content';
+import type { TdReleaseDailyGame } from '../dailies';
 import type { DailySnapshot, Manifest, Member, MockDb, MockPublication, MockRow, ReleaseSnapshot } from './db';
-import { DAILY_TYPE } from './model';
 import { canonicalJson, MockError, paginate, sha256Hex, uuid } from './util';
 
 export const PHASES = ['snapshot', 'validate', 'media', 'artifact', 'available', 'pointer'] as const;
@@ -20,19 +20,33 @@ const NOTIFY_MS = 400;
 const COVERAGE_DAYS = 30;
 const MATCH = { deck: 12, subjects: 3, clues: 5, boxCategories: 10, boxQuestions: 2, penalties: 20 };
 const PRACTICE_NEEDED = { easy: 5, medium: 10, hard: 1 };
-const GAMES = ['footballLogic', 'putInOrder', 'careerPath'] as const;
+/** The daily games a release plays since contract 12 (game-core DAILY_GAMES). */
+const GAMES = ['statSniper', 'putInOrder', 'careerPath'] as const;
+/** The legacy daily content: kept and edited as the API keeps it, but no release takes it (contract 12). */
+const LEGACY_DAILY_TYPES = new Set<TdContentType>(['football-logic', 'put-in-order', 'career-path', 'daily-schedule', 'daily-settings']);
+
+const PACK_ANCHOR = '2026-10-01';
+/** A daily pack of the game's code (packages/content/packs/daily-*.json): its sets played in turn from a fixed day,
+ *  as the API's dailiesFromPacks gives every release. `items`: questions (Put in Order: rounds) in all. */
+const pack = (prefix: string, sets: number, size: number) => {
+  const ids = Array.from({ length: sets }, (_, i) => `${prefix}-${i + 1}`);
+  return { dates: {} as Record<string, string>, cycle: { anchor: PACK_ANCHOR, sets: ids }, known: ids, items: sets * size };
+};
+const PACKS = { statSniper: pack('stat-sniper', 131, 10), putInOrder: pack('put-in-order', 1, 4), careerPath: pack('career-path', 1, 10) };
 
 type Issue = ReleaseReport['errors'][number];
 
 const approvedRows = (db: MockDb, type?: TdContentType) =>
   db.rows.filter((row) => row.approvedVersion !== null && row.status !== 'archived' && (!type || row.type === type));
 
-const imageField = (type: TdContentType) => (type === 'clubs' ? 'crestImageKey' : type === 'cards' || type === 'practice-questions' ? 'imageKey' : null);
+const IMAGE_FIELDS: Partial<Record<TdContentType, readonly string[]>> = { clubs: ['crestImageKey'], cards: ['imageKey'], 'practice-questions': ['imageKey'] };
+const imageFields = (type: TdContentType) => IMAGE_FIELDS[type] ?? [];
 
 /**
  * The rows a release published now holds, as the API's envelope takes them:
  * every approved, live row, but cards and box questions only through an
- * approved category, and only the images the release shows.
+ * approved category, only the images the release shows, and no daily content
+ * (the dailies come from the game's code packs).
  */
 export function releaseRows(db: MockDb): MockRow[] {
   const keys = (type: TdContentType) => new Set(approvedRows(db, type).map((row) => String(row.approved!.key)));
@@ -41,33 +55,25 @@ export function releaseRows(db: MockDb): MockRow[] {
   const rows = approvedRows(db).filter((row) => {
     if (row.type === 'cards') return cardCategories.has(String(row.approved!.categoryKey));
     if (row.type === 'box-questions') return boxCategories.has(String(row.approved!.categoryKey));
-    return row.type !== 'media';
+    return row.type !== 'media' && !LEGACY_DAILY_TYPES.has(row.type);
   });
   const shown = new Set<string>();
   for (const row of rows) {
-    const field = imageField(row.type);
-    const key = field ? row.approved![field] : null;
-    if (typeof key === 'string') shown.add(key);
+    for (const field of imageFields(row.type)) {
+      const key = row.approved![field];
+      if (typeof key === 'string') shown.add(key);
+    }
   }
   return [...rows, ...approvedRows(db, 'media').filter((row) => shown.has(String(row.approved!.key)))];
 }
 
 const approvedOf = (rows: MockRow[], type: TdContentType) => rows.filter((row) => row.type === type).map((row) => row.approved!);
 
-function dailiesOf(rows: MockRow[]): DailySnapshot {
-  const out = {} as DailySnapshot;
-  for (const game of GAMES) {
-    const settings = approvedOf(rows, 'daily-settings').find((d) => d.game === game);
-    out[game] = {
-      dates: Object.fromEntries(approvedOf(rows, 'daily-schedule').filter((d) => d.game === game).map((d) => [String(d.date), String(d.puzzle)])),
-      cycle: (settings?.cycle ?? null) as DailyCycle | null,
-      known: [...new Set(approvedOf(rows, DAILY_TYPE[game]).map((d) => String(d.puzzle)))],
-    };
-  }
-  return out;
+function dailiesOf(): DailySnapshot {
+  return Object.fromEntries(GAMES.map((game) => [game, { dates: { ...PACKS[game].dates }, cycle: { ...PACKS[game].cycle, sets: [...PACKS[game].cycle.sets] }, known: [...PACKS[game].known] }]));
 }
 
-function coverage(daily: DailySnapshot[keyof DailySnapshot], today: string) {
+function coverage(daily: { dates: Record<string, string>; cycle: DailyCycle | null; known: string[] }, today: string) {
   const missing = daysFrom(today, COVERAGE_DAYS).filter((day) => {
     const set = scheduledSet(daily.dates[day], daily.cycle, day);
     return set === null || !daily.known.includes(set);
@@ -79,18 +85,18 @@ function manifestOf(rows: MockRow[], dailies: DailySnapshot, today: string): Man
   const count = (type: TdContentType) => rows.filter((row) => row.type === type).length;
   const practice = approvedOf(rows, 'practice-questions');
   const daily = (game: (typeof GAMES)[number]) => ({
-    sets: dailies[game].known.length,
-    items: count(DAILY_TYPE[game]),
-    scheduledDates: Object.keys(dailies[game].dates).length,
-    cycle: dailies[game].cycle?.sets.length ?? 0,
-    coveredDays: coverage(dailies[game], today).covered,
+    sets: dailies[game]!.known.length,
+    items: PACKS[game].items,
+    scheduledDates: Object.keys(dailies[game]!.dates).length,
+    cycle: dailies[game]!.cycle?.sets.length ?? 0,
+    coveredDays: coverage(dailies[game]!, today).covered,
   });
   return {
     cards: { categories: count('card-categories'), cards: count('cards') },
     whoAmI: { subjects: count('whoami-subjects') },
     box: { categories: count('box-categories'), questions: count('box-questions') },
     penalties: { questions: count('penalty-questions') },
-    dailies: { footballLogic: daily('footballLogic'), putInOrder: daily('putInOrder'), careerPath: daily('careerPath') },
+    dailies: Object.fromEntries(GAMES.map((game) => [game, daily(game)])),
     practice: { easy: practice.filter((d) => d.difficulty === 'easy').length, medium: practice.filter((d) => d.difficulty === 'medium').length, hard: practice.filter((d) => d.difficulty === 'hard').length },
     clubs: count('clubs'),
     media: count('media'),
@@ -100,19 +106,24 @@ function manifestOf(rows: MockRow[], dailies: DailySnapshot, today: string): Man
 /** What a release made now holds: members, manifest, dailies and uploads. */
 export function snapshotOf(db: MockDb, now: number): ReleaseSnapshot {
   const rows = releaseRows(db);
-  const dailies = dailiesOf(rows);
+  const dailies = dailiesOf();
   return {
     members: rows.map((row) => ({ type: row.type, id: row.id, label: rowLabel({ ...row, data: row.approved! }), contentVersion: row.approvedVersion! })),
     manifest: manifestOf(rows, dailies, georgiaToday(now)),
     dailies,
     uploads: approvedOf(rows, 'media').flatMap((d) => (typeof d.uploadId === 'string' ? [d.uploadId] : [])),
+    // Contract 12: a release with Stat Sniper is format 4 (formatFor).
+    format: 4,
   };
 }
 
 /** The seeded current release holds the seed's content. */
 export function completeSeed(db: MockDb, now: number) {
   const current = db.releases.find((r) => r.id === db.pointer.releaseId);
-  if (current && current.manifest === null) Object.assign(current, snapshotOf(db, now));
+  if (current && current.manifest === null) {
+    const { members, manifest, dailies, uploads } = snapshotOf(db, now);
+    Object.assign(current, { members, manifest, dailies, uploads });
+  }
 }
 
 function changeCounts(before: Member[], after: Member[]) {
@@ -148,24 +159,29 @@ export async function report(db: MockDb, now: number): Promise<{ report: Release
   if (pools.penalties.ready < MATCH.penalties) errors.push({ code: 'pool', message: `a match needs ${MATCH.penalties} penalty questions; ${pools.penalties.ready} are approved` });
   for (const d of ['easy', 'medium', 'hard'] as const)
     if (practice[d] < PRACTICE_NEEDED[d]) errors.push({ code: 'practice', message: `practice opens with ${PRACTICE_NEEDED[d]} ${d} questions; ${practice[d]} are approved` });
-  const dailies = {} as ReleaseReport['dailies'];
+  const dailies: ReleaseReport['dailies'] & Partial<Record<TdReleaseDailyGame, ReturnType<typeof coverage>>> = {};
   for (const game of GAMES) {
-    if (!approvedOf(rows, 'daily-settings').some((d) => d.game === game)) errors.push({ code: 'schema', message: `${game} has no approved settings` });
-    const c = coverage(snapshot.dailies[game], today);
+    const c = coverage(snapshot.dailies[game]!, today);
     if (c.missing.length) errors.push({ code: 'dailies', message: `${game} has no set for ${c.missing.length} of the next ${COVERAGE_DAYS} days, from ${c.missing[0]}` });
     dailies[game] = c;
   }
   const shown = new Set(approvedOf(rows, 'media').map((d) => String(d.key)));
+  // Contract 11: a picture kept by its path in the player app shows on a practice question only.
+  const byPath = new Set(approvedOf(rows, 'media').filter((d) => typeof d.url === 'string' && d.url.startsWith('/assets/')).map((d) => String(d.key)));
   for (const row of rows) {
-    const field = imageField(row.type);
-    const key = field ? row.approved![field] : null;
-    if (typeof key === 'string' && !shown.has(key)) errors.push({ code: 'schema', message: `${row.type} ${String(row.approved!.key)}: its image ${key} is not approved`, ref: { type: row.type, key: String(row.approved!.key) } });
+    for (const field of imageFields(row.type)) {
+      const key = row.approved![field];
+      const ref = { type: row.type, key: String(row.approved!.key) };
+      if (typeof key === 'string' && !shown.has(key)) errors.push({ code: 'schema', message: `${row.type} ${ref.key}: its image ${key} is not approved`, ref });
+      else if (typeof key === 'string' && byPath.has(key) && row.type !== 'practice-questions') errors.push({ code: 'schema', message: `${row.type} ${ref.key}: its image ${key} ships with the player app and shows on a practice question only`, ref });
+    }
   }
   const media = approvedOf(rows, 'media');
   const uploads = media.filter((d) => typeof d.uploadId === 'string');
-  const external = media.filter((d) => typeof d.url === 'string');
+  // Contract 11: a picture kept by its path in the player app is the game's own, not external.
+  const external = media.filter((d) => typeof d.url === 'string' && !d.url.startsWith('/assets/'));
+  // Contract 8: an image needs no rights; they are only counted.
   const noRights = media.filter((d) => ['author', 'license', 'source'].some((f) => !String(d[f] ?? '').trim()));
-  for (const d of noRights) warnings.push({ code: 'rights_missing', message: 'an image has no licence, credit or source', ref: { type: 'media', key: String(d.key) } });
   for (const d of external) warnings.push({ code: 'image_external', message: 'an image is kept by URL, not re-hosted', ref: { type: 'media', key: String(d.key) } });
   const pending = uploads.filter((d) => !db.uploads.find((u) => u.id === d.uploadId)?.public).length;
   const releaseId = `r-${(await sha256Hex(canonicalJson(rows.map((row) => [row.type, row.approved, row.approvedPosition]).sort((a, b) => canonicalJson(a).localeCompare(canonicalJson(b)))))).slice(0, 16)}`;
@@ -288,7 +304,8 @@ export function advance(db: MockDb, now: number) {
           db.releases.push({
             id: snapshot.releaseId,
             hash: `${snapshot.releaseId.slice(2)}${'0'.repeat(48)}`,
-            formatVersion: 2,
+            // A publication saved before snapshots carried their format finishes as format 2, as they all were.
+            formatVersion: snapshot.format ?? 2,
             status: 'available',
             createdAt: new Date(now).toISOString(),
             createdBy: p.requestedBy,
@@ -310,10 +327,11 @@ export function advance(db: MockDb, now: number) {
   }
 }
 
-/** A daily game the release has no set for on `today`, or null when it serves them all. */
+/** A daily game the release has no set for on `today`, or null when it serves them all. A release from before Stat
+ *  Sniper (none of its days) may still come back, without Stat Sniper (the API's rollbackGaps). */
 function unrunnableGame(release: MockDb['releases'][number], today: string): string | null {
   return (
-    GAMES.find((game) => {
+    GAMES.filter((game) => game !== 'statSniper' || (release.dailies?.statSniper?.known.length ?? 0) > 0).find((game) => {
       const daily = release.dailies?.[game];
       const set = daily ? scheduledSet(daily.dates[today], daily.cycle, today) : null;
       return set === null || !daily!.known.includes(set);
@@ -412,13 +430,12 @@ export function listReleases(ctx: MockContext, query: { cursor?: string; limit?:
   };
 }
 
-const EMPTY_DAILY = { sets: 0, items: 0, scheduledDates: 0, cycle: 0, coveredDays: 0 };
 const EMPTY_MANIFEST: Manifest = {
   cards: { categories: 0, cards: 0 },
   whoAmI: { subjects: 0 },
   box: { categories: 0, questions: 0 },
   penalties: { questions: 0 },
-  dailies: { footballLogic: EMPTY_DAILY, putInOrder: EMPTY_DAILY, careerPath: EMPTY_DAILY },
+  dailies: {},
   practice: { easy: 0, medium: 0, hard: 0 },
   clubs: 0,
   media: 0,

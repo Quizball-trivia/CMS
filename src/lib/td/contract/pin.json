@@ -1,15 +1,15 @@
 {
   "contract": "table-derby-admin",
-  "version": 6,
+  "version": 13,
   "source": {
     "repo": "Quizball-trivia/table-derby",
-    "commit": "f76bb294517b442bce1a5fa613cc62dda63dd524"
+    "commit": "6e2919f94229d02ac3e1d9774ec86331cd98bd48"
   },
   "files": {
-    "admin-contract.d.ts": "1cb340f7e5fbdbe782eb32b0a886a0d5734661e2e6c6f622956c384be3522d4c",
-    "admin-contract.json": "e974d3d848029422dd3a1e179483daf32192d386c148eb047fde4a6c5393de39",
-    "fixtures/examples.json": "fdc3f5ed507df8ab6ff1d87004617e792ba80acbe39767bf73723cd7c37bd6c0",
-    "fixtures/refresh-scenarios.json": "5b07a333d274b05a95639d1fbc1db89f666d58308448591e727f01d2e52739df",
-    "fixtures/validation-cases.json": "834538b60d0b735777e401e3f0131f8f9e5bdcc7b1f87df2e0fc351b81ba1816"
+    "admin-contract.d.ts": "cd72495030a0408e299ddcdccff4c16883a1b133c61f128872347d3be56e7481",
+    "admin-contract.json": "49cb197f5f98eda7ce4f8a32b2903cac3096967efc57bc40e5678372d2395d64",
+    "fixtures/examples.json": "07409771eea44ef00c8ac0d0bbfe5d49cf5d15bc7ec1d011b45d27bf0121e8df",
+    "fixtures/refresh-scenarios.json": "862aadaa0be4dc049ae621842adc39c49e6f3baf91ed9eb90df97c951cfea49d",
+    "fixtures/validation-cases.json": "91a652b239f0ce2580c98fc55f28a86cff1f552774382f8893914fb13ded5521"
   }
 }

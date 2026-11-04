@@ -20,7 +20,7 @@ function PersonsInner() {
   const [searchInput, setSearchInput] = useState('');
   const [search, setSearch] = useState('');
   const [offset, setOffset] = useState(0);
-  const { data, isLoading } = usePersons(kind, search, offset);
+  const { data, isLoading, isError, refetch } = usePersons(kind, search, offset);
 
   const rows = data?.persons ?? [];
 
@@ -46,15 +46,20 @@ function PersonsInner() {
               onClick={() => { setKind('guest'); setOffset(0); }}>Guests</Button>
             <form className="flex items-center gap-2"
               onSubmit={(e) => { e.preventDefault(); setSearch(searchInput.trim()); setOffset(0); }}>
-              <Input value={searchInput} onChange={(e) => setSearchInput(e.target.value)}
+              <Input value={searchInput} onChange={(e) => setSearchInput(e.target.value)} aria-label="Search persons"
                 placeholder={kind === 'registered' ? 'nickname, email or id' : 'guest id'} className="h-8 w-56" />
-              <Button size="sm" type="submit" variant="outline"><Search className="h-4 w-4" /></Button>
+              <Button size="sm" type="submit" variant="outline" aria-label="Search"><Search className="h-4 w-4" /></Button>
             </form>
           </div>
         </CardHeader>
         <CardContent>
           {isLoading ? (
             <div className="py-8 text-sm text-slate-500">Loading…</div>
+          ) : isError ? (
+            <div className="py-8 text-sm text-red-600">
+              Could not load persons.{' '}
+              <button type="button" className="font-medium underline" onClick={() => void refetch()}>Try again</button>
+            </div>
           ) : (
             <Table>
               <TableHeader>

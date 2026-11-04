@@ -55,7 +55,9 @@ export function playerProfile(ctx: MockContext, id: string) {
   const a = aggregates(ctx.db, p);
   const live = ctx.db.matches.find((m) => m.status === 'live' && m.players.some((s) => s.playerId === p.id));
   const seed = p.displayName.length;
-  const games = { footballLogic: { attempts: seed + 2, completed: seed }, putInOrder: { attempts: seed, completed: seed - 1 }, careerPath: { attempts: 3, completed: 2 } };
+  // Football Logic: what they played before Stat Sniper replaced it.
+  const games = { statSniper: { attempts: seed - 1, completed: seed - 2 }, footballLogic: { attempts: 3, completed: 3 }, putInOrder: { attempts: seed, completed: seed - 1 }, careerPath: { attempts: 3, completed: 2 } };
+  const totals = Object.values(games);
   return {
     id: p.id,
     displayName: p.displayName,
@@ -70,8 +72,8 @@ export function playerProfile(ctx: MockContext, id: string) {
     rating: { rating: p.rating, ratingVersion: p.ratingVersion, ...a },
     tickets: { balance: p.balance, perDay: p.ticketsPerDay, refilledOn: p.refilledOn },
     dailies: {
-      attempts: games.footballLogic.attempts + games.putInOrder.attempts + games.careerPath.attempts,
-      completed: games.footballLogic.completed + games.putInOrder.completed + games.careerPath.completed,
+      attempts: totals.reduce((n, game) => n + game.attempts, 0),
+      completed: totals.reduce((n, game) => n + game.completed, 0),
       lastDate: georgiaToday(ctx.now),
       games,
     },
@@ -263,28 +265,44 @@ export const snapshotCsv = (ctx: MockContext, id: string) => csv(findSnapshot(ct
 
 /* ── dashboard ────────────────────────────────────────────────────── */
 
+/** How many days the dashboard's chart and its longest period cover. */
+const DASHBOARD_DAYS = 30;
+const STAT_SNIPER_DAYS = 3;
+
 export function dashboard(ctx: MockContext) {
   const { db } = ctx;
-  const day = (date: string, offset: number) => {
+  const bounds = (date: string) => {
     const from = new Date(Date.parse(`${date}T00:00:00Z`) - 4 * 3_600_000).toISOString();
-    const to = new Date(Date.parse(from) + 86_400_000).toISOString();
+    return { from, to: new Date(Date.parse(from) + 86_400_000).toISOString() };
+  };
+  /** What the mock's players and matches say of a stretch of time. */
+  const counted = (from: string, to: string) => {
     const within = (iso: string | null) => iso !== null && iso >= from && iso < to;
     const matches = db.matches.filter((m) => within(m.createdAt));
-    const active = new Set(matches.flatMap((m) => m.players.map((p) => p.playerId)));
-    const base = 40 - offset * 7;
     return {
-      date,
-      from,
-      to,
-      players: { new: db.players.filter((p) => within(p.createdAt)).length, active: active.size },
+      players: { new: db.players.filter((p) => within(p.createdAt)).length, active: new Set(matches.flatMap((m) => m.players.map((p) => p.playerId))).size },
       matches: {
         created: matches.length,
         settled: db.matches.filter((m) => within(m.settledAt) && m.status === 'settled').length,
         voided: db.matches.filter((m) => within(m.settledAt) && m.status === 'void').length,
         corrected: db.matches.flatMap((m) => m.corrections).filter((c) => within(c.createdAt)).length,
       },
+    };
+  };
+  /** `offset` days ago: the solo games have no rows in the mock, so their figures are made up from it. */
+  const day = (date: string, offset: number) => {
+    const { from, to } = bounds(date);
+    const base = offset < 2 ? 40 - offset * 7 : 24 + ((offset * 11) % 17);
+    // Stat Sniper replaced Football Logic STAT_SNIPER_DAYS days ago; the days before keep Football Logic's figures.
+    const sniper = offset < STAT_SNIPER_DAYS;
+    return {
+      date,
+      from,
+      to,
+      ...counted(from, to),
       dailies: {
-        footballLogic: { attempts: base, completed: base - 6 },
+        statSniper: sniper ? { attempts: base, completed: base - 6 } : { attempts: 0, completed: 0 },
+        footballLogic: sniper ? { attempts: 0, completed: 0 } : { attempts: base, completed: base - 6 },
         putInOrder: { attempts: base - 9, completed: base - 12 },
         careerPath: { attempts: base - 14, completed: base - 20 },
       },
@@ -292,12 +310,44 @@ export function dashboard(ctx: MockContext) {
     };
   };
   const today = georgiaToday(ctx.now);
+  const days = Array.from({ length: DASHBOARD_DAYS }, (_, i) => day(addDays(today, i + 1 - DASHBOARD_DAYS), DASHBOARD_DAYS - 1 - i));
+  const period = (length: number) => {
+    const of = days.slice(-length);
+    const [first, last] = [of[0]!, of[of.length - 1]!];
+    const sum = (pick: (d: (typeof days)[number]) => number) => of.reduce((n, d) => n + pick(d), 0);
+    const game = (name: keyof (typeof days)[number]['dailies']) => ({ attempts: sum((d) => d.dailies[name].attempts), completed: sum((d) => d.dailies[name].completed) });
+    const games = { statSniper: game('statSniper'), footballLogic: game('footballLogic'), putInOrder: game('putInOrder'), careerPath: game('careerPath') };
+    const totals = Object.values(games);
+    return {
+      fromDate: first.date,
+      toDate: last.date,
+      from: first.from,
+      to: last.to,
+      ...counted(first.from, last.to),
+      dailies: {
+        attempts: totals.reduce((n, g) => n + g.attempts, 0),
+        completed: totals.reduce((n, g) => n + g.completed, 0),
+        ...games,
+      },
+      practice: { runs: sum((d) => d.practice.runs) },
+    };
+  };
   return {
     timezone: 'Asia/Tbilisi' as const,
     generatedAt: nowIso(ctx),
     penaltiesToReview: db.reviews.filter((r) => r.status === 'open').length,
-    today: day(today, 0),
-    yesterday: day(addDays(today, -1), 1),
+    today: days[days.length - 1]!,
+    yesterday: days[days.length - 2]!,
+    last7Days: period(7),
+    last30Days: period(DASHBOARD_DAYS),
+    days: days.map((d) => ({
+      date: d.date,
+      activePlayers: d.players.active,
+      newPlayers: d.players.new,
+      matchesSettled: d.matches.settled,
+      dailiesCompleted: Object.values(d.dailies).reduce((n, game) => n + game.completed, 0),
+      practiceRuns: d.practice.runs,
+    })),
   };
 }
 

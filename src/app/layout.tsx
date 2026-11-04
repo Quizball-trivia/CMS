@@ -4,6 +4,7 @@ import Script from "next/script";
 import { Providers } from "@/providers";
 import { WORKSPACE } from "@/lib/workspace";
 import { LINK_FRAGMENT_SCRIPT } from "@/lib/td/link-fragment";
+import { TD_LANG } from "@/lib/td/i18n";
 import "./globals.css";
 
 const inter = Inter({
@@ -30,7 +31,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang={WORKSPACE === "table-derby" ? TD_LANG : "en"}>
       <body
         className={`${inter.variable} ${geistMono.variable} antialiased`}
       >

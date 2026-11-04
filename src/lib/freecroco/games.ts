@@ -12,6 +12,7 @@ export const PARTNER_GAME_IDS: readonly PartnerGameId[] = [
   'road-to-goal',
   'trivia-mines',
   'quiz-board',
+  'fake-fact',
 ];
 
 export const GAME_LABELS: Record<PartnerGameId, string> = {
@@ -26,6 +27,7 @@ export const GAME_LABELS: Record<PartnerGameId, string> = {
   'road-to-goal': 'Road to Goal',
   'trivia-mines': 'Trivia Mines',
   'quiz-board': 'Quiz Board',
+  'fake-fact': 'Fake Fact',
 };
 
 export const MAX_DEFAULT_LIMIT = 10;

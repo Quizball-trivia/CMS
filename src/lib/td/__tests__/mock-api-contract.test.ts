@@ -6,15 +6,15 @@ import { contractProblems, createHarness, type Role } from './api-harness';
 import { apiScenarios } from './api-scenarios';
 import { MemoryStorage } from './helpers';
 
-/** Changing roles and one's own password are not in this CMS yet. */
-const NOT_MOCKED = new Set(['POST /admin/auth/password', 'PATCH /admin/staff/:id']);
+/** Changing one's own password is not in this CMS yet. */
+const NOT_MOCKED = new Set(['POST /admin/auth/password']);
 
 const storage = new MemoryStorage();
 // Noon in Georgia: far from the tickets-per-day midnight guard.
 let clock = Date.parse('2026-09-30T08:00:00Z');
 const fetchMock = createMockTdApi({ storage: () => storage, latencyMs: 0, now: () => clock, blobs: memoryBlobStore(), lock: undefined });
 const credentials = Object.fromEntries(
-  (['editor', 'publisher', 'betsson_admin', 'ops'] as Role[]).map((role) => [role, { email: MOCK_STAFF.find((s) => s.role === role && s.status === 'active')!.email, password: MOCK_PASSWORD }]),
+  (['betsson_admin', 'ops'] as Role[]).map((role) => [role, { email: MOCK_STAFF.find((s) => s.role === role && s.status === 'active')!.email, password: MOCK_PASSWORD }]),
 ) as Record<Role, { email: string; password: string }>;
 const harness = createHarness(fetchMock, 'https://td-api.mock', credentials, async (ms) => void (clock += ms), false);
 

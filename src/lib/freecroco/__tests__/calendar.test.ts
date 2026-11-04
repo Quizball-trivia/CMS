@@ -139,7 +139,7 @@ describe('copy a week', () => {
     );
     const { edits } = pasteWeek(dense, NONE, snapshotWeek(dense, NONE, '2026-10-05'), '2026-10-12', TODAY);
     const changes = buildChangeSet(dense, edits, TODAY, range);
-    expect(changes).toHaveLength(77);
+    expect(changes).toHaveLength(84);
     expect(validateChangeSet(changes)).toBeNull();
   });
 });

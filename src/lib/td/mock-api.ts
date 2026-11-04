@@ -1,4 +1,4 @@
-import type { TdRole, TdStaffMember, TdTokenResponse } from '@/types/td';
+import { TD_ROLES, type TdRole, type TdStaffMember, type TdTokenResponse } from '@/types/td';
 import { checkContract } from './contract';
 import { defaultBlobStore, type MockBlobStore } from './mock/blob-store';
 import { browserMockLock, createMockAdmin, type MockAdminDeps } from './mock/router';
@@ -55,10 +55,14 @@ interface MockServerState {
 /** Invitation and reset links live 48 hours and work once, as the API's do. */
 const LINK_TTL_MS = 48 * 60 * 60_000;
 const TEAM_MANAGERS: readonly TdRole[] = ['betsson_admin', 'ops'];
+/** Contract 13's roles. */
+const isRole = (role: unknown): role is TdRole => (TD_ROLES as readonly unknown[]).includes(role);
 
 function staffOf(state: MockServerState): TdStaffMember[] {
-  const changed = new Map((state.members ?? []).map((m) => [m.id, m]));
-  return [...MOCK_STAFF.map((m) => changed.get(m.id) ?? m), ...(state.members ?? []).filter((m) => !MOCK_STAFF.some((seed) => seed.id === m.id))];
+  // Saved before contract 13: a retired role is the one Betsson role now, as the API's migration 0044 made it.
+  const saved = (state.members ?? []).map((m) => (isRole(m.role) ? m : { ...m, role: 'betsson_admin' as const }));
+  const changed = new Map(saved.map((m) => [m.id, m]));
+  return [...MOCK_STAFF.map((m) => changed.get(m.id) ?? m), ...saved.filter((m) => !MOCK_STAFF.some((seed) => seed.id === m.id))];
 }
 
 function putMember(state: MockServerState, member: TdStaffMember) {
@@ -298,8 +302,8 @@ export function createMockTdApi({
     }
     if (route === 'POST /admin/staff/invite') {
       if (!TEAM_MANAGERS.includes(staff.role)) return error(403, 'forbidden', 'Your role cannot manage the team');
-      if (checkContract('StaffInviteRequest', body).length) return error(400, 'invalid_request', 'The request is not valid');
-      const role = body!.role as TdRole;
+      if (checkContract('StaffInviteRequest', body).length || !isRole(body!.role)) return error(400, 'invalid_request', 'The request is not valid');
+      const role = body!.role;
       if (role === 'ops') return error(403, 'forbidden', 'Ops members are created on the server only');
       const email = String(body!.email).toLowerCase();
       const known = staffOf(state).find((m) => m.email === email);
@@ -322,6 +326,33 @@ export function createMockTdApi({
       const link = issueLink(state, 'reset', target.id, now());
       save(state);
       return json(201, link);
+    }
+    const patchMember = route.match(/^PATCH \/admin\/staff\/([^/]+)$/);
+    if (patchMember) {
+      if (!TEAM_MANAGERS.includes(staff.role)) return error(403, 'forbidden', 'Your role cannot manage the team');
+      if (checkContract('StaffPatchRequest', body).length || (body!.role !== undefined && !isRole(body!.role)))
+        return error(400, 'invalid_request', 'The request is not valid');
+      const target = staffOf(state).find((m) => m.id === decodeURIComponent(patchMember[1]));
+      if (!target) return error(404, 'not_found', 'No such member');
+      if (target.id === staff.id) return error(403, 'forbidden', 'You cannot change your own role or status');
+      if (target.role === 'ops') return error(403, 'forbidden', 'Ops members are managed on the server only');
+      if (body!.role === 'ops') return error(403, 'forbidden', 'Nobody becomes ops over the API');
+      let status = target.status;
+      if (body!.status === 'disabled') status = 'disabled';
+      // Back to where they were: active with a password, otherwise still invited.
+      if (body!.status === 'active' && target.status === 'disabled') {
+        const signedUp = Boolean(state.passwords?.[target.id]) || MOCK_STAFF.some((seed) => seed.id === target.id && seed.status !== 'invited');
+        status = signedUp ? 'active' : 'invited';
+      }
+      if (status === 'disabled' && target.status !== 'disabled') {
+        for (const record of Object.values(state.refreshTokens))
+          if (record.staffId === target.id && !state.revokedFamilies.includes(record.family)) state.revokedFamilies.push(record.family);
+        for (const link of Object.values(state.links ?? {})) if (link.staffId === target.id) link.used = true;
+      }
+      const member: TdStaffMember = { ...target, role: (body!.role as TdRole | undefined) ?? target.role, status };
+      putMember(state, member);
+      save(state);
+      return json(200, member);
     }
     return { id: staff.id, name: staff.name, role: staff.role };
   }

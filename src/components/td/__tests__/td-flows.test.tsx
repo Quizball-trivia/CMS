@@ -36,9 +36,10 @@ const { createRefreshCoordinator } = await import('@/lib/td/refresh-coordinator'
 const { memoryBlobStore } = await import('@/lib/td/mock/blob-store');
 const { createMockTdApi, MOCK_PASSWORD, MOCK_STAFF } = await import('@/lib/td/mock-api');
 const { createOrigin, MemoryStorage, put } = await import('@/lib/td/__tests__/helpers');
-const { TdContentEditorSheet } = await import('../content/td-content-editor');
-const { TdImportTab } = await import('../tabs/import-tab');
-const { TdReleasesTab } = await import('../tabs/releases-tab');
+const { TdContentEditorDialog } = await import('../content/td-content-editor');
+const { TdQuestionsTab } = await import('../tabs/questions-tab');
+const { ReleaseReportView, TdReleasesTab } = await import('../tabs/releases-tab');
+const { TdCardImage } = await import('../content/td-card-image');
 const { useTdWrite } = await import('@/hooks/use-td-content');
 const { CorrectionForm, OpsReviews, Replay } = await import('../tabs/players-tab');
 const { MaintenanceSetting, TdSettingsTab, TicketsSetting } = await import('../tabs/ops-tabs');
@@ -48,39 +49,48 @@ const { TdTeam } = await import('../td-team');
 const { TdApiError } = await import('@/lib/td/api-client');
 const { createFakeLockManager, deferred, sleep } = await import('@/lib/td/__tests__/helpers');
 const { browserPendingPublications } = await import('@/lib/td/pending-publications');
+const { addDays } = await import('@/lib/td/georgia');
 
 const BASE = 'https://td-api.mock';
 let server: typeof fetch;
 let generation = 0;
 
-/** A signed-in client of the shared mock server, with its own session store (another browser). */
-async function clientFor(role: TdRole) {
+const COLLEAGUE = 'colleague@demo.tablederby.test';
+
+/** A signed-in client of the shared mock server, with its own session store (another browser); `email` picks a colleague of the role. */
+async function clientFor(role: TdRole, email?: string) {
   const origin = createOrigin();
   const transport = createTransport(BASE, server);
   const tokens = origin.store();
   const refreshLock = origin.lock('td-refresh');
   const coordinator = createRefreshCoordinator({ tokens, refreshLock: () => refreshLock, requestRefresh: (token, id) => requestTokenRefresh(transport, token, id) });
   const api = createTdApiClient({ transport, tokens, coordinator });
-  const staff = MOCK_STAFF.find((s) => s.role === role && s.status === 'active')!;
+  const staff = MOCK_STAFF.find((s) => s.role === role && s.status === 'active' && (email === undefined || s.email === email))!;
   const session = await api.login(staff.email, MOCK_PASSWORD);
   await put(tokens, { ...session, generation: `gen-${++generation}`, staffId: staff.id, refreshPendingSince: null });
   return { api, tokens, admin: createTdAdminApi(api), user: { id: staff.id, email: staff.email, name: staff.name, role: staff.role } };
 }
 
-async function signIn(role: TdRole) {
-  const client = await clientFor(role);
+async function signIn(role: TdRole, email?: string) {
+  const client = await clientFor(role, email);
   Object.assign(h, { admin: client.admin, api: client.api, tokens: client.tokens, user: client.user });
   return client;
 }
 
-function renderTd(ui: ReactNode) {
-  const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
+/** `staleTime`: as the console's own client (td-providers) keeps reads, where a test depends on refetching. */
+function renderTd(ui: ReactNode, staleTime = 0) {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime }, mutations: { retry: false } } });
   return render(<QueryClientProvider client={client}>{ui}</QueryClientProvider>);
 }
 
 const penalty = (key: string) => ({ key, q: 'Who won Euro 2024?', display: 'Spain', aliases: ['spain'] });
 
 beforeAll(() => {
+  // What Radix's Select asks of a browser and jsdom lacks.
+  Element.prototype.scrollIntoView = () => {};
+  Element.prototype.hasPointerCapture = () => false;
+  Element.prototype.setPointerCapture = () => {};
+  Element.prototype.releasePointerCapture = () => {};
   URL.createObjectURL = vi.fn(() => 'blob:td-test');
   URL.revokeObjectURL = vi.fn();
 });
@@ -97,147 +107,558 @@ beforeEach(() => {
 afterEach(() => cleanup());
 
 describe('content editor', () => {
-  it('an editor creates a draft and marks it ready; approval is a publisher’s, never the last editor’s', async () => {
-    await signIn('editor');
-    renderTd(<TdContentEditorSheet target={{ type: 'penalty-questions', row: null }} onClose={() => {}} />);
+  it('a member creates a draft, which waits as a draft; a colleague publishes it in one step, their own too', async () => {
+    await signIn('betsson_admin');
+    renderTd(<TdContentEditorDialog target={{ type: 'penalty-questions', row: null }} onClose={() => {}} />);
     fireEvent.change(screen.getByLabelText('Question'), { target: { value: 'Capital of Georgia?' } });
     fireEvent.change(screen.getByLabelText('Answer (as shown)'), { target: { value: 'Tbilisi' } });
     const spellings = screen.getByLabelText('Accepted spellings');
     fireEvent.change(spellings, { target: { value: 'tbilisi' } });
     fireEvent.keyDown(spellings, { key: 'Enter' });
-    fireEvent.click(screen.getByRole('button', { name: 'Create draft' }));
-    expect(await screen.findByText('Draft')).toBeTruthy();
-    fireEvent.click(screen.getByRole('button', { name: 'Mark ready' }));
-    expect(await screen.findByText('Ready for review')).toBeTruthy();
-    expect(screen.queryByRole('button', { name: 'Approve' })).toBeNull();
-    expect(screen.getByText('Ready for a publisher to approve.')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Create Question' }));
+    // Saved, it opens on its preview, as the Quizball dialog shows a question.
+    expect(await screen.findByRole('heading', { name: 'Question Preview' })).toBeTruthy();
+    expect(screen.getByText('Capital of Georgia?')).toBeTruthy();
+    // No review step: nothing to mark ready or approve.
+    for (const name of ['Mark ready', 'Approve']) expect(screen.queryByRole('button', { name })).toBeNull();
     cleanup();
 
-    await signIn('publisher');
-    const [row] = (await h.admin.content('penalty-questions').list({ status: 'ready', q: 'Capital of Georgia' })).items;
-    renderTd(<TdContentEditorSheet target={{ type: 'penalty-questions', row }} onClose={() => {}} />);
-    fireEvent.click(await screen.findByRole('button', { name: 'Approve' }));
-    expect(await screen.findByText('Approved')).toBeTruthy();
+    await signIn('betsson_admin', COLLEAGUE);
+    const [row] = (await h.admin.content('penalty-questions').list({ status: 'draft', q: 'Capital of Georgia' })).items;
+    renderTd(<TdContentEditorDialog target={{ type: 'penalty-questions', row }} onClose={() => {}} startOn="preview" />);
+    expect(screen.queryByRole('button', { name: 'Approve' })).toBeNull();
+    fireEvent.click(await screen.findByRole('button', { name: 'Publish' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm?' }));
+    await waitFor(async () => expect((await h.admin.content('penalty-questions').get(row.id)).status).toBe('approved'));
+    // Opened outside the Questions page, the dialog sends the release itself.
+    expect(await screen.findByText(/is current now\./, undefined, { timeout: 5000 })).toBeTruthy();
+    cleanup();
 
-    // A publisher's own edit waits for another publisher.
+    // As in the Quizball CMS, a member publishes their own edit.
     const own = await h.admin.content('penalty-questions').create({ data: penalty('own-edit') });
-    const ready = await h.admin.content('penalty-questions').ready(own.id, own.version);
-    cleanup();
-    renderTd(<TdContentEditorSheet target={{ type: 'penalty-questions', row: ready }} onClose={() => {}} />);
-    expect(await screen.findByText('You made the last edit, so another publisher approves it.')).toBeTruthy();
-    expect(screen.queryByRole('button', { name: 'Approve' })).toBeNull();
+    renderTd(<TdContentEditorDialog target={{ type: 'penalty-questions', row: own }} onClose={() => {}} startOn="preview" />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Publish' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm?' }));
+    await waitFor(async () => expect((await h.admin.content('penalty-questions').get(own.id)).status).toBe('approved'));
+  });
+
+  it('saves the shown answer among the accepted spellings, once, as the rounds count only those', async () => {
+    const { admin } = await signIn('betsson_admin');
+    renderTd(<TdContentEditorDialog target={{ type: 'penalty-questions', row: null }} onClose={() => {}} />);
+    fireEvent.change(screen.getByLabelText('Question'), { target: { value: 'Who captained Georgia at Euro 2024?' } });
+    fireEvent.change(screen.getByLabelText('Answer (as shown)'), { target: { value: 'Guram Kashia' } });
+    const spellings = screen.getByLabelText('Accepted spellings');
+    fireEvent.change(spellings, { target: { value: 'Kashia' } });
+    fireEvent.keyDown(spellings, { key: 'Enter' });
+    fireEvent.click(screen.getByRole('button', { name: 'Create Question' }));
+    expect(await screen.findByRole('heading', { name: 'Question Preview' })).toBeTruthy();
+    const [row] = (await admin.content('penalty-questions').list({ q: 'captained Georgia' })).items;
+    expect(row!.data.aliases).toEqual(['Guram Kashia', 'Kashia']);
+  });
+
+  it('asks five clues of a Round II subject, as a match plays only those', async () => {
+    const { admin } = await signIn('betsson_admin');
+    renderTd(<TdContentEditorDialog target={{ type: 'whoami-subjects', row: null }} onClose={() => {}} />);
+    fireEvent.change(screen.getByLabelText('Answer (as shown)'), { target: { value: 'ანდრეი შევჩენკო' } });
+    const add = screen.getByRole('button', { name: 'Add a clue' });
+    for (const [i, clue] of ['კიევის „დინამოში“ დავიწყე', 'ოქროს ბურთი 2004 წელს'].entries()) {
+      fireEvent.click(add);
+      fireEvent.change(await screen.findByLabelText(`Clues, in the order they are read ${i + 1}`), { target: { value: clue } });
+    }
+    fireEvent.click(screen.getByRole('button', { name: 'Create Question' }));
+    expect(await screen.findByText(/Round II needs at least 5 clues: a match shows the first 5/)).toBeTruthy();
+    expect((await admin.content('whoami-subjects').list({ q: 'შევჩენკო' })).items).toEqual([]);
   });
 
   it('shows what the API would refuse before sending, by field', async () => {
-    const { admin } = await signIn('editor');
+    const { admin } = await signIn('betsson_admin');
     const before = (await admin.content('penalty-questions').list({ limit: 200 })).items.length;
-    renderTd(<TdContentEditorSheet target={{ type: 'penalty-questions', row: null }} onClose={() => {}} />);
-    fireEvent.change(screen.getByLabelText('Key'), { target: { value: 'Not A Key' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Create draft' }));
-    expect(await screen.findByText(/^Lower-case letters/)).toBeTruthy();
-    expect(screen.getAllByText('Required').length).toBeGreaterThanOrEqual(2);
+    renderTd(<TdContentEditorDialog target={{ type: 'penalty-questions', row: null }} onClose={() => {}} />);
+    expect(screen.queryByLabelText('ID')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Create Question' }));
+    expect((await screen.findAllByText('Required')).length).toBeGreaterThanOrEqual(2);
     expect(screen.getByText('Add at least one')).toBeTruthy();
     expect((await admin.content('penalty-questions').list({ limit: 200 })).items).toHaveLength(before);
   });
 
-  it('merges a stale save unit by unit: a question and its answer clash as one, my note is kept', async () => {
-    const { admin } = await signIn('editor');
+  it('merges a stale save unit by unit: a question and its answer clash as one', async () => {
+    const { admin } = await signIn('betsson_admin');
     const row = await admin.content('penalty-questions').create({ data: penalty('merge-me') });
-    const other = await clientFor('publisher');
-    renderTd(<TdContentEditorSheet target={{ type: 'penalty-questions', row }} onClose={() => {}} />);
+    const other = await clientFor('betsson_admin', COLLEAGUE);
+    renderTd(<TdContentEditorDialog target={{ type: 'penalty-questions', row }} onClose={() => {}} />);
     fireEvent.change(screen.getByLabelText('Question'), { target: { value: 'Mine?' } });
-    fireEvent.change(screen.getByLabelText('Note'), { target: { value: 'checked with the rules' } });
     const theirs = await other.admin.content('penalty-questions').edit(row.id, { version: row.version, data: { ...row.data, display: 'Theirs', aliases: ['spain', 'españa'] } });
-    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Save Changes' }));
     expect(await screen.findByText('Someone changed this while you were editing')).toBeTruthy();
     // The question, its answer and its spellings are one unit: never my question with their answer.
-    const clash = screen.getByText('q + display + aliases').closest('li')!;
-    fireEvent.click(within(clash).getByRole('radio', { name: /Theirs/ }));
+    const clash = screen.getByText('Question + Answer (as shown) + Accepted spellings').closest('li')!;
+    fireEvent.click(within(clash).getByRole('radio', { name: /Yours/ }));
     fireEvent.click(screen.getByRole('button', { name: 'Continue with the merge' }));
     expect(await screen.findByText('Merged onto the newer version. Review it, then save.')).toBeTruthy();
-    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Save Changes' }));
     await waitFor(async () => expect((await admin.content('penalty-questions').get(row.id)).version).toBe(theirs.version + 1));
     const saved = await admin.content('penalty-questions').get(row.id);
-    expect(saved.data).toEqual({ key: 'merge-me', q: 'Who won Euro 2024?', display: 'Theirs', aliases: ['spain', 'españa'] });
-    expect(saved.note).toBe('checked with the rules');
+    // Mine as a whole: my question with my answer and spellings, never with theirs.
+    expect(saved.data).toEqual({ key: 'merge-me', q: 'Mine?', display: 'Spain', aliases: ['spain'] });
   });
 
   it('holds Save while a number field shows text that is not a number, rather than saving the old number', async () => {
-    const { admin } = await signIn('editor');
-    const row = await admin.content('penalty-questions').create({ data: penalty('numbers') });
-    renderTd(<TdContentEditorSheet target={{ type: 'penalty-questions', row }} onClose={() => {}} />);
-    fireEvent.change(screen.getByLabelText('Question'), { target: { value: 'Changed?' } });
-    const save = screen.getByRole('button', { name: 'Save' });
-    expect(save.hasAttribute('disabled')).toBe(false);
-
-    fireEvent.change(screen.getByLabelText('Position'), { target: { value: '12abc' } });
+    const { admin } = await signIn('betsson_admin');
+    const row = await admin.content('put-in-order').create({
+      data: { key: 'numbers', puzzle: 'pio-1', prompt: 'Order these', items: [{ key: 'item-1', label: 'Italy', sortValue: 2006 }, { key: 'item-2', label: 'Spain', sortValue: 2010 }] },
+    });
+    renderTd(<TdContentEditorDialog target={{ type: 'put-in-order', row }} onClose={() => {}} />);
+    expect(screen.queryByLabelText('Item 1 key')).toBeNull();
+    const save = screen.getByRole('button', { name: 'Save Changes' });
+    const sort = screen.getByLabelText('Item 1 sort value');
+    fireEvent.change(sort, { target: { value: '12abc' } });
     expect(screen.getByText('Not a number')).toBeTruthy();
     expect(save.hasAttribute('disabled')).toBe(true);
-    fireEvent.change(screen.getByLabelText('Position'), { target: { value: '' } });
-    expect(screen.getByText('Enter a number')).toBeTruthy();
-    expect(save.hasAttribute('disabled')).toBe(true);
     fireEvent.click(save);
-    expect((await admin.content('penalty-questions').get(row.id)).version).toBe(row.version);
-    // Still held on the other tabs of the editor, and the typed text is still there on the way back.
-    fireEvent.click(screen.getByRole('tab', { name: /History/ }));
-    expect(save.hasAttribute('disabled')).toBe(true);
-    fireEvent.click(screen.getByRole('tab', { name: 'Content' }));
-    expect(screen.getByText('Enter a number')).toBeTruthy();
+    expect((await admin.content('put-in-order').get(row.id)).version).toBe(row.version);
 
-    fireEvent.change(screen.getByLabelText('Position'), { target: { value: '7' } });
-    expect(screen.queryByText('Enter a number')).toBeNull();
+    fireEvent.change(sort, { target: { value: '2014' } });
+    expect(screen.queryByText('Not a number')).toBeNull();
+    expect(save.hasAttribute('disabled')).toBe(false);
     fireEvent.click(save);
-    await waitFor(async () => expect((await admin.content('penalty-questions').get(row.id)).position).toBe(7));
+    await waitFor(async () => expect(((await admin.content('put-in-order').get(row.id)).data as { items: { sortValue: number }[] }).items[0].sortValue).toBe(2014));
   });
 
   it('holds Save while an item’s sort value is not a number, instead of saving it as 0', async () => {
-    await signIn('editor');
-    renderTd(<TdContentEditorSheet target={{ type: 'put-in-order', row: null }} onClose={() => {}} />);
+    await signIn('betsson_admin');
+    renderTd(<TdContentEditorDialog target={{ type: 'put-in-order', row: null }} onClose={() => {}} />);
     const sort = await screen.findByLabelText('Item 1 sort value');
     fireEvent.change(sort, { target: { value: 'x' } });
     expect(screen.getByText('Not a number')).toBeTruthy();
-    expect(screen.getByRole('button', { name: 'Create draft' }).hasAttribute('disabled')).toBe(true);
+    expect(screen.getByRole('button', { name: 'Create Question' }).hasAttribute('disabled')).toBe(true);
     fireEvent.change(sort, { target: { value: '1990' } });
     expect(screen.queryByText('Not a number')).toBeNull();
-    expect(screen.getByRole('button', { name: 'Create draft' }).hasAttribute('disabled')).toBe(false);
+    expect(screen.getByRole('button', { name: 'Create Question' }).hasAttribute('disabled')).toBe(false);
   });
 
-  it('approves a category with its ready cards in one step', async () => {
-    const editor = await clientFor('editor');
-    const category = await editor.admin.content('card-categories').create({ data: { key: 'coaches', prompt: 'Famous coaches' } });
-    for (const key of ['pep', 'klopp']) {
-      const card = await editor.admin.content('cards').create({ data: { categoryKey: 'coaches', key, value: 1, lines: [], display: key, aliases: [key], photo: null, imageKey: null } });
-      await editor.admin.content('cards').ready(card.id, card.version);
-    }
-    const ready = await editor.admin.content('card-categories').ready(category.id, category.version);
-    const publisher = await signIn('publisher');
-    renderTd(<TdContentEditorSheet target={{ type: 'card-categories', row: ready }} onClose={() => {}} />);
-    fireEvent.click(await screen.findByRole('button', { name: 'Approve' }));
-    const dialog = await screen.findByRole('dialog', { name: /Approve the category/ });
-    expect(await within(dialog).findByText('2 ready to approve with it · 0 approved already')).toBeTruthy();
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Approve' }));
-    await waitFor(async () => expect((await publisher.admin.content('card-categories').get(category.id)).status).toBe('approved'));
-    const cards = await publisher.admin.content('cards').list({ category: 'coaches' });
-    expect(cards.items.map((c: TdContentRow<'cards'>) => c.status)).toEqual(['approved', 'approved']);
+  it('a question’s image is published with the question, as there is no Media page', async () => {
+    const colleague = await clientFor('betsson_admin', COLLEAGUE);
+    const png = Uint8Array.from(atob('iVBORw0KGgoAAAANSUhEUgAAABAAAAAJCAIAAAC0SDtlAAAAFElEQVR42mP4GKVEEmIY1TAoNAAAV/DNUSF4ln8AAAAASUVORK5CYII='), (c) => c.charCodeAt(0));
+    const upload = await colleague.admin.media.upload(new Blob([png], { type: 'image/png' }), 'image/png');
+    await colleague.admin.content('media').create({ data: { key: 'stadium-photo', url: null, uploadId: upload.id, width: upload.width, height: upload.height, author: 'A. Photographer', license: 'CC BY 4.0', source: 'https://example.org/stadium' } });
+    const question = await colleague.admin.content('practice-questions').create({
+      data: { key: 'with-image', difficulty: 'easy', category: 'Stadiums', prompt: 'Which stadium is this?', options: ['Dinamo Arena', 'Mikheil Meskhi'], answer: 0, explanation: null, imageKey: 'stadium-photo' },
+    });
+    const image = () => colleague.admin.content('media').list({ q: 'stadium-photo' }).then((page) => page.items[0]!);
+    expect((await image()).status).toBe('draft');
+
+    const member = await signIn('betsson_admin');
+    renderTd(<TdContentEditorDialog target={{ type: 'practice-questions', row: question }} onClose={() => {}} startOn="preview" />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Publish' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm?' }));
+    await waitFor(async () => expect((await member.admin.content('practice-questions').get(question.id)).status).toBe('approved'));
+    expect((await image()).status).toBe('approved');
+  });
+
+  it('publishing a question never approves a waiting replacement of an image already approved', async () => {
+    const colleague = await clientFor('betsson_admin', COLLEAGUE);
+    const png = Uint8Array.from(atob('iVBORw0KGgoAAAANSUhEUgAAABAAAAAJCAIAAAC0SDtlAAAAFElEQVR42mP4GKVEEmIY1TAoNAAAV/DNUSF4ln8AAAAASUVORK5CYII='), (c) => c.charCodeAt(0));
+    const upload = await colleague.admin.media.upload(new Blob([png], { type: 'image/png' }), 'image/png');
+    const made = await colleague.admin.content('media').create({ data: { key: 'shared-photo', url: null, uploadId: upload.id, width: upload.width, height: upload.height, author: 'A', license: 'CC0', source: 'https://example.org' } });
+    const ready = await colleague.admin.content('media').ready(made.id, made.version);
+    const approved = await colleague.admin.content('media').approve(ready.id, ready.version);
+    // A replacement waits: a new credit, marked ready.
+    const replaced = await colleague.admin.content('media').edit(approved.id, { version: approved.version, data: { ...approved.data, author: 'B' } });
+    await colleague.admin.content('media').ready(replaced.id, replaced.version);
+    const q = await colleague.admin.content('practice-questions').create({
+      data: { key: 'shared-q', difficulty: 'easy', category: 'Stadiums', prompt: 'Which?', options: ['A', 'B'], answer: 0, explanation: null, imageKey: 'shared-photo' },
+    });
+    const qReady = await colleague.admin.content('practice-questions').ready(q.id, q.version);
+    await signIn('betsson_admin');
+    renderTd(<TdContentEditorDialog target={{ type: 'practice-questions', row: qReady }} onClose={() => {}} startOn="preview" />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Publish' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm?' }));
+    await waitFor(async () => expect((await colleague.admin.content('practice-questions').get(q.id)).status).toBe('approved'));
+    const image = await colleague.admin.content('media').get(made.id);
+    expect(image.status).toBe('ready');
+    expect(image.approved?.author).toBe('A');
+  });
+
+  it('an image is not published for a question that changed since it was opened', async () => {
+    const colleague = await clientFor('betsson_admin', COLLEAGUE);
+    const png = Uint8Array.from(atob('iVBORw0KGgoAAAANSUhEUgAAABAAAAAJCAIAAAC0SDtlAAAAFElEQVR42mP4GKVEEmIY1TAoNAAAV/DNUSF4ln8AAAAASUVORK5CYII='), (c) => c.charCodeAt(0));
+    const upload = await colleague.admin.media.upload(new Blob([png], { type: 'image/png' }), 'image/png');
+    const media = await colleague.admin.content('media').create({ data: { key: 'changed-photo', url: null, uploadId: upload.id, width: upload.width, height: upload.height, author: 'A', license: 'CC0', source: 'https://example.org' } });
+    await colleague.admin.content('media').ready(media.id, media.version);
+    const made = await colleague.admin.content('practice-questions').create({
+      data: { key: 'changed-q', difficulty: 'easy', category: 'Stadiums', prompt: 'Which?', options: ['A', 'B'], answer: 0, explanation: null, imageKey: 'changed-photo' },
+    });
+    const ready = await colleague.admin.content('practice-questions').ready(made.id, made.version);
+    await signIn('betsson_admin');
+    renderTd(<TdContentEditorDialog target={{ type: 'practice-questions', row: ready }} onClose={() => {}} startOn="preview" />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Publish' }));
+    // Changed after it was opened: the publish is refused, and its image stays as it was.
+    await colleague.admin.content('practice-questions').edit(ready.id, { version: ready.version, data: { ...ready.data, prompt: 'Which one?' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm?' }));
+    await waitFor(async () => expect((await colleague.admin.content('practice-questions').get(made.id)).status).not.toBe('approved'));
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect((await colleague.admin.content('media').get(media.id)).status).toBe('ready');
+  });
+
+});
+
+describe('stepping through a list', () => {
+  it('← and → step to the neighbours on the preview, not in the form', async () => {
+    const { admin } = await signIn('betsson_admin');
+    const row = await admin.content('penalty-questions').create({ data: penalty('step-keys') });
+    const onGo = vi.fn();
+    renderTd(<TdContentEditorDialog target={{ type: 'penalty-questions', row }} onClose={() => {}} startOn="preview" nav={{ index: 1, total: 3, more: false, onGo }} />);
+    expect(screen.getByText('2')).toBeTruthy();
+    fireEvent.keyDown(document.body, { key: 'ArrowRight' });
+    fireEvent.keyDown(document.body, { key: 'ArrowLeft' });
+    expect(onGo.mock.calls).toEqual([[2], [0]]);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Edit Details' }));
+    expect(await screen.findByRole('heading', { name: 'Edit Question' })).toBeTruthy();
+    fireEvent.keyDown(document.body, { key: 'ArrowRight' });
+    expect(onGo).toHaveBeenCalledTimes(2);
+    expect(screen.queryByRole('button', { name: 'Next' })).toBeNull();
+  });
+
+  it('Cancel in the form asks before it drops a change, then goes back to the preview', async () => {
+    const { admin } = await signIn('betsson_admin');
+    const row = await admin.content('penalty-questions').create({ data: penalty('cancel-held') });
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
+    renderTd(<TdContentEditorDialog target={{ type: 'penalty-questions', row }} onClose={() => {}} startOn="preview" />);
+    fireEvent.click(screen.getByRole('button', { name: 'Edit Details' }));
+    fireEvent.change(screen.getByLabelText('Question'), { target: { value: 'Changed?' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    expect(confirm).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole('heading', { name: 'Edit Question' })).toBeTruthy();
+    confirm.mockReturnValue(true);
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    expect(await screen.findByRole('heading', { name: 'Question Preview' })).toBeTruthy();
+    expect(screen.getByText('Who won Euro 2024?')).toBeTruthy();
+    confirm.mockRestore();
+  });
+
+  it('asks before the dialog closes on a change, and closes at once when nothing was changed', async () => {
+    const { admin } = await signIn('betsson_admin');
+    const row = await admin.content('penalty-questions').create({ data: penalty('close-held') });
+    const onClose = vi.fn();
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
+    renderTd(<TdContentEditorDialog target={{ type: 'penalty-questions', row }} onClose={onClose} />);
+    fireEvent.keyDown(screen.getByRole('dialog'), { key: 'Escape' });
+    expect(confirm).not.toHaveBeenCalled();
+    expect(onClose).toHaveBeenCalledTimes(1);
+
+    fireEvent.change(screen.getByLabelText('Question'), { target: { value: 'Changed?' } });
+    fireEvent.keyDown(screen.getByRole('dialog'), { key: 'Escape' });
+    expect(confirm).toHaveBeenCalledTimes(1);
+    expect(onClose).toHaveBeenCalledTimes(1);
+    confirm.mockReturnValue(true);
+    fireEvent.keyDown(screen.getByRole('dialog'), { key: 'Escape' });
+    expect(onClose).toHaveBeenCalledTimes(2);
+
+    // A spelling typed but not entered yet is not in the draft: closing would lose it, so it asks too.
+    fireEvent.change(screen.getByLabelText('Question'), { target: { value: 'Who won Euro 2024?' } });
+    fireEvent.change(screen.getByLabelText('Accepted spellings'), { target: { value: 'espana' } });
+    confirm.mockClear();
+    confirm.mockReturnValue(false);
+    fireEvent.keyDown(screen.getByRole('dialog'), { key: 'Escape' });
+    expect(confirm).toHaveBeenCalledTimes(1);
+    expect(onClose).toHaveBeenCalledTimes(2);
+    confirm.mockRestore();
+  });
+
+  it('a step opens the next row on its preview', async () => {
+    const { admin } = await signIn('betsson_admin');
+    const one = await admin.content('penalty-questions').create({ data: { ...penalty('step-one'), q: 'First question?' } });
+    const two = await admin.content('penalty-questions').create({ data: { ...penalty('step-two'), q: 'Second question?' } });
+    const nav = { index: 0, total: 2, more: false, onGo: () => {} };
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const view = render(
+      <QueryClientProvider client={client}>
+        <TdContentEditorDialog target={{ type: 'penalty-questions', row: one }} onClose={() => {}} startOn="preview" nav={nav} />
+      </QueryClientProvider>,
+    );
+    expect(screen.getByText('First question?')).toBeTruthy();
+    view.rerender(
+      <QueryClientProvider client={client}>
+        <TdContentEditorDialog target={{ type: 'penalty-questions', row: two }} onClose={() => {}} startOn="preview" nav={{ ...nav, index: 1 }} />
+      </QueryClientProvider>,
+    );
+    expect(screen.getByRole('heading', { name: 'Question Preview' })).toBeTruthy();
+    expect(screen.getByText('Second question?')).toBeTruthy();
+  });
+
+  it('holds the steps while the next row’s page is on its way', async () => {
+    const { admin } = await signIn('betsson_admin');
+    const row = await admin.content('penalty-questions').create({ data: penalty('step-wait') });
+    const onGo = vi.fn();
+    renderTd(<TdContentEditorDialog target={{ type: 'penalty-questions', row }} onClose={() => {}} startOn="preview" nav={{ index: 0, total: 1, more: true, waiting: true, onGo }} />);
+    expect(screen.getByRole('button', { name: 'Next' }).hasAttribute('disabled')).toBe(true);
+    fireEvent.keyDown(document.body, { key: 'ArrowRight' });
+    expect(onGo).not.toHaveBeenCalled();
+  });
+
+  it('a row opens from the keyboard', async () => {
+    await signIn('betsson_admin');
+    window.history.replaceState(null, '', '?mode=penalties');
+    renderTd(<TdQuestionsTab />);
+    const row = (await screen.findAllByRole('button', { name: /\?$/ }))[0]!;
+    row.focus();
+    fireEvent.keyDown(row, { key: 'Enter' });
+    expect(await screen.findByRole('heading', { name: 'Question Preview' })).toBeTruthy();
+    window.history.replaceState(null, '', window.location.pathname);
+  });
+
+  it('a step past the last loaded question loads the next page and opens its row', async () => {
+    const { admin } = await signIn('betsson_admin');
+    for (let i = 1; i <= 51; i++) await admin.content('penalty-questions').create({ data: { ...penalty(`page-${String(i).padStart(2, '0')}`), q: `Question ${String(i).padStart(2, '0')}?` } });
+    // The search leaves the mock's own questions out.
+    window.history.replaceState(null, '', '?mode=penalties&q=Question');
+    renderTd(<TdQuestionsTab />);
+    expect(await screen.findAllByText(/^Question \d\d\?$/)).toHaveLength(10);
+    for (let i = 0; i < 4; i++) fireEvent.click(screen.getByRole('button', { name: 'Next page' }));
+    fireEvent.click(await screen.findByText('Question 50?'));
+    const dialog = await screen.findByRole('dialog');
+    expect(within(dialog).getByText('Question 50?')).toBeTruthy();
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Next' }));
+    await waitFor(() => expect(within(screen.getByRole('dialog')).getByText('Question 51?')).toBeTruthy());
+    window.history.replaceState(null, '', window.location.pathname);
+  });
+});
+
+describe('publish in one step', () => {
+  const card = (key: string, categoryKey: string) => ({ categoryKey, key, value: 1 as const, lines: [], display: key, aliases: [key], photo: null, imageKey: null });
+
+  it('a member picks drafts and publishes them: approved, and the release goes out on its own', async () => {
+    const { admin } = await signIn('betsson_admin');
+    const first = await admin.content('penalty-questions').create({ data: { ...penalty('one-step-1'), q: 'One step 1?' } });
+    const second = await admin.content('penalty-questions').create({ data: { ...penalty('one-step-2'), q: 'One step 2?' } });
+    const before = (await admin.releases.list({ limit: 1 })).items[0]!.id;
+    window.history.replaceState(null, '', '?mode=penalties&q=One step');
+    renderTd(<TdQuestionsTab />, 30_000);
+    fireEvent.click(await screen.findByRole('checkbox', { name: 'Select One step 1?' }));
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Select One step 2?' }));
+    expect(screen.queryByRole('button', { name: 'Mark ready' })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Publish 2' }));
+    const asked = await screen.findByRole('dialog', { name: 'Publish' });
+    expect(within(asked).getByText(/Publish 2 questions\? Players get them in a minute, with anything else waiting/)).toBeTruthy();
+    fireEvent.click(within(asked).getByRole('button', { name: 'Publish' }));
+
+    await waitFor(async () => {
+      expect((await admin.content('penalty-questions').get(first.id)).status).toBe('approved');
+      expect((await admin.content('penalty-questions').get(second.id)).status).toBe('approved');
+    });
+    expect(await screen.findByText(/is current now\./, undefined, { timeout: 5000 })).toBeTruthy();
+    const current = (await admin.releases.list({ limit: 1 })).items[0]!;
+    expect(current.id).not.toBe(before);
+    expect(current.current).toBe(true);
+    window.history.replaceState(null, '', window.location.pathname);
+  });
+
+  it('a step the API refuses as too many waits and goes again, so a large publish does not stop halfway', async () => {
+    const inner = server;
+    let approvals = 0;
+    server = ((input: RequestInfo | URL, init?: RequestInit) => {
+      if (String(input).endsWith('/approve') && ++approvals === 1)
+        return Promise.resolve(new Response(JSON.stringify({ code: 'rate_limited', message: 'Too many requests; try again in a minute' }), { status: 429, headers: { 'content-type': 'application/json' } }));
+      return inner(input, init);
+    }) as typeof fetch;
+    const { admin } = await signIn('betsson_admin');
+    const row = await admin.content('penalty-questions').create({ data: { ...penalty('one-step-paced'), q: 'Paced?' } });
+    window.history.replaceState(null, '', '?mode=penalties&q=Paced');
+    renderTd(<TdQuestionsTab />, 30_000);
+    fireEvent.click(await screen.findByRole('checkbox', { name: 'Select Paced?' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Publish 1' }));
+    fireEvent.click(within(await screen.findByRole('dialog', { name: 'Publish' })).getByRole('button', { name: 'Publish' }));
+    await waitFor(async () => expect((await admin.content('penalty-questions').get(row.id)).status).toBe('approved'), { timeout: 20_000 });
+    expect(approvals).toBe(2);
+    expect(screen.queryByText(/refused/)).toBeNull();
+    // The release it starts finishes here, not in the next test.
+    expect(await screen.findByText(/is current now\./, undefined, { timeout: 5000 })).toBeTruthy();
+    window.history.replaceState(null, '', window.location.pathname);
+  }, 30_000);
+
+  it('a draft publishes from its own window too', async () => {
+    const { admin } = await signIn('betsson_admin');
+    const row = await admin.content('penalty-questions').create({ data: { ...penalty('one-step-own'), q: 'From its window?' } });
+    window.history.replaceState(null, '', '?mode=penalties&q=From its window');
+    renderTd(<TdQuestionsTab />, 30_000);
+    fireEvent.click(await screen.findByText('From its window?'));
+    const dialog = await screen.findByRole('dialog');
+    expect(within(dialog).queryByRole('button', { name: 'Mark ready' })).toBeNull();
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Publish' }));
+    // Asked first, as the list asks: everything waiting goes out with it.
+    expect(within(dialog).getByText(/with anything else waiting to publish/)).toBeTruthy();
+    expect((await admin.content('penalty-questions').get(row.id)).status).toBe('draft');
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Confirm?' }));
+    await waitFor(async () => expect((await admin.content('penalty-questions').get(row.id)).status).toBe('approved'));
+    expect(await screen.findByText(/is current now\./, undefined, { timeout: 5000 })).toBeTruthy();
+    window.history.replaceState(null, '', window.location.pathname);
+  });
+
+  it('nothing goes out when the release check fails: the questions stay published for the next one, and it says why', async () => {
+    const { admin } = await signIn('betsson_admin');
+    await admin.content('penalty-questions').create({ data: { ...penalty('one-step-held'), q: 'Held back?' } });
+    const before = (await admin.releases.list({ limit: 1 })).items[0]!.id;
+    const validate = admin.releases.validate;
+    admin.releases.validate = async (...args) => ({ ...(await validate(...args)), ok: false, errors: [{ code: 'min_penalties', message: 'Too few penalty questions', path: null }] as never });
+    window.history.replaceState(null, '', '?mode=penalties&q=Held back');
+    renderTd(<TdQuestionsTab />, 30_000);
+    fireEvent.click(await screen.findByRole('checkbox', { name: 'Select Held back?' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Publish 1' }));
+    fireEvent.click(within(await screen.findByRole('dialog', { name: 'Publish' })).getByRole('button', { name: 'Publish' }));
+    expect(await screen.findByText(/the game was not updated: fix what is listed below/)).toBeTruthy();
+    expect((await admin.releases.list({ limit: 1 })).items[0]!.id).toBe(before);
+    admin.releases.validate = validate;
+    // Approved, but players do not have it yet: the list says so.
+    fireEvent.click(within(screen.getByRole('dialog', { name: 'Publish' })).getByRole('button', { name: 'Close' }));
+    expect(await screen.findByText('waiting to publish')).toBeTruthy();
+    window.history.replaceState(null, '', window.location.pathname);
+  });
+
+  it('a game still short of content elsewhere: it says the set is published and lists only what is missing, the full check behind Details', async () => {
+    const { admin } = await signIn('betsson_admin');
+    await admin.content('penalty-questions').create({ data: { ...penalty('one-step-short'), q: 'Short elsewhere?' } });
+    const validate = admin.releases.validate;
+    admin.releases.validate = async (...args) => {
+      const report = await validate(...args);
+      return {
+        ...report,
+        ok: false,
+        errors: [{ code: 'pool', message: 'cannot run a match: round II needs 3 subjects with 5+ clues, has 0', path: null }] as never,
+        pools: { ...report.pools, whoAmI: { ...report.pools.whoAmI, ready: 0, needed: 3, clues: 5 } },
+      };
+    };
+    window.history.replaceState(null, '', '?mode=penalties&q=Short elsewhere');
+    renderTd(<TdQuestionsTab />, 30_000);
+    fireEvent.click(await screen.findByRole('checkbox', { name: 'Select Short elsewhere?' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Publish 1' }));
+    fireEvent.click(within(await screen.findByRole('dialog', { name: 'Publish' })).getByRole('button', { name: 'Publish' }));
+    const release = await screen.findByRole('dialog', { name: 'Publish' });
+    expect(await within(release).findByText('Published.')).toBeTruthy();
+    expect(within(release).getByText('Round II: 3 subjects with 5+ clues (now 0)')).toBeTruthy();
+    // Nothing of the other modes' error lists until asked.
+    expect(within(release).queryByText(/cannot run a match/)).toBeNull();
+    expect(within(release).queryByText('Next release')).toBeNull();
+    fireEvent.click(within(release).getByRole('button', { name: 'Details' }));
+    expect(within(release).getByText(/cannot run a match/)).toBeTruthy();
+    admin.releases.validate = validate;
+    window.history.replaceState(null, '', window.location.pathname);
+  });
+
+  it('a question marked ready earlier publishes with the draft image it shows', async () => {
+    const { admin, tokens } = await signIn('betsson_admin');
+    const { approveForPublish } = await import('@/lib/td/publish-rows');
+    const { beginOperation } = await import('@/lib/td/operation');
+    const png = Uint8Array.from(atob('iVBORw0KGgoAAAANSUhEUgAAABAAAAAJCAIAAAC0SDtlAAAAFElEQVR42mP4GKVEEmIY1TAoNAAAV/DNUSF4ln8AAAAASUVORK5CYII='), (c) => c.charCodeAt(0));
+    const upload = await admin.media.upload(new Blob([png], { type: 'image/png' }), 'image/png');
+    await admin.content('media').create({ data: { key: 'ready-q-photo', url: null, uploadId: upload.id, width: upload.width, height: upload.height, author: 'A', license: 'CC0', source: 'https://example.org' } });
+    const made = await admin.content('practice-questions').create({
+      data: { key: 'ready-q', difficulty: 'easy', category: 'Stadiums', prompt: 'Which stadium?', options: ['Dinamo Arena', 'Mikheil Meskhi'], answer: 0, explanation: null, imageKey: 'ready-q-photo' },
+    });
+    // Marked ready on its own: the image stayed a draft.
+    const ready = await admin.content('practice-questions').ready(made.id, made.version);
+    const { results } = await approveForPublish(tokens, 'practice-questions', [ready as TdContentRow], beginOperation(tokens));
+    expect(results.map((r) => r.ok)).toEqual([true]);
+    expect((await admin.content('media').list({ q: 'ready-q-photo' })).items[0]!.status).toBe('approved');
+  });
+
+  it('every question the filters match can be chosen, not only the page shown', async () => {
+    const { admin } = await signIn('betsson_admin');
+    for (let i = 1; i <= 12; i++) await admin.content('penalty-questions').create({ data: { ...penalty(`many-${i}`), q: `Zebra ${String(i).padStart(2, '0')}?` } });
+    window.history.replaceState(null, '', '?mode=penalties&q=Zebra');
+    renderTd(<TdQuestionsTab />, 30_000);
+    await waitFor(() => expect(screen.getAllByText(/^Zebra \d\d\?$/)).toHaveLength(10));
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Select all shown' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Select every matching question' }));
+    expect(await screen.findByRole('button', { name: 'Publish 12' })).toBeTruthy();
+    window.history.replaceState(null, '', window.location.pathname);
+  });
+
+  it('an approved question players do not have yet publishes again, and a lost answer that went through counts', async () => {
+    const { admin, tokens } = await signIn('betsson_admin');
+    const { approveForPublish } = await import('@/lib/td/publish-rows');
+    const { beginOperation } = await import('@/lib/td/operation');
+    const made = await admin.content('penalty-questions').create({ data: { ...penalty('lost-answer'), q: 'Lost answer?' } });
+    // The approval goes through, but its answer never arrives.
+    const api = admin.content('penalty-questions');
+    const approve = api.approve;
+    const content = admin.content;
+    admin.content = ((type: string) => (type === 'penalty-questions' ? { ...api, approve: async (...args: Parameters<typeof approve>) => { await approve(...args); throw new TdApiError(0, 'network', 'Network error'); } } : content(type as never))) as typeof admin.content;
+    const out = await approveForPublish(tokens, 'penalty-questions', [made as TdContentRow], beginOperation(tokens));
+    admin.content = content;
+    expect(out.results.map((r) => r.ok)).toEqual([true]);
+    const approved = await api.get(made.id);
+    expect(approved.status).toBe('approved');
+
+    // Approved, not in the release: Publish is offered again, and only the release is left to do.
+    window.history.replaceState(null, '', '?mode=penalties&q=Lost answer');
+    renderTd(<TdQuestionsTab />, 30_000);
+    expect(await screen.findByText('waiting to publish')).toBeTruthy();
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Select Lost answer?' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Publish 1' }));
+    fireEvent.click(within(await screen.findByRole('dialog', { name: 'Publish' })).getByRole('button', { name: 'Publish' }));
+    expect(await screen.findByText(/is current now\./, undefined, { timeout: 5000 })).toBeTruthy();
+    fireEvent.click(within(screen.getByRole('dialog', { name: 'Publish' })).getByRole('button', { name: 'Close' }));
+    expect(await screen.findByText('published')).toBeTruthy();
+    window.history.replaceState(null, '', window.location.pathname);
+  });
+
+  it('a card whose category is archived is reported, not counted as live', async () => {
+    const { admin, tokens } = await signIn('betsson_admin');
+    const { approveForPublish } = await import('@/lib/td/publish-rows');
+    const { beginOperation } = await import('@/lib/td/operation');
+    const category = await admin.content('card-categories').create({ data: { key: 'gone-cat', prompt: 'Gone' } });
+    await admin.content('card-categories').archive(category.id, category.version);
+    const made = await admin.content('cards').create({ data: card('gone-card', 'gone-cat') }).catch(() => null);
+    if (!made) return; // The API refuses a card in an archived category outright: nothing to publish.
+    const out = await approveForPublish(tokens, 'cards', [made as TdContentRow], beginOperation(tokens));
+    expect(out.categories.map((c) => c.key)).toEqual(['gone-cat']);
+  });
+
+  it('a card in a new category takes the category along once all its cards are in', async () => {
+    const { admin, tokens } = await signIn('betsson_admin');
+    const { approveForPublish } = await import('@/lib/td/publish-rows');
+    const { beginOperation } = await import('@/lib/td/operation');
+    await admin.content('card-categories').create({ data: { key: 'one-step-cat', prompt: 'One step category' } });
+    const a = await admin.content('cards').create({ data: card('os-a', 'one-step-cat') });
+    const b = await admin.content('cards').create({ data: card('os-b', 'one-step-cat') });
+    const category = async () => (await admin.content('card-categories').list({ q: 'one-step-cat', status: 'draft,ready,approved' })).items[0]!;
+
+    // One of two: that card is approved, the category waits for the other (and says so).
+    const partly = await approveForPublish(tokens, 'cards', [a as TdContentRow], beginOperation(tokens));
+    expect(partly.results.every((r) => r.ok)).toBe(true);
+    expect(partly.categories.map((c) => c.key)).toEqual(['one-step-cat']);
+    const { categoryHeldText } = await import('@/lib/td/publish-rows');
+    expect(categoryHeldText(partly.categories[0]!.error, true)).toBe(
+      'The category goes live once all its questions are published: 1 more still to publish. Select them in the list and publish them together.',
+    );
+    expect((await category()).approvedVersion).toBeNull();
+
+    const rest = await approveForPublish(tokens, 'cards', [b as TdContentRow], beginOperation(tokens));
+    expect(rest.categories).toEqual([]);
+    expect((await category()).status).toBe('approved');
   });
 });
 
 describe('media', () => {
   it('uploads a crest from the club editor and saves it as an image to pick', async () => {
-    const { admin } = await signIn('editor');
-    renderTd(<TdContentEditorSheet target={{ type: 'clubs', row: null, preset: { key: 'torpedo' } }} onClose={() => {}} />);
+    const { admin } = await signIn('betsson_admin');
+    renderTd(<TdContentEditorDialog target={{ type: 'clubs', row: null, preset: { key: 'torpedo' } }} onClose={() => {}} />);
     fireEvent.click(screen.getByRole('button', { name: 'Choose' }));
     const dialog = await screen.findByRole('dialog', { name: 'Choose an image' });
     const png = Uint8Array.from(atob('iVBORw0KGgoAAAANSUhEUgAAABAAAAAJCAIAAAC0SDtlAAAAFElEQVR42mP4GKVEEmIY1TAoNAAAV/DNUSF4ln8AAAAASUVORK5CYII='), (c) => c.charCodeAt(0));
     fireEvent.change(within(dialog).getByTestId('td-upload-input'), { target: { files: [new File([png], 'crest.png', { type: 'image/png' })] } });
     expect(await within(dialog).findByText(/Uploaded · 16 × 9 px/)).toBeTruthy();
-    expect((within(dialog).getByLabelText('Key') as HTMLInputElement).value).toBe('crest-torpedo');
-    fireEvent.change(within(dialog).getByLabelText('Licence'), { target: { value: 'CC0' } });
+    // Its ID is made, never typed.
+    expect(within(dialog).queryByLabelText('ID')).toBeNull();
+    // No credit, licence or source is asked.
+    expect(within(dialog).queryByLabelText('Licence')).toBeNull();
     fireEvent.click(within(dialog).getByRole('button', { name: 'Save and use it' }));
     await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Choose an image' })).toBeNull());
-    expect(await screen.findByText('crest-torpedo')).toBeTruthy();
+    expect(await screen.findByText('It is approved with the question.')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Image details' })).toBeTruthy();
     const [image] = (await admin.content('media').list({ q: 'crest-torpedo' })).items;
-    expect(image).toMatchObject({ status: 'draft', data: { key: 'crest-torpedo', width: 16, height: 9, license: 'CC0', author: null } });
+    expect(image).toMatchObject({ status: 'draft', data: { key: 'crest-torpedo', width: 16, height: 9, license: null, author: null, source: null } });
   });
 });
 
@@ -362,13 +783,13 @@ describe('drafts stay bound to the revision reviewed', () => {
 
 describe('operations and the session', () => {
   it('a write that finishes after another sign-in ends as cancelled and refreshes nothing', async () => {
-    const editor = await signIn('editor');
+    const member = await signIn('betsson_admin');
     const client = new QueryClient();
     const invalidate = vi.spyOn(client, 'invalidateQueries');
     const { result } = renderHook(() => useTdWrite(), { wrapper: ({ children }: { children: ReactNode }) => <QueryClientProvider client={client}>{children}</QueryClientProvider> });
     const answer = deferred<string>();
     const running = result.current(() => answer.promise);
-    await put(editor.tokens, { accessToken: 'other', refreshToken: 'other-refresh-token-000000', expiresAt: Date.now() + 60_000, generation: 'someone-else', staffId: null, refreshPendingSince: null });
+    await put(member.tokens, { accessToken: 'other', refreshToken: 'other-refresh-token-000000', expiresAt: Date.now() + 60_000, generation: 'someone-else', staffId: null, refreshPendingSince: null });
     answer.resolve('old result');
     await expect(running).rejects.toMatchObject({ code: 'session_changed' });
     expect(invalidate).not.toHaveBeenCalled();
@@ -418,7 +839,7 @@ describe('team', () => {
 
     // Each member's link is theirs: redeeming it signs in as that member.
     for (const [name, email] of [
-      ['Demo Publisher', 'publisher@demo.tablederby.test'],
+      ['Demo Colleague', COLLEAGUE],
       ['Demo Editor', 'editor@demo.tablederby.test'],
     ] as const) {
       const button = screen.getByRole('button', { name: `Reset link for ${name}` });
@@ -472,7 +893,74 @@ describe('team', () => {
     expect(screen.queryByLabelText('Reset link')).toBeNull();
   });
 
-  it('a team manager makes a one-time invitation link to copy; an editor sees no invite', async () => {
+  it('a team manager disables a member, which signs them out; enabling brings them back as they were', async () => {
+    const colleague = await clientFor('betsson_admin', COLLEAGUE);
+    const me = (client: { api: TdApiClient }) => client.api.get<{ role: string }>('/admin/me');
+    await signIn('betsson_admin');
+    renderTd(<TdTeam />);
+    const status = (email: string) => screen.getByRole('cell', { name: email }).closest('tr')!.textContent;
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Disable Demo Colleague' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm?' }));
+    await waitFor(() => expect(status(COLLEAGUE)).toContain('disabled'));
+    await expect(me(colleague)).rejects.toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Enable Demo Colleague' }));
+    await waitFor(() => expect(status(COLLEAGUE)).toContain('active'));
+
+    // Disabling someone takes their reset link off the screen: it stopped working.
+    fireEvent.click(screen.getByRole('button', { name: 'Reset link for Demo Editor' }));
+    expect(await screen.findByLabelText('Reset link')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Disable Demo Editor' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm?' }));
+    await waitFor(() => expect(screen.queryByLabelText('Reset link')).toBeNull());
+    await waitFor(() => expect(status('editor@demo.tablederby.test')).toContain('disabled'));
+
+    // Disabling someone just invited takes their invitation link off the screen too.
+    fireEvent.click(screen.getByRole('button', { name: 'Invite member' }));
+    fireEvent.change(screen.getByLabelText('Email'), { target: { value: 'gone.soon@example.test' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Make the invitation link' }));
+    expect(await screen.findByLabelText('Invitation link')).toBeTruthy();
+    fireEvent.click(await screen.findByRole('button', { name: 'Disable gone.soon@example.test' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm?' }));
+    await waitFor(() => expect(screen.queryByLabelText('Invitation link')).toBeNull());
+
+    // Someone who never signed up comes back invited.
+    fireEvent.click(screen.getByRole('button', { name: 'Disable Invited Editor' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm?' }));
+    await waitFor(() => expect(status('invited@demo.tablederby.test')).toContain('disabled'));
+    fireEvent.click(screen.getByRole('button', { name: 'Enable Invited Editor' }));
+    await waitFor(() => expect(status('invited@demo.tablederby.test')).toContain('invited'));
+
+    // Never themselves or an ops member.
+    for (const name of ['Demo Betsson Admin', 'Demo Ops']) expect(screen.queryByRole('button', { name: `Disable ${name}` })).toBeNull();
+  });
+
+  it('holds member actions while an invitation is on its way', async () => {
+    const admin = await signIn('betsson_admin');
+    let answer: () => void = () => {};
+    h.admin = { ...admin.admin, staff: { ...admin.admin.staff, invite: (body, options) => new Promise((resolve) => (answer = () => resolve(admin.admin.staff.invite(body, options)))) } };
+    renderTd(<TdTeam />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Invite member' }));
+    fireEvent.change(screen.getByLabelText('Email'), { target: { value: 'invited@demo.tablederby.test' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Make the invitation link' }));
+    await waitFor(() => expect((screen.getByRole('button', { name: 'Disable Invited Editor' }) as HTMLButtonElement).disabled).toBe(true));
+    expect((screen.getByRole('button', { name: 'Disable Demo Editor' }) as HTMLButtonElement).disabled).toBe(true);
+    answer();
+    expect(await screen.findByLabelText('Invitation link')).toBeTruthy();
+    await waitFor(() => expect((screen.getByRole('button', { name: 'Disable Invited Editor' }) as HTMLButtonElement).disabled).toBe(false));
+  });
+
+  it('says in plain words why a member was not changed', async () => {
+    const admin = await signIn('betsson_admin');
+    h.admin = { ...admin.admin, staff: { ...admin.admin.staff, patch: async () => Promise.reject(new TdApiError(403, 'forbidden', 'Your role cannot manage the team')) } };
+    renderTd(<TdTeam />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Disable Demo Editor' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm?' }));
+    expect(await screen.findByText('editor@demo.tablederby.test was not changed: Your role cannot manage the team.')).toBeTruthy();
+    expect(screen.getByRole('cell', { name: 'editor@demo.tablederby.test' }).closest('tr')!.textContent).toContain('active');
+  });
+
+  it('a team manager makes a one-time invitation link to copy, for a member of Betsson’s one role', async () => {
     await signIn('betsson_admin');
     renderTd(<TdTeam />);
     fireEvent.click(await screen.findByRole('button', { name: 'Invite member' }));
@@ -484,24 +972,20 @@ describe('team', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Make the invitation link' }));
     expect(await screen.findByText(/already has an account/)).toBeTruthy();
 
-    fireEvent.change(screen.getByLabelText('Email'), { target: { value: 'New.Publisher@example.test' } });
-    fireEvent.change(screen.getByLabelText('Role'), { target: { value: 'publisher' } });
-    expect(screen.queryByRole('option', { name: 'Ops (Quizball)' })).toBeNull();
+    fireEvent.change(screen.getByLabelText('Email'), { target: { value: 'New.Member@example.test' } });
+    expect(screen.queryByLabelText('Role')).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'Make the invitation link' }));
     const link = (await screen.findByLabelText('Invitation link')) as HTMLInputElement;
     expect(link.value).toMatch(new RegExp(`^${window.location.origin}/td/accept-invite#token=tdi_[A-Za-z0-9_-]{20,}$`));
     expect(screen.getByText(/Shown once: it cannot be seen again/)).toBeTruthy();
-    // The team list shows them as invited.
-    expect(await screen.findByRole('cell', { name: 'new.publisher@example.test' })).toBeTruthy();
+    // The team list shows them as invited, in the one role.
+    const row = (await screen.findByRole('cell', { name: 'new.member@example.test' })).closest('tr')!;
+    expect(row.textContent).toContain('invited');
+    expect(row.textContent).toContain('Editor');
     await waitFor(() => expect(document.activeElement).toBe(link));
     fireEvent.click(screen.getByRole('button', { name: 'Done' }));
     expect(screen.queryByLabelText('Invitation link')).toBeNull();
     await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Invite member' })));
-    cleanup();
-
-    await signIn('editor');
-    renderTd(<TdTeam />);
-    expect(screen.queryByRole('button', { name: 'Invite member' })).toBeNull();
   });
 });
 
@@ -611,95 +1095,13 @@ describe('integration', () => {
   });
 });
 
-describe('import', () => {
-  it('reads pasted cells, checks them, imports all as drafts once, and undoes the batch', async () => {
-    const { admin } = await signIn('editor');
-    renderTd(<TdImportTab />);
-    fireEvent.change(screen.getByLabelText(/Or paste the cells here/), { target: { value: 'key\tq\tdisplay\taliases\nimp-1\tFirst?\tOne\tone|1\nimp-2\tSecond?\tTwo\ttwo' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Read the pasted cells' }));
-    expect(await screen.findByText(/2 items read/)).toBeTruthy();
-    fireEvent.click(screen.getByRole('button', { name: 'Check' }));
-    expect(await screen.findByText(/2 ready to import · 0 with problems/)).toBeTruthy();
-    fireEvent.click(screen.getByRole('button', { name: /Import 2 as drafts/ }));
-    expect(await screen.findByText(/Imported 2 drafts as batch/)).toBeTruthy();
-    expect((await admin.content('penalty-questions').list({ q: 'imp-' })).items).toHaveLength(2);
-    fireEvent.click(await screen.findByText(/^cms:/, { selector: 'span' }));
-    fireEvent.click(await screen.findByRole('button', { name: 'Undo this import' }));
-    // The key is retired before the batch shows it undone (its Undo button goes).
-    await waitFor(() => expect(screen.queryByRole('button', { name: 'Undo this import' })).toBeNull());
-    expect((await admin.content('penalty-questions').list({ q: 'imp-' })).items).toHaveLength(0);
-
-    // The same cells after an undo are a new import, not the undone batch answered again.
-    fireEvent.click(screen.getByRole('button', { name: 'Read the pasted cells' }));
-    fireEvent.click(await screen.findByRole('button', { name: 'Check' }));
-    fireEvent.click(await screen.findByRole('button', { name: /Import 2 as drafts/ }));
-    expect(await screen.findByText(/Imported 2 drafts as batch/)).toBeTruthy();
-    expect((await admin.content('penalty-questions').list({ q: 'imp-' })).items).toHaveLength(2);
-  });
-
-  it('an import whose answer was lost is answered with its own batch when the same cells are read again', async () => {
-    const inner = server;
-    let lose = true;
-    server = (async (input: RequestInfo | URL, init?: RequestInit) => {
-      const response = await inner(input, init);
-      if (lose && init?.method === 'POST' && String(input).endsWith('/admin/content/imports')) {
-        lose = false;
-        throw new TypeError('Failed to fetch');
-      }
-      return response;
-    }) as typeof fetch;
-    const { admin } = await signIn('editor');
-    renderTd(<TdImportTab />);
-    fireEvent.change(screen.getByLabelText(/Or paste the cells here/), { target: { value: 'key\tq\tdisplay\taliases\nlost-1\tFirst?\tOne\tone\nlost-2\tSecond?\tTwo\ttwo' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Read the pasted cells' }));
-    fireEvent.click(await screen.findByRole('button', { name: 'Check' }));
-    fireEvent.click(await screen.findByRole('button', { name: /Import 2 as drafts/ }));
-    await waitFor(() => expect(lose).toBe(false));
-    await waitFor(() => expect(screen.getByRole('button', { name: /Import 2 as drafts/ }).hasAttribute('disabled')).toBe(false));
-    expect(screen.queryByText(/Imported 2 drafts/)).toBeNull();
-    expect((await admin.content('penalty-questions').list({ q: 'lost-' })).items).toHaveLength(2);
-
-    // Read again: asked with the same key before any check (which would call its own rows duplicates).
-    fireEvent.click(screen.getByRole('button', { name: 'Read the pasted cells' }));
-    expect(await screen.findByText(/Already imported as batch cms:/)).toBeTruthy();
-    expect((await admin.content('penalty-questions').list({ q: 'lost-' })).items).toHaveLength(2);
-    expect((await admin.imports.list()).items).toHaveLength(1);
-  });
-
-  it('never replays a saved import key under someone else’s sign-in', async () => {
-    const inner = server;
-    const applied: string[] = [];
-    server = ((input: RequestInfo | URL, init?: RequestInit) => {
-      if (init?.method === 'POST' && String(input).endsWith('/admin/content/imports')) applied.push((JSON.parse(String(init.body)) as { batchKey: string }).batchKey);
-      return inner(input, init);
-    }) as typeof fetch;
-    const editor = await signIn('editor');
-    const next = await clientFor('ops');
-    renderTd(<TdImportTab />);
-    const cells = 'key\tq\tdisplay\taliases\nswitch-1\tFirst?\tOne\tone';
-    fireEvent.change(screen.getByLabelText(/Or paste the cells here/), { target: { value: cells } });
-    fireEvent.click(screen.getByRole('button', { name: 'Read the pasted cells' }));
-    fireEvent.click(await screen.findByRole('button', { name: 'Check' }));
-    fireEvent.click(await screen.findByRole('button', { name: /Import 1 as drafts/ }));
-    expect(await screen.findByText(/Imported 1 drafts as batch/)).toBeTruthy();
-    expect(applied).toHaveLength(1);
-
-    // Someone else signs in in this browser; this view has not caught up yet.
-    await put(editor.tokens, { ...next.tokens.read()!, generation: 'gen-next', staffId: next.user.id });
-    fireEvent.click(screen.getByRole('button', { name: 'Read the pasted cells' }));
-    expect(await screen.findByText(/1 item read/)).toBeTruthy();
-    await sleep(50);
-    expect(applied).toHaveLength(1);
-  });
-});
-
 describe('releases', () => {
   it('publishes the approved content and follows it phase by phase until it is current', async () => {
-    const editor = await clientFor('editor');
-    const row = await editor.admin.content('penalty-questions').create({ data: penalty('new-for-release') });
-    const ready = await editor.admin.content('penalty-questions').ready(row.id, row.version);
-    const publisher = await signIn('publisher');
-    await publisher.admin.content('penalty-questions').approve(ready.id, ready.version);
+    const colleague = await clientFor('betsson_admin', COLLEAGUE);
+    const row = await colleague.admin.content('penalty-questions').create({ data: penalty('new-for-release') });
+    const ready = await colleague.admin.content('penalty-questions').ready(row.id, row.version);
+    const member = await signIn('betsson_admin');
+    await member.admin.content('penalty-questions').approve(ready.id, ready.version);
     renderTd(<TdReleasesTab />);
     expect(await screen.findByText('Valid: it can be published.')).toBeTruthy();
     expect(screen.getByText('Penalty questions')).toBeTruthy();
@@ -707,22 +1109,22 @@ describe('releases', () => {
     const dialog = await screen.findByRole('dialog');
     await act(async () => fireEvent.click(within(dialog).getByRole('button', { name: 'Publish' })));
     expect(await screen.findByText(/is current now\./, {}, { timeout: 5000 })).toBeTruthy();
-    const list = await publisher.admin.releases.list();
+    const list = await member.admin.releases.list();
     expect(list.pointer.version).toBe(3);
     // Cleared once the replica notice is confirmed too (the next poll, a second later).
-    await waitFor(() => expect(localStorage.getItem(`td_pending_publications:${publisher.user.id}`)).toBeNull(), { timeout: 4000 });
+    await waitFor(() => expect(localStorage.getItem(`td_pending_publications:${member.user.id}`)).toBeNull(), { timeout: 4000 });
   });
 
   it('says “Publishing…” as the publish goes out, before its answer, and not for one refused before sending', async () => {
     const said = vi.spyOn(toast, 'message');
-    const editor = await clientFor('editor');
-    const row = await editor.admin.content('penalty-questions').create({ data: penalty('announce-publish') });
-    const ready = await editor.admin.content('penalty-questions').ready(row.id, row.version);
-    const publisher = await signIn('publisher');
-    await publisher.admin.content('penalty-questions').approve(ready.id, ready.version);
+    const colleague = await clientFor('betsson_admin', COLLEAGUE);
+    const row = await colleague.admin.content('penalty-questions').create({ data: penalty('announce-publish') });
+    const ready = await colleague.admin.content('penalty-questions').ready(row.id, row.version);
+    const member = await signIn('betsson_admin');
+    await member.admin.content('penalty-questions').approve(ready.id, ready.version);
     const answer = deferred<void>();
-    const publish = publisher.admin.releases.publish;
-    h.admin = { ...publisher.admin, releases: { ...publisher.admin.releases, publish: async (...args: Parameters<typeof publish>) => (await answer.promise, publish(...args)) } };
+    const publish = member.admin.releases.publish;
+    h.admin = { ...member.admin, releases: { ...member.admin.releases, publish: async (...args: Parameters<typeof publish>) => (await answer.promise, publish(...args)) } };
     renderTd(<TdReleasesTab />);
     await screen.findByText('Valid: it can be published.');
     const confirmPublish = async () => {
@@ -730,14 +1132,14 @@ describe('releases', () => {
       await act(async () => fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Publish' })));
     };
     // Someone else signed in meanwhile: refused here, nothing said.
-    const own = publisher.tokens.read()!;
+    const own = member.tokens.read()!;
     const next = await clientFor('ops');
-    await put(publisher.tokens, { ...next.tokens.read()!, generation: 'gen-next', staffId: next.user.id });
+    await put(member.tokens, { ...next.tokens.read()!, generation: 'gen-next', staffId: next.user.id });
     await confirmPublish();
     expect(await screen.findByText(/switched accounts/)).toBeTruthy();
     expect(said).not.toHaveBeenCalled();
 
-    await put(publisher.tokens, own);
+    await put(member.tokens, own);
     await confirmPublish();
     // Said while the publish still waits for its answer.
     await waitFor(() => expect(said).toHaveBeenCalledWith('Publishing…'));
@@ -754,10 +1156,10 @@ describe('releases', () => {
         if (String(input).endsWith('/admin/releases/publish')) sent.push((JSON.parse(String(init?.body)) as { idemKey: string }).idemKey);
         return inner(input, init);
       }) as typeof fetch;
-      const publisher = await signIn('publisher');
+      const member = await signIn('betsson_admin');
       const next = await clientFor('ops');
-      const kept = `td_pending_publications:${publisher.user.id}`;
-      await (await browserPendingPublications(publisher.user.id)).keep({ kind: 'publish', idemKey: 'publish:mine', releaseId: null, publicationId: null });
+      const kept = `td_pending_publications:${member.user.id}`;
+      await (await browserPendingPublications(member.user.id)).keep({ kind: 'publish', idemKey: 'publish:mine', releaseId: null, publicationId: null });
       // Another tab holds the kept list while this one mounts, so the recovery waits.
       const release = deferred<void>();
       const holding = deferred<void>();
@@ -769,7 +1171,7 @@ describe('releases', () => {
       renderTd(<TdReleasesTab />);
       await sleep(20);
       // Meanwhile someone else signs in in this browser.
-      await put(publisher.tokens, { ...next.tokens.read()!, generation: 'gen-next', staffId: next.user.id });
+      await put(member.tokens, { ...next.tokens.read()!, generation: 'gen-next', staffId: next.user.id });
       release.resolve();
       await sleep(50);
       expect(sent).toEqual([]);
@@ -789,11 +1191,11 @@ describe('releases', () => {
       if (String(input).endsWith('/admin/releases/publish')) sent.push((JSON.parse(String(init?.body)) as { idemKey: string }).idemKey);
       return inner(input, init);
     }) as typeof fetch;
-    const publisher = await signIn('publisher');
-    const elsewhere = await publisher.admin.releases.publish('publish:elsewhere');
+    const member = await signIn('betsson_admin');
+    const elsewhere = await member.admin.releases.publish('publish:elsewhere');
     sent.length = 0;
-    const kept = `td_pending_publications:${publisher.user.id}`;
-    await (await browserPendingPublications(publisher.user.id)).keep({ kind: 'publish', idemKey: 'publish:mine', releaseId: null, publicationId: null });
+    const kept = `td_pending_publications:${member.user.id}`;
+    await (await browserPendingPublications(member.user.id)).keep({ kind: 'publish', idemKey: 'publish:mine', releaseId: null, publicationId: null });
     const theirs = { kind: 'publish', idemKey: 'publish:theirs', releaseId: null, publicationId: null, tab: 'another-open-tab', holder: 'another-open-tab' };
     localStorage.setItem(kept, JSON.stringify({ ...JSON.parse(localStorage.getItem(kept)!), 'publish:theirs': theirs }));
 
@@ -803,5 +1205,109 @@ describe('releases', () => {
     expect(await screen.findByText('Another publish or rollback is under way')).toBeTruthy();
     expect(screen.queryByText(/got no answer/)).toBeNull();
     expect(elsewhere.status).toBe('running');
+  });
+});
+
+const practice = (key: string, category: string, prompt = `${key}?`) => ({ key, difficulty: 'easy' as const, category, prompt, options: ['one', 'two'], answer: 0, explanation: null, imageKey: null });
+
+describe('practice categories', () => {
+  it('a Practice question takes a category on file, or a new one typed', async () => {
+    const { admin } = await signIn('betsson_admin');
+    await admin.content('practice-questions').create({ data: practice('on-file', 'Clubs') });
+    renderTd(<TdContentEditorDialog target={{ type: 'practice-questions', row: null }} onClose={() => {}} />);
+    const category = (await screen.findByLabelText('Category')) as HTMLSelectElement;
+    await waitFor(() => expect([...category.options].map((o) => o.text)).toContain('Clubs'));
+    const shown = [...category.options].map((o) => o.text);
+    expect([shown[0], shown.at(-1)]).toEqual(['Select a category', 'New category…']);
+    fireEvent.change(category, { target: { value: 'Clubs' } });
+    expect(category.value).toBe('Clubs');
+    fireEvent.change(category, { target: { value: category.options[category.options.length - 1]!.value } });
+    expect(document.activeElement).toBe(screen.getByLabelText('New category'));
+    fireEvent.change(screen.getByLabelText('New category'), { target: { value: 'Tournaments' } });
+    fireEvent.change(screen.getByLabelText('Question'), { target: { value: 'Who won?' } });
+    fireEvent.change(screen.getByLabelText('Options (choose the right one) 1'), { target: { value: 'Spain' } });
+    fireEvent.change(screen.getByLabelText('Options (choose the right one) 2'), { target: { value: 'Italy' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Create Question' }));
+    await screen.findByRole('heading', { name: 'Question Preview' });
+    const [made] = (await admin.content('practice-questions').list({ q: 'Who won?' })).items;
+    expect(made!.data).toMatchObject({ category: 'Tournaments' });
+  });
+
+  it('the Practice list filters by the categories in use, and a new question starts in the one shown', async () => {
+    const { admin } = await signIn('betsson_admin');
+    await admin.content('practice-questions').create({ data: practice('in-clubs', 'Clubs', 'A clubs question?') });
+    await admin.content('practice-questions').create({ data: practice('in-cups', 'Cups', 'A cups question?') });
+    // Labels that look like the filter's own words or another round's category keys are labels all the same.
+    await admin.content('practice-questions').create({ data: practice('in-all', 'all', 'An all question?') });
+    window.history.replaceState(null, '', '/td/questions?mode=practice');
+    renderTd(<TdQuestionsTab />);
+    const pick = async (name: string) => {
+      fireEvent.click(await screen.findByRole('combobox', { name: 'Category' }));
+      fireEvent.click(await screen.findByRole('option', { name }));
+    };
+    await pick('Cups');
+    expect(await screen.findByText('A cups question?')).toBeTruthy();
+    expect(screen.queryByText('A clubs question?')).toBeNull();
+    await pick('all');
+    expect(await screen.findByText('An all question?')).toBeTruthy();
+    expect(screen.queryByText('A cups question?')).toBeNull();
+    await pick('Clubs');
+    expect(await screen.findByText('A clubs question?')).toBeTruthy();
+    expect(screen.queryByText('A cups question?')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'New Question' }));
+    expect((within(await screen.findByRole('dialog')).getByLabelText('Category') as HTMLSelectElement).value).toBe('Clubs');
+  });
+});
+
+describe('the release report', () => {
+  async function report() {
+    await signIn('betsson_admin');
+    return h.admin.releases.validate();
+  }
+
+  it('groups warnings by kind in one line each, the rest behind “Show all”', async () => {
+    const base = await report();
+    const warnings = Array.from({ length: 5 }, (_, i) => ({ code: 'image_external' as const, message: `the image practice-${i} is shown from its URL, not re-hosted: upload it to keep it` }));
+    renderTd(<ReleaseReportView report={{ ...base, warnings }} />);
+    expect(screen.getByText(/5 pictures are shown from links to another site’s storage/)).toBeTruthy();
+    expect(screen.getAllByText(/is shown from its URL/)).toHaveLength(3);
+    fireEvent.click(screen.getByRole('button', { name: 'Show all 5' }));
+    expect(screen.getAllByText(/is shown from its URL/)).toHaveLength(5);
+  });
+
+  it('the same content as the current release lists no changes, even against a release with no recorded rows', async () => {
+    const base = await report();
+    const changes = { complete: false, types: [{ type: 'clubs' as const, added: 116, changed: 0, removed: 0 }] };
+    renderTd(<ReleaseReportView report={{ ...base, ok: true, errors: [], unchanged: true, changes }} />);
+    expect(screen.getByText('No changes since the current release.')).toBeTruthy();
+    expect(screen.getByText(/Only published content goes out/)).toBeTruthy();
+    cleanup();
+    renderTd(<ReleaseReportView report={{ ...base, ok: true, errors: [], unchanged: false, changes }} />);
+    expect(screen.getByText('+116')).toBeTruthy();
+    expect(screen.getByText(/keeps no list of its rows, so everything shows as new here/)).toBeTruthy();
+  });
+
+  it('names the daily games the report holds: Stat Sniper from the game’s code, Football Logic in a report from before', async () => {
+    const base = await report();
+    renderTd(<ReleaseReportView report={base} />);
+    expect(screen.getByText(/^Stat Sniper: next 30 days from/)).toBeTruthy();
+    expect(screen.getByText(/^Put in Order: next 30 days from/)).toBeTruthy();
+    expect(screen.getByText(/^Career Path: next 30 days from/)).toBeTruthy();
+    expect(screen.queryByText(/^Football Logic:/)).toBeNull();
+    cleanup();
+    const missing = Array.from({ length: 6 }, (_, i) => addDays(base.from, 24 + i));
+    renderTd(<ReleaseReportView report={{ ...base, dailies: { footballLogic: { covered: 24, missing } } as typeof base.dailies }} />);
+    expect(screen.getByText(/^Football Logic: next 30 days from/)).toBeTruthy();
+    expect(screen.getByText(/^Missing: /).textContent).toMatch(/…$/);
+    expect(screen.queryByText(/^Stat Sniper:/)).toBeNull();
+  });
+});
+
+describe('card pictures', () => {
+  it('a SoFIFA face that does not load is a blank, not a broken image', async () => {
+    renderTd(<TdCardImage card={{ display: 'Messi', imageKey: null, photo: { id: 158023, ver: '24' } }} />);
+    const img = screen.getByRole('img', { name: 'Messi' });
+    fireEvent.error(img);
+    await waitFor(() => expect(screen.queryByRole('img', { name: 'Messi' })).toBeNull());
   });
 });

@@ -121,9 +121,16 @@ export function createTdAdminApi(api: TdApiClient) {
       upload: (file: Blob, contentType: string, options?: TdRequestOptions) =>
         api.request<C.MediaUpload>('POST', '/admin/media/uploads', { ...options, raw: { data: file, contentType } }),
       get: (id: string, options?: TdRequestOptions) => api.get<C.MediaUpload>(`/admin/media/uploads/${segment(id)}`, options),
-      file: (id: string, options?: TdRequestOptions) =>
-        api.request<Blob>('GET', `/admin/media/uploads/${segment(id)}/file`, { ...options, responseType: 'blob' }),
+      /** The image as sent, or with `w` a WebP copy at most that wide (tiles and lists). The browser keeps it and asks
+       *  again each time: the API answers 304 for the same bytes, after checking the member and the upload. */
+      file: (id: string, options?: TdRequestOptions, query?: C.MediaFileQuery) =>
+        api.request<Blob>('GET', `/admin/media/uploads/${segment(id)}/file${queryString(query ?? {})}`, { ...options, responseType: 'blob', revalidate: true }),
       remove: (id: string, options?: TdRequestOptions) => api.delete(`/admin/media/uploads/${segment(id)}`, options),
+    },
+    dailies: {
+      /** Whole days of a daily game, approved and put on the next free dates in one step. */
+      publish: (game: C.DailyPublishResponse['game'], puzzles: string[], options?: TdRequestOptions) =>
+        api.post<C.DailyPublishResponse>(`/admin/dailies/${segment(game)}/publish`, { puzzles }, options),
     },
     releases: {
       validate: (options?: TdRequestOptions) => api.post<C.ReleaseReport>('/admin/releases/validate', undefined, options),
@@ -185,6 +192,8 @@ export function createTdAdminApi(api: TdApiClient) {
       invite: (body: C.StaffInviteRequest, options?: TdRequestOptions) => api.post<C.StaffInviteResponse>('/admin/staff/invite', body, options),
       /** A one-time reset link token (48 hours) for an active member, to hand over; an earlier open one stops working. */
       resetLink: (staffId: string, options?: TdRequestOptions) => api.post<C.LinkTokenResponse>(`/admin/staff/${segment(staffId)}/reset-link`, undefined, options),
+      /** A member's role or status. Disabling ends their sessions and closes their open links; enabling brings them back as they were (invited if never signed up). */
+      patch: (staffId: string, body: C.StaffPatchRequest, options?: TdRequestOptions) => api.patch<C.StaffMember>(`/admin/staff/${segment(staffId)}`, body, options),
     },
     settings: {
       get: (options?: TdRequestOptions) => api.get<C.Settings>('/admin/settings', options),

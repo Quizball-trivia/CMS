@@ -11,7 +11,8 @@ export type PartnerGameId =
   | 'guess-the-goal'
   | 'road-to-goal'
   | 'trivia-mines'
-  | 'quiz-board';
+  | 'quiz-board'
+  | 'fake-fact';
 
 export interface PartnerGameConfig {
   gameId: PartnerGameId;

@@ -1,14 +1,12 @@
 /**
  * Content rows and their workflow, as migrations 0013 and 0015 enforce them:
  * the revision check, allowed jumps, self-approval, approval of a category
- * with its children, dependencies, rights, the editor archive rule, fixed
- * fields, unique keys, list filters and cursors, history.
+ * with its children, dependencies, fixed fields, unique keys, list filters and cursors, history.
  */
 import type { TdContentType } from '../admin-api';
 import type { TdRole } from '@/types/td';
 import { SYSTEM, type Actor, type MockAudit, type MockDb, type MockRow } from './db';
 import { CHILD_TYPE, DAILY_TYPE, MOCK_MODELS, type Data } from './model';
-import { isPublisher } from './staff';
 import { clone, equal, MockError, paginate, uuid, validation } from './util';
 
 export interface MockContext {
@@ -68,7 +66,7 @@ export function audit(
   });
 }
 
-const rowsOf = (db: MockDb, type: TdContentType) => db.rows.filter((row) => row.type === type);
+export const rowsOf = (db: MockDb, type: TdContentType) => db.rows.filter((row) => row.type === type);
 const live = (row: MockRow) => row.status !== 'archived';
 
 export function findRow(db: MockDb, type: TdContentType, id: string): MockRow {
@@ -92,12 +90,10 @@ function touch(ctx: MockContext, row: MockRow) {
 
 const findByKey = (db: MockDb, type: TdContentType, key: string) => rowsOf(db, type).find((row) => row.data.key === key);
 
-/** An image a release can show: approved with its rights, not archived. */
+/** An image a release can show: approved, not archived. */
 function mediaReady(db: MockDb, key: string): boolean {
   const row = findByKey(db, 'media', key);
-  const approved = row?.approved;
-  const has = (field: string) => typeof approved?.[field] === 'string' && (approved[field] as string).trim() !== '';
-  return Boolean(row && live(row) && row.approvedVersion !== null && has('author') && has('license') && has('source'));
+  return Boolean(row && live(row) && row.approvedVersion !== null);
 }
 
 const approvedLive = (row: MockRow | undefined) => Boolean(row && live(row) && row.approvedVersion !== null);
@@ -114,6 +110,10 @@ export function unapprovedRefs(db: MockDb, type: TdContentType, doc: Data | null
   if (type === 'practice-questions' || type === 'cards' || type === 'clubs') {
     const key = doc[type === 'clubs' ? 'crestImageKey' : 'imageKey'];
     return typeof key === 'string' && !mediaReady(db, key) ? [{ type: 'media', key }] : [];
+  }
+  if (type === 'football-logic') {
+    const keys = [...new Set([doc.imageAKey, doc.imageBKey].filter((key): key is string => typeof key === 'string'))].sort();
+    return keys.filter((key) => !mediaReady(db, key)).map((key) => ({ type: 'media' as const, key }));
   }
   if (type === 'career-path') {
     const keys = [...new Set((doc.clubs as Data[]).map((club) => club.clubKey).filter((key): key is string => typeof key === 'string'))];
@@ -149,7 +149,7 @@ function referenced(db: MockDb, row: MockRow): boolean {
     const key = row.data.key;
     const uses = (type: TdContentType, field: string) =>
       rowsOf(db, type).some((r) => live(r) && (r.data[field] === key || r.approved?.[field] === key));
-    return uses('practice-questions', 'imageKey') || uses('cards', 'imageKey') || uses('clubs', 'crestImageKey');
+    return uses('practice-questions', 'imageKey') || uses('cards', 'imageKey') || uses('clubs', 'crestImageKey') || uses('football-logic', 'imageAKey') || uses('football-logic', 'imageBKey');
   }
   if (row.type === 'clubs') {
     const has = (d: Data | null) => ((d?.clubs as Data[] | undefined) ?? []).some((club) => club.clubKey === row.data.key);
@@ -158,10 +158,6 @@ function referenced(db: MockDb, row: MockRow): boolean {
   const puzzle = row.approved?.puzzle;
   return typeof puzzle === 'string' && puzzleNeeded(db, row.type, puzzle, row.id);
 }
-
-/** Every other staff member (or the seed) who ever wrote to the row. */
-const writtenByOthers = (db: MockDb, row: MockRow, staffId: string) =>
-  db.audit.some((entry) => entry.rowId === row.id && entry.actor.id !== staffId);
 
 /* ── writes ───────────────────────────────────────────────────────── */
 
@@ -271,14 +267,11 @@ export function markReady(ctx: MockContext, type: TdContentType, id: string, ver
 function approveRow(ctx: MockContext, row: MockRow) {
   if (row.status !== 'ready')
     throw new MockError(403, 'forbidden_transition', `only a ready row is approved (${row.type} ${row.id} is ${row.status})`);
-  if (row.lastEditor.id === ctx.staff.id) throw new MockError(403, 'self_approval', 'Nobody approves their own last edit');
   const refs = unapprovedRefs(ctx.db, row.type, row.data);
   if (refs.length) throw new MockError(409, 'dependency_unapproved', 'Approve what this refers to first', { refs });
   const moved = row.approved?.puzzle;
   if (typeof moved === 'string' && moved !== row.data.puzzle && puzzleNeeded(ctx.db, row.type, moved, row.id))
     throw new MockError(409, 'in_use', 'Live content still uses this');
-  if (row.type === 'media' && ['author', 'license', 'source'].some((f) => typeof row.data[f] !== 'string' || !(row.data[f] as string).trim()))
-    throw validation([{ path: 'data', message: 'an image is approved with its rights: licence, credit and source' }]);
   row.status = 'approved';
   row.approvedVersion = row.contentVersion;
   row.approved = clone(row.data);
@@ -330,8 +323,6 @@ export function archive(ctx: MockContext, type: TdContentType, id: string, versi
   const row = findRow(ctx.db, type, id);
   checkVersion(row, version);
   if (row.status === 'archived') throw new MockError(403, 'forbidden_transition', 'already archived');
-  if (!isPublisher(ctx.staff.role) && (row.approvedVersion !== null || writtenByOthers(ctx.db, row, ctx.staff.id)))
-    throw new MockError(403, 'forbidden', 'Your role cannot do this');
   if (referenced(ctx.db, row)) throw new MockError(409, 'in_use', 'Live content still uses this');
   const from = row.status;
   row.status = 'archived';
