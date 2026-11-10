@@ -20,6 +20,7 @@ const RUNTIME_LABELS: Record<HqMember['runtime'], string> = {
   hq: 'HQ agent',
   question_agents: 'Question pipeline',
   bug_triage: 'Bug triage pipeline',
+  quiz_pages: 'Quiz page pipeline',
   none: 'Person',
 };
 
