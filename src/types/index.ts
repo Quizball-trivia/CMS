@@ -12,3 +12,4 @@ export * from './bot-tuning';
 export * from './campaign-quiz-page';
 export * from './retention';
 export * from './hq';
+export * from './content-gaps';
