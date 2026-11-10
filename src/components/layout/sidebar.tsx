@@ -14,6 +14,7 @@ import type { HqDepartment, HqDepartmentKey } from '@/types';
 import {
   Activity,
   BarChart3,
+  Bot,
   CalendarClock,
   ChevronRight,
   Compass,
@@ -49,7 +50,8 @@ const companyItems: NavItem[] = [
   { title: 'Standup', href: '/hq', icon: Sunrise, exact: true },
   { title: 'Goals', href: '/hq/goals', icon: Target },
   { title: 'Analytics', href: '/hq/analytics', icon: BarChart3 },
-  { title: 'Team', href: '/hq/team', icon: Users },
+  { title: 'Agents', href: '/hq/team', icon: Bot },
+  { title: 'People', href: '/hq/people', icon: Users },
   { title: 'Work', href: '/hq/board', icon: KanbanSquare },
 ];
 

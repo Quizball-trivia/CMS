@@ -16,6 +16,7 @@ import {
   EmptyState,
   LoadErrorState,
   MemberAvatar,
+  memberHref,
   PageHeader,
   RefreshErrorBanner,
   TaskRow,
@@ -253,7 +254,7 @@ function MemberTile({
     <div className="flex items-start gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-xs">
       <MemberAvatar member={m} size="md" />
       <div className="min-w-0 flex-1">
-        <Link href={`/hq/team/${m.id}`} className="block truncate text-sm font-bold text-slate-900 hover:underline">
+        <Link href={memberHref(m)} className="block truncate text-sm font-bold text-slate-900 hover:underline">
           {m.name}
         </Link>
         <div className="flex items-center gap-1.5 text-xs text-slate-500">
