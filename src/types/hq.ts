@@ -186,9 +186,9 @@ export interface HqSettings {
   dailyLimitCents: number;
   dailyRunLimit: number;
   maxConcurrentRuns: number;
-  /** Share of the Claude plan HQ may use: urgent-only from planSoftPct, stop at planHardPct. */
-  planSoftPct: number;
-  planHardPct: number;
+  /** Share of the Claude plan HQ may use: urgent-only from planSoftPct, stop at planHardPct. Missing on an older backend. */
+  planSoftPct?: number;
+  planHardPct?: number;
   updatedAt: string;
   today: { runs: number; costCents: number };
   /** Missing on a backend without plan tracking. */

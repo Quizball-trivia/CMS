@@ -54,10 +54,14 @@ export function HqStatus({ settings, today }: { settings: HqSettings; today: HqO
       </div>
       <div className="h-8 w-px bg-slate-200" />
       <MiniMeter label="Runs today" value={today.runs} max={settings.dailyRunLimit} format={String} />
-      <PlanMeters plan={settings.plan} soft={settings.planSoftPct} hard={settings.planHardPct} />
-      <Button size="sm" variant="ghost" onClick={() => setShareOpen(true)} className="text-slate-600" title="How much of the Claude plan HQ may use">
-        <Gauge className="h-4 w-4" /> Plan share
-      </Button>
+      {settings.planSoftPct !== undefined && settings.planHardPct !== undefined && (
+        <>
+          <PlanMeters plan={settings.plan} soft={settings.planSoftPct} hard={settings.planHardPct} />
+          <Button size="sm" variant="ghost" onClick={() => setShareOpen(true)} className="text-slate-600" title="How much of the Claude plan HQ may use">
+            <Gauge className="h-4 w-4" /> Plan share
+          </Button>
+        </>
+      )}
       {settings.paused ? (
         <Button size="sm" onClick={resume} disabled={update.isPending} className="bg-emerald-600 text-white hover:bg-emerald-700">
           <Play className="h-4 w-4" /> Resume
@@ -68,7 +72,9 @@ export function HqStatus({ settings, today }: { settings: HqSettings; today: HqO
         </Button>
       )}
 
-      {shareOpen && <PlanShareDialog settings={settings} onClose={() => setShareOpen(false)} />}
+      {shareOpen && settings.planSoftPct !== undefined && settings.planHardPct !== undefined && (
+        <PlanShareDialog soft={settings.planSoftPct} hard={settings.planHardPct} onClose={() => setShareOpen(false)} />
+      )}
 
       <Dialog open={pauseOpen} onOpenChange={setPauseOpen}>
         <DialogContent>
@@ -148,10 +154,10 @@ function PlanMeters({ plan, soft, hard }: { plan: HqPlanStatus | undefined; soft
   );
 }
 
-function PlanShareDialog({ settings, onClose }: { settings: HqSettings; onClose: () => void }) {
+function PlanShareDialog({ soft: initialSoft, hard: initialHard, onClose }: { soft: number; hard: number; onClose: () => void }) {
   const update = useUpdateHqSettings();
-  const [soft, setSoft] = useState(String(settings.planSoftPct));
-  const [hard, setHard] = useState(String(settings.planHardPct));
+  const [soft, setSoft] = useState(String(initialSoft));
+  const [hard, setHard] = useState(String(initialHard));
   const s = Number(soft);
   const h = Number(hard);
   const valid = Number.isInteger(s) && Number.isInteger(h) && s >= 1 && h <= 100 && s <= h;

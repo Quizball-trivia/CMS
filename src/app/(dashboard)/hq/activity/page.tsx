@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Activity, Loader2 } from 'lucide-react';
+import { Activity, Loader2, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useHqEvents, useHqMembers } from '@/hooks';
@@ -51,7 +51,7 @@ const TYPE_STYLES: Record<string, string> = {
 export default function HqActivityPage() {
   const [memberId, setMemberId] = useState<string>(ALL);
   const { data: members = [] } = useHqMembers();
-  const { data, isLoading, error, refetch, fetchNextPage, hasNextPage, isFetchingNextPage } = useHqEvents(
+  const { data, isLoading, isFetching, error, refetch, fetchNextPage, hasNextPage, isFetchingNextPage } = useHqEvents(
     memberId === ALL ? undefined : { memberId }
   );
   const { openTask } = useTaskSheet();
@@ -81,6 +81,13 @@ export default function HqActivityPage() {
           </Select>
         </div>
         {isLoading && <Loader2 className="h-4 w-4 animate-spin text-slate-400" />}
+        {/* Polling stops once older pages are loaded (a refetch reloads every page). */}
+        {(data?.pages.length ?? 0) > 1 && (
+          <Button variant="outline" size="sm" onClick={() => void refetch()} disabled={isFetching}>
+            {isFetching ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+            Show newest
+          </Button>
+        )}
       </div>
 
       {error && data && <RefreshErrorBanner />}
