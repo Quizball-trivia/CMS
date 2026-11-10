@@ -68,13 +68,37 @@ function englishText(form: QuizPageInput, field: (typeof QUIZ_PAGE_EDITION_TEXT_
   return (form[field] as string | null | undefined) ?? '';
 }
 
+/** A translated block's text, found by the English block's id (blocks can be added, removed and reordered). */
+export function translatedBlockText(translated: QuizAboutBlock[] | null | undefined, id: string): string {
+  return translated?.find((block) => block.id === id)?.text ?? '';
+}
+
 /**
- * Translated about blocks follow the English blocks one to one (same id and type), which the page and the backend
- * readiness check rely on; an all-empty translation is sent as "none".
+ * Translated about blocks in the English order with the English ids and types (what the page and the readiness check
+ * expect). Blocks not translated yet are left out, so a draft still saves; readiness then reports the language as
+ * incomplete. No translated block at all is sent as "none".
  */
 export function alignedBlocks(english: QuizAboutBlock[], translated: QuizAboutBlock[] | null): QuizAboutBlock[] | null {
-  const aligned = english.map((block, index) => ({ id: block.id, type: block.type, text: translated?.[index]?.text ?? '' }));
-  return aligned.some((block) => block.text.trim()) ? aligned : null;
+  const aligned = english
+    .map((block) => ({ id: block.id, type: block.type, text: translatedBlockText(translated, block.id) }))
+    .filter((block) => block.text.trim());
+  return aligned.length > 0 ? aligned : null;
+}
+
+/** Georgian before the backend returned editions: its four legacy fields are its copy. */
+export function georgianFromLegacy(form: Pick<QuizPageInput, 'ka_h1' | 'ka_lede' | 'ka_seo_title' | 'ka_meta_description'>): QuizPageEditionCopy {
+  return { ...emptyEdition(), h1: form.ka_h1, lede: form.ka_lede, seo_title: form.ka_seo_title, meta_description: form.ka_meta_description };
+}
+
+/**
+ * The URLs to send: values the editor typed, and the page slug for a language whose custom URL was cleared before
+ * the page went live (leaving it out would keep the old custom URL).
+ */
+export function publicSlugsForSave(form: QuizPageInput): QuizPageInput['public_slugs'] {
+  return Object.fromEntries(Object.entries(form.public_slugs ?? {})
+    .filter(([locale]) => locale !== 'en' && locale !== 'ka')
+    .map(([locale, value]) => [locale, value || form.slug])
+    .filter(([, value]) => value)) as QuizPageInput['public_slugs'];
 }
 
 /** Every language as the backend stores it, with Georgian's four legacy fields kept in step with its edition. */
@@ -96,6 +120,7 @@ export function editionsForSave(form: QuizPageInput): Pick<QuizPageInput, 'editi
 export function QuizPageLanguages({
   form,
   readiness,
+  stale = false,
   publishedSlugs,
   onEditionChange,
   onPublicSlugChange,
@@ -103,6 +128,8 @@ export function QuizPageLanguages({
 }: {
   form: QuizPageInput;
   readiness: QuizPageLocaleReadiness[] | undefined;
+  /** The form has changes the checks have not seen yet. */
+  stale?: boolean;
   /** URLs that are live and therefore fixed. */
   publishedSlugs: Partial<Record<QuizPageLocale, string>>;
   onEditionChange: (locale: QuizPageEditionLocale, edition: QuizPageEditionCopy) => void;
@@ -111,13 +138,14 @@ export function QuizPageLanguages({
 }) {
   const [active, setActive] = useState<QuizPageEditionLocale>('ka');
   const byLocale = new Map((readiness ?? []).map((entry) => [entry.locale, entry]));
-  const edition = form.editions?.[active] ?? emptyEdition();
+  const edition = form.editions?.[active] ?? (active === 'ka' ? georgianFromLegacy(form) : emptyEdition());
   const update = (next: Partial<QuizPageEditionCopy>) => onEditionChange(active, { ...edition, ...next });
   const slugLocked = Boolean(publishedSlugs[active]);
   const english = byLocale.get('en');
 
   return (
     <div className="space-y-6">
+      {stale && <p className="text-xs font-semibold text-slate-500">Unsaved changes: these checks are from the last save.</p>}
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
         {QUIZ_PAGE_LOCALES.map((locale) => {
           const status = byLocale.get(locale);
@@ -204,14 +232,14 @@ export function QuizPageLanguages({
         })}
         <div className="space-y-3">
           <Label className="text-sm font-bold text-slate-800">About blocks</Label>
-          {form.about_blocks.map((block, index) => (
+          {form.about_blocks.map((block) => (
             <div key={block.id} className="space-y-1.5 rounded-2xl border border-slate-200 bg-slate-50 p-3">
               <p className="text-xs leading-5 text-slate-500">{block.text}</p>
               <Textarea
-                value={edition.about_blocks?.[index]?.text ?? ''}
+                value={translatedBlockText(edition.about_blocks, block.id)}
                 onChange={(event) => {
-                  const texts = form.about_blocks.map((_, i) => (i === index ? event.target.value : edition.about_blocks?.[i]?.text ?? ''));
-                  update({ about_blocks: alignedBlocks(form.about_blocks, texts.map((text, i) => ({ ...form.about_blocks[i], text }))) });
+                  const others = (edition.about_blocks ?? []).filter((translated) => translated.id !== block.id);
+                  update({ about_blocks: [...others, { id: block.id, type: block.type, text: event.target.value }] });
                 }}
                 className="min-h-24 rounded-xl bg-white"
               />

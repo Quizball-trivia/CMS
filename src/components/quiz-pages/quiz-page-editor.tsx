@@ -81,7 +81,7 @@ import {
   MANUAL_QUESTION_EXAMPLE,
   parseManualQuestions,
 } from './manual-question-format';
-import { editionsForSave, QuizPageLanguages } from './quiz-page-languages';
+import { editionsForSave, publicSlugsForSave, QuizPageLanguages } from './quiz-page-languages';
 
 type EditorStep = 'content' | 'questions' | 'seo' | 'publishing';
 const MAX_ARTWORK_BYTES = 8 * 1024 * 1024;
@@ -411,6 +411,8 @@ export function QuizPageEditor({ existing }: { existing?: QuizPage }) {
   );
   const [currentSlug, setCurrentSlug] = useState(existing?.slug ?? '');
   const [savedPage, setSavedPage] = useState<QuizPage | undefined>(existing);
+  const [savedFormJson, setSavedFormJson] = useState(() => JSON.stringify(existing ? inputFromPage(existing) : EMPTY_QUIZ_PAGE));
+  const [rejectedReadiness, setRejectedReadiness] = useState<QuizPage['locale_readiness']>(undefined);
   const [saving, setSaving] = useState(false);
   const [action, setAction] = useState<'preview' | 'googlebot' | 'publish' | 'retire' | 'delete' | 'restore' | null>(null);
   const [publishOpen, setPublishOpen] = useState(false);
@@ -460,6 +462,23 @@ export function QuizPageEditor({ existing }: { existing?: QuizPage }) {
     setForm((current) => ({ ...current, public_slugs: { ...current.public_slugs, [locale]: value } }));
   const agentMaintained = savedPage?.managed_by === 'agent' || Boolean(savedPage?.last_reviewed_at);
   const liveSlugs = savedPage?.published_at ? savedPage.public_slugs ?? {} : {};
+  const unsavedChanges = JSON.stringify(form) !== savedFormJson;
+  // A backend from before the quiz-page agent ignores languages, URLs and the lock: those controls stay off there.
+  const supportsEditions = savedPage ? savedPage.locale_readiness !== undefined : allPages.some((page) => page.version !== undefined);
+
+  /**
+   * Adopts the page an action (preview, publish) returned. Our own action moves the version by one; more means someone
+   * else saved in between, so the form reloads from the server instead of keeping copy that would overwrite theirs.
+   */
+  const adopt = (page: QuizPage, savedVersion: number | undefined) => {
+    setSavedPage(page);
+    if (page.version !== undefined && savedVersion !== undefined && page.version > savedVersion + 1) {
+      const fresh = inputFromPage(page);
+      setForm(fresh);
+      setSavedFormJson(JSON.stringify(fresh));
+      toast.warning('This page was changed elsewhere; the editor reloaded the latest version.');
+    }
+  };
 
   const save = async (): Promise<QuizPage | null> => {
     if (form.question_source === 'manual' && manualParse.errors.length > 0) {
@@ -496,8 +515,7 @@ export function QuizPageEditor({ existing }: { existing?: QuizPage }) {
       const input: QuizPageInput = {
         ...form,
         ...editionsForSave(form),
-        public_slugs: Object.fromEntries(Object.entries(form.public_slugs ?? {})
-          .filter(([locale, value]) => value && locale !== 'en' && locale !== 'ka')) as QuizPageInput['public_slugs'],
+        public_slugs: publicSlugsForSave(form),
         expected_version: savedPage?.version,
         question_set_slug: form.question_source === 'manual' ? form.slug : form.question_set_slug,
         manual_questions: form.question_source === 'manual'
@@ -509,13 +527,22 @@ export function QuizPageEditor({ existing }: { existing?: QuizPage }) {
         : await createPage.mutateAsync(input);
       setCurrentSlug(page.slug);
       setSavedPage(page);
-      setForm((current) => ({ ...current, slug: page.slug }));
+      setRejectedReadiness(undefined);
+      setForm((current) => {
+        const next = { ...current, slug: page.slug };
+        setSavedFormJson(JSON.stringify(next));
+        return next;
+      });
       toast.success(page.status === 'published' ? 'Changes saved' : 'Draft saved');
       if (!previousSlug || previousSlug !== page.slug) {
         router.replace(`/quiz-pages/${page.slug}`);
       }
       return page;
     } catch (error) {
+      const locales = error instanceof ApiClientError && error.details && typeof error.details === 'object'
+        ? (error.details as { locales?: QuizPage['locale_readiness'] }).locales
+        : undefined;
+      if (Array.isArray(locales)) setRejectedReadiness(locales);
       toast.error(messageFor(error));
       return null;
     } finally {
@@ -531,7 +558,7 @@ export function QuizPageEditor({ existing }: { existing?: QuizPage }) {
     if (page) {
       try {
         const previewedPage = await previewPage.mutateAsync(page.slug);
-        setSavedPage(previewedPage);
+        adopt(previewedPage, page.version);
         const target = safePreviewUrl(previewedPage.preview_url);
         if (!target) {
           previewWindow?.close();
@@ -560,8 +587,9 @@ export function QuizPageEditor({ existing }: { existing?: QuizPage }) {
           slug: page.slug,
           scheduledAt: scheduledAt ? new Date(scheduledAt).toISOString() : null,
         });
-        setSavedPage(published);
+        adopt(published, page.version);
         setForm(inputFromPage(published));
+        setSavedFormJson(JSON.stringify(inputFromPage(published)));
         setPublishOpen(false);
         toast.success(scheduledAt ? 'Quiz page scheduled' : 'Quiz page published');
       } catch (error) { toast.error(messageFor(error)); }
@@ -596,6 +624,7 @@ export function QuizPageEditor({ existing }: { existing?: QuizPage }) {
       const page = await restoreRevision.mutateAsync({ slug: currentSlug, revisionId });
       setSavedPage(page);
       setForm(inputFromPage(page));
+      setSavedFormJson(JSON.stringify(inputFromPage(page)));
       setManualQuestionText(
         page.question_source === 'manual' ? formatManualQuestions(page.manual_questions) : '',
       );
@@ -713,6 +742,7 @@ export function QuizPageEditor({ existing }: { existing?: QuizPage }) {
           <Section icon={Settings2} eyebrow="Page setup" title="Basics" description="The CMS name, public URL and placement on the football quiz hub.">
             <div className="grid gap-5 md:grid-cols-2">
               <Field label="Internal name" hint="Only visible in this CMS."><Input value={form.internal_name} onChange={(e) => updateInternalName(e.target.value)} placeholder="Arsenal Quiz" className="h-11 rounded-xl" /></Field>
+              {supportsEditions && <Field label="Quiz name" hint="The game's name in search results; empty uses the H1."><Input value={form.title ?? ''} onChange={(e) => patch('title', e.target.value || null)} placeholder={form.h1 || 'Arsenal Quiz'} className="h-11 rounded-xl" /></Field>}
               <Field label="Category" hint="Controls the group on the hub grid."><select value={form.category} onChange={(e) => patch('category', e.target.value as QuizPageInput['category'])} className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-medium"><option value="team">Team</option><option value="league">League</option><option value="quiz_type">Quiz type</option><option value="article">Article</option></select></Field>
             </div>
             <Field label="Slug" hint="Lowercase letters, numbers and hyphens. A changed published slug automatically creates a permanent redirect.">
@@ -802,14 +832,26 @@ export function QuizPageEditor({ existing }: { existing?: QuizPage }) {
 
           {activeStep === 'seo' && (
           <Section icon={Languages} eyebrow="Localisation" title="Languages" description="Every language has its own copy and URL. A language goes live once it is complete; the checks update when you save.">
+            {!supportsEditions ? (
+              <div className="space-y-5 rounded-2xl bg-slate-50 p-5">
+                <p className="text-xs font-semibold text-amber-700">This backend predates multi-language pages: only English and the Georgian SEO fields can be edited here.</p>
+                <label className="flex items-center gap-2 text-sm font-bold text-slate-700"><input type="checkbox" checked={form.locale_mode === 'en_ka'} onChange={(e) => patch('locale_mode', e.target.checked ? 'en_ka' : 'en_only')} />Publish the Georgian page</label>
+                <Field label="Georgian title tag"><Input value={form.ka_seo_title ?? ''} onChange={(e) => patch('ka_seo_title', e.target.value)} className="h-11 rounded-xl bg-white" /></Field>
+                <Field label="Georgian meta description"><Textarea value={form.ka_meta_description ?? ''} onChange={(e) => patch('ka_meta_description', e.target.value)} className="rounded-xl bg-white" /></Field>
+                <Field label="Georgian H1"><Input value={form.ka_h1 ?? ''} onChange={(e) => patch('ka_h1', e.target.value)} className="h-11 rounded-xl bg-white" /></Field>
+                <Field label="Georgian lede"><Textarea value={form.ka_lede ?? ''} onChange={(e) => patch('ka_lede', e.target.value)} className="min-h-28 rounded-xl bg-white" /></Field>
+              </div>
+            ) : (
             <QuizPageLanguages
               form={form}
-              readiness={savedPage?.locale_readiness}
+              readiness={rejectedReadiness ?? savedPage?.locale_readiness}
+              stale={unsavedChanges && !rejectedReadiness}
               publishedSlugs={liveSlugs}
               onEditionChange={patchEdition}
               onPublicSlugChange={patchPublicSlug}
               onLocaleModeChange={(mode) => patch('locale_mode', mode)}
             />
+            )}
           </Section>
           )}
 
@@ -826,7 +868,7 @@ export function QuizPageEditor({ existing }: { existing?: QuizPage }) {
                   <div className="flex flex-wrap gap-2"><Button variant="outline" onClick={save} disabled={saving || action !== null}>{saving ? <Loader2 className="animate-spin" /> : <Save />}Save draft</Button><Button className="bg-blue-600 text-white hover:bg-blue-700" onClick={() => setPublishOpen(true)} disabled={saving || action !== null}><Send />Publish or schedule</Button></div>
                 </div>
               </div>
-              {savedPage && (
+              {savedPage && supportsEditions && (
                 <div className="rounded-2xl border border-violet-200 bg-violet-50/60 p-5">
                   <p className="text-sm font-black text-violet-950">Quiz-page agent</p>
                   <p className="mt-1 text-xs leading-5 text-violet-900/80">
