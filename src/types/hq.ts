@@ -186,8 +186,27 @@ export interface HqSettings {
   dailyLimitCents: number;
   dailyRunLimit: number;
   maxConcurrentRuns: number;
+  /** Share of the Claude plan HQ may use: urgent-only from planSoftPct, stop at planHardPct. Missing on an older backend. */
+  planSoftPct?: number;
+  planHardPct?: number;
   updatedAt: string;
   today: { runs: number; costCents: number };
+  /** Missing on a backend without plan tracking. */
+  plan?: HqPlanStatus;
+}
+
+export interface HqPlanWindow {
+  key: string;
+  label: string;
+  usedPct: number | null;
+  resetsAt: string | null;
+  status: string;
+}
+
+export interface HqPlanStatus {
+  state: 'ok' | 'auth' | 'limit';
+  until: string | null;
+  windows: HqPlanWindow[];
 }
 
 export interface HqOverview {
@@ -346,6 +365,8 @@ export interface HqUpdateSettingsRequest {
   dailyLimitCents?: number;
   dailyRunLimit?: number;
   maxConcurrentRuns?: number;
+  planSoftPct?: number;
+  planHardPct?: number;
 }
 
 // ── v3: goals, standup, analytics ──

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Activity, Loader2 } from 'lucide-react';
+import { Activity, Loader2, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useHqEvents, useHqMembers } from '@/hooks';
@@ -13,15 +13,25 @@ import { EmptyState, LoadErrorState, MemberAvatar, PageHeader, RefreshErrorBanne
 const ALL = '__all__';
 
 // Friendly names/icons for well-known event types; anything else renders generically.
-const EVENT_ICONS: Record<string, string> = { standup: '🌅', proposal: '💡', proposal_accepted: '✅', proposal_declined: '✖' };
+const EVENT_ICONS: Record<string, string> = {
+  standup: '🌅', proposal: '💡', proposal_accepted: '✅', proposal_declined: '✖', provider_down: '⚠️', provider_up: '✅',
+};
 const EVENT_LABELS: Record<string, string> = {
   standup: 'standup',
   proposal: 'new idea',
   proposal_accepted: 'idea accepted',
   proposal_declined: 'idea declined',
+  provider_down: 'AI provider down',
+  provider_up: 'AI provider back',
+  task_reconciled: 'stuck task re-queued',
+  schedule_coalesced: 'run skipped (still queued)',
+  standup_expired: 'standup expired',
 };
 
 const TYPE_STYLES: Record<string, string> = {
+  provider_down: 'bg-red-50 text-red-700',
+  provider_up: 'bg-emerald-50 text-emerald-700',
+  task_reconciled: 'bg-amber-50 text-amber-700',
   standup: 'bg-orange-50 text-orange-700',
   proposal: 'bg-violet-50 text-violet-700',
   proposal_accepted: 'bg-emerald-50 text-emerald-700',
@@ -41,7 +51,7 @@ const TYPE_STYLES: Record<string, string> = {
 export default function HqActivityPage() {
   const [memberId, setMemberId] = useState<string>(ALL);
   const { data: members = [] } = useHqMembers();
-  const { data, isLoading, error, refetch, fetchNextPage, hasNextPage, isFetchingNextPage } = useHqEvents(
+  const { data, isLoading, isFetching, error, refetch, fetchNextPage, hasNextPage, isFetchingNextPage } = useHqEvents(
     memberId === ALL ? undefined : { memberId }
   );
   const { openTask } = useTaskSheet();
@@ -71,6 +81,13 @@ export default function HqActivityPage() {
           </Select>
         </div>
         {isLoading && <Loader2 className="h-4 w-4 animate-spin text-slate-400" />}
+        {/* Polling stops once older pages are loaded (a refetch reloads every page). */}
+        {(data?.pages.length ?? 0) > 1 && (
+          <Button variant="outline" size="sm" onClick={() => void refetch()} disabled={isFetching}>
+            {isFetching ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+            Show newest
+          </Button>
+        )}
       </div>
 
       {error && data && <RefreshErrorBanner />}
