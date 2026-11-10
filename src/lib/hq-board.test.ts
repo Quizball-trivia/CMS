@@ -320,3 +320,12 @@ describe('dropIndex', () => {
     expect(dropIndex(col, 'c', 130, rect, 'up')).toBe(2);
   });
 });
+
+describe('pipeline agents on the board', () => {
+  it('treats the quiz-page pipeline as one that takes tasks, unlike the other pipelines', async () => {
+    const { isOwnPipelineAgent, isRunnableHqAgent } = await import('./hq-board');
+    expect(isOwnPipelineAgent({ kind: 'agent', runtime: 'quiz_pages' })).toBe(false);
+    expect(isOwnPipelineAgent({ kind: 'agent', runtime: 'question_agents' })).toBe(true);
+    expect(isRunnableHqAgent({ kind: 'agent', runtime: 'quiz_pages', status: 'active' })).toBe(false);
+  });
+});

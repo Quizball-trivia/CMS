@@ -64,6 +64,8 @@ function MemberProfile({ member }: { member: HqMemberDetail }) {
   const [runId, setRunId] = useState<string | null>(null);
   const [newTaskOpen, setNewTaskOpen] = useState(false);
   const isHqAgent = member.kind === 'agent' && member.runtime === 'hq';
+  // The quiz-page pipeline is switched on and off from here too: its runner and its publishing obey this status.
+  const canPause = isHqAgent || (member.kind === 'agent' && member.runtime === 'quiz_pages');
 
   const setStatus = (status: HqMemberStatus, msg: string) =>
     update.mutate(
@@ -128,12 +130,12 @@ function MemberProfile({ member }: { member: HqMemberDetail }) {
               <Plus className="h-4 w-4" /> Assign task
             </Button>
           )}
-          {isHqAgent && member.status === 'active' && (
+          {canPause && member.status === 'active' && (
             <Button variant="outline" onClick={() => setStatus('paused', `${member.name} paused`)}>
               <Pause className="h-4 w-4" /> Pause
             </Button>
           )}
-          {isHqAgent && member.status !== 'active' && (
+          {canPause && member.status !== 'active' && (
             <Button className="bg-emerald-600 text-white hover:bg-emerald-700" onClick={() => setStatus('active', `${member.name} is back to work`)}>
               <Play className="h-4 w-4" /> {member.status === 'archived' ? 'Restore' : 'Resume'}
             </Button>
@@ -328,15 +330,28 @@ function ExternalStats({ member }: { member: HqMemberDetail }) {
           ['Rejected', ext.rejected7d],
           ['Failed', ext.failed7d],
         ]
-      : [
-          ['Reports (7d)', ext.reports7d],
-          ['PRs opened', ext.prsOpened7d],
-          ['Needs info', ext.needsInfo7d],
-        ];
+      : ext.kind === 'quiz_pages'
+        ? [
+            ['Published (7d)', ext.published7d],
+            ['Refreshed (7d)', ext.refreshed7d],
+            ['Waiting to build', ext.queued],
+            ['Stuck', ext.held],
+          ]
+        : [
+            ['Reports (7d)', ext.reports7d],
+            ['PRs opened', ext.prsOpened7d],
+            ['Needs info', ext.needsInfo7d],
+          ];
+  const title = { question_agents: 'Question pipeline', quiz_pages: 'Quiz pages', bug_triage: 'Bug triage' }[ext.kind];
   return (
     <Card className="gap-3">
       <CardHeader className="flex flex-row items-center justify-between gap-2">
-        <CardTitle className="text-base">{ext.kind === 'question_agents' ? 'Question pipeline — last 7 days' : 'Bug triage — last 7 days'}</CardTitle>
+        <CardTitle className="text-base">{title} — last 7 days</CardTitle>
+        {ext.kind === 'quiz_pages' && (
+          <Link href="/quiz-pages" className="inline-flex items-center gap-1 text-sm text-blue-700 hover:underline">
+            Open quiz pages <ExternalLink className="h-3.5 w-3.5" />
+          </Link>
+        )}
         {ext.kind === 'question_agents' && (
           <Link href="/agents" className="inline-flex items-center gap-1 text-sm text-blue-700 hover:underline">
             Open Agents &amp; VPS <ExternalLink className="h-3.5 w-3.5" />
