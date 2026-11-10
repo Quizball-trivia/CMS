@@ -1,11 +1,12 @@
 'use client';
 
+import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { ArrowRight, Loader2, MessageCircle, PlayCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { useHqClock, useHqMembers, useHqOverview, useHqStandup, useRunHqStandup } from '@/hooks';
+import { useHqClock, useHqMembers, useHqOverview, useHqPulse, useHqStandup, useRunHqStandup } from '@/hooks';
 import { useAuth } from '@/providers';
 import { cn } from '@/lib/utils';
 import { departmentInfo } from '@/lib/hq-departments';
@@ -18,12 +19,16 @@ import { HqStatus } from './hq-status';
 import { LoadErrorState, MemberAvatar, RefreshErrorBanner, errorMessage, useTaskSheet } from './hq-ui';
 import { NewTaskDialog } from './new-task-dialog';
 import { ProposalCard } from './proposal-card';
-import { PulseTiles } from './pulse-tiles';
+
+// Charts (recharts) load after the standup content; the tiles sit below it.
+const PulseTiles = dynamic(() => import('./pulse-tiles').then((m) => m.PulseTiles), { ssr: false });
 
 const GOALS_PER_BAND = 3;
 
 export default function StandupPage() {
   const { data: standup, isLoading, error, refetch } = useHqStandup();
+  // Start the KPI tiles' request now, not after the standup arrives (PulseTiles reuses it).
+  useHqPulse();
   const { data: overview } = useHqOverview();
   const { data: members = [] } = useHqMembers();
   const { openTask } = useTaskSheet();

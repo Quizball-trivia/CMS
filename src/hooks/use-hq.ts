@@ -21,8 +21,12 @@ import type {
   HqUpdateTaskRequest,
 } from '@/types';
 
-// HQ views are "live": agents work in the background, so poll.
+// HQ views are "live": agents work in the background, so poll. Things that
+// change only when a person edits them (members, schedules, settings) or that
+// are expensive to compute (standup, overview) poll slower; every mutation
+// invalidates the affected queries, so edits still show at once.
 export const HQ_LIVE_REFETCH_MS = 5000;
+export const HQ_SLOW_REFETCH_MS = 30_000;
 const EVENTS_PAGE_SIZE = 100;
 
 export const hqKeys = {
@@ -89,7 +93,7 @@ export function useHqMembers(includeArchived = false, options: LiveQueryOptions 
     queryKey: hqKeys.membersList(includeArchived),
     queryFn: async () => (await hqApi.listMembers(includeArchived)).items,
     enabled: options.enabled ?? true,
-    refetchInterval: options.refetchInterval ?? HQ_LIVE_REFETCH_MS,
+    refetchInterval: options.refetchInterval ?? 15_000,
   });
 }
 
@@ -116,7 +120,7 @@ export function useHqMember(id: string | undefined) {
     queryKey: hqKeys.member(id ?? ''),
     queryFn: () => hqApi.getMember(id!),
     enabled: !!id,
-    refetchInterval: HQ_LIVE_REFETCH_MS,
+    refetchInterval: 15_000,
   });
 }
 
@@ -145,7 +149,8 @@ export function useHqTask(id: string | null | undefined) {
     queryKey: hqKeys.task(id ?? ''),
     queryFn: () => hqApi.getTask(id!),
     enabled: !!id,
-    refetchInterval: HQ_LIVE_REFETCH_MS,
+    // Fast only while an agent may be writing to it.
+    refetchInterval: (query) => (query.state.data?.status === 'in_progress' ? HQ_LIVE_REFETCH_MS : HQ_SLOW_REFETCH_MS),
   });
 }
 
@@ -175,7 +180,9 @@ export function useHqEvents(params?: Omit<HqListEventsParams, 'beforeId'>) {
       (await hqApi.listEvents({ ...params, limit, beforeId: pageParam })).items,
     getNextPageParam: (lastPage) =>
       lastPage.length < limit ? undefined : lastPage[lastPage.length - 1]?.id,
-    refetchInterval: HQ_LIVE_REFETCH_MS,
+    // A refetch reloads every loaded page in sequence; once the reader has
+    // paged back into history, stop polling (new events show on the next visit).
+    refetchInterval: (query) => ((query.state.data?.pages.length ?? 0) > 1 ? false : HQ_LIVE_REFETCH_MS),
   });
 }
 
@@ -183,7 +190,7 @@ export function useHqSchedules() {
   return useQuery({
     queryKey: hqKeys.schedules(),
     queryFn: async () => (await hqApi.listSchedules()).items,
-    refetchInterval: HQ_LIVE_REFETCH_MS,
+    refetchInterval: HQ_SLOW_REFETCH_MS,
   });
 }
 
@@ -191,7 +198,7 @@ export function useHqSettings() {
   return useQuery({
     queryKey: hqKeys.settings(),
     queryFn: () => hqApi.getSettings(),
-    refetchInterval: HQ_LIVE_REFETCH_MS,
+    refetchInterval: HQ_SLOW_REFETCH_MS,
   });
 }
 
@@ -439,7 +446,7 @@ export function useHqStandup(date?: string) {
   return useQuery({
     queryKey: hqKeys.standupFor(date),
     queryFn: () => hqApi.standup(date),
-    refetchInterval: 10_000,
+    refetchInterval: HQ_SLOW_REFETCH_MS,
   });
 }
 

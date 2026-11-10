@@ -13,15 +13,25 @@ import { EmptyState, LoadErrorState, MemberAvatar, PageHeader, RefreshErrorBanne
 const ALL = '__all__';
 
 // Friendly names/icons for well-known event types; anything else renders generically.
-const EVENT_ICONS: Record<string, string> = { standup: '🌅', proposal: '💡', proposal_accepted: '✅', proposal_declined: '✖' };
+const EVENT_ICONS: Record<string, string> = {
+  standup: '🌅', proposal: '💡', proposal_accepted: '✅', proposal_declined: '✖', provider_down: '⚠️', provider_up: '✅',
+};
 const EVENT_LABELS: Record<string, string> = {
   standup: 'standup',
   proposal: 'new idea',
   proposal_accepted: 'idea accepted',
   proposal_declined: 'idea declined',
+  provider_down: 'AI provider down',
+  provider_up: 'AI provider back',
+  task_reconciled: 'stuck task re-queued',
+  schedule_coalesced: 'run skipped (still queued)',
+  standup_expired: 'standup expired',
 };
 
 const TYPE_STYLES: Record<string, string> = {
+  provider_down: 'bg-red-50 text-red-700',
+  provider_up: 'bg-emerald-50 text-emerald-700',
+  task_reconciled: 'bg-amber-50 text-amber-700',
   standup: 'bg-orange-50 text-orange-700',
   proposal: 'bg-violet-50 text-violet-700',
   proposal_accepted: 'bg-emerald-50 text-emerald-700',

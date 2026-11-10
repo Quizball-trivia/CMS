@@ -97,7 +97,7 @@ export function Sidebar() {
   const { user } = useAuth();
   const isAdmin = cmsRole(user?.role) === 'admin';
   // Live signals (approvals, who's working) for admins only — partner staff can't read HQ.
-  const { data: overview } = useHqOverview({ enabled: isAdmin, refetchInterval: 15_000 });
+  const { data: overview } = useHqOverview({ enabled: isAdmin, refetchInterval: 60_000 });
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
 
   const company = navItemsForRole(companyItems, user?.role);
