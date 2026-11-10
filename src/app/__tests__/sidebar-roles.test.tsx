@@ -55,10 +55,11 @@ it('shows admins the Company section and every department', () => {
   const hrefs = links();
   // The Director comes first: the founder talks to him.
   expect(hrefs[0]).toBe('/hq/director');
-  for (const href of ['/hq/goals', '/hq/analytics', '/hq/team', '/hq/board', '/hq/inbox', '/hq/schedules', '/hq/activity']) expect(hrefs).toContain(href);
-  // Then Standup, Goals, Analytics, Agents, People, Work; Inbox/Automations/Activity under "More".
-  expect(hrefs.slice(0, 7)).toEqual(['/hq/director', '/hq', '/hq/goals', '/hq/analytics', '/hq/team', '/hq/people', '/hq/board']);
+  for (const href of ['/hq/builds', '/hq/goals', '/hq/analytics', '/hq/team', '/hq/board', '/hq/inbox', '/hq/schedules', '/hq/activity']) expect(hrefs).toContain(href);
+  // Then Builds, Standup, Goals, Analytics, Agents, People, Work; Inbox/Automations/Activity under "More".
+  expect(hrefs.slice(0, 8)).toEqual(['/hq/director', '/hq/builds', '/hq', '/hq/goals', '/hq/analytics', '/hq/team', '/hq/people', '/hq/board']);
   expect(within(nav()).getByText('Director')).toBeTruthy();
+  expect(within(nav()).getByText('Builds')).toBeTruthy();
   expect(within(nav()).getByText('Standup')).toBeTruthy();
   expect(within(nav()).getByText('More')).toBeTruthy();
   expect(hrefs.indexOf('/hq/inbox')).toBeGreaterThan(hrefs.indexOf('/hq/departments/partners'));
