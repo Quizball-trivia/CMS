@@ -3,6 +3,31 @@ export type QuizPageStatus = 'draft' | 'preview' | 'published' | 'archived';
 export type QuizPageLocaleMode = 'en_only' | 'en_ka';
 export type QuizQuestionSource = 'existing' | 'manual';
 
+/** Every language a quiz page is published in; English is the source, the others are editions of it. */
+export const QUIZ_PAGE_LOCALES = ['en', 'ka', 'es', 'ru', 'pt', 'de', 'tr', 'fr'] as const;
+export type QuizPageLocale = (typeof QUIZ_PAGE_LOCALES)[number];
+export type QuizPageEditionLocale = Exclude<QuizPageLocale, 'en'>;
+export const QUIZ_PAGE_EDITION_LOCALES = QUIZ_PAGE_LOCALES.filter(
+  (locale): locale is QuizPageEditionLocale => locale !== 'en',
+);
+
+export const QUIZ_PAGE_EDITION_TEXT_FIELDS = [
+  'title', 'h1', 'seo_title', 'meta_description', 'breadcrumb_label', 'lede', 'about_heading',
+  'hero_image_alt', 'og_image_alt', 'score_cta', 'footer_banner_text', 'footer_button_label',
+] as const;
+export type QuizPageEditionTextField = (typeof QUIZ_PAGE_EDITION_TEXT_FIELDS)[number];
+
+/** One language of a page; null means the language has no text for that field yet. */
+export type QuizPageEditionCopy = Record<QuizPageEditionTextField, string | null> & {
+  about_blocks: QuizAboutBlock[] | null;
+};
+
+export interface QuizPageLocaleReadiness {
+  locale: QuizPageLocale;
+  ready: boolean;
+  problems: string[];
+}
+
 export interface QuizManualQuestion {
   id?: string;
   prompt: string;
@@ -31,6 +56,13 @@ export interface QuizPageListItem {
   updated_at: string;
   hub_order: number;
   is_hub_pinned: boolean;
+  /** Absent from backends before the quiz-page agent. */
+  version?: number;
+  content_modified_at?: string;
+  last_reviewed_at?: string | null;
+  next_refresh_at?: string | null;
+  agent_locked?: boolean;
+  managed_by?: 'cms' | 'agent';
 }
 
 export interface QuizQuestionSet {
@@ -70,6 +102,13 @@ export interface QuizPageInput {
   ka_meta_description: string | null;
   ka_h1: string | null;
   ka_lede: string | null;
+  /** The game title; the H1 is used when it is empty. */
+  title?: string | null;
+  editions?: Partial<Record<QuizPageEditionLocale, QuizPageEditionCopy>>;
+  public_slugs?: Partial<Record<QuizPageLocale, string>>;
+  agent_locked?: boolean;
+  /** The page version this form was loaded from; a save over a newer version is refused. */
+  expected_version?: number;
 }
 
 export interface QuizPage extends QuizPageInput {
@@ -81,6 +120,13 @@ export interface QuizPage extends QuizPageInput {
   preview_token: string;
   preview_url: string;
   warnings: string[];
+  locale_readiness?: QuizPageLocaleReadiness[];
+  version?: number;
+  content_modified_at?: string;
+  last_reviewed_at?: string | null;
+  next_refresh_at?: string | null;
+  managed_by?: 'cms' | 'agent';
+  set_version?: number;
 }
 
 export interface QuizPageListFilters {

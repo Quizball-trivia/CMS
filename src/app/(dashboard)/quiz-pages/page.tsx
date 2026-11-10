@@ -428,9 +428,11 @@ export default function QuizPagesPage() {
                         <Badge variant="outline" className={statusStyle[page.status]}>{page.status}</Badge>
                         <Badge variant="outline" className="border-slate-200 bg-white text-slate-500">{categoryLabel[page.category].replace(/s$/, '')}</Badge>
                         {page.is_hub_pinned && <Pin className="size-3.5 fill-blue-600 text-blue-600" aria-label="Pinned on hub" />}
+                        {page.managed_by === 'agent' && <Badge variant="outline" className="border-violet-200 bg-violet-50 text-violet-700">Agent-made</Badge>}
+                        {page.agent_locked && <Badge variant="outline" className="border-slate-200 bg-white text-slate-500">Locked</Badge>}
                       </div>
                       <p className="mt-1 truncate font-mono text-xs text-slate-400">/en/football-quiz/{page.slug}</p>
-                      <p className="mt-2 text-xs font-semibold text-slate-500">{page.question_count} verified questions · Updated {new Date(page.updated_at).toLocaleDateString('en-GB', { timeZone: 'UTC' })}</p>
+                      <p className="mt-2 text-xs font-semibold text-slate-500">{page.question_count} verified questions · Content changed {new Date(page.content_modified_at ?? page.updated_at).toLocaleDateString('en-GB', { timeZone: 'UTC' })}{page.status === 'published' && !page.agent_locked && page.next_refresh_at ? ` · Next refresh ${new Date(page.next_refresh_at).toLocaleDateString('en-GB', { timeZone: 'UTC' })}` : ''}</p>
                     </div>
                     {searchConsole.data?.configured && page.status === 'published' && (
                       <div className="min-w-64 rounded-2xl bg-slate-50 px-4 py-3">

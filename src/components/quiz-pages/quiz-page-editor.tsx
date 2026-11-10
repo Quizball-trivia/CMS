@@ -64,6 +64,9 @@ import {
 import { generateAnswerId } from '@/lib/question-utils';
 import type {
   QuizAboutBlock,
+  QuizPageEditionCopy,
+  QuizPageEditionLocale,
+  QuizPageLocale,
   QuizPage,
   QuizPageGooglebotInspection,
   QuizPageInput,
@@ -78,6 +81,7 @@ import {
   MANUAL_QUESTION_EXAMPLE,
   parseManualQuestions,
 } from './manual-question-format';
+import { editionsForSave, QuizPageLanguages } from './quiz-page-languages';
 
 type EditorStep = 'content' | 'questions' | 'seo' | 'publishing';
 const MAX_ARTWORK_BYTES = 8 * 1024 * 1024;
@@ -139,6 +143,12 @@ function messageFor(error: unknown): string {
       const blockers = (error.details as { blockers?: unknown }).blockers;
       if (Array.isArray(blockers)) return blockers.join(' ');
     }
+    if (error.details && typeof error.details === 'object' && 'locales' in error.details) {
+      const locales = (error.details as { locales?: Array<{ locale: string; problems: string[] }> }).locales;
+      if (Array.isArray(locales)) {
+        return `${error.message}: ${locales.map((entry) => `${entry.locale.toUpperCase()} — ${entry.problems.slice(0, 3).join('; ')}`).join(' · ')}`;
+      }
+    }
     return error.message;
   }
   return error instanceof Error ? error.message : 'Something went wrong.';
@@ -181,6 +191,10 @@ function inputFromPage(page: QuizPage): QuizPageInput {
     ka_meta_description: page.ka_meta_description,
     ka_h1: page.ka_h1,
     ka_lede: page.ka_lede,
+    title: page.title ?? null,
+    editions: page.editions,
+    public_slugs: page.public_slugs,
+    agent_locked: page.agent_locked,
   };
 }
 
@@ -438,13 +452,14 @@ export function QuizPageEditor({ existing }: { existing?: QuizPage }) {
     : selectedSet?.count ?? savedPage?.question_count ?? 0;
   const renderedSeoTitle = withVerifiedCount(form.seo_title, verifiedCount);
   const renderedMetaDescription = withVerifiedCount(form.meta_description, verifiedCount);
-  const renderedKaSeoTitle = withVerifiedCount(form.ka_seo_title ?? '', verifiedCount);
-  const renderedKaMetaDescription = withVerifiedCount(
-    form.ka_meta_description ?? '',
-    verifiedCount,
-  );
   const relatedOptions = useMemo(() => allPages.filter((page) => page.status === 'published' && page.slug !== form.slug && !form.related_slugs.includes(page.slug)), [allPages, form.related_slugs, form.slug]);
   const patch = <K extends keyof QuizPageInput>(key: K, value: QuizPageInput[K]) => setForm((current) => ({ ...current, [key]: value }));
+  const patchEdition = (locale: QuizPageEditionLocale, edition: QuizPageEditionCopy) =>
+    setForm((current) => ({ ...current, editions: { ...current.editions, [locale]: edition } }));
+  const patchPublicSlug = (locale: QuizPageLocale, value: string) =>
+    setForm((current) => ({ ...current, public_slugs: { ...current.public_slugs, [locale]: value } }));
+  const agentMaintained = savedPage?.managed_by === 'agent' || Boolean(savedPage?.last_reviewed_at);
+  const liveSlugs = savedPage?.published_at ? savedPage.public_slugs ?? {} : {};
 
   const save = async (): Promise<QuizPage | null> => {
     if (form.question_source === 'manual' && manualParse.errors.length > 0) {
@@ -480,6 +495,10 @@ export function QuizPageEditor({ existing }: { existing?: QuizPage }) {
       });
       const input: QuizPageInput = {
         ...form,
+        ...editionsForSave(form),
+        public_slugs: Object.fromEntries(Object.entries(form.public_slugs ?? {})
+          .filter(([locale, value]) => value && locale !== 'en' && locale !== 'ka')) as QuizPageInput['public_slugs'],
+        expected_version: savedPage?.version,
         question_set_slug: form.question_source === 'manual' ? form.slug : form.question_set_slug,
         manual_questions: form.question_source === 'manual'
           ? manualQuestions
@@ -654,7 +673,7 @@ export function QuizPageEditor({ existing }: { existing?: QuizPage }) {
         <div className="mx-auto flex max-w-[1480px] flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
           <div className="flex min-w-0 items-center gap-3">
             <Button variant="ghost" size="icon" asChild className="rounded-xl"><Link href="/quiz-pages"><ArrowLeft /></Link></Button>
-            <div className="min-w-0"><div className="flex items-center gap-2"><h1 className="truncate text-xl font-black">{form.internal_name || 'New quiz page'}</h1><Badge variant="outline" className="capitalize">{status}</Badge></div><p className="truncate font-mono text-xs text-slate-400">/en/football-quiz/{form.slug || 'your-slug'}</p></div>
+            <div className="min-w-0"><div className="flex items-center gap-2"><h1 className="truncate text-xl font-black">{form.internal_name || 'New quiz page'}</h1><Badge variant="outline" className="capitalize">{status}</Badge>{savedPage?.managed_by === 'agent' && <Badge variant="outline" className="border-violet-200 bg-violet-50 text-violet-700">Agent-made</Badge>}</div><p className="truncate font-mono text-xs text-slate-400">/en/football-quiz/{form.slug || 'your-slug'}</p></div>
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <Button variant="outline" className="rounded-xl" onClick={preview} disabled={saving || action !== null}><Eye />{action === 'preview' ? 'Opening…' : 'Preview'}</Button>
@@ -782,9 +801,15 @@ export function QuizPageEditor({ existing }: { existing?: QuizPage }) {
           </>}
 
           {activeStep === 'seo' && (
-          <Section icon={Languages} eyebrow="Localisation" title="Language variant" description="English-only pages emit only an English alternate; bilingual pages emit the en/ka pair.">
-            <div className="grid grid-cols-2 gap-3"><button type="button" onClick={() => patch('locale_mode', 'en_only')} className={`rounded-2xl border p-4 text-left ${form.locale_mode === 'en_only' ? 'border-blue-500 bg-blue-50 ring-4 ring-blue-50' : 'border-slate-200'}`}><p className="font-black">English only</p><p className="mt-1 text-xs text-slate-500">No Georgian URL is published.</p></button><button type="button" onClick={() => patch('locale_mode', 'en_ka')} className={`rounded-2xl border p-4 text-left ${form.locale_mode === 'en_ka' ? 'border-blue-500 bg-blue-50 ring-4 ring-blue-50' : 'border-slate-200'}`}><p className="font-black">English + Georgian</p><p className="mt-1 text-xs text-slate-500">Emit matching hreflang pages.</p></button></div>
-            {form.locale_mode === 'en_ka' && <div className="space-y-5 rounded-2xl bg-slate-50 p-5"><Field label="Georgian title tag" counter={`${renderedKaSeoTitle.length}/60 rendered`}><Input value={form.ka_seo_title ?? ''} onChange={(e) => patch('ka_seo_title', e.target.value)} className={`h-11 rounded-xl bg-white ${renderedKaSeoTitle.length > 60 ? 'border-amber-400' : ''}`} /></Field><Field label="Georgian meta description" counter={`${renderedKaMetaDescription.length}/155 rendered`}><Textarea value={form.ka_meta_description ?? ''} onChange={(e) => patch('ka_meta_description', e.target.value)} className={`rounded-xl bg-white ${renderedKaMetaDescription.length > 155 ? 'border-amber-400' : ''}`} /></Field><Field label="Georgian H1"><Input value={form.ka_h1 ?? ''} onChange={(e) => patch('ka_h1', e.target.value)} className="h-11 rounded-xl bg-white" /></Field><Field label="Georgian lede"><Textarea value={form.ka_lede ?? ''} onChange={(e) => patch('ka_lede', e.target.value)} className="min-h-28 rounded-xl bg-white" /></Field></div>}
+          <Section icon={Languages} eyebrow="Localisation" title="Languages" description="Every language has its own copy and URL. A language goes live once it is complete; the checks update when you save.">
+            <QuizPageLanguages
+              form={form}
+              readiness={savedPage?.locale_readiness}
+              publishedSlugs={liveSlugs}
+              onEditionChange={patchEdition}
+              onPublicSlugChange={patchPublicSlug}
+              onLocaleModeChange={(mode) => patch('locale_mode', mode)}
+            />
           </Section>
           )}
 
@@ -801,6 +826,22 @@ export function QuizPageEditor({ existing }: { existing?: QuizPage }) {
                   <div className="flex flex-wrap gap-2"><Button variant="outline" onClick={save} disabled={saving || action !== null}>{saving ? <Loader2 className="animate-spin" /> : <Save />}Save draft</Button><Button className="bg-blue-600 text-white hover:bg-blue-700" onClick={() => setPublishOpen(true)} disabled={saving || action !== null}><Send />Publish or schedule</Button></div>
                 </div>
               </div>
+              {savedPage && (
+                <div className="rounded-2xl border border-violet-200 bg-violet-50/60 p-5">
+                  <p className="text-sm font-black text-violet-950">Quiz-page agent</p>
+                  <p className="mt-1 text-xs leading-5 text-violet-900/80">
+                    {savedPage.managed_by === 'agent' ? 'The agent created this page.' : 'Created in the CMS.'}
+                    {' '}Content last changed {savedPage.content_modified_at ? new Date(savedPage.content_modified_at).toLocaleDateString('en-GB', { timeZone: 'UTC' }) : '—'}
+                    {' · '}Last review {savedPage.last_reviewed_at ? new Date(savedPage.last_reviewed_at).toLocaleDateString('en-GB', { timeZone: 'UTC' }) : 'never'}
+                    {' · '}Next refresh {form.agent_locked ? 'off (locked)' : savedPage.next_refresh_at ? new Date(savedPage.next_refresh_at).toLocaleDateString('en-GB', { timeZone: 'UTC' }) : '—'}
+                  </p>
+                  <label className="mt-3 flex items-center gap-2 text-sm font-bold text-violet-950">
+                    <input type="checkbox" checked={Boolean(form.agent_locked)} onChange={(event) => patch('agent_locked', event.target.checked)} />
+                    Lock: the agent leaves this page alone (takes effect on save)
+                  </label>
+                  {agentMaintained && <p className="mt-2 text-[11px] font-semibold text-violet-900/70">The agent maintains this page: every language must stay complete when you save or publish.</p>}
+                </div>
+              )}
               {currentSlug && <Button variant="outline" className="text-red-600" onClick={() => { setRetireAction(status === 'published' ? 'retire' : 'delete'); setRetireOpen(true); }}><Trash2 />{status === 'published' ? 'Unpublish page' : 'Delete draft'}</Button>}
             </Section>
           )}
@@ -819,7 +860,7 @@ export function QuizPageEditor({ existing }: { existing?: QuizPage }) {
             <Field label="Title tag" counter={`${renderedSeoTitle.length}/60 rendered`}><Input value={form.seo_title} onChange={(e) => patch('seo_title', e.target.value)} className={`h-11 rounded-xl ${renderedSeoTitle.length > 60 ? 'border-amber-400' : ''}`} /></Field>
             <Field label="Meta description" hint="Use {count} for the attached set size." counter={`${renderedMetaDescription.length}/155 rendered`}><Textarea value={form.meta_description} onChange={(e) => patch('meta_description', e.target.value)} className={`min-h-28 rounded-xl ${renderedMetaDescription.length > 155 ? 'border-amber-400' : ''}`} /></Field>
             <Field label="Breadcrumb label"><Input value={form.breadcrumb_label} onChange={(e) => patch('breadcrumb_label', e.target.value)} className="h-11 rounded-xl" /></Field>
-            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4"><p className="mb-2 text-xs font-black uppercase tracking-wider text-slate-400">Generated automatically</p>{['Production canonical', 'en/ka hreflang', 'WebPage + BreadcrumbList', 'Game structured data', 'XML sitemap entry'].map((item) => <p key={item} className="flex items-center gap-2 py-1 text-xs font-semibold text-slate-600"><Check className="size-3.5 text-emerald-600" />{item}</p>)}</div>
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4"><p className="mb-2 text-xs font-black uppercase tracking-wider text-slate-400">Generated automatically</p>{['Production canonical', 'hreflang for every complete language', 'WebPage + BreadcrumbList', 'Game structured data', 'XML sitemap entry'].map((item) => <p key={item} className="flex items-center gap-2 py-1 text-xs font-semibold text-slate-600"><Check className="size-3.5 text-emerald-600" />{item}</p>)}</div>
           </Section>
           )}
 
