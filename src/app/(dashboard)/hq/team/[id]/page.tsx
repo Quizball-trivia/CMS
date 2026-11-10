@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useParams } from 'next/navigation';
+import { useParams, usePathname } from 'next/navigation';
 import { useState } from 'react';
 import { toast } from 'sonner';
 import { Archive, ArrowLeft, ExternalLink, Loader2, Pause, Play, Plus, Save } from 'lucide-react';
@@ -49,8 +49,10 @@ export default function HqMemberPage() {
   );
 }
 
-function BackLink({ kind = 'agent' }: { kind?: HqMember['kind'] }) {
-  const person = kind === 'human';
+// Without a loaded member (not found, failed load) the page's own route says which list it came from.
+function BackLink({ kind }: { kind?: HqMember['kind'] }) {
+  const pathname = usePathname();
+  const person = kind ? kind === 'human' : pathname?.startsWith('/hq/people/') === true;
   return (
     <Link href={person ? '/hq/people' : '/hq/team'} className="inline-flex items-center gap-1 text-sm text-slate-500 hover:text-slate-800">
       <ArrowLeft className="h-4 w-4" /> {person ? 'People' : 'Agents'}
