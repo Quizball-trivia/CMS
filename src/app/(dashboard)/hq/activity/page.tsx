@@ -32,6 +32,7 @@ const EVENT_LABELS: Record<string, string> = {
   director_accepted: 'Director accepted',
   director_reopened: 'Director sent back',
   director_cancelled: 'Director cancelled',
+  director_updated: 'Director moved',
   escalation_resolved: 'you handled it',
 };
 
@@ -45,6 +46,7 @@ const TYPE_STYLES: Record<string, string> = {
   director_reopened: 'bg-blue-50 text-blue-700',
   director_declined: 'bg-slate-100 text-slate-500',
   director_cancelled: 'bg-slate-100 text-slate-500',
+  director_updated: 'bg-blue-50 text-blue-700',
   standup: 'bg-orange-50 text-orange-700',
   proposal: 'bg-violet-50 text-violet-700',
   proposal_accepted: 'bg-emerald-50 text-emerald-700',
