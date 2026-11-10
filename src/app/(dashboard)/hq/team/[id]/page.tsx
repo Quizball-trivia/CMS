@@ -334,19 +334,20 @@ function ExternalStats({ member }: { member: HqMemberDetail }) {
         ? [
             ['Published (7d)', ext.published7d],
             ['Refreshed (7d)', ext.refreshed7d],
-            ['Waiting to build', ext.queued],
-            ['Stuck', ext.held],
+            ['Waiting to build (now)', ext.queued],
+            ['Stuck (now)', ext.held],
           ]
         : [
             ['Reports (7d)', ext.reports7d],
             ['PRs opened', ext.prsOpened7d],
             ['Needs info', ext.needsInfo7d],
           ];
-  const title = { question_agents: 'Question pipeline', quiz_pages: 'Quiz pages', bug_triage: 'Bug triage' }[ext.kind];
+  // The quiz-page card mixes 7-day totals with current counts, so its labels carry the period instead of the title.
+  const title = { question_agents: 'Question pipeline — last 7 days', quiz_pages: 'Quiz pages', bug_triage: 'Bug triage — last 7 days' }[ext.kind];
   return (
     <Card className="gap-3">
       <CardHeader className="flex flex-row items-center justify-between gap-2">
-        <CardTitle className="text-base">{title} — last 7 days</CardTitle>
+        <CardTitle className="text-base">{title}</CardTitle>
         {ext.kind === 'quiz_pages' && (
           <Link href="/quiz-pages" className="inline-flex items-center gap-1 text-sm text-blue-700 hover:underline">
             Open quiz pages <ExternalLink className="h-3.5 w-3.5" />
