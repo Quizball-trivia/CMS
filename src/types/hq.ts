@@ -32,7 +32,7 @@ export type HqPriority = 0 | 1 | 2 | 3;
 export type HqDepartmentKey = 'leadership' | 'growth' | 'content' | 'competitions' | 'engineering' | 'partners';
 
 export type HqMemberKind = 'human' | 'agent';
-export type HqRuntime = 'hq' | 'question_agents' | 'bug_triage' | 'none';
+export type HqRuntime = 'hq' | 'question_agents' | 'bug_triage' | 'quiz_pages' | 'none';
 export type HqMemberStatus = 'active' | 'paused' | 'archived';
 export type HqAutonomy = 'autonomous' | 'approval';
 export type HqMemberTier = 'read' | 'act';
@@ -83,7 +83,8 @@ export interface HqMember extends HqMemberRef {
 }
 
 export type HqDirectorDecision = 'approved' | 'declined' | 'escalated';
-export type HqDirectorReview = 'accepted' | 'reopened';
+/** 'superseded': a newer version of the same quiz page replaced this report before anyone reviewed it. */
+export type HqDirectorReview = 'accepted' | 'reopened' | 'superseded';
 
 /** What the Director did with a task: his call on an idea, and his review of finished work. */
 export interface HqTaskDirector {
@@ -327,7 +328,8 @@ export interface HqPulse {
 
 export type HqExternalStats =
   | { kind: 'question_agents'; jobs7d: number; accepted7d: number; rejected7d: number; failed7d: number }
-  | { kind: 'bug_triage'; reports7d: number; prsOpened7d: number; needsInfo7d: number };
+  | { kind: 'bug_triage'; reports7d: number; prsOpened7d: number; needsInfo7d: number }
+  | { kind: 'quiz_pages'; published7d: number; refreshed7d: number; queued: number; held: number };
 
 export interface HqMemberDetail extends HqMember {
   recentRuns: HqRun[];

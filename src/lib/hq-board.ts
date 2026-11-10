@@ -85,9 +85,12 @@ export function isRunnableHqAgent(m: AgentLike | null | undefined): boolean {
   return isHqRuntimeAgent(m) && m!.status === 'active';
 }
 
-/** An agent shown in HQ but run by its own pipeline. */
+/**
+ * An agent shown in HQ but run by its own pipeline, which never picks up board tasks. The quiz-page pipeline
+ * (quiz_pages) is not one: its runner takes tasks assigned to it (once a person approved them).
+ */
 export function isOwnPipelineAgent(m: AgentLike | null | undefined): boolean {
-  return !!m && m.kind === 'agent' && m.runtime !== 'hq';
+  return !!m && m.kind === 'agent' && m.runtime !== 'hq' && m.runtime !== 'quiz_pages';
 }
 
 export const OWN_PIPELINE_LABEL = "(own pipeline — won't run from HQ)";
