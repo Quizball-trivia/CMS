@@ -412,7 +412,7 @@ export function QuizPageEditor({ existing }: { existing?: QuizPage }) {
   const [currentSlug, setCurrentSlug] = useState(existing?.slug ?? '');
   const [savedPage, setSavedPage] = useState<QuizPage | undefined>(existing);
   const [savedFormJson, setSavedFormJson] = useState(() => JSON.stringify(existing ? inputFromPage(existing) : EMPTY_QUIZ_PAGE));
-  const [rejectedReadiness, setRejectedReadiness] = useState<QuizPage['locale_readiness']>(undefined);
+  const [rejected, setRejected] = useState<{ locales: NonNullable<QuizPage['locale_readiness']>; formJson: string } | null>(null);
   const [saving, setSaving] = useState(false);
   const [action, setAction] = useState<'preview' | 'googlebot' | 'publish' | 'retire' | 'delete' | 'restore' | null>(null);
   const [publishOpen, setPublishOpen] = useState(false);
@@ -472,6 +472,7 @@ export function QuizPageEditor({ existing }: { existing?: QuizPage }) {
    */
   const adopt = (page: QuizPage, savedVersion: number | undefined) => {
     setSavedPage(page);
+    setRejected(null);
     if (page.version !== undefined && savedVersion !== undefined && page.version > savedVersion + 1) {
       const fresh = inputFromPage(page);
       setForm(fresh);
@@ -481,6 +482,7 @@ export function QuizPageEditor({ existing }: { existing?: QuizPage }) {
   };
 
   const save = async (): Promise<QuizPage | null> => {
+    const sentForm = form;
     if (form.question_source === 'manual' && manualParse.errors.length > 0) {
       toast.error(manualParse.errors[0]);
       return null;
@@ -527,12 +529,10 @@ export function QuizPageEditor({ existing }: { existing?: QuizPage }) {
         : await createPage.mutateAsync(input);
       setCurrentSlug(page.slug);
       setSavedPage(page);
-      setRejectedReadiness(undefined);
-      setForm((current) => {
-        const next = { ...current, slug: page.slug };
-        setSavedFormJson(JSON.stringify(next));
-        return next;
-      });
+      setRejected(null);
+      // The baseline is the form this save sent; edits made while it was in flight stay unsaved.
+      setSavedFormJson(JSON.stringify({ ...sentForm, slug: page.slug }));
+      setForm((current) => ({ ...current, slug: page.slug }));
       toast.success(page.status === 'published' ? 'Changes saved' : 'Draft saved');
       if (!previousSlug || previousSlug !== page.slug) {
         router.replace(`/quiz-pages/${page.slug}`);
@@ -542,7 +542,7 @@ export function QuizPageEditor({ existing }: { existing?: QuizPage }) {
       const locales = error instanceof ApiClientError && error.details && typeof error.details === 'object'
         ? (error.details as { locales?: QuizPage['locale_readiness'] }).locales
         : undefined;
-      if (Array.isArray(locales)) setRejectedReadiness(locales);
+      if (Array.isArray(locales)) setRejected({ locales, formJson: JSON.stringify(sentForm) });
       toast.error(messageFor(error));
       return null;
     } finally {
@@ -623,6 +623,7 @@ export function QuizPageEditor({ existing }: { existing?: QuizPage }) {
     try {
       const page = await restoreRevision.mutateAsync({ slug: currentSlug, revisionId });
       setSavedPage(page);
+      setRejected(null);
       setForm(inputFromPage(page));
       setSavedFormJson(JSON.stringify(inputFromPage(page)));
       setManualQuestionText(
@@ -844,8 +845,8 @@ export function QuizPageEditor({ existing }: { existing?: QuizPage }) {
             ) : (
             <QuizPageLanguages
               form={form}
-              readiness={rejectedReadiness ?? savedPage?.locale_readiness}
-              stale={unsavedChanges && !rejectedReadiness}
+              readiness={rejected?.locales ?? savedPage?.locale_readiness}
+              stale={rejected ? JSON.stringify(form) !== rejected.formJson : unsavedChanges}
               publishedSlugs={liveSlugs}
               onEditionChange={patchEdition}
               onPublicSlugChange={patchPublicSlug}
