@@ -22,6 +22,10 @@ export const HQ_TOOL_OPTIONS: Array<{ id: HqToolGroup; label: string; hint: stri
   { id: 'web', label: 'Web', hint: 'Search the web and read pages' },
   { id: 'metrics', label: 'Metrics', hint: 'Players, matches and signups (read-only)' },
   { id: 'feedback', label: 'Feedback', hint: 'Recent in-game player feedback (read-only)' },
+  { id: 'answer_gaps', label: 'Answer gaps', hint: 'Rejected typed answers and the content-gap queue (read-only)' },
+  { id: 'content_fixer', label: 'Content fixer', hint: 'Claim content gaps and record fixes with sources (never changes the game)' },
+  { id: 'content_verify', label: 'Content verifier', hint: 'Re-check proposed fixes from its own sources' },
+  { id: 'isolated', label: 'Works alone', hint: 'No team tools, messages or hand-offs; sees only its scheduled task' },
 ];
 
 const COLOR_SWATCH: Record<string, string> = {
