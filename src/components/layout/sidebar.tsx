@@ -25,6 +25,7 @@ import {
   Target,
   Users,
   type LucideIcon,
+  FileSearch,
 } from 'lucide-react';
 
 type NavItem = {
@@ -56,6 +57,7 @@ const companyItems: NavItem[] = [
 // Less-used HQ pages, kept small at the bottom.
 const moreItems: NavItem[] = [
   { title: 'Inbox', href: '/hq/inbox', icon: Inbox },
+  { title: 'Content gaps', href: '/hq/content-gaps', icon: FileSearch },
   { title: 'Automations', href: '/hq/schedules', icon: CalendarClock },
   { title: 'Activity', href: '/hq/activity', icon: Activity },
   // Browser preferences (e.g. showing real-data pages); not part of any department.
