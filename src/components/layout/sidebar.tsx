@@ -16,6 +16,7 @@ import {
   BarChart3,
   CalendarClock,
   ChevronRight,
+  Compass,
   Inbox,
   KanbanSquare,
   LayoutDashboard,
@@ -44,6 +45,7 @@ type DepartmentGroup = {
 };
 
 const companyItems: NavItem[] = [
+  { title: 'Director', href: '/hq/director', icon: Compass },
   { title: 'Standup', href: '/hq', icon: Sunrise, exact: true },
   { title: 'Goals', href: '/hq/goals', icon: Target },
   { title: 'Analytics', href: '/hq/analytics', icon: BarChart3 },

@@ -15,7 +15,7 @@ export type HqTaskStatus =
   /** An agent's idea waiting for the CEO; never runs until accepted. */
   | 'proposed';
 
-export type HqTaskKind = 'task' | 'standup' | 'proposal';
+export type HqTaskKind = 'task' | 'standup' | 'proposal' | 'chat' | 'brief';
 
 export type HqEffort = 's' | 'm' | 'l';
 
@@ -35,6 +35,8 @@ export type HqMemberKind = 'human' | 'agent';
 export type HqRuntime = 'hq' | 'question_agents' | 'bug_triage' | 'none';
 export type HqMemberStatus = 'active' | 'paused' | 'archived';
 export type HqAutonomy = 'autonomous' | 'approval';
+export type HqMemberTier = 'read' | 'act';
+export type HqMemberRole = 'agent' | 'director';
 export type HqToolGroup = 'web' | 'metrics' | 'feedback';
 export type HqRunStatus = 'running' | 'succeeded' | 'failed' | 'timeout' | 'cancelled';
 export type HqMessageKind = 'comment' | 'handoff' | 'system' | 'result';
@@ -73,6 +75,27 @@ export interface HqMember extends HqMemberRef {
   createdAt: string;
   updatedAt: string;
   stats: HqMemberStats;
+  /** Optional: an older backend (and older fixtures) omit these. */
+  tier?: HqMemberTier;
+  role?: HqMemberRole;
+  effort?: string | null;
+  dailyRunLimit?: number | null;
+}
+
+export type HqDirectorDecision = 'approved' | 'declined' | 'escalated';
+export type HqDirectorReview = 'accepted' | 'reopened';
+
+/** What the Director did with a task: his call on an idea, and his review of finished work. */
+export interface HqTaskDirector {
+  decision: HqDirectorDecision | null;
+  note: string | null;
+  decidedAt: string | null;
+  /** Set while the Director's escalation is waiting for the founder. */
+  escalatedAt: string | null;
+  review: HqDirectorReview | null;
+  reviewNote: string | null;
+  reviewedAt: string | null;
+  reopenCount: number;
 }
 
 export interface HqTask {
@@ -98,6 +121,9 @@ export interface HqTask {
   kind: HqTaskKind;
   goalId: string | null;
   proposal: HqProposal | null;
+  /** Optional: an older backend (and older fixtures) omit these. */
+  founderApprovedAt?: string | null;
+  director?: HqTaskDirector;
 }
 
 export interface HqMessage {
@@ -109,6 +135,43 @@ export interface HqMessage {
   body: string;
   readAt: string | null;
   createdAt: string;
+}
+
+/** Whether a founder message is waiting for, or being answered by, the Director. */
+export interface HqDirectorChatState {
+  queued: boolean;
+  running: boolean;
+}
+
+export interface HqDirectorBrief {
+  taskId: string;
+  taskNumber: number;
+  result: string;
+  completedAt: string | null;
+}
+
+export interface HqDirectorSummary {
+  director: HqMember | null;
+  brief: HqDirectorBrief | null;
+  needsYou: HqTask[];
+  /** Today's plan items (his morning proposals) with their status. Missing on an older backend. */
+  plan?: HqTask[];
+  /** What every agent is working on right now. */
+  runningNow?: HqTask[];
+  decisions: HqEvent[];
+  chat: HqDirectorChatState;
+}
+
+export interface HqDirectorChatPage {
+  /** Oldest first. */
+  items: HqMessage[];
+  chat: HqDirectorChatState;
+}
+
+export interface HqDirectorChatParams {
+  /** Message id: only messages older than it. */
+  before?: number;
+  limit?: number;
 }
 
 export interface HqRun {
@@ -206,6 +269,8 @@ export interface HqPlanWindow {
 export interface HqPlanStatus {
   state: 'ok' | 'auth' | 'limit';
   until: string | null;
+  /** The worker's current gate: everything, only urgent work (incl. the Director's chat), or nothing. */
+  mode?: 'normal' | 'urgent_only' | 'blocked';
   windows: HqPlanWindow[];
 }
 

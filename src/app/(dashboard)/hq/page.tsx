@@ -12,7 +12,7 @@ import { cn } from '@/lib/utils';
 import { departmentInfo } from '@/lib/hq-departments';
 import { greeting, tbilisiLongDate } from '@/lib/hq-pulse';
 import { orderStandupEntries, standupStatusSentence } from '@/lib/hq-standup';
-import type { HqGoal, HqGoalHorizon, HqMemberRef, HqStandup, HqStandupEntry } from '@/types';
+import type { HqGoal, HqGoalHorizon, HqMemberRef, HqStandup, HqStandupEntry, HqTask } from '@/types';
 import { CommandBox } from './command-box';
 import { AddGoalCard, GoalCard, GoalDialog, NorthStarCard } from './goal-ui';
 import { HqStatus } from './hq-status';
@@ -31,6 +31,7 @@ export default function StandupPage() {
   useHqPulse();
   const { data: overview } = useHqOverview();
   const { data: members = [] } = useHqMembers();
+  const directorActive = members.some((m) => m.role === 'director' && m.status === 'active');
   const { openTask } = useTaskSheet();
   const now = useHqClock();
   const [goalDialog, setGoalDialog] = useState<{ goal: HqGoal | null; horizon: HqGoalHorizon } | null>(null);
@@ -68,26 +69,7 @@ export default function StandupPage() {
       </section>
 
       {/* Ideas */}
-      <section>
-        <BigHeading
-          title="💡 Ideas waiting for you"
-          subtitle={
-            standup.proposals.length === 0
-              ? 'No new ideas yet — agents suggest them during the morning standup.'
-              : 'Your agents suggest these to move the goals. Nothing happens until you say “Do it”.'
-          }
-          count={standup.proposals.length}
-        />
-        {standup.proposals.length === 0 ? (
-          <SoftEmpty emoji="🌱">Ideas show up here after each agent’s standup.</SoftEmpty>
-        ) : (
-          <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
-            {standup.proposals.map((t) => (
-              <ProposalCard key={t.id} task={t} goal={t.goalId ? goalById.get(t.goalId) : null} onOpen={openTask} />
-            ))}
-          </div>
-        )}
-      </section>
+      <IdeasSection proposals={standup.proposals} directorActive={directorActive} goalById={goalById} onOpen={openTask} />
 
       {/* Agent updates */}
       <section>
@@ -413,4 +395,62 @@ function SoftEmpty({ emoji, children }: { emoji: string; children: React.ReactNo
 
 function firstName(name: string): string {
   return name.split(/\s+/)[0] || name;
+}
+
+/**
+ * With an active Director, he decides small ideas himself: the founder sees
+ * what he sent up first, and the rest only on demand. Without one, every idea
+ * waits for the founder as before.
+ */
+function IdeasSection({
+  proposals,
+  directorActive,
+  goalById,
+  onOpen,
+}: {
+  proposals: HqTask[];
+  directorActive: boolean;
+  goalById: Map<string, HqGoal>;
+  onOpen: (id: string) => void;
+}) {
+  const [showAll, setShowAll] = useState(false);
+  const sentUp = directorActive ? proposals.filter((t) => t.director?.decision === 'escalated') : proposals;
+  const withDirector = directorActive ? proposals.filter((t) => t.director?.decision !== 'escalated') : [];
+  const grid = (list: HqTask[]) => (
+    <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
+      {list.map((t) => (
+        <ProposalCard key={t.id} task={t} goal={t.goalId ? goalById.get(t.goalId) : null} onOpen={onOpen} />
+      ))}
+    </div>
+  );
+  return (
+    <section>
+      <BigHeading
+        title="💡 Ideas waiting for you"
+        subtitle={
+          directorActive
+            ? sentUp.length === 0
+              ? 'Nothing needs you — the Director decides the small ideas and sends you the big ones.'
+              : 'The Director sent these up for you to decide.'
+            : proposals.length === 0
+              ? 'No new ideas yet — agents suggest them during the morning standup.'
+              : 'Your agents suggest these to move the goals. Nothing happens until you say “Do it”.'
+        }
+        count={sentUp.length}
+      />
+      {sentUp.length === 0 ? (
+        !directorActive && <SoftEmpty emoji="🌱">Ideas show up here after each agent’s standup.</SoftEmpty>
+      ) : (
+        grid(sentUp)
+      )}
+      {withDirector.length > 0 && (
+        <div className="mt-4 space-y-4">
+          <Button variant="ghost" size="sm" className="text-slate-600" onClick={() => setShowAll((v) => !v)}>
+            {showAll ? 'Hide' : 'Show'} {withDirector.length} idea{withDirector.length === 1 ? '' : 's'} the Director will decide
+          </Button>
+          {showAll && grid(withDirector)}
+        </div>
+      )}
+    </section>
+  );
 }
