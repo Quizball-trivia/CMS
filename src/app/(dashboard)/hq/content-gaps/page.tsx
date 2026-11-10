@@ -171,16 +171,33 @@ function Sources({ items }: { items: ContentFix['evidence'] }) {
   if (!items?.length) return <div className="text-xs text-slate-400">No sources.</div>;
   return (
     <ul className="space-y-1.5">
-      {items.map((s, i) => (
+      {items.map((s, i) => {
+        const url = safeWebUrl(s.url);
+        return (
         <li key={`${s.url}-${i}`} className="text-xs">
-          <a href={s.url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 font-medium text-sky-700 hover:underline">
-            {s.publisher ?? new URL(s.url).hostname}<ExternalLink className="h-3 w-3" />
-          </a>
+          {url ? (
+            <a href={url.href} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 font-medium text-sky-700 hover:underline">
+              {s.publisher ?? url.hostname}<ExternalLink className="h-3 w-3" />
+            </a>
+          ) : (
+            <span className="font-medium text-slate-700">{s.publisher ?? s.url}</span>
+          )}
           <blockquote className="mt-0.5 border-l-2 border-slate-200 pl-2 text-slate-600">{s.quote}</blockquote>
         </li>
-      ))}
+        );
+      })}
     </ul>
   );
+}
+
+/** Agent-recorded evidence: link only well-formed http(s) URLs. */
+function safeWebUrl(raw: string): URL | null {
+  try {
+    const url = new URL(raw);
+    return url.protocol === 'https:' || url.protocol === 'http:' ? url : null;
+  } catch {
+    return null;
+  }
 }
 
 function Claim({ fix }: { fix: ContentFix }) {
@@ -302,7 +319,7 @@ function FixCard({ fix }: { fix: ContentFix }) {
         <Pill tone={STATUS_TONE[fix.status]}>{fix.status}</Pill>
       </div>
       <div className="flex flex-wrap gap-1 text-xs text-slate-600">
-        Typed: {fix.gaps.map((g) => <span key={g.id} className="rounded bg-slate-50 px-1.5 ring-1 ring-slate-200">{g.norm} ×{g.count}</span>)}
+        Typed: {(fix.gaps ?? []).map((g) => <span key={g.id} className="rounded bg-slate-50 px-1.5 ring-1 ring-slate-200">{g.norm} ×{g.count}</span>)}
       </div>
       <div className="grid gap-4 md:grid-cols-2">
         <div className="space-y-2">
@@ -323,9 +340,9 @@ function FixCard({ fix }: { fix: ContentFix }) {
           ) : <div className="text-xs text-slate-400">Not checked yet.</div>}
         </div>
       </div>
-      {fix.audit.length > 0 && (
+      {(fix.audit ?? []).length > 0 && (
         <ul className="text-xs text-slate-500">
-          {fix.audit.map((a, i) => <li key={i}>{formatRelative(a.at)}: {a.from} → {a.to} — {a.reason}</li>)}
+          {(fix.audit ?? []).map((a, i) => <li key={i}>{formatRelative(a.at)}: {a.from} → {a.to} — {a.reason}</li>)}
         </ul>
       )}
       <FixActions fix={fix} />

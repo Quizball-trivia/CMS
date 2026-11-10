@@ -79,3 +79,12 @@ it('closed gaps stay reachable (their own tabs) so a person can reopen them', ()
   render(<ContentGapsPage />);
   for (const name of ['Fixed', 'Not an answer', 'Our verdict was right', "Won't fix"]) expect(screen.getByRole('tab', { name })).toBeTruthy();
 });
+
+it('a malformed or non-web source stays plain text and the fix stays actionable', () => {
+  h.fixes = [{ ...(h.fixes[0] as object), evidence: [{ url: 'not a url', quote: 'q1' }, { url: 'javascript:alert(1)', quote: 'q2' }], gaps: undefined, audit: undefined }];
+  render(<ContentGapsPage />);
+  fireEvent.click(screen.getByRole('tab', { name: 'Fixes' }));
+  expect(screen.getByText('not a url')).toBeTruthy();
+  expect(screen.getByText('javascript:alert(1)').closest('a')).toBeNull();
+  expect(screen.getByRole('button', { name: 'Reject' })).toBeTruthy();
+});
