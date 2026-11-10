@@ -13,7 +13,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { useHqMember, useHqMembers, useUpdateHqMember } from '@/hooks';
 import { formatRelative, formatUsd } from '@/lib/hq-board';
 import { departmentHref, departmentInfo } from '@/lib/hq-departments';
-import type { HqMemberDetail, HqMemberStatus } from '@/types';
+import type { HqMember, HqMemberDetail, HqMemberStatus } from '@/types';
 import { EmptyState, MemberAvatar, MemberStatusDot, RefreshErrorBanner, SectionTitle, TaskRow, errorMessage, useTaskSheet } from '../../hq-ui';
 import { NewTaskDialog } from '../../new-task-dialog';
 import { SchedulesTable } from '../../schedules-ui';
@@ -49,10 +49,11 @@ export default function HqMemberPage() {
   );
 }
 
-function BackLink() {
+function BackLink({ kind = 'agent' }: { kind?: HqMember['kind'] }) {
+  const person = kind === 'human';
   return (
-    <Link href="/hq/team" className="inline-flex items-center gap-1 text-sm text-slate-500 hover:text-slate-800">
-      <ArrowLeft className="h-4 w-4" /> Team
+    <Link href={person ? '/hq/people' : '/hq/team'} className="inline-flex items-center gap-1 text-sm text-slate-500 hover:text-slate-800">
+      <ArrowLeft className="h-4 w-4" /> {person ? 'People' : 'Agents'}
     </Link>
   );
 }
@@ -75,7 +76,7 @@ function MemberProfile({ member }: { member: HqMemberDetail }) {
 
   return (
     <div className="space-y-6">
-      <BackLink />
+      <BackLink kind={member.kind} />
 
       {/* Header */}
       <div className="flex flex-wrap items-start gap-4">

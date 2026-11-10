@@ -14,6 +14,11 @@ import type { HqMemberRef, HqMemberStatus, HqPriority, HqRunStatus, HqTask, HqTa
 // ── Page header ──
 
 /** Consistent header for every HQ page: what it is, and what it's for. */
+/** A member's profile: people under /hq/people, agents under /hq/team (the Agents page). */
+export function memberHref(m: { id: string; kind: 'human' | 'agent' }): string {
+  return m.kind === 'human' ? `/hq/people/${m.id}` : `/hq/team/${m.id}`;
+}
+
 export function PageHeader({
   title,
   description,
@@ -244,7 +249,7 @@ export function MemberChip({ member, href = true }: { member: HqMemberRef | null
   );
   if (!member || !href) return inner;
   return (
-    <Link href={`/hq/team/${member.id}`} className="min-w-0 hover:underline" onClick={(e) => e.stopPropagation()}>
+    <Link href={memberHref(member)} className="min-w-0 hover:underline" onClick={(e) => e.stopPropagation()}>
       {inner}
     </Link>
   );
