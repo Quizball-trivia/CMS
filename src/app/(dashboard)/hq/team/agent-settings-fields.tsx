@@ -22,6 +22,7 @@ export const HQ_TOOL_OPTIONS: Array<{ id: HqToolGroup; label: string; hint: stri
   { id: 'web', label: 'Web', hint: 'Search the web and read pages' },
   { id: 'metrics', label: 'Metrics', hint: 'Players, matches and signups (read-only)' },
   { id: 'feedback', label: 'Feedback', hint: 'Recent in-game player feedback (read-only)' },
+  { id: 'answer_gaps', label: 'Answer gaps', hint: 'Rejected typed answers that may be right (read-only)' },
 ];
 
 const COLOR_SWATCH: Record<string, string> = {
