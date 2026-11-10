@@ -482,6 +482,7 @@ const DECISION_ICONS: Record<string, { icon: LucideIcon; tone: string }> = {
   director_escalated: { icon: ArrowUpRight, tone: 'text-amber-600' },
   director_accepted: { icon: BadgeCheck, tone: 'text-emerald-600' },
   director_reopened: { icon: RotateCcw, tone: 'text-blue-600' },
+  director_cancelled: { icon: X, tone: 'text-slate-400' },
   escalation_resolved: { icon: CheckCheck, tone: 'text-slate-500' },
 };
 
