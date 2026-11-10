@@ -1,5 +1,5 @@
 import { keepPreviousData, useInfiniteQuery, useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { hqApi } from '@/lib/hq-api';
 import { logger } from '@/lib/logger';
 import { getErrorLogDetails } from '@/lib/error-feedback';
@@ -11,9 +11,11 @@ import type {
   HqCreateMemberRequest,
   HqCreateScheduleRequest,
   HqCreateTaskRequest,
+  HqDirectorChatPage,
   HqListEventsParams,
   HqListRunsParams,
   HqListTasksParams,
+  HqMessage,
   HqPostMessageRequest,
   HqUpdateMemberRequest,
   HqUpdateScheduleRequest,
@@ -27,6 +29,9 @@ import type {
 // invalidates the affected queries, so edits still show at once.
 export const HQ_LIVE_REFETCH_MS = 5000;
 export const HQ_SLOW_REFETCH_MS = 30_000;
+/** The Director chat polls fast only while a founder message is waiting for, or being answered by, the Director. */
+export const HQ_CHAT_REFETCH_MS = 3000;
+const DIRECTOR_CHAT_PAGE_SIZE = 50;
 const EVENTS_PAGE_SIZE = 100;
 
 export const hqKeys = {
@@ -55,6 +60,9 @@ export const hqKeys = {
   analytics: (days: number) => [...hqKeys.all, 'analytics', days] as const,
   posthog: (days: number) => [...hqKeys.all, 'posthog', days] as const,
   pulse: () => [...hqKeys.all, 'pulse'] as const,
+  director: () => [...hqKeys.all, 'director'] as const,
+  directorSummary: () => [...hqKeys.director(), 'summary'] as const,
+  directorChat: () => [...hqKeys.director(), 'chat'] as const,
 };
 
 /** Anything that changes tasks can move overview counters, member stats and the feed. */
@@ -65,6 +73,8 @@ function invalidateWork(queryClient: QueryClient) {
   queryClient.invalidateQueries({ queryKey: hqKeys.events() });
   queryClient.invalidateQueries({ queryKey: hqKeys.departments() });
   queryClient.invalidateQueries({ queryKey: hqKeys.standup() });
+  // His "Needs you" list and decisions are derived from the same tasks.
+  queryClient.invalidateQueries({ queryKey: hqKeys.directorSummary() });
 }
 
 function logFailure(message: string) {
@@ -291,6 +301,7 @@ export function useUpdateHqMember() {
     mutationFn: ({ id, data }: { id: string; data: HqUpdateMemberRequest }) => hqApi.updateMember(id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: hqKeys.members() });
+      queryClient.invalidateQueries({ queryKey: hqKeys.directorSummary() });
       queryClient.invalidateQueries({ queryKey: hqKeys.departments() });
       queryClient.invalidateQueries({ queryKey: hqKeys.overview() });
       queryClient.invalidateQueries({ queryKey: hqKeys.events() });
@@ -476,6 +487,116 @@ export function useDeclineHqProposal() {
     mutationFn: ({ id, note }: { id: string; note?: string }) => hqApi.declineProposal(id, note),
     onSuccess: () => invalidateWork(queryClient),
     onError: logFailure('Failed to decline the idea'),
+  });
+}
+
+// ── Director ──
+
+export function useHqDirector() {
+  return useQuery({
+    queryKey: hqKeys.directorSummary(),
+    queryFn: () => hqApi.director(),
+    refetchInterval: HQ_SLOW_REFETCH_MS,
+  });
+}
+
+/**
+ * The founder ↔ Director conversation. The query holds the latest page (what polling and sending refresh);
+ * "Load earlier" pages live in local state so a refetch never throws away history the reader scrolled back to.
+ */
+export function useHqDirectorChat() {
+  const queryClient = useQueryClient();
+  const query = useQuery({
+    queryKey: hqKeys.directorChat(),
+    queryFn: () => hqApi.directorChat(),
+    refetchInterval: (q) => (q.state.data?.chat.queued || q.state.data?.chat.running ? HQ_CHAT_REFETCH_MS : HQ_SLOW_REFETCH_MS),
+  });
+  const [older, setOlder] = useState<HqMessage[]>([]);
+  const [exhausted, setExhausted] = useState(false);
+  const [loadingEarlier, setLoadingEarlier] = useState(false);
+  const [earlierError, setEarlierError] = useState<unknown>(null);
+
+  const latest = query.data?.items;
+  // Every latest page is kept, not just the newest one: once new messages push
+  // older ones off the latest page, they would otherwise fall into a gap that
+  // "Load earlier" (which pages before the first message) can't fill.
+  const [seen, setSeen] = useState<HqMessage[]>([]);
+  useEffect(() => {
+    if (!latest?.length) return;
+    setSeen((prev) => {
+      const byId = new Map(prev.map((m) => [m.id, m]));
+      for (const m of latest) byId.set(m.id, m);
+      return [...byId.values()];
+    });
+  }, [latest]);
+  const messages = useMemo(() => {
+    const byId = new Map<number, HqMessage>();
+    for (const m of older) byId.set(m.id, m);
+    for (const m of seen) byId.set(m.id, m);
+    for (const m of latest ?? []) byId.set(m.id, m);
+    return [...byId.values()].sort((a, b) => a.id - b.id);
+  }, [older, seen, latest]);
+  const hasEarlier = !exhausted && (older.length > 0 || (latest?.length ?? 0) >= DIRECTOR_CHAT_PAGE_SIZE);
+  const firstId = messages[0]?.id;
+
+  const loadEarlier = useCallback(async () => {
+    if (firstId === undefined) return;
+    setLoadingEarlier(true);
+    setEarlierError(null);
+    try {
+      const page = await hqApi.directorChat({ before: firstId, limit: DIRECTOR_CHAT_PAGE_SIZE });
+      setOlder((prev) => [...page.items, ...prev]);
+      if (page.items.length < DIRECTOR_CHAT_PAGE_SIZE) setExhausted(true);
+    } catch (error) {
+      logFailure('Failed to load earlier messages')(error);
+      setEarlierError(error);
+    } finally {
+      setLoadingEarlier(false);
+    }
+  }, [firstId]);
+
+  // When the Director finishes answering he may have approved, declined or escalated ideas: refresh his side panel now.
+  const busy = !!(query.data?.chat.queued || query.data?.chat.running);
+  const wasBusy = useRef(false);
+  useEffect(() => {
+    if (wasBusy.current && !busy) queryClient.invalidateQueries({ queryKey: hqKeys.directorSummary() });
+    wasBusy.current = busy;
+  }, [busy, queryClient]);
+
+  return {
+    data: query.data,
+    isLoading: query.isLoading,
+    error: query.error,
+    refetch: query.refetch,
+    messages,
+    chat: query.data?.chat ?? { queued: false, running: false },
+    hasEarlier,
+    loadEarlier,
+    loadingEarlier,
+    earlierError,
+  };
+}
+
+/** Sends a founder message; the response is the fresh latest page, so the message shows at once. */
+export function useSendDirectorChat() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (body: string) => hqApi.sendDirectorChat(body),
+    onSuccess: (page: HqDirectorChatPage) => {
+      queryClient.setQueryData(hqKeys.directorChat(), page);
+      queryClient.invalidateQueries({ queryKey: hqKeys.directorSummary() });
+    },
+    onError: logFailure('Failed to send message to the Director'),
+  });
+}
+
+/** The founder dealt with something the Director sent up. */
+export function useResolveEscalation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => hqApi.resolveEscalation(id),
+    onSuccess: () => invalidateWork(queryClient),
+    onError: logFailure('Failed to mark as handled'),
   });
 }
 

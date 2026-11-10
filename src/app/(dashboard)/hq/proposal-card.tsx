@@ -22,6 +22,26 @@ import { MemberAvatar, errorMessage } from './hq-ui';
 
 const EFFORT_STYLES = { s: 'bg-emerald-50 text-emerald-700', m: 'bg-amber-50 text-amber-800', l: 'bg-rose-50 text-rose-700' } as const;
 
+/** What the Director did with this idea: amber when he sent it up to the founder, muted for his own call. */
+export function DirectorNote({ task, className }: { task: HqTask; className?: string }) {
+  const d = task.director;
+  if (!d?.decision) return null;
+  if (d.decision === 'escalated') {
+    return (
+      <p className={cn('rounded-lg bg-amber-50 px-3 py-1.5 text-xs text-amber-800', className)}>
+        <span className="font-semibold">Sent to you by the Director</span>
+        {d.note ? ` — ${d.note}` : ''}
+      </p>
+    );
+  }
+  return (
+    <p className={cn('text-xs text-slate-400', className)}>
+      Director {d.decision}
+      {d.note ? `: ${d.note}` : ''}
+    </p>
+  );
+}
+
 /**
  * An agent's idea waiting for the CEO. Three big actions: Do it (the agent
  * starts), Change (edit, then do it), Not now (declined; the note reaches the
@@ -62,6 +82,7 @@ export function ProposalCard({ task, goal, onOpen }: { task: HqTask; goal?: HqGo
         <h3 className="text-2xl font-extrabold leading-tight tracking-tight text-slate-900 hover:underline">{task.title}</h3>
       </button>
       {p?.why && <p className="mt-2 line-clamp-2 text-base text-slate-600">{p.why}</p>}
+      <DirectorNote task={task} className="mt-3" />
 
       <div className="mt-4 flex flex-wrap gap-2 text-sm">
         {p?.expectedImpact && (
@@ -251,6 +272,7 @@ export function ProposalPanel({ task }: { task: HqTask }) {
   return (
     <section className="space-y-3 rounded-2xl border-2 border-violet-200 bg-violet-50/40 p-4">
       <div className="text-xs font-bold uppercase tracking-wide text-violet-700">💡 Idea from {task.createdBy?.name ?? task.assignee?.name ?? 'an agent'}</div>
+      <DirectorNote task={task} />
       {p?.why && (
         <p className="text-sm text-slate-700">
           <span className="font-semibold text-slate-900">Why: </span>

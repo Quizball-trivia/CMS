@@ -21,6 +21,9 @@ import type {
   HqCreateScheduleRequest,
   HqCreateTaskRequest,
   HqDepartment,
+  HqDirectorChatPage,
+  HqDirectorChatParams,
+  HqDirectorSummary,
   HqEvent,
   HqListEventsParams,
   HqListRunsParams,
@@ -180,6 +183,22 @@ export const hqApi = {
   },
   declineProposal(id: string, note?: string): Promise<HqTask> {
     return apiClient.post<HqTask>(`${BASE}/tasks/${id}/decline-proposal`, note ? { note } : {});
+  },
+
+  resolveEscalation(id: string): Promise<HqTask> {
+    return apiClient.post<HqTask>(`${BASE}/tasks/${id}/resolve-escalation`, {});
+  },
+
+  // ── Director ──
+  director(): Promise<HqDirectorSummary> {
+    return apiClient.get<HqDirectorSummary>(`${BASE}/director`);
+  },
+  /** Without `before` this also marks the Director's replies as read. */
+  directorChat(params: HqDirectorChatParams = {}): Promise<HqDirectorChatPage> {
+    return apiClient.get<HqDirectorChatPage>(`${BASE}/director/chat`, { before: params.before, limit: params.limit });
+  },
+  sendDirectorChat(body: string): Promise<HqDirectorChatPage> {
+    return apiClient.post<HqDirectorChatPage>(`${BASE}/director/chat`, { body });
   },
 
   // ── Analytics ──
