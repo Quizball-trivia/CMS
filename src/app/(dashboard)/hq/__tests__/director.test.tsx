@@ -6,6 +6,7 @@ const h = vi.hoisted(() => ({
   settings: undefined as unknown,
   summary: undefined as unknown,
   summaryError: null as unknown,
+  builds: [] as unknown[],
   chat: {} as Record<string, unknown>,
   openTask: vi.fn(),
   sendMutate: vi.fn(),
@@ -26,6 +27,7 @@ vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 vi.mock('@/hooks', () => ({
   useHqDirector: () => ({ data: h.summary, isLoading: false, error: h.summaryError, refetch: vi.fn() }),
   useHqDirectorChat: () => h.chat,
+  useHqBuilds: () => ({ data: h.builds }),
   useSendDirectorChat: () => ({ mutate: h.sendMutate, isPending: h.sending }),
   useUpdateHqMember: () => ({ mutate: h.updateMutate, isPending: false }),
   useResolveEscalation: () => ({ mutate: h.resolveMutate, isPending: false }),
@@ -94,6 +96,7 @@ function summary(extra: Partial<HqDirectorSummary> = {}): HqDirectorSummary {
 beforeEach(() => {
   h.summary = summary();
   h.summaryError = null;
+  h.builds = [];
   h.sending = false;
   h.chat = {
     data: { items: [], chat: { queued: false, running: false } },
@@ -124,10 +127,27 @@ describe('Director page', () => {
     expect(screen.getByText('Director switched model')).toBeTruthy();
 
     expect(screen.getByText('Sponsor the invented club cup')).toBeTruthy();
+    // Romero's note, the brief and his calls stay folded until asked for.
+    expect(screen.queryByText('Spends real money — your call.')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Why' }));
     expect(screen.getByText('Spends real money — your call.')).toBeTruthy();
-    expect(screen.getByText('invented league').tagName).toBe('STRONG');
+
     expect(screen.getByRole('button', { name: /#77/ })).toBeTruthy();
+    expect(screen.queryByText('invented league')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: /Today’s brief/ }));
+    expect(screen.getByText('invented league').tagName).toBe('STRONG');
+    fireEvent.click(screen.getByRole('button', { name: /recent calls/ }));
     expect(screen.getByText('Approved “Weekly recap thread”')).toBeTruthy();
+  });
+
+  it('puts the founder’s numbers on top and tags why each item needs him', () => {
+    render(<DirectorPage />);
+    const band = screen.getByRole('region', { name: 'At a glance' });
+    expect(band.textContent).toMatch(/Needs you1/);
+    expect(band.textContent).toMatch(/1 only you can decide/);
+    expect(band.textContent).toMatch(/Waiting for your OK0/);
+    expect(screen.getByText('Costs money')).toBeTruthy();
+    expect(screen.getByText(/Nothing is waiting for your OK/)).toBeTruthy();
   });
 
   it('shows the Tbilisi time on messages', () => {
@@ -203,7 +223,7 @@ describe('Director page', () => {
     expect(h.declineMutate.mock.calls[0][0]).toEqual({ id: 't3' });
   });
 
-  it('lets the founder overrule: "Do it" on a declined idea, "Not now" on an approved one', () => {
+  it('lets the founder stop an idea Romero approved; a cancelled one is not shown at all', () => {
     h.summary = summary({
       needsYou: [
         task('t4', 44, 'Declined idea', { status: 'cancelled', director: { ...noDecision, decision: 'declined', note: 'Off-brand' } }),
@@ -211,7 +231,8 @@ describe('Director page', () => {
       ],
     });
     render(<DirectorPage />);
-    expect(screen.getAllByRole('button', { name: /do it/i })).toHaveLength(1);
+    expect(screen.queryByText('Declined idea')).toBeNull();
+    expect(screen.queryByRole('button', { name: /do it/i })).toBeNull();
     expect(screen.getAllByRole('button', { name: /not now/i })).toHaveLength(1);
     expect(screen.queryByRole('button', { name: /handled/i })).toBeNull();
   });
@@ -274,30 +295,81 @@ describe('why a queued message waits', () => {
   });
 });
 
-describe("today's plan and right now", () => {
-  it('shows plan items to approve (not twice under Needs you) and what agents are doing', async () => {
+describe("today's plan, in progress and done today", () => {
+  it('lists a plan item once under Needs you, and running work under In progress', async () => {
     const { render, screen, fireEvent } = await import('@testing-library/react');
     const item = task('p1', 60, 'Refresh the invented derby page', { director: { ...noDecision, decision: 'escalated', escalatedAt: '2026-11-10T05:30:00Z' } });
-    const running = task('r1', 61, 'Audit invented club crests', { status: 'in_progress' });
+    const running = task('r1', 61, 'Audit invented club crests', { status: 'in_progress', kind: 'task' });
     h.summary = summary({ plan: [item], needsYou: [item], runningNow: [running] });
     render(<DirectorPage />);
-    expect(screen.getByText('Today’s plan')).toBeTruthy();
+    expect(screen.queryByText('Today’s plan')).toBeNull();
     expect(screen.getAllByText('Refresh the invented derby page')).toHaveLength(1);
-    expect(screen.getByText('Audit invented club crests')).toBeTruthy();
+    const inProgress = screen.getByRole('region', { name: 'In progress' });
+    expect(inProgress.textContent).toContain('Audit invented club crests');
     fireEvent.click(screen.getByRole('button', { name: /do it/i }));
     expect(h.acceptMutate.mock.calls.at(-1)![0]).toEqual({ id: 'p1' });
+  });
+
+  it('shows a running build with its pipeline instead of its Builder task, and a release with its PR', async () => {
+    const { render, screen } = await import('@testing-library/react');
+    const builderTask = task('bt1', 70, 'Build #4: Invented league ticker', { status: 'in_progress', kind: 'task' });
+    const handIn = task('bt2', 71, 'Build #5: Invented cup badge', {
+      status: 'done', kind: 'task', director: { ...noDecision, escalatedAt: '2026-11-10T09:00:00Z' },
+    });
+    const job = (id: string, number: number, stage: string, taskId: string, extra = {}) => ({
+      id, number, stage, note: null, runsUsed: 3, runLimit: 40, startedAt: null, finishedAt: null, taskId, prs: [],
+      proof: { redGreen: true, reviews: 1, playtests: 0 }, ...extra,
+    });
+    h.builds = [
+      { id: 'b4', number: 4, title: 'Invented league ticker', kind: 'feature', repos: ['web'], status: 'approved', requestedBy: null,
+        spec: '## Why\nFans of the invented league miss live scores.', directorSpec: null, directorNote: null, createdAt: '', decidedAt: null,
+        job: job('j4', 2, 'reviewing', 'bt1') },
+      { id: 'b5', number: 5, title: 'Invented cup badge', kind: 'feature', repos: ['backend'], status: 'approved', requestedBy: null,
+        spec: 'Spec', directorSpec: null, directorNote: null, createdAt: '', decidedAt: null,
+        job: job('j5', 3, 'published', 'bt2', { prs: [{ repo: 'backend', url: 'https://github.com/example/backend/pull/12' }] }) },
+    ];
+    h.summary = summary({ needsYou: [handIn], runningNow: [builderTask] });
+    render(<DirectorPage />);
+    const inProgress = screen.getByRole('region', { name: 'In progress' });
+    expect(inProgress.textContent).toContain('Build #4');
+    expect(inProgress.textContent).toContain('Fans of the invented league miss live scores.');
+    expect(inProgress.textContent).not.toContain('Build #4: Invented league ticker');
+    expect(inProgress.querySelector('[aria-current="step"]')!.textContent).toBe('GPT review');
+    expect(screen.getByText('PR to merge')).toBeTruthy();
+    expect(screen.getByRole('link', { name: /backend #12/ }).getAttribute('href')).toBe('https://github.com/example/backend/pull/12');
+    expect(screen.getByRole('region', { name: 'At a glance' }).textContent).toMatch(/Waiting for your OK1/);
+  });
+
+  it('lists today’s finished work, a routine once with its count', async () => {
+    const { render, screen } = await import('@testing-library/react');
+    const routine = (id: string, at: string) =>
+      task(id, Number(id.slice(1)), 'Sweep the invented queue', { status: 'done', kind: 'task', scheduleId: 's1', completedAt: at, result: '## Swept 4 items' });
+    h.summary = summary({
+      doneToday: [
+        routine('d1', '2026-11-09T10:00:00Z'),
+        task('d2', 2, 'Check the invented deploy', { status: 'done', kind: 'task', completedAt: '2026-11-09T09:00:00Z', result: 'Everything works.' }),
+        routine('d3', '2026-11-09T08:00:00Z'),
+      ],
+    });
+    render(<DirectorPage />);
+    const done = screen.getByRole('region', { name: 'Done today' });
+    expect(done.querySelectorAll('li')).toHaveLength(2);
+    expect(done.textContent).toContain('Sweep the invented queue — Swept 4 items');
+    expect(done.textContent).toContain('×2');
+    expect(done.textContent).toContain('14:00');
   });
 });
 
 describe('plan items that need the founder again', () => {
-  it('stay under Needs you once approved and blocked', async () => {
-    const { render, screen } = await import('@testing-library/react');
+  it('stay under Needs you once approved and blocked, with the note behind "why"', async () => {
+    const { render, screen, fireEvent } = await import('@testing-library/react');
     const item = task('p2', 70, 'Rework the invented cup page', {
       status: 'blocked', director: { ...noDecision, decision: 'escalated', note: 'Needs a call on scope.', escalatedAt: '2026-11-10T09:00:00Z' },
     });
     h.summary = summary({ plan: [item], needsYou: [item], runningNow: [] });
     render(<DirectorPage />);
-    expect(screen.getAllByText('Rework the invented cup page').length).toBeGreaterThanOrEqual(2);
+    expect(screen.getAllByText('Rework the invented cup page')).toHaveLength(1);
+    fireEvent.click(screen.getByRole('button', { name: 'Why' }));
     expect(screen.getByText(/Needs a call on scope/)).toBeTruthy();
   });
 });

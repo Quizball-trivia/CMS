@@ -159,6 +159,8 @@ export interface HqDirectorSummary {
   plan?: HqTask[];
   /** What every agent is working on right now. */
   runningNow?: HqTask[];
+  /** Work finished today (Tbilisi) that waits on no one, newest first. Missing on an older backend. */
+  doneToday?: HqTask[];
   decisions: HqEvent[];
   chat: HqDirectorChatState;
 }
@@ -590,6 +592,17 @@ export interface HqBuildJob {
   runLimit: number;
   startedAt: string | null;
   finishedAt: string | null;
+  /** Optional: an older backend omits these. The Builder's task (its hand-in reaches the founder). */
+  taskId?: string | null;
+  /** Draft PRs the publisher opened, one per repo. */
+  prs?: HqBuildPr[];
+  /** What the Builder has proven so far: a red/green test run, GPT code reviews asked for, play-test rounds. */
+  proof?: { redGreen: boolean; reviews: number; playtests: number };
+}
+
+export interface HqBuildPr {
+  repo: string;
+  url: string;
 }
 
 export interface HqBuild {
