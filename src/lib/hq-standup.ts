@@ -51,6 +51,7 @@ export function proposalBody(p: HqProposal): string {
 export const GOAL_METRIC_LABELS: Record<HqGoalMetric, string> = {
   new_users: 'New players',
   active_players: 'Weekly active players',
+  daily_active_players: 'Daily active players',
   matches: 'Matches played',
   d7_retention: 'Day-7 retention',
   avg_rating: 'Player rating',

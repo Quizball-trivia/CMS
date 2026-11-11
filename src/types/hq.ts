@@ -439,7 +439,7 @@ export interface HqUpdateSettingsRequest {
 // ── v3: goals, standup, analytics ──
 
 export type HqGoalHorizon = 'north_star' | 'week' | 'day';
-export type HqGoalMetric = 'new_users' | 'active_players' | 'matches' | 'd7_retention' | 'avg_rating';
+export type HqGoalMetric = 'new_users' | 'active_players' | 'daily_active_players' | 'matches' | 'd7_retention' | 'avg_rating';
 export type HqGoalStatus = 'active' | 'achieved' | 'dropped';
 
 export interface HqGoal {
