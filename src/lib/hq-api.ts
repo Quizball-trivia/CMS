@@ -9,6 +9,8 @@ import { normalizeTaskSearch } from '@/lib/hq-board';
 import type {
   HqAcceptProposalRequest,
   HqAnalytics,
+  HqBuild,
+  HqCancelBuildResult,
   HqGoal,
   HqGoalHorizon,
   HqGoalPage,
@@ -17,6 +19,7 @@ import type {
   HqGoalWriteRequest,
   HqPosthog,
   HqStandup,
+  HqSubmitBuildRequest,
   HqCreateMemberRequest,
   HqCreateScheduleRequest,
   HqCreateTaskRequest,
@@ -199,6 +202,17 @@ export const hqApi = {
   },
   sendDirectorChat(body: string): Promise<HqDirectorChatPage> {
     return apiClient.post<HqDirectorChatPage>(`${BASE}/director/chat`, { body });
+  },
+
+  // ── Builds ──
+  listBuilds(): Promise<ItemsResponse<HqBuild>> {
+    return apiClient.get<ItemsResponse<HqBuild>>(`${BASE}/builds`);
+  },
+  submitBuild(data: HqSubmitBuildRequest): Promise<HqBuild> {
+    return apiClient.post<HqBuild>(`${BASE}/builds`, data);
+  },
+  cancelBuild(requestId: string, note: string): Promise<HqCancelBuildResult> {
+    return apiClient.post<HqCancelBuildResult>(`${BASE}/builds/${requestId}/cancel`, { note });
   },
 
   // ── Analytics ──

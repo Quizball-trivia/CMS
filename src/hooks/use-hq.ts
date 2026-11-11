@@ -17,6 +17,7 @@ import type {
   HqListTasksParams,
   HqMessage,
   HqPostMessageRequest,
+  HqSubmitBuildRequest,
   HqUpdateMemberRequest,
   HqUpdateScheduleRequest,
   HqUpdateSettingsRequest,
@@ -63,6 +64,7 @@ export const hqKeys = {
   director: () => [...hqKeys.all, 'director'] as const,
   directorSummary: () => [...hqKeys.director(), 'summary'] as const,
   directorChat: () => [...hqKeys.director(), 'chat'] as const,
+  builds: () => [...hqKeys.all, 'builds'] as const,
 };
 
 /** Anything that changes tasks can move overview counters, member stats and the feed. */
@@ -597,6 +599,34 @@ export function useResolveEscalation() {
     mutationFn: (id: string) => hqApi.resolveEscalation(id),
     onSuccess: () => invalidateWork(queryClient),
     onError: logFailure('Failed to mark as handled'),
+  });
+}
+
+// ── Builds ──
+
+export function useHqBuilds() {
+  return useQuery({
+    queryKey: hqKeys.builds(),
+    queryFn: async () => (await hqApi.listBuilds()).items,
+    refetchInterval: HQ_SLOW_REFETCH_MS,
+  });
+}
+
+export function useSubmitBuild() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (data: HqSubmitBuildRequest) => hqApi.submitBuild(data),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: hqKeys.builds() }),
+    onError: logFailure('Failed to submit the build request'),
+  });
+}
+
+export function useCancelBuild() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, note }: { id: string; note: string }) => hqApi.cancelBuild(id, note),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: hqKeys.builds() }),
+    onError: logFailure('Failed to cancel the build request'),
   });
 }
 

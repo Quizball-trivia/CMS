@@ -562,3 +562,61 @@ export type HqPosthog =
     }
   /** Configured, but PostHog failed this time. */
   | { connected: true; error: string };
+
+// ── Builds ──
+// A person asks for a build; the Director reviews the request; the sealed Builder builds it.
+
+export type HqBuildKind = 'game_mode' | 'feature' | 'bug_fix' | 'other';
+export type HqBuildRepo = 'backend' | 'web' | 'cms';
+export type HqBuildStatus = 'submitted' | 'changes_requested' | 'declined' | 'approved' | 'cancelled';
+export type HqBuildStage =
+  | 'queued'
+  | 'building'
+  | 'reviewing'
+  | 'testing'
+  | 'rating'
+  | 'ready_to_publish'
+  | 'published'
+  | 'done'
+  | 'failed'
+  | 'cancelled';
+
+export interface HqBuildJob {
+  id: string;
+  number: number;
+  stage: HqBuildStage;
+  note: string | null;
+  runsUsed: number;
+  runLimit: number;
+  startedAt: string | null;
+  finishedAt: string | null;
+}
+
+export interface HqBuild {
+  id: string;
+  number: number;
+  title: string;
+  kind: HqBuildKind;
+  repos: HqBuildRepo[];
+  status: HqBuildStatus;
+  requestedBy: string | null;
+  spec: string;
+  /** The Director's edited version of the spec, when he changed it. */
+  directorSpec: string | null;
+  directorNote: string | null;
+  createdAt: string;
+  decidedAt: string | null;
+  job: HqBuildJob | null;
+}
+
+export interface HqSubmitBuildRequest {
+  title: string;
+  spec: string;
+  kind: HqBuildKind;
+  repos: HqBuildRepo[];
+}
+
+/** `build_stopped`: the request was approved and its running build was stopped. */
+export interface HqCancelBuildResult {
+  result: 'cancelled' | 'build_stopped';
+}
