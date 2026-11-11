@@ -39,3 +39,6 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Local data snapshots (real HQ data for dev previews; this repo is public)
+/.local/
