@@ -78,7 +78,7 @@ export function NorthStarCard({ goal, onEdit, onCreate, now }: { goal: HqGoal | 
         <span className="grid h-20 w-20 shrink-0 place-items-center rounded-full bg-slate-100 text-4xl">⭐</span>
         <span>
           <span className="block text-2xl font-bold text-slate-900">Set your North Star</span>
-          <span className="mt-1 block text-base text-slate-500">The one big goal every agent works toward — e.g. “10,000 weekly active players”.</span>
+          <span className="mt-1 block text-base text-slate-500">The one big goal every agent works toward — e.g. “5,000 daily active players”.</span>
         </span>
       </button>
     );
@@ -94,7 +94,7 @@ export function NorthStarCard({ goal, onEdit, onCreate, now }: { goal: HqGoal | 
         <h2 className="mt-2 text-3xl font-extrabold leading-tight tracking-tight sm:text-4xl">{goal.title}</h2>
         <div className="mt-3 flex flex-wrap items-baseline gap-x-4 gap-y-1">
           <span className="text-2xl font-bold">{goalProgressLabel(goal)}</span>
-          {goal.metric && <span className="text-base text-slate-300">{GOAL_METRIC_LABELS[goal.metric].toLowerCase()}</span>}
+          {goal.metric && <span className="text-base text-slate-300">{(GOAL_METRIC_LABELS[goal.metric] ?? goal.metric).toLowerCase()}</span>}
           <span className="text-sm text-slate-400">by {formatPeriod(goal.periodEnd, goal.periodEnd, now)}</span>
         </div>
       </div>
@@ -273,7 +273,7 @@ function GoalForm({ goal, defaultHorizon, onDone }: { goal: HqGoal | null; defau
           ))}
         </div>
 
-        <Input autoFocus value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. 10,000 weekly active players" maxLength={200} className="h-12 text-lg" />
+        <Input autoFocus value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. 5,000 daily active players" maxLength={200} className="h-12 text-lg" />
         <Textarea rows={2} value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Why it matters (optional)" />
 
         <div className="grid gap-3 sm:grid-cols-2">
