@@ -35,7 +35,8 @@ export function PageHeader({
   return (
     <header className="flex flex-wrap items-start gap-4 pb-1">
       {icon && <div className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-white text-2xl shadow-sm ring-1 ring-slate-200">{icon}</div>}
-      <div className="min-w-0 flex-1">
+      {/* A floor on the width so the actions wrap below the title on a phone instead of squeezing it. */}
+      <div className="min-w-[12rem] flex-1">
         {eyebrow && <div className="mb-0.5 text-xs font-semibold uppercase tracking-wider text-slate-400">{eyebrow}</div>}
         <h1 className="text-2xl font-bold tracking-tight text-slate-900">{title}</h1>
         {description && <p className="mt-1 max-w-3xl text-sm text-slate-500">{description}</p>}
