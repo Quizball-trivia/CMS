@@ -94,7 +94,7 @@ export function NorthStarCard({ goal, onEdit, onCreate, now }: { goal: HqGoal | 
         <h2 className="mt-2 text-3xl font-extrabold leading-tight tracking-tight sm:text-4xl">{goal.title}</h2>
         <div className="mt-3 flex flex-wrap items-baseline gap-x-4 gap-y-1">
           <span className="text-2xl font-bold">{goalProgressLabel(goal)}</span>
-          {goal.metric && <span className="text-base text-slate-300">{GOAL_METRIC_LABELS[goal.metric].toLowerCase()}</span>}
+          {goal.metric && <span className="text-base text-slate-300">{(GOAL_METRIC_LABELS[goal.metric] ?? goal.metric).toLowerCase()}</span>}
           <span className="text-sm text-slate-400">by {formatPeriod(goal.periodEnd, goal.periodEnd, now)}</span>
         </div>
       </div>
