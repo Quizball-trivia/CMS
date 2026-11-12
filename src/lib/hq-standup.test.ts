@@ -45,7 +45,7 @@ describe('standupStatusSentence', () => {
   });
   it('reads naturally for all-reported, one idea, and nothing', () => {
     expect(standupStatusSentence({ entries: [entry('a', 'A', {})], waitingOn: [], proposals: [{}] as never })).toBe('All 1 agent reported · 1 idea waiting for you');
-    expect(standupStatusSentence({ entries: [], waitingOn: [], proposals: [] })).toBe('No agents on the team yet · no ideas waiting');
+    expect(standupStatusSentence({ entries: [], waitingOn: [], proposals: [] })).toBe('No agent updates yet today · no ideas waiting');
   });
 });
 

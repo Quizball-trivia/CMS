@@ -2,6 +2,15 @@
 @import "tw-animate-css";
 
 @custom-variant dark (&:is(.dark *));
+/* Sidebar "wide" layout: from lg up, and always inside the phone navigation drawer. */
+@custom-variant navwide {
+  @media (width >= 64rem) {
+    @slot;
+  }
+  &:where([data-nav-wide] *) {
+    @slot;
+  }
+}
 
 @theme inline {
   --color-background: var(--background);

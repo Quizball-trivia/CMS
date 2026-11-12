@@ -10,6 +10,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { LogOut } from 'lucide-react';
+import { MobileNav } from './mobile-nav';
 
 export function Header() {
   const { user, logout } = useAuth();
@@ -23,7 +24,8 @@ export function Header() {
     : user?.email?.[0].toUpperCase() || '?';
 
   return (
-    <header className="h-16 bg-background/40 backdrop-blur-xl flex items-center justify-end px-6 sticky top-0 z-10">
+    <header className="h-16 border-b border-slate-200 bg-white/90 backdrop-blur flex items-center justify-between gap-3 px-4 md:justify-end md:px-6 sticky top-0 z-10">
+      <MobileNav />
       <div className="flex items-center gap-4">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
@@ -34,7 +36,7 @@ export function Header() {
               </Avatar>
               <div className="flex flex-col items-start text-left hidden sm:flex">
                 <span className="text-xs font-bold leading-none tracking-tight">{user?.nickname || 'Admin'}</span>
-                <span className="text-[10px] text-muted-foreground/60 leading-none mt-1 font-medium">{user?.role || 'Administrator'}</span>
+                <span className="text-[11px] text-slate-500 leading-none mt-1 font-medium">{user?.role || 'Administrator'}</span>
               </div>
             </Button>
           </DropdownMenuTrigger>

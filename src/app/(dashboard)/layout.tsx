@@ -51,20 +51,13 @@ export default function DashboardLayout({
 
   return (
     <div className="min-h-screen flex flex-col bg-[#f8fafc] dark:bg-[#020617] selection:bg-primary/30 selection:text-primary">
-      {/* Decorative background elements for glassmorphism */}
-      <div className="fixed inset-0 overflow-hidden pointer-events-none -z-10">
-        <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-primary/10 rounded-full blur-[120px] animate-pulse" />
-        <div className="absolute top-[20%] right-[-5%] w-[30%] h-[30%] bg-blue-400/10 rounded-full blur-[100px] animate-pulse delay-700" />
-        <div className="absolute bottom-[-5%] left-[20%] w-[35%] h-[35%] bg-purple-400/10 rounded-full blur-[110px] animate-pulse delay-1000" />
-      </div>
-
       <EnvironmentBanner />
 
       <div className="flex flex-1 min-h-0">
         <Sidebar />
         <div className="flex-1 flex flex-col min-w-0 transition-all duration-300 ease-in-out">
           <Header />
-          <main className="flex-1 p-6 overflow-y-auto animate-in fade-in duration-500">
+          <main className="flex-1 p-4 md:p-6 overflow-y-auto">
             <div className="max-w-[1800px] mx-auto space-y-6">
               {/* Ties each existing tool page to its HQ department (admins only; not on HQ pages). */}
               {cmsRole(user?.role) === 'admin' && departmentForPath(pathname) && (

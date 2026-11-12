@@ -1,11 +1,10 @@
 import Link from 'next/link';
-import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
-import { formatRelative, formatUsd } from '@/lib/hq-board';
+import { formatRelative } from '@/lib/hq-board';
 import type { HqMember } from '@/types';
-import { MemberAvatar, MemberStatusDot, memberHref } from '../hq-ui';
+import { MemberAvatar, memberHref } from '../hq-ui';
 
-const RUNTIME_LABELS: Record<HqMember['runtime'], string> = {
+export const RUNTIME_LABELS: Record<HqMember['runtime'], string> = {
   hq: 'HQ agent',
   question_agents: 'Question pipeline',
   bug_triage: 'Bug triage pipeline',
@@ -13,66 +12,71 @@ const RUNTIME_LABELS: Record<HqMember['runtime'], string> = {
   none: 'Person',
 };
 
+/**
+ * Agents are on, working or paused. People show a status only when their account isn't active
+ * (e.g. archived), so it never reads like a second "last active" signal.
+ */
+export function MemberState({ member: m, busy }: { member: Pick<HqMember, 'kind' | 'status'>; busy: boolean }) {
+  if (m.kind === 'human' && m.status === 'active') return null;
+  const word = m.status !== 'active' ? m.status : busy ? 'working' : 'on';
+  const dot = m.status !== 'active' ? 'bg-slate-300' : busy ? 'animate-pulse bg-blue-500' : 'bg-emerald-500';
+  return (
+    <span className="inline-flex shrink-0 items-center gap-1.5 text-[13px] text-slate-600">
+      <span aria-hidden className={cn('h-2 w-2 shrink-0 rounded-full', dot)} />
+      {word}
+    </span>
+  );
+}
+
+/** When the member last did something: an agent's last run, a person's last visit to HQ. */
+export function lastActivityLabel(m: Pick<HqMember, 'kind' | 'lastActiveAt' | 'stats'>): string {
+  if (m.kind === 'agent') return m.stats.lastRun ? `last run ${formatRelative(m.stats.lastRun.startedAt)}` : 'no runs yet';
+  return m.lastActiveAt ? `last seen ${formatRelative(m.lastActiveAt)}` : 'never signed in to HQ';
+}
+
+// Tools, autonomy and the other settings live on the member's profile, not on the roster card.
 export function MemberCard({ member: m }: { member: HqMember }) {
   const busy = !!m.stats.currentTask;
   return (
     <Link
       href={memberHref(m)}
       className={cn(
-        'flex flex-col gap-4 rounded-3xl border border-slate-200 bg-white p-6 shadow-xs transition hover:border-slate-300 hover:shadow-sm',
+        'flex flex-col gap-3 rounded-lg border border-slate-200 bg-white p-4 transition hover:border-slate-300 hover:bg-slate-50',
         m.status === 'archived' && 'opacity-60'
       )}
     >
       <div className="flex items-start gap-3">
-        <MemberAvatar member={m} size="lg" />
+        <MemberAvatar member={m} size="md" />
         <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2">
-            <MemberStatusDot status={m.status} busy={busy} />
-            <span className="truncate text-lg font-bold text-slate-900">{m.name}</span>
-          </div>
-          <div className="truncate text-xs text-slate-500">
+          <div className="break-words text-[15px] font-semibold leading-snug text-slate-950">{m.name}</div>
+          <div className="mt-0.5 break-words text-[13px] text-slate-600">
             {m.title || RUNTIME_LABELS[m.runtime]}
             {/* Without a title the runtime label is already shown above — don't repeat it. */}
-            {m.title && m.kind === 'agent' && m.runtime !== 'hq' ? ` · ${RUNTIME_LABELS[m.runtime]}` : ''}
+            {m.title && m.kind === 'agent' && m.runtime !== 'hq' && RUNTIME_LABELS[m.runtime] ? ` · ${RUNTIME_LABELS[m.runtime]}` : ''}
           </div>
         </div>
-        {m.status !== 'active' && (
-          <Badge variant="outline" className="border-slate-200 bg-slate-100 text-slate-500">
-            {m.status}
-          </Badge>
-        )}
+        <span className="mt-0.5">
+          <MemberState member={m} busy={busy} />
+        </span>
       </div>
 
-      {m.description && <p className="line-clamp-2 text-xs text-slate-600">{m.description}</p>}
-
-      {m.kind === 'agent' && m.runtime === 'hq' && (
-        <div className="flex flex-wrap gap-1">
-          <Badge
-            variant="outline"
-            className={m.autonomy === 'autonomous' ? 'border-violet-200 bg-violet-50 text-violet-700' : 'border-amber-200 bg-amber-50 text-amber-700'}
-          >
-            {m.autonomy === 'autonomous' ? 'Autonomous' : 'Needs approval'}
-          </Badge>
-          {m.tools.map((t) => (
-            <Badge key={t} variant="outline" className="border-slate-200 bg-slate-50 text-slate-600">
-              {t}
-            </Badge>
-          ))}
-        </div>
+      {/* Two lines, full text on hover; agent cards keep the space so a row of cards lines up. */}
+      {(m.description || m.kind === 'agent') && (
+        <p className="line-clamp-2 min-h-10 text-sm leading-5 text-slate-700" title={m.description || undefined}>
+          {m.description}
+        </p>
       )}
 
-      <div className="mt-auto border-t border-slate-100 pt-2 text-xs text-slate-500">
-        {busy ? (
-          <span className="text-blue-700">
+      <div className="mt-auto space-y-1 border-t border-slate-100 pt-2 text-[13px] tabular-nums text-slate-600">
+        {busy && (
+          <div className="truncate text-blue-700">
             Working on #{m.stats.currentTask!.number} {m.stats.currentTask!.title}
-          </span>
-        ) : (
-          <span>
-            {m.stats.openTasks} open · {m.stats.runsToday} runs today
-            {m.stats.costTodayCents > 0 ? ` · ${formatUsd(m.stats.costTodayCents)}` : ''}
-            {m.stats.lastRun ? ` · last run ${formatRelative(m.stats.lastRun.startedAt)}` : ''}
-          </span>
+          </div>
         )}
+        <div>
+          {m.stats.openTasks} open · {m.kind === 'agent' ? `${m.stats.runsToday} runs today · ` : ''}
+          {lastActivityLabel(m)}
+        </div>
       </div>
     </Link>
   );

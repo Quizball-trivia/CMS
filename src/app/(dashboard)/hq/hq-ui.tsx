@@ -11,38 +11,115 @@ import { HQ_PRIORITY_LABELS, HQ_STATUS_LABELS, formatRelative } from '@/lib/hq-b
 import { stripMarkdown } from '@/lib/hq-markdown';
 import type { HqMemberRef, HqMemberStatus, HqPriority, HqRunStatus, HqTask, HqTaskStatus } from '@/types';
 
-// ── Page header ──
-
-/** Consistent header for every HQ page: what it is, and what it's for. */
 /** A member's profile: people under /hq/people, agents under /hq/team (the Agents page). */
 export function memberHref(m: { id: string; kind: 'human' | 'agent' }): string {
   return m.kind === 'human' ? `/hq/people/${m.id}` : `/hq/team/${m.id}`;
 }
 
+// ── Layout primitives ──
+// One look for every HQ page: a ruled header, small uppercase section labels,
+// flat bordered panels. Pages compose these instead of styling their own.
+
+/** Page width and rhythm shared by every HQ page. */
+export const HQ_PAGE = 'mx-auto w-full max-w-7xl space-y-8 pb-16';
+
+/** Labels (section titles, table heads, eyebrows): small, uppercase, tracked. */
+export const HQ_LABEL = 'text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-600';
+
 export function PageHeader({
   title,
   description,
   eyebrow,
-  icon,
   actions,
 }: {
   title: ReactNode;
   description?: ReactNode;
   eyebrow?: ReactNode;
+  /** Ignored: the ruled header has no icon tile. Kept so callers needn't change. */
   icon?: ReactNode;
   actions?: ReactNode;
 }) {
   return (
-    <header className="flex flex-wrap items-start gap-4 pb-1">
-      {icon && <div className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-white text-2xl shadow-sm ring-1 ring-slate-200">{icon}</div>}
+    <header className="flex flex-wrap items-end gap-x-6 gap-y-3 border-b border-slate-200 pb-5">
       {/* A floor on the width so the actions wrap below the title on a phone instead of squeezing it. */}
       <div className="min-w-[12rem] flex-1">
-        {eyebrow && <div className="mb-0.5 text-xs font-semibold uppercase tracking-wider text-slate-400">{eyebrow}</div>}
-        <h1 className="text-2xl font-bold tracking-tight text-slate-900">{title}</h1>
-        {description && <p className="mt-1 max-w-3xl text-sm text-slate-500">{description}</p>}
+        {eyebrow && <div className={cn(HQ_LABEL, 'mb-1')}>{eyebrow}</div>}
+        <h1 className="text-2xl font-semibold tracking-tight text-slate-950">{title}</h1>
+        {description && <p className="mt-1 max-w-3xl text-sm text-slate-600">{description}</p>}
       </div>
       {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
     </header>
+  );
+}
+
+/** A titled block of a page. `description` is one line of context under the label. */
+export function Section({
+  title,
+  count,
+  countTone,
+  description,
+  actions,
+  children,
+  className,
+}: {
+  title: ReactNode;
+  count?: number;
+  countTone?: 'neutral' | 'attention';
+  description?: ReactNode;
+  actions?: ReactNode;
+  children: ReactNode;
+  className?: string;
+}) {
+  return (
+    <section className={cn('space-y-3', className)}>
+      <div className="flex flex-wrap items-end justify-between gap-x-4 gap-y-1">
+        <div className="min-w-0">
+          <h2 className="flex items-center gap-2 text-[15px] font-semibold tracking-tight text-slate-950">
+            {title}
+            {count !== undefined && <CountPill n={count} tone={countTone} />}
+          </h2>
+          {description && <p className="mt-0.5 text-sm text-slate-600">{description}</p>}
+        </div>
+        {actions && <div className="flex items-center gap-3 text-sm">{actions}</div>}
+      </div>
+      {children}
+    </section>
+  );
+}
+
+/** Flat bordered surface. */
+export function Panel({ children, className, as: As = 'div' }: { children: ReactNode; className?: string; as?: 'div' | 'article' | 'section' }) {
+  return <As className={cn('rounded-lg border border-slate-200 bg-white', className)}>{children}</As>;
+}
+
+export function CountPill({ n, tone = 'neutral' }: { n: number; tone?: 'neutral' | 'attention' }) {
+  return (
+    <span
+      className={cn(
+        'inline-flex h-5 min-w-5 items-center justify-center rounded px-1.5 text-[11px] font-semibold tabular-nums tracking-normal',
+        tone === 'attention' && n > 0 ? 'bg-amber-500 text-white' : 'bg-slate-100 text-slate-600'
+      )}
+    >
+      {n}
+    </span>
+  );
+}
+
+/** One number with its label, for stat strips. */
+export function Stat({ label, value, hint, tone = 'neutral' }: { label: ReactNode; value: ReactNode; hint?: ReactNode; tone?: 'neutral' | 'attention' | 'good' }) {
+  return (
+    <div className="min-w-0 px-4 py-3">
+      <div className={HQ_LABEL}>{label}</div>
+      <div
+        className={cn(
+          'mt-1 text-2xl font-semibold tabular-nums tracking-tight',
+          tone === 'attention' ? 'text-amber-600' : tone === 'good' ? 'text-emerald-600' : 'text-slate-950'
+        )}
+      >
+        {value}
+      </div>
+      {hint && <div className="mt-0.5 truncate text-[13px] text-slate-600">{hint}</div>}
+    </div>
   );
 }
 
@@ -292,7 +369,7 @@ export function TaskRow({
           <span className="truncate text-sm font-semibold text-slate-900">{task.title}</span>
           <PriorityBadge priority={task.priority} hideNormal />
         </div>
-        <div className="mt-0.5 flex flex-wrap items-center gap-2 text-xs text-slate-500">
+        <div className="mt-0.5 flex flex-wrap items-center gap-2 text-[13px] text-slate-600">
           <span>{task.assignee?.name ?? 'Unassigned'}</span>
           <span>·</span>
           <span>{formatRelative(task.completedAt ?? task.updatedAt)}</span>
@@ -390,18 +467,16 @@ export function RefreshErrorBanner({ className }: { className?: string }) {
   );
 }
 
-export function EmptyState({ children }: { children: ReactNode }) {
-  return <p className="rounded-lg border border-dashed border-slate-200 px-4 py-6 text-center text-sm text-slate-400">{children}</p>;
+export function EmptyState({ children, className }: { children: ReactNode; className?: string }) {
+  return <p className={cn('rounded-lg border border-dashed border-slate-200 px-4 py-5 text-center text-sm text-slate-500', className)}>{children}</p>;
 }
 
 export function SectionTitle({ children, count, right }: { children: ReactNode; count?: number; right?: ReactNode }) {
   return (
     <div className="mb-2 flex items-center justify-between gap-2">
-      <h2 className="flex items-center gap-2 text-sm font-bold uppercase tracking-wide text-slate-500">
+      <h2 className="flex items-center gap-2 text-[15px] font-semibold tracking-tight text-slate-950">
         {children}
-        {count !== undefined && (
-          <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-bold text-slate-600">{count}</span>
-        )}
+        {count !== undefined && <CountPill n={count} />}
       </h2>
       {right}
     </div>

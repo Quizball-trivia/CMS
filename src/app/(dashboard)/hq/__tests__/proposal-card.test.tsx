@@ -64,7 +64,7 @@ describe('ProposalCard', () => {
   it('shows the idea, its impact/effort/goal, and "Do it" accepts it as-is', async () => {
     render(<ProposalCard task={idea} goal={goal} />, { wrapper });
     expect(screen.getByRole('heading', { name: 'Run a derby-weekend push' })).toBeTruthy();
-    expect(screen.getByText('📈 +15% matches Sat')).toBeTruthy();
+    expect(screen.getByText('Impact: +15% matches Sat')).toBeTruthy();
     expect(screen.getByText(/Quick win/)).toBeTruthy();
     expect(screen.getByText('10,000 weekly players')).toBeTruthy();
     await act(async () => {
