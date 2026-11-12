@@ -33,6 +33,7 @@ type Phase = 'loading' | 'error' | 'ready';
 interface Q {
   data?: unknown;
   isLoading?: boolean;
+  isPending?: boolean;
   isError?: boolean;
   refetch?: () => unknown;
 }
@@ -46,7 +47,8 @@ function workingAllIds(tasks: HqTask[], runningBuilds: HqBuild[]): string[] {
 function phaseOf(...qs: Q[]): Phase {
   const unanswered = qs.filter((q) => q.data === undefined);
   if (unanswered.some((q) => q.isError)) return 'error';
-  if (unanswered.some((q) => q.isLoading)) return 'loading';
+  // Pending covers a fetch paused offline too: unanswered is never "nothing there".
+  if (unanswered.some((q) => q.isLoading || q.isPending)) return 'loading';
   return 'ready';
 }
 
@@ -180,12 +182,7 @@ export default function HqPage() {
   // A build still waiting on the founder is not done: its agent reviews show on its Needs-you row, not in Completed.
   const awaitingReview = new Set(needs.filter((n) => n.reason === 'release' && n.build).map((n) => n.build!.id));
   // "Decision on build request #N" names the request; "Code review for build #N" names the Builder's job.
-  const reviewOf = (i: Shipped): string | null => {
-    const m = i.isBuild ? null : /\bbuild (request )?#(\d+)/i.exec(i.title);
-    if (!m) return null;
-    const n = Number(m[2]);
-    return (m[1] ? builds.find((b) => b.number === n) : builds.find((b) => b.job?.number === n))?.id ?? null;
-  };
+  const reviewOf = (i: Shipped): string | null => buildOfItem(i, builds)?.id ?? null;
   const feedItems = shipped.items.filter((i) => !awaitingReview.has(reviewOf(i) ?? ''));
   const feedTotal = shipped.total - (shipped.items.length - feedItems.length);
   const agentReview = new Map<string, string>();
@@ -275,6 +272,7 @@ export default function HqPage() {
         </div>
         <StatTiles
           doneToday={doneToday}
+          doneTodayMore={phaseOf(doneQ, buildsQ) === 'ready' && shipped.totalIsLowerBound && shippedToday.length === feedItems.length}
           counts={agentCounts}
           onDoneToday={() => setOnlyToday(true)}
         />
@@ -418,7 +416,7 @@ export default function HqPage() {
                   <Quiet>Nothing finished in the last 7 days.</Quiet>
                 ) : (
                   (() => {
-                    const lines = feedLines(onlyToday ? shippedToday : feedItems);
+                    const lines = feedLines(onlyToday ? shippedToday : feedItems, builds);
                     const shown = allDone ? lines : lines.slice(0, DONE_FIRST);
                     return (
                       <>
@@ -529,8 +527,10 @@ function Block({ id, title, icon: Icon, count, tone, note, action, children }: {
 }
 
 /** Today at a glance: four numbers, each a way in (today's completions, the team). */
-function StatTiles({ doneToday, counts, onDoneToday }: {
-  doneToday: number | undefined; counts: { running: number; idle: number; paused: number } | null | undefined; onDoneToday: () => void;
+function StatTiles({ doneToday, doneTodayMore = false, counts, onDoneToday }: {
+  doneToday: number | undefined;
+  /** Every loaded completion is from today and more were not loaded: the number is a floor ("60+"). */
+  doneTodayMore?: boolean; counts: { running: number; idle: number; paused: number } | null | undefined; onDoneToday: () => void;
 }) {
   const tile = 'flex min-h-14 min-w-0 flex-col justify-center rounded-lg border border-slate-200 bg-white px-2.5 py-2 transition hover:border-slate-300 hover:shadow-sm sm:min-h-16 sm:px-4 sm:py-2.5';
   const num = 'text-xl font-semibold tabular-nums tracking-tight text-slate-950 sm:text-2xl';
@@ -538,7 +538,7 @@ function StatTiles({ doneToday, counts, onDoneToday }: {
   return (
     <div className="grid grid-cols-4 gap-2 pt-1 sm:gap-3">
       <a href="#completed" onClick={onDoneToday} className={tile}>
-        <span className={num}>{doneToday ?? '–'}</span>
+        <span className={num}>{doneToday === undefined ? '–' : `${doneToday}${doneTodayMore ? '+' : ''}`}</span>
         <span className={label}>Done today</span>
       </a>
       <Link href="/hq/team" className={tile}>
@@ -784,7 +784,19 @@ function tbilisiDayStart(now: Date): number {
   return Date.parse(`${day}T00:00:00+04:00`);
 }
 
-function feedLines(items: Shipped[]): FeedLine[] {
+/**
+ * The build a finished task is about: "Decision on build request #N" names the request, "Code review for build #N"
+ * names the Builder's job. Without the builds loaded, the number alone (request and job numbers then may differ).
+ */
+function buildOfItem(item: Shipped, builds: HqBuild[]): { id: string; number: number } | null {
+  const m = item.isBuild ? null : /\bbuild (request )?#(\d+)/i.exec(item.title);
+  if (!m) return null;
+  const n = Number(m[2]);
+  const b = m[1] ? builds.find((x) => x.number === n) : builds.find((x) => x.job?.number === n);
+  return b ? { id: b.id, number: b.number } : { id: `n${n}`, number: n };
+}
+
+function feedLines(items: Shipped[], builds: HqBuild[] = []): FeedLine[] {
   const lines: FeedLine[] = [];
   const byLabel = new Map<string, FeedLine>();
   for (const item of [...items].sort((a, b) => b.at.localeCompare(a.at))) {
@@ -793,7 +805,7 @@ function feedLines(items: Shipped[]): FeedLine[] {
       continue;
     }
     const i = item.title.indexOf(': ');
-    const build = /\bbuild (?:request )?#(\d+)/i.exec(item.title)?.[1];
+    const build = buildOfItem(item, builds);
     // The very same title from one agent first (×N), then work about one build (its reviews and decision), then a
     // shared label from one agent ("Published quiz page: …").
     const same = byLabel.get(`${item.who}\u0000=${item.title}`);
@@ -801,8 +813,8 @@ function feedLines(items: Shipped[]): FeedLine[] {
       same.items.push(item);
       continue;
     }
-    const label = build ? `Build #${build}` : i > 0 && i < 50 ? item.title.slice(0, i) : null;
-    const groupKey = build ? `build\u0000${build}` : label ? `${item.who}\u0000${label}` : `${item.who}\u0000=${item.title}`;
+    const label = build ? `Build #${build.number}` : i > 0 && i < 50 ? item.title.slice(0, i) : null;
+    const groupKey = build ? `build\u0000${build.id}` : label ? `${item.who}\u0000${label}` : `${item.who}\u0000=${item.title}`;
     const existing = byLabel.get(groupKey);
     if (existing) {
       existing.items.push(item);

@@ -473,6 +473,34 @@ it('matches a review to its build by the job number and a decision by the reques
   expect(feedTitles().some((t) => /build/i.test(t))).toBe(false);
 });
 
+it('does not call an unanswered (offline, paused) load "nothing needs you"', () => {
+  h.director = undefined;
+  h.flags = { director: { isLoading: false, isPending: true } };
+  render(<HqPage />);
+  expect(screen.queryByText('Nothing needs you')).toBeNull();
+  expect(screen.getByRole('heading', { level: 1 }).textContent).toBe('Checking what needs you…');
+});
+
+it('keeps request #7 and the review of job #7 (which belongs to request #17) on separate lines', () => {
+  const b = buildAt('done', null);
+  h.builds = [{ ...b, id: 'b17', number: 17, title: 'Comet timer', job: { ...b.job!, number: 7 } }];
+  h.done = [
+    task('r7', 907, 'Code review for build #7', { status: 'done', assignee: scout, completedAt: '2026-11-11T12:00:00Z', result: 'VERDICT: SHIP' }),
+    task('d7', 957, 'Decision on build request #7', { status: 'done', assignee: pageSmith, completedAt: '2026-11-11T11:00:00Z' }),
+  ];
+  render(<HqPage />);
+  // Two different builds: not folded into one "Build #7" line.
+  expect(feedTitles()).toEqual(expect.arrayContaining(['Code review for build #7', 'Decision on build request #7']));
+  expect(feedTitles().some((t) => t.startsWith('Build #7:'))).toBe(false);
+});
+
+it('shows "60+" done today when every loaded completion is from today and the fetch hit its limit', () => {
+  const now = new Date().toISOString();
+  h.done = Array.from({ length: 60 }, (_, i) => task(`t${i}`, 300 + i, `Nightly check ${i}`, { status: 'done', assignee: scout, completedAt: now }));
+  render(<HqPage />);
+  expect(doneCount()).toBe('60+');
+});
+
 /** `n` finished tasks spread over the six invented agents, newest first by index, all inside the 7-day window. */
 function finishedBy(n: number, agents = AGENTS.length): HqTask[] {
   return Array.from({ length: n }, (_, i) =>
