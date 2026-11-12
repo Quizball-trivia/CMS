@@ -7,12 +7,12 @@ import { Button } from '@/components/ui/button';
 import { hqKeys, useHqClock, useHqGoals, useHqPastGoals } from '@/hooks';
 import { cn } from '@/lib/utils';
 import type { HqGoal, HqGoalHorizon } from '@/types';
-import { AddGoalCard, GoalCard, GoalDialog, HORIZON_LABELS, NorthStarCard } from '../goal-ui';
-import { LoadErrorState, PageHeader, RefreshErrorBanner } from '../hq-ui';
+import { AddGoalRow, GoalDialog, GoalRow, HORIZON_LABELS, NorthStarCard, isGoalEnded } from '../goal-ui';
+import { HQ_LABEL, HQ_PAGE, LoadErrorState, PageHeader, Panel, RefreshErrorBanner, Section } from '../hq-ui';
 
-const SECTIONS: Array<{ horizon: Exclude<HqGoalHorizon, 'north_star'>; emoji: string; hint: string }> = [
-  { horizon: 'week', emoji: '📅', hint: 'What has to be true by Sunday.' },
-  { horizon: 'day', emoji: '☀️', hint: 'Today’s focus — small, concrete, done by tonight.' },
+const SECTIONS: Array<{ horizon: Exclude<HqGoalHorizon, 'north_star'>; hint: string }> = [
+  { horizon: 'week', hint: 'What has to be true by Sunday.' },
+  { horizon: 'day', hint: 'Today’s focus: small, concrete, done by tonight.' },
 ];
 
 export default function GoalsPage() {
@@ -27,24 +27,25 @@ export default function GoalsPage() {
 
   const active = (goals ?? []).filter((g) => g.status === 'active').sort((a, b) => a.position - b.position);
   const northStar = active.find((g) => g.horizon === 'north_star') ?? null;
+  // A week or day goal whose dates have passed but is still open is listed apart, so it doesn't pass for current work.
+  const ended = active.filter((g) => g.horizon !== 'north_star' && isGoalEnded(g, now));
   const edit = (goal: HqGoal) => setDialog({ goal, horizon: goal.horizon });
 
   return (
-    <div className="mx-auto max-w-7xl space-y-12 pb-16">
+    <div className={HQ_PAGE}>
       <PageHeader
-        icon="🎯"
-        title={<span className="text-4xl">Goals</span>}
+        title="Goals"
         description="Where the company is going. Agents read these every morning and suggest ideas that move them."
         actions={
-          <Button size="lg" className="rounded-full" onClick={() => setDialog({ goal: null, horizon: 'week' })}>
-            <Plus className="h-5 w-5" /> New goal
+          <Button onClick={() => setDialog({ goal: null, horizon: 'week' })}>
+            <Plus className="h-4 w-4" /> New goal
           </Button>
         }
       />
 
       {isLoading && !goals ? (
-        <div className="flex items-center gap-2 text-slate-500">
-          <Loader2 className="h-5 w-5 animate-spin" /> Loading goals…
+        <div className="flex items-center gap-2 text-sm text-slate-500">
+          <Loader2 className="h-4 w-4 animate-spin" /> Loading goals…
         </div>
       ) : !goals ? (
         <LoadErrorState error={error} fallback="Could not load goals." onRetry={() => void refetch()} />
@@ -53,21 +54,32 @@ export default function GoalsPage() {
           {error && <RefreshErrorBanner />}
           <NorthStarCard goal={northStar} onEdit={edit} onCreate={() => setDialog({ goal: null, horizon: 'north_star' })} now={now} />
 
-          {SECTIONS.map(({ horizon, emoji, hint }) => {
-            const list = active.filter((g) => g.horizon === horizon);
+          {ended.length > 0 && (
+            <Section
+              title="Ended: close or roll over"
+              count={ended.length}
+              countTone="attention"
+              description="Their dates have passed but they are still open. Edit a goal to mark it achieved or dropped, or to set new dates."
+            >
+              <Panel className="divide-y divide-slate-100 overflow-hidden">
+                {ended.map((g) => (
+                  <GoalRow key={g.id} goal={g} onEdit={edit} now={now} />
+                ))}
+              </Panel>
+            </Section>
+          )}
+
+          {SECTIONS.map(({ horizon, hint }) => {
+            const list = active.filter((g) => g.horizon === horizon && !isGoalEnded(g, now));
             return (
-              <section key={horizon}>
-                <h2 className="text-3xl font-extrabold tracking-tight text-slate-900">
-                  {emoji} {HORIZON_LABELS[horizon]}
-                </h2>
-                <p className="mb-5 mt-1 text-lg text-slate-500">{hint}</p>
-                <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
+              <Section key={horizon} title={HORIZON_LABELS[horizon]} count={list.length} description={hint}>
+                <Panel className="divide-y divide-slate-100 overflow-hidden">
                   {list.map((g) => (
-                    <GoalCard key={g.id} goal={g} onEdit={edit} now={now} />
+                    <GoalRow key={g.id} goal={g} onEdit={edit} now={now} />
                   ))}
-                  <AddGoalCard label={list.length === 0 ? `Set ${horizon === 'week' ? 'this week’s' : 'today’s'} goal` : 'Add another'} onClick={() => setDialog({ goal: null, horizon })} />
-                </div>
-              </section>
+                  <AddGoalRow label={list.length === 0 ? `Set ${horizon === 'week' ? 'this week’s' : 'today’s'} goal` : 'Add another'} onClick={() => setDialog({ goal: null, horizon })} />
+                </Panel>
+              </Section>
             );
           })}
 
@@ -76,12 +88,12 @@ export default function GoalsPage() {
               type="button"
               onClick={() => setShowPast((v) => !v)}
               aria-expanded={showPast}
-              className="flex items-center gap-2 text-xl font-bold text-slate-600 hover:text-slate-900"
+              className={cn(HQ_LABEL, 'flex items-center gap-2 text-slate-700 hover:text-slate-950')}
             >
-              <ChevronDown className={cn('h-5 w-5 transition', showPast && 'rotate-180')} />
+              <ChevronDown className={cn('h-4 w-4 transition', showPast && 'rotate-180')} />
               Past goals
               {showPast && pastQuery.data && (
-                <span className="text-base font-medium text-slate-400">
+                <span className="font-medium normal-case tracking-normal tabular-nums text-slate-600">
                   ({past.length}
                   {pastQuery.hasNextPage ? '+' : ''})
                 </span>
@@ -90,11 +102,11 @@ export default function GoalsPage() {
             {showPast &&
               (!pastQuery.data ? (
                 pastQuery.isLoading ? (
-                  <div className="mt-4 flex items-center gap-2 text-slate-500">
+                  <div className="mt-3 flex items-center gap-2 text-sm text-slate-500">
                     <Loader2 className="h-4 w-4 animate-spin" /> Loading past goals…
                   </div>
                 ) : (
-                  <div className="mt-4">
+                  <div className="mt-3">
                     <LoadErrorState error={pastQuery.error} fallback="Could not load past goals." onRetry={() => void pastQuery.refetch()} />
                   </div>
                 )
@@ -104,7 +116,7 @@ export default function GoalsPage() {
                     // Cached pages stay visible; a failed "Load more" (e.g. the
                     // cursor goal was deleted) must still be visible and
                     // recoverable — restart paging from the newest page.
-                    <div className="mt-4">
+                    <div className="mt-3">
                       <LoadErrorState
                         error={pastQuery.error}
                         fallback="Could not load more past goals."
@@ -113,16 +125,16 @@ export default function GoalsPage() {
                     </div>
                   )}
                   {past.length === 0 ? (
-                    <p className="mt-3 text-slate-400">Achieved and dropped goals will collect here.</p>
+                    <p className="mt-3 text-sm text-slate-600">Achieved and dropped goals will collect here.</p>
                   ) : (
-                    <div className="mt-5 grid gap-5 opacity-80 sm:grid-cols-2 xl:grid-cols-3">
+                    <Panel className="mt-3 divide-y divide-slate-100 overflow-hidden opacity-80">
                       {past.map((g) => (
-                        <GoalCard key={g.id} goal={g} onEdit={edit} now={now} />
+                        <GoalRow key={g.id} goal={g} onEdit={edit} now={now} />
                       ))}
-                    </div>
+                    </Panel>
                   )}
                   {pastQuery.hasNextPage && past.length > 0 && (
-                    <div className="mt-6 flex justify-center">
+                    <div className="mt-4 flex justify-center">
                       <Button variant="outline" onClick={() => void pastQuery.fetchNextPage({ cancelRefetch: false })} disabled={pastQuery.isFetching}>
                         {pastQuery.isFetching && <Loader2 className="h-4 w-4 animate-spin" />}
                         Load more

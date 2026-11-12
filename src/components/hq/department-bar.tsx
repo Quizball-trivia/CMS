@@ -39,7 +39,7 @@ export function DepartmentBar({ pathname }: { pathname: string }) {
   const approvals = live?.counts.needsApproval ?? 0;
 
   return (
-    <div className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-xl border border-slate-200 bg-white/80 px-4 py-2 shadow-xs backdrop-blur">
+    <div className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-lg border border-slate-200 bg-white px-4 py-2">
       <Link href={departmentHref(dept.key)} className="flex items-center gap-2 text-sm font-semibold text-slate-800 hover:text-slate-950">
         <span className="text-lg leading-none" aria-hidden>
           {dept.emoji}

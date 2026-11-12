@@ -7,24 +7,29 @@ import { ArrowLeft, ArrowRight, Loader2, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useHqDepartments, useHqMembers, useHqSchedules, useHqTasks } from '@/hooks';
 import { cn } from '@/lib/utils';
-import { HQ_STATUS_LABELS, compareTasks, defaultDepartmentAssignee, formatRelative } from '@/lib/hq-board';
+import { HQ_STATUS_LABELS, compareTasks, defaultDepartmentAssignee } from '@/lib/hq-board';
 import { departmentInfo, toolsForUser, withoutHiddenRealData, type HqDepartmentInfo } from '@/lib/hq-departments';
 import { useRealAnalyticsVisible } from '@/hooks/use-real-analytics-visible';
 import { useAuth } from '@/providers';
 import type { HqDepartment, HqMember, HqTask, HqTaskStatus } from '@/types';
 import {
   EmptyState,
+  HQ_LABEL,
+  HQ_PAGE,
   LoadErrorState,
   MemberAvatar,
   memberHref,
   PageHeader,
+  Panel,
   RefreshErrorBanner,
+  Section,
   TaskRow,
   TaskStatusBadge,
   useTaskSheet,
 } from '../../hq-ui';
 import { NewTaskDialog } from '../../new-task-dialog';
 import { SchedulesTable } from '../../schedules-ui';
+import { MemberState, lastActivityLabel } from '../../team/member-card';
 
 // Open work, in the order a CEO reads it: what needs them first.
 const OPEN_ORDER: HqTaskStatus[] = ['needs_approval', 'blocked', 'in_progress', 'todo', 'backlog'];
@@ -34,11 +39,13 @@ export default function DepartmentPage() {
   const info = departmentInfo(params?.key);
   if (!info) {
     return (
-      <div className="space-y-3">
-        <Link href="/hq" className="inline-flex items-center gap-1 text-sm text-slate-500 hover:text-slate-800">
-          <ArrowLeft className="h-4 w-4" /> Command Center
-        </Link>
-        <EmptyState>There&apos;s no department called “{params?.key}”.</EmptyState>
+      <div className={HQ_PAGE}>
+        <div className="space-y-3">
+          <Link href="/hq" className="inline-flex items-center gap-1 text-sm text-slate-500 hover:text-slate-800">
+            <ArrowLeft className="h-4 w-4" /> Command Center
+          </Link>
+          <EmptyState>There&apos;s no department called “{params?.key}”.</EmptyState>
+        </div>
       </div>
     );
   }
@@ -71,9 +78,8 @@ function Department({ info }: { info: HqDepartmentInfo }) {
   const refreshFailed = [departments, membersQuery, openTasks, doneTasks].some((q) => q.error && q.data);
 
   return (
-    <div className="space-y-8">
+    <div className={HQ_PAGE}>
       <PageHeader
-        icon={info.emoji}
         eyebrow="Department"
         title={info.name}
         description={info.mission}
@@ -86,8 +92,7 @@ function Department({ info }: { info: HqDepartmentInfo }) {
       {refreshFailed && <RefreshErrorBanner />}
       {live && <CountsStrip dept={live} />}
 
-      <section>
-        <SectionHeader title="People & agents" subtitle="Who owns this area. Agents pick up their tasks on their own." />
+      <Section title="People & agents" count={deptMembers.length} description="Who owns this area. Agents pick up their tasks on their own.">
         {membersQuery.isLoading && !membersQuery.data ? (
           <Loading />
         ) : !membersQuery.data ? (
@@ -101,16 +106,15 @@ function Department({ info }: { info: HqDepartmentInfo }) {
             and put it in this department.
           </EmptyState>
         ) : (
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          <Panel className="divide-y divide-slate-100">
             {deptMembers.map((m) => (
               <MemberTile key={m.id} member={m} live={live} onAssign={() => setGiveTo(m.id)} onOpenTask={openTask} />
             ))}
-          </div>
+          </Panel>
         )}
-      </section>
+      </Section>
 
-      <section>
-        <SectionHeader title="Tools" subtitle={`The pages ${info.name} works in.`} />
+      <Section title="Tools" description={`The pages ${info.name} works in.`}>
         {tools.length === 0 ? (
           <EmptyState>
             {info.name} has no tools of its own — it runs the company from the{' '}
@@ -120,43 +124,38 @@ function Department({ info }: { info: HqDepartmentInfo }) {
             .
           </EmptyState>
         ) : (
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <Panel className="divide-y divide-slate-100">
             {tools.map((tool) => {
               const Icon = tool.icon;
               return (
                 <Link
                   key={tool.href}
                   href={tool.href}
-                  className="group flex items-start gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-xs transition hover:border-slate-300 hover:shadow-sm"
+                  className="group flex items-center gap-3 px-4 py-3 transition hover:bg-slate-50"
                 >
-                  <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-slate-50 text-slate-600 ring-1 ring-slate-100 group-hover:text-slate-900">
-                    <Icon className="h-4 w-4" />
+                  <Icon className="h-4 w-4 shrink-0 text-slate-500 group-hover:text-slate-900" />
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-sm font-semibold text-slate-950">{tool.title}</span>
+                    <span className="mt-0.5 block text-[13px] text-slate-600">{tool.description}</span>
                   </span>
-                  <span className="min-w-0">
-                    <span className="flex items-center gap-1 text-sm font-semibold text-slate-900">
-                      {tool.title}
-                      <ArrowRight className="h-3.5 w-3.5 opacity-0 transition group-hover:opacity-100" />
-                    </span>
-                    <span className="mt-0.5 block text-xs text-slate-500">{tool.description}</span>
-                  </span>
+                  <ArrowRight className="h-4 w-4 shrink-0 text-slate-400 transition group-hover:text-slate-700" />
                 </Link>
               );
             })}
-          </div>
+          </Panel>
         )}
-      </section>
+      </Section>
 
       <div className="grid gap-8 xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
-        <section>
-          <SectionHeader
-            title="Open work"
-            subtitle="Tasks assigned to people and agents in this department."
-            right={
-              <Link href="/hq/board" className="text-sm font-medium text-slate-600 hover:text-slate-900">
-                All work →
-              </Link>
-            }
-          />
+        <Section
+          title="Open work"
+          description="Tasks assigned to people and agents in this department."
+          actions={
+            <Link href="/hq/board" className="font-medium text-slate-600 hover:text-slate-900">
+              All work →
+            </Link>
+          }
+        >
           {!openTasks.data ? (
             openTasks.isLoading ? (
               <Loading />
@@ -168,10 +167,9 @@ function Department({ info }: { info: HqDepartmentInfo }) {
           ) : (
             <OpenWork tasks={openTasks.data} onOpen={openTask} />
           )}
-        </section>
+        </Section>
 
-        <section>
-          <SectionHeader title="Recent results" subtitle="What this department finished lately." />
+        <Section title="Recent results" description="What this department finished lately.">
           {!doneTasks.data ? (
             doneTasks.isLoading ? (
               <Loading />
@@ -189,11 +187,10 @@ function Department({ info }: { info: HqDepartmentInfo }) {
                 ))}
             </div>
           )}
-        </section>
+        </Section>
       </div>
 
-      <section>
-        <SectionHeader title="Automations" subtitle={`Recurring work ${info.name}'s agents do on a schedule.`} />
+      <Section title="Schedules" description={`Recurring work ${info.name}'s agents do on a schedule.`}>
         {!schedules.data ? (
           schedules.isLoading ? (
             <Loading />
@@ -203,7 +200,7 @@ function Department({ info }: { info: HqDepartmentInfo }) {
         ) : (
           <SchedulesTable schedules={deptSchedules} members={deptMembers.length > 0 ? deptMembers : members} />
         )}
-      </section>
+      </Section>
 
       <NewTaskDialog
         open={giveTo !== undefined}
@@ -219,21 +216,21 @@ function Department({ info }: { info: HqDepartmentInfo }) {
 function CountsStrip({ dept }: { dept: HqDepartment }) {
   const c = dept.counts;
   const items: Array<[string, number, string]> = [
-    ['Open', c.open, 'text-slate-900'],
-    ['Waiting for you', c.needsApproval, 'text-amber-700'],
-    ['Blocked', c.blocked, 'text-red-700'],
-    ['In progress', c.inProgress, 'text-blue-700'],
-    ['Done today', c.doneToday, 'text-emerald-700'],
+    ['Open', c.open, 'text-slate-950'],
+    ['Waiting for you', c.needsApproval, 'text-amber-600'],
+    ['Blocked', c.blocked, 'text-red-600'],
+    ['In progress', c.inProgress, 'text-blue-600'],
+    ['Done today', c.doneToday, 'text-emerald-600'],
   ];
   return (
-    <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
+    <Panel className="grid grid-cols-2 gap-px overflow-hidden bg-slate-200 sm:grid-cols-5 [&>*:last-child:nth-child(odd)]:col-span-2 sm:[&>*:last-child:nth-child(odd)]:col-span-1">
       {items.map(([label, value, color]) => (
-        <div key={label} className="rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-xs">
-          <div className={cn('text-2xl font-bold', value > 0 ? color : 'text-slate-300')}>{value}</div>
-          <div className="text-xs text-slate-500">{label}</div>
+        <div key={label} className="min-w-0 bg-white px-4 py-3">
+          <div className={HQ_LABEL}>{label}</div>
+          <div className={cn('mt-1 text-2xl font-semibold tabular-nums tracking-tight', value > 0 ? color : 'text-slate-300')}>{value}</div>
         </div>
       ))}
-    </div>
+    </Panel>
   );
 }
 
@@ -249,37 +246,27 @@ function MemberTile({
   onOpenTask: (id: string) => void;
 }) {
   const working = live?.working.find((w) => w.member.id === m.id)?.task ?? m.stats.currentTask;
-  const state = m.status !== 'active' ? m.status : working ? 'working' : m.kind === 'agent' ? 'idle' : null;
   return (
-    <div className="flex items-start gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-xs">
+    <div className="flex items-start gap-3 px-4 py-3">
       <MemberAvatar member={m} size="md" />
       <div className="min-w-0 flex-1">
-        <Link href={memberHref(m)} className="block truncate text-sm font-bold text-slate-900 hover:underline">
+        <Link href={memberHref(m)} className="block break-words text-[15px] font-semibold leading-snug text-slate-950 hover:underline">
           {m.name}
         </Link>
-        <div className="flex items-center gap-1.5 text-xs text-slate-500">
-          <span className="truncate">{m.title || (m.kind === 'agent' ? 'AI agent' : 'Team member')}</span>
-          {state && (
-            <span
-              className={cn(
-                'rounded-full px-1.5 py-0.5 text-[10px] font-semibold',
-                state === 'working' ? 'bg-blue-50 text-blue-700' : state === 'idle' ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'
-              )}
-            >
-              {state}
-            </span>
-          )}
+        <div className="mt-0.5 break-words text-[13px] text-slate-600">{m.title || (m.kind === 'agent' ? 'AI agent' : 'Team member')}</div>
+        <div className="mt-1 empty:hidden">
+          <MemberState member={m} busy={!!working} />
         </div>
         {working ? (
-          <button type="button" onClick={() => onOpenTask(working.id)} className="mt-1 flex w-full items-center gap-1 text-left text-xs text-blue-700 hover:underline">
+          <button type="button" onClick={() => onOpenTask(working.id)} className="mt-1 flex w-full items-center gap-1 text-left text-[13px] text-blue-700 hover:underline">
             <Loader2 className="h-3 w-3 shrink-0 animate-spin" />
-            <span className="truncate">
+            <span className="min-w-0 break-words">
               #{working.number} {working.title}
             </span>
           </button>
         ) : (
-          <div className="mt-1 text-xs text-slate-400">
-            {m.stats.openTasks} open · {m.kind === 'agent' && m.stats.lastRun ? `last run ${formatRelative(m.stats.lastRun.startedAt)}` : 'no runs yet'}
+          <div className="mt-1 text-[13px] tabular-nums text-slate-600">
+            {m.stats.openTasks} open · {lastActivityLabel(m)}
           </div>
         )}
       </div>
@@ -292,7 +279,7 @@ function MemberTile({
 
 function OpenWork({ tasks, onOpen }: { tasks: HqTask[]; onOpen: (id: string) => void }) {
   return (
-    <div className="space-y-5">
+    <div className="space-y-4">
       {OPEN_ORDER.map((status) => {
         const list = tasks.filter((t) => t.status === status).sort(compareTasks);
         if (list.length === 0) return null;
@@ -300,7 +287,7 @@ function OpenWork({ tasks, onOpen }: { tasks: HqTask[]; onOpen: (id: string) => 
           <div key={status}>
             <div className="mb-2 flex items-center gap-2">
               <TaskStatusBadge status={status} />
-              <span className="text-xs text-slate-400">
+              <span className="text-[13px] tabular-nums text-slate-600">
                 {list.length} {HQ_STATUS_LABELS[status].toLowerCase()}
               </span>
             </div>
@@ -312,18 +299,6 @@ function OpenWork({ tasks, onOpen }: { tasks: HqTask[]; onOpen: (id: string) => 
           </div>
         );
       })}
-    </div>
-  );
-}
-
-function SectionHeader({ title, subtitle, right }: { title: string; subtitle?: string; right?: React.ReactNode }) {
-  return (
-    <div className="mb-3 flex flex-wrap items-end justify-between gap-2">
-      <div>
-        <h2 className="text-lg font-bold tracking-tight text-slate-900">{title}</h2>
-        {subtitle && <p className="text-sm text-slate-500">{subtitle}</p>}
-      </div>
-      {right}
     </div>
   );
 }

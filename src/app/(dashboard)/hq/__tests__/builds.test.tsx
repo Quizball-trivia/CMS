@@ -1,7 +1,7 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-import type { HqBuild } from '@/types';
+import type { HqBuild, HqBuildJob } from '@/types';
 
 const api = vi.hoisted(() => ({ listBuilds: vi.fn(), submitBuild: vi.fn(), cancelBuild: vi.fn() }));
 const toast = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn() }));
@@ -64,9 +64,88 @@ it('lists requests with kind, repos, status, requester and the build stage', asy
   const row = screen.getByText('Friends penalty mode').closest('li') as HTMLElement;
   expect(within(row).getByText('#11')).toBeTruthy();
   for (const text of ['Game mode', 'Backend', 'Web', 'Submitted', 'Nika']) expect(within(row).getByText(text)).toBeTruthy();
+  // One state badge: once there is a build, its stage replaces "Approved".
   const approved = screen.getByText('Club page banner').closest('li') as HTMLElement;
-  expect(within(approved).getByText('Approved')).toBeTruthy();
   expect(within(approved).getByText('Testing')).toBeTruthy();
+  expect(within(approved).queryByText('Approved')).toBeNull();
+});
+
+it('names the state and what happens next, links the draft PR on the row, and puts the PR waiting for the founder first', async () => {
+  const job = (stage: HqBuildJob['stage']): HqBuildJob => ({ id: `j-${stage}`, number: 9, stage, note: null, runsUsed: 1, runLimit: 5, startedAt: '2026-11-10T09:05:00Z', finishedAt: null });
+  const ready = build({ id: 'b5', number: 16, title: 'Ready banner', status: 'approved', job: job('ready_to_publish') });
+  const prOpen = build({
+    id: 'b6', number: 17, title: 'Open PR banner', status: 'approved',
+    job: { ...job('published'), prs: [{ repo: 'web', url: 'https://github.com/invented/web/pull/123' }, { repo: 'cms', url: 'javascript:alert(1)' }] },
+  });
+  const merged = build({ id: 'b7', number: 18, title: 'Merged banner', status: 'approved', job: job('done') });
+  api.listBuilds.mockResolvedValue({ items: [waiting, ready, merged, prOpen, failed, declined] });
+  renderPage();
+  await screen.findByText('Open PR banner');
+  const row = (title: string) => screen.getByText(title).closest('li') as HTMLElement;
+  expect(within(row('Open PR banner')).getByText('PR open')).toBeTruthy();
+  // A draft PR waiting for his merge is the row's main visual: an amber callout with the PR link.
+  expect(within(row('Open PR banner')).getByText('Next: merge to staging — you')).toBeTruthy();
+  const waitingFor = within(row('Open PR banner')).getByText('Waiting for your merge');
+  const link = within(row('Open PR banner')).getByRole('link', { name: 'Draft PR #123' }) as HTMLAnchorElement;
+  expect(link.href).toBe('https://github.com/invented/web/pull/123');
+  expect(waitingFor.parentElement).toBe(link.parentElement);
+  expect(link.parentElement?.className).toContain('bg-amber-50');
+  // The unsafe URL is not a link.
+  expect(within(row('Open PR banner')).getAllByRole('link')).toHaveLength(1);
+  // The badge and the sentence agree: the build passed, a draft PR is next ("Ready to publish" would overstate it).
+  expect(within(row('Ready banner')).getByText('Ready for draft PR')).toBeTruthy();
+  expect(within(row('Ready banner')).queryByText('Ready to publish')).toBeNull();
+  expect(within(row('Ready banner')).getByText('Next: open draft PR — Publisher')).toBeTruthy();
+  expect(screen.getByText('The PR is merged.')).toBeTruthy();
+  // The row says when it last changed.
+  expect(within(row('Ready banner')).getByText(/^Updated /)).toBeTruthy();
+  // Why it stopped is on the row.
+  expect(within(row('Fix the lobby timer')).getByText('Tests kept failing')).toBeTruthy();
+  expect(within(row('Rewrite everything')).getByText('Too big for one build.')).toBeTruthy();
+
+  const titles = screen.getAllByRole('listitem').map((li) => li.textContent ?? '');
+  const at = (t: string) => titles.findIndex((x) => x.includes(t));
+  expect(at('Open PR banner')).toBeLessThan(at('Ready banner'));
+  expect(at('Ready banner')).toBeLessThan(at('Friends penalty mode'));
+  // A merged build is finished; a draft PR still waiting for his merge is not.
+  expect(at('Friends penalty mode')).toBeLessThan(at('Merged banner'));
+});
+
+it('the row says who does what next; the seven-step path is in the details', async () => {
+  const job = (stage: HqBuildJob['stage']): HqBuildJob => ({ id: `j-${stage}`, number: 9, stage, note: null, runsUsed: 1, runLimit: 5, startedAt: '2026-11-10T09:05:00Z', finishedAt: null });
+  const ready = build({ id: 'b5', number: 16, title: 'Ready banner', status: 'approved', job: job('ready_to_publish') });
+  const prOpen = build({ id: 'b6', number: 17, title: 'Open PR banner', status: 'approved', job: job('published') });
+  const notStarted = build({ id: 'b7', number: 18, title: 'Not started banner', status: 'approved' });
+  api.listBuilds.mockResolvedValue({ items: [waiting, running, ready, prOpen, notStarted, failed, declined] });
+  renderPage();
+  await screen.findByText('Club page banner');
+  const row = (title: string) => screen.getByText(title).closest('li') as HTMLElement;
+  // The row: one next step with its owner, and no path until it is opened.
+  expect(within(row('Friends penalty mode')).getByText('Next: review the request — Director')).toBeTruthy();
+  expect(within(row('Not started banner')).getByText('Next: start the build — Builder')).toBeTruthy();
+  expect(within(row('Club page banner')).getByText('Next: play-test on a phone and a desktop — Play-testers')).toBeTruthy();
+  expect(row('Club page banner').querySelector('[data-step-state]')).toBeNull();
+
+  const path = (title: string) => {
+    open(title);
+    const steps = [...row(title).querySelectorAll('[data-step-state]')].map((el) => `${el.textContent}:${el.getAttribute('data-step-state')}`);
+    open(title);
+    return steps;
+  };
+  const labels = ['Request', 'Director', 'Building', 'Review', 'Play-test', 'Draft PR', 'Merged'];
+  // Waiting for the Director.
+  expect(path('Friends penalty mode')).toEqual(['Request:done', 'Director:current', 'Building:todo', 'Review:todo', 'Play-test:todo', 'Draft PR:todo', 'Merged:todo']);
+  // Approved, the Builder not started.
+  expect(path('Not started banner')).toEqual(['Request:done', 'Director:done', 'Building:current', 'Review:todo', 'Play-test:todo', 'Draft PR:todo', 'Merged:todo']);
+  // Testing is the play-test step.
+  expect(path('Club page banner')).toEqual(['Request:done', 'Director:done', 'Building:done', 'Review:done', 'Play-test:current', 'Draft PR:todo', 'Merged:todo']);
+  // Ready for a draft PR: the Draft PR step is next. A PR on staging is waiting for the merge.
+  expect(path('Ready banner')).toEqual(['Request:done', 'Director:done', 'Building:done', 'Review:done', 'Play-test:done', 'Draft PR:current', 'Merged:todo']);
+  expect(path('Open PR banner')).toEqual(['Request:done', 'Director:done', 'Building:done', 'Review:done', 'Play-test:done', 'Draft PR:done', 'Merged:current']);
+  expect(path('Open PR banner').map((p) => p.split(':')[0])).toEqual(labels);
+  // A failed or declined request has no path; the badge and reason say it.
+  expect(path('Fix the lobby timer')).toEqual([]);
+  expect(path('Rewrite everything')).toEqual([]);
 });
 
 it('expands to the spec, the Director’s note and version, and the build progress', async () => {
@@ -135,6 +214,8 @@ it('shows the API message when cancelling is refused', async () => {
 it('sends a request once it has a title, a long enough spec and a repo', async () => {
   renderPage();
   await screen.findByText('Friends penalty mode');
+  expect(screen.queryByRole('button', { name: 'Send to the Director' })).toBeNull();
+  fireEvent.click(screen.getByRole('button', { name: 'New build' }));
   const send = screen.getByRole('button', { name: 'Send to the Director' }) as HTMLButtonElement;
   expect(screen.getByText(/the Director reviews it before the Builder starts/)).toBeTruthy();
   expect(send.disabled).toBe(true);
@@ -151,7 +232,7 @@ it('sends a request once it has a title, a long enough spec and a repo', async (
   expect(send.disabled).toBe(false);
   fireEvent.click(send);
 
-  await waitFor(() => expect(api.submitBuild).toHaveBeenCalledWith({ title: 'Free-kick wall mode', spec, kind: 'feature', repos: ['backend', 'web'] }));
+  await waitFor(() => expect(api.submitBuild).toHaveBeenCalledWith({ title: 'Free-kick wall mode', spec, kind: 'feature', repos: ['backend', 'web'], game: null }));
   await waitFor(() => expect(toast.success).toHaveBeenCalledWith('Request #15 sent — the Director reviews it next'));
   await waitFor(() => expect(api.listBuilds).toHaveBeenCalledTimes(2));
   expect((screen.getByLabelText('Title') as HTMLInputElement).value).toBe('');
@@ -162,6 +243,7 @@ it('keeps the form and shows the API message when a request is refused', async (
   api.submitBuild.mockRejectedValue(new Error('You may not ask for builds.'));
   renderPage();
   await screen.findByText('Friends penalty mode');
+  fireEvent.click(screen.getByRole('button', { name: 'New build' }));
   fireEvent.change(screen.getByLabelText('Title'), { target: { value: 'Free-kick wall mode' } });
   fireEvent.click(screen.getByRole('checkbox', { name: 'CMS' }));
   fireEvent.change(screen.getByLabelText('Spec'), { target: { value: 'Players line up a wall, then take turns.' } });
@@ -179,3 +261,30 @@ it('says so when there are no requests, and when they cannot be loaded', async (
   renderPage();
   expect((await screen.findByRole('alert')).textContent).toContain('HQ is down');
 });
+
+it('shows the play-test screenshots before and after, phone and desktop', async () => {
+  const shot = (side: string, size: 'phone' | 'desktop') => ({ size, url: `https://example.test/${side}-${size}.png` });
+  const withShots = {
+    ...running,
+    job: { ...running.job!, screenshots: { at: '2026-11-10T10:00:00Z', before: [shot('before', 'phone'), shot('before', 'desktop')], after: [shot('after', 'phone'), shot('after', 'desktop')] } },
+  };
+  api.listBuilds.mockResolvedValue({ items: [withShots] });
+  renderPage();
+  await screen.findByText('Club page banner');
+  open('Club page banner');
+  const imgs = () => screen.getAllByRole('img').map((i) => i.getAttribute('src'));
+  expect(imgs()).toEqual(['https://example.test/before-phone.png', 'https://example.test/after-phone.png']);
+  fireEvent.click(screen.getByRole('tab', { name: 'Desktop' }));
+  expect(imgs()).toEqual(['https://example.test/before-desktop.png', 'https://example.test/after-desktop.png']);
+});
+
+it('says why a before shot is missing instead of showing nothing', async () => {
+  const onlyAfter = { ...running, job: { ...running.job!, screenshots: { at: null, before: [], after: [{ size: 'phone' as const, url: 'https://example.test/a.png' }] } } };
+  api.listBuilds.mockResolvedValue({ items: [onlyAfter] });
+  renderPage();
+  await screen.findByText('Club page banner');
+  open('Club page banner');
+  expect(screen.getByText(/No before shot/)).toBeTruthy();
+  expect(screen.queryByRole('tab', { name: 'Desktop' })).toBeNull();
+});
+

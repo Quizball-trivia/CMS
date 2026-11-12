@@ -13,7 +13,7 @@ export function standupStatusSentence(s: Pick<HqStandup, 'entries' | 'waitingOn'
   const ideas = s.proposals.length;
   const agents =
     total === 0
-      ? 'No agents on the team yet'
+      ? 'No agent updates yet today'
       : reported === total
         ? `All ${total} ${total === 1 ? 'agent' : 'agents'} reported`
         : `${reported} of ${total} agents reported`;

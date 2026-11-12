@@ -2,13 +2,14 @@
 
 import { useState } from 'react';
 import { toast } from 'sonner';
-import { Loader2, RefreshCw, Users } from 'lucide-react';
+import { Loader2, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { useHqMembers, useSyncHqHumans } from '@/hooks';
 import { cn } from '@/lib/utils';
-import { EmptyState, LoadErrorState, PageHeader, RefreshErrorBanner, errorMessage } from '../hq-ui';
+import { EmptyState, HQ_PAGE, LoadErrorState, PageHeader, RefreshErrorBanner, errorMessage } from '../hq-ui';
 import { MemberCard } from '../team/member-card';
+import { TeamTabs } from '../team/team-tabs';
 
 // The people on the team (CMS admins). Agents have their own page (/hq/team).
 export default function HqPeoplePage() {
@@ -18,9 +19,9 @@ export default function HqPeoplePage() {
   const sync = useSyncHqHumans();
 
   return (
-    <div className="mx-auto max-w-7xl space-y-10 pb-16">
+    <div className={HQ_PAGE}>
       <PageHeader
-        icon={<Users className="h-6 w-6 text-slate-700" />}
+        eyebrow={<TeamTabs active="people" />}
         title="People"
         description={`${people.length} ${people.length === 1 ? 'person' : 'people'} on the team.`}
         actions={
@@ -39,12 +40,12 @@ export default function HqPeoplePage() {
         }
       />
 
-      <div className="flex items-center gap-3">
-        <label className="flex items-center gap-2 text-sm text-slate-600">
+      <div className="flex flex-wrap items-center gap-3">
+        <label className="flex items-center gap-2 text-sm text-slate-700">
           <Checkbox checked={includeArchived} onCheckedChange={(v) => setIncludeArchived(v === true)} />
           Show archived
         </label>
-        {isLoading && <Loader2 className="h-4 w-4 animate-spin text-slate-400" />}
+        {isLoading && <Loader2 className="h-4 w-4 animate-spin text-slate-500" />}
       </div>
 
       {error && !data && <LoadErrorState error={error} fallback="Could not load the people." onRetry={() => void refetch()} />}
@@ -54,7 +55,7 @@ export default function HqPeoplePage() {
         (people.length === 0 ? (
           <EmptyState>No people yet.</EmptyState>
         ) : (
-          <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
             {people.map((m) => (
               <MemberCard key={m.id} member={m} />
             ))}

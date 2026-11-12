@@ -1,14 +1,19 @@
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
 import type { HqMember } from '@/types';
 
-vi.mock('next/navigation', () => ({ useRouter: () => ({ push: vi.fn() }) }));
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
+  usePathname: () => '/hq/team',
+  useSearchParams: () => new URLSearchParams(),
+}));
 vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 const mutation = () => ({ mutate: vi.fn(), isPending: false });
 vi.mock('@/hooks', () => ({
   useHqMembers: () => ({ data: members, isLoading: false, error: null, refetch: vi.fn() }),
   useSyncHqHumans: mutation,
   useCreateHqMember: mutation,
+  useUpdateHqMember: mutation,
 }));
 
 function member(id: string, name: string, kind: HqMember['kind']): HqMember {
@@ -41,4 +46,41 @@ it('lists only people on the People page', () => {
   expect(screen.getByText('Tazi')).toBeTruthy();
   expect(screen.queryByText('Growth Writer')).toBeNull();
   expect(screen.getByText('2 people on the team.')).toBeTruthy();
+});
+
+it('shows the compact roster by default, with the same Pause action as the profile', () => {
+  render(<AgentsPage />);
+  expect(screen.getByRole('radio', { name: 'Roster' }).getAttribute('aria-checked')).toBe('true');
+  expect(screen.getByText('Working on')).toBeTruthy();
+  expect(screen.getByRole('button', { name: 'Pause Growth Writer' })).toBeTruthy();
+});
+
+it('switches to the cards view and back', () => {
+  render(<AgentsPage />);
+  fireEvent.click(screen.getByRole('radio', { name: 'Cards' }));
+  expect(screen.queryByText('Working on')).toBeNull();
+  expect(screen.getByText('Growth Writer')).toBeTruthy();
+  fireEvent.click(screen.getByRole('radio', { name: 'Roster' }));
+  expect(screen.getByText('Working on')).toBeTruthy();
+});
+
+it('filters the roster by state and marks agents that run outside HQ', () => {
+  const paused = { ...member('a2', 'Paused Bot', 'agent'), status: 'paused' as const };
+  const external = { ...member('a3', 'Pipeline Bot', 'agent'), runtime: 'question_agents' as const };
+  members.push(paused, external);
+  try {
+    render(<AgentsPage />);
+    expect(screen.getByRole('radio', { name: 'All 3' })).toBeTruthy();
+    expect(screen.getByRole('radio', { name: 'On 2' })).toBeTruthy();
+    expect(screen.getByRole('radio', { name: 'Paused 1' })).toBeTruthy();
+    expect(screen.getByText('Runs outside HQ')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Resume Paused Bot' })).toBeTruthy();
+
+    fireEvent.click(screen.getByRole('radio', { name: 'Paused 1' }));
+    expect(screen.getByText('Paused Bot')).toBeTruthy();
+    expect(screen.queryByText('Growth Writer')).toBeNull();
+  } finally {
+    members.splice(members.indexOf(paused), 1);
+    members.splice(members.indexOf(external), 1);
+  }
 });
