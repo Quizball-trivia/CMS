@@ -1,8 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { toast } from 'sonner';
-import { Gauge, Pause, Play } from 'lucide-react';
+import { ChevronDown, Gauge, Pause, Play } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
@@ -11,9 +11,30 @@ import { cn } from '@/lib/utils';
 import type { HqOverview, HqPlanStatus, HqSettings } from '@/types';
 import { errorMessage } from './hq-ui';
 
-/** Agents running/paused, today's usage, and the pause switch. */
-export function HqStatus({ settings, today }: { settings: HqSettings; today: HqOverview['today'] }) {
+/**
+ * Agents running/paused, today's usage, and the pause switch. With `summary` (HQ's one-line agent counts) it replaces
+ * the label, and the usage meters and plan share sit behind a "Usage" toggle: the line stays calm, the switch stays.
+ */
+export function HqStatus({ settings, today, summary, compact = false, trailing, hideSummary = false }: {
+  settings: HqSettings; today: HqOverview['today']; summary?: ReactNode; compact?: boolean;
+  /** HQ shows the counts as tiles: the calm line then carries only what is wrong (paused, plan limits). */
+  hideSummary?: boolean;
+  /** Shown after the automation control on the same row (HQ puts its phone actions here). */
+  trailing?: ReactNode;
+}) {
+  // HQ's calm one-line layout; it stays the same while the agent counts are still loading.
+  const calm = compact || !!summary;
   const update = useUpdateHqSettings();
+  const [usageOpen, setUsageOpen] = useState(false);
+  const plan = settings.plan;
+  const blocked =
+    plan && plan.state !== 'ok'
+      ? `${plan.state === 'auth' ? 'Claude login rejected, agents can’t start' : 'Claude plan limit reached, agents wait'}${plan.until ? ` until ${timeLabel(plan.until)} (Tbilisi)` : ''}`
+      : plan?.mode === 'blocked'
+        ? 'Plan share used up, agents wait'
+        : plan?.mode === 'urgent_only'
+          ? 'Plan share nearly used: urgent work only'
+          : null;
   const [pauseOpen, setPauseOpen] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
   const [reason, setReason] = useState('');
@@ -39,35 +60,89 @@ export function HqStatus({ settings, today }: { settings: HqSettings; today: HqO
   return (
     <div
       className={cn(
-        'flex flex-wrap items-center gap-4 rounded-2xl border bg-white px-4 py-3 shadow-xs',
-        settings.paused ? 'border-red-200 bg-red-50/60' : 'border-slate-200'
+        'flex flex-wrap items-center justify-between gap-4 rounded-lg sm:justify-start',
+        // Quiet while running; boxed in red when paused, because then it needs attention.
+        settings.paused ? 'border border-red-200 bg-red-50/60 px-4 py-2.5' : ''
       )}
     >
-      <div className="flex items-center gap-2">
-        <span className={cn('h-2.5 w-2.5 rounded-full', settings.paused ? 'bg-red-500' : 'animate-pulse bg-emerald-500')} />
-        <div className="leading-tight">
-          <div className="text-sm font-bold text-slate-900">{settings.paused ? 'Agents paused' : 'Agents running'}</div>
-          <div className="max-w-56 truncate text-[11px] text-slate-500">
-            {settings.paused ? settings.pausedReason || 'Nothing new starts until you resume' : `Up to ${settings.maxConcurrentRuns} at a time`}
+      <div className={cn('flex items-center gap-2', hideSummary && !settings.paused && !blocked && 'hidden')}>
+        {/* In the calm line the dot belongs to "Automation on" (beside Usage and Pause), not to the agent counts. */}
+        {!calm && <span className={cn('h-2 w-2 shrink-0 rounded-full', settings.paused ? 'bg-red-500' : 'bg-emerald-500')} />}
+        {calm ? (
+          <div className="text-[13px] tabular-nums text-slate-700">
+            {/* The agents lead; automation being on is a setting (beside Usage and Pause), unless it is paused. */}
+            {settings.paused && (
+              <span className="font-semibold text-red-700">
+                Automation paused{settings.pausedReason ? ` (${settings.pausedReason})` : ''} ·{' '}
+              </span>
+            )}
+            {!hideSummary && <span className="text-slate-800">{summary ?? 'Agents'}</span>}
+            {/* What stops work starting is never hidden behind the Usage toggle. */}
+            {!settings.paused && blocked && (
+              <span className="ml-1 font-medium text-red-700">
+                · {blocked}
+              </span>
+            )}
           </div>
-        </div>
+        ) : (
+          <div className="leading-tight">
+            <div className="text-sm font-semibold text-slate-950">{settings.paused ? 'Agents paused' : 'Agents on'}</div>
+            <div className="max-w-56 truncate text-[11px] text-slate-500">
+              {settings.paused ? settings.pausedReason || 'Nothing new starts until you resume' : `May start work · up to ${settings.maxConcurrentRuns} at a time`}
+            </div>
+          </div>
+        )}
       </div>
-      <div className="h-8 w-px bg-slate-200" />
-      <MiniMeter label="Runs today" value={today.runs} max={settings.dailyRunLimit} format={String} />
-      {settings.planSoftPct !== undefined && settings.planHardPct !== undefined && (
-        <>
-          <PlanMeters plan={settings.plan} soft={settings.planSoftPct} hard={settings.planHardPct} />
-          <Button size="sm" variant="ghost" onClick={() => setShareOpen(true)} className="text-slate-600" title="How much of the Claude plan HQ may use">
-            <Gauge className="h-4 w-4" /> Plan share
+      {calm && (
+        // One automation control: running → a quiet toggle that opens usage and Pause; paused → Resume, in sight.
+        <div className="flex min-w-0 flex-wrap items-center">
+          {/* The same control in both states, so usage and the plan share can be checked before resuming. */}
+          <span className="flex items-center">
+          <Button size="sm" variant="ghost" className="h-11 gap-1.5 px-2 text-[13px] font-normal text-slate-600 sm:h-7" aria-expanded={usageOpen} onClick={() => setUsageOpen((v) => !v)}>
+            <span className={cn('h-1.5 w-1.5 rounded-full', settings.paused ? 'bg-red-500' : 'bg-emerald-500')} aria-hidden />
+            {settings.paused ? 'Automation paused' : 'Automation on'}
+            <ChevronDown className={cn('h-3.5 w-3.5 transition', usageOpen && 'rotate-180')} aria-hidden />
           </Button>
-        </>
+          {settings.paused && (
+            <Button size="sm" onClick={resume} disabled={update.isPending} className="h-11 bg-emerald-600 text-white hover:bg-emerald-700 sm:h-7">
+              <Play className="h-4 w-4" /> Resume
+            </Button>
+          )}
+          </span>
+          {trailing}
+        </div>
       )}
-      {settings.paused ? (
+      {/* Usage meters are for the desk; on a phone the state and the pause switch are what matter. */}
+      <div className={cn('flex-wrap items-center gap-4', calm ? (usageOpen ? 'flex basis-full sm:basis-auto' : 'hidden') : 'hidden sm:flex')}>
+        {calm && !settings.paused && (blocked ? <span className="text-[13px] font-medium text-red-700">{blocked}</span> : <span className="text-[13px] text-slate-600">New runs can start, up to {settings.maxConcurrentRuns} at a time</span>)}
+        <div className="h-8 w-px bg-slate-200" />
+        <MiniMeter label="Runs today" value={today.runs} max={settings.dailyRunLimit} format={String} />
+        {settings.planSoftPct !== undefined && settings.planHardPct !== undefined && (
+          <PlanMeters plan={settings.plan} soft={settings.planSoftPct} hard={settings.planHardPct} />
+        )}
+      </div>
+      {settings.planSoftPct !== undefined && settings.planHardPct !== undefined && (!calm || usageOpen) && (
+        <Button size="sm" variant="ghost" onClick={() => setShareOpen(true)} className="text-slate-600" title="How much of the Claude plan HQ may use">
+          <Gauge className="h-4 w-4" /> Plan share
+        </Button>
+      )}
+      {calm && usageOpen && !settings.paused && (
+        <Button size="sm" variant="ghost" onClick={() => setPauseOpen(true)} className="h-11 text-slate-600 hover:bg-red-50 hover:text-red-700 sm:h-7">
+          <Pause className="h-4 w-4" /> Pause all
+        </Button>
+      )}
+      {calm ? null : settings.paused ? (
         <Button size="sm" onClick={resume} disabled={update.isPending} className="bg-emerald-600 text-white hover:bg-emerald-700">
           <Play className="h-4 w-4" /> Resume
         </Button>
       ) : (
-        <Button size="sm" variant="outline" onClick={() => setPauseOpen(true)} className="border-red-200 text-red-700 hover:bg-red-50">
+        <Button
+          size="sm"
+          variant={calm ? 'ghost' : 'outline'}
+          onClick={() => setPauseOpen(true)}
+          // On HQ's calm status line it is a quiet control that turns red on hover; elsewhere the outlined red button.
+          className={calm ? 'h-7 text-slate-600 hover:bg-red-50 hover:text-red-700' : 'border-red-200 text-red-700 hover:bg-red-50'}
+        >
           <Pause className="h-4 w-4" /> Pause all
         </Button>
       )}

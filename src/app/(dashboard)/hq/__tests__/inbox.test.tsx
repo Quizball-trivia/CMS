@@ -53,3 +53,9 @@ it('explains why "Try again" is hidden when the team failed to load, with a retr
   fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
   expect(h.refetchMembers).toHaveBeenCalledTimes(1);
 });
+
+it('opens on messages: approvals and blocked work are on HQ', () => {
+  render(<InboxPage />);
+  expect(screen.getByRole('tab', { name: /messages/i }).getAttribute('aria-selected')).toBe('true');
+});
+

@@ -136,11 +136,13 @@ export function useHqMember(id: string | undefined) {
   });
 }
 
-export function useHqTasks(params?: HqListTasksParams, options?: { keepPrevious?: boolean }) {
+export function useHqTasks(params?: HqListTasksParams, options?: { keepPrevious?: boolean; refetchInterval?: number | false; staleTime?: number }) {
   return useQuery({
     queryKey: hqKeys.tasksList(params),
     queryFn: async () => (await hqApi.listTasks(params)).items,
-    refetchInterval: HQ_LIVE_REFETCH_MS,
+    refetchInterval: options?.refetchInterval ?? HQ_LIVE_REFETCH_MS,
+    // Only when given: an explicit undefined would override the provider's default staleTime.
+    ...(options?.staleTime !== undefined ? { staleTime: options.staleTime } : {}),
     // Filtered views keep showing the previous results while the new filter loads.
     placeholderData: options?.keepPrevious ? keepPreviousData : undefined,
   });

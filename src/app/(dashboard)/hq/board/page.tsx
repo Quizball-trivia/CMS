@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { toast } from 'sonner';
 import { useQueryClient } from '@tanstack/react-query';
 import {
@@ -16,7 +16,7 @@ import {
   type DragStartEvent,
 } from '@dnd-kit/core';
 import { sortableKeyboardCoordinates } from '@dnd-kit/sortable';
-import { KanbanSquare, Loader2, MessageSquare, Plus, Search } from 'lucide-react';
+import { ChevronDown, ChevronRight, Columns3, List, Loader2, MessageSquare, Plus, Search } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { boardCollision } from '@/lib/hq-board-collision';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -26,6 +26,7 @@ import { hqKeys, useDebouncedValue, useHqMembers, useHqTasks, useUpdateHqTask } 
 import { cn } from '@/lib/utils';
 import {
   HQ_BOARD_COLUMNS,
+  HQ_PRIORITY_LABELS,
   HQ_STATUS_LABELS,
   canDropInto,
   createDropWriter,
@@ -37,7 +38,7 @@ import {
   positionForIndex,
 } from '@/lib/hq-board';
 import type { HqTask, HqTaskStatus } from '@/types';
-import { LoadErrorState, MemberAvatar, PageHeader, PriorityBadge, RefreshErrorBanner, errorMessage, useTaskSheet } from '../hq-ui';
+import { EmptyState, HQ_LABEL, HQ_PAGE, LoadErrorState, MemberAvatar, PageHeader, Panel, RefreshErrorBanner, Section, errorMessage, useTaskSheet } from '../hq-ui';
 import { NewTaskDialog } from '../new-task-dialog';
 
 const COLUMN_ACCENTS: Record<HqTaskStatus, string> = {
@@ -51,6 +52,9 @@ const COLUMN_ACCENTS: Record<HqTaskStatus, string> = {
   proposed: 'bg-violet-400',
 };
 
+// Text colour per priority (index = priority); Normal is never shown on a card.
+const PRIORITY_TEXT = ['font-semibold text-red-700', 'font-semibold text-amber-700', 'text-slate-500', 'text-slate-500'];
+
 const OPEN_STATUSES: HqTaskStatus[] = ['backlog', 'todo', 'in_progress', 'needs_approval', 'blocked'];
 const OPEN_LIMIT = 500;
 
@@ -58,6 +62,44 @@ const FINISHED_PAGE = 100;
 // GET /admin/hq/tasks accepts limit ≤ 500.
 const FINISHED_MAX = 500;
 const ALL = '__all__';
+
+// ── Board / List view, remembered per browser ──
+// Default: List at every width; a saved choice wins. The server snapshot is null so the first
+// client render matches the server's; the real value arrives right after hydration.
+type View = 'board' | 'list';
+const VIEW_KEY = 'hq-work-view';
+const viewListeners = new Set<() => void>();
+let memoryView: View | null = null;
+
+function getView(): View {
+  if (memoryView) return memoryView;
+  try {
+    const stored = localStorage.getItem(VIEW_KEY);
+    if (stored === 'board' || stored === 'list') return stored;
+  } catch {
+    // Storage blocked: fall through to the default.
+  }
+  return 'list';
+}
+
+function subscribeView(listener: () => void) {
+  viewListeners.add(listener);
+  window.addEventListener('storage', listener);
+  return () => {
+    viewListeners.delete(listener);
+    window.removeEventListener('storage', listener);
+  };
+}
+
+function chooseView(view: View) {
+  memoryView = view;
+  try {
+    localStorage.setItem(VIEW_KEY, view);
+  } catch {
+    // Not persisted; the choice still holds for this page load.
+  }
+  viewListeners.forEach((l) => l());
+}
 
 /** Optimistic placement of a dropped card; `req` ties it to the PATCH that created it. */
 type Override = { status: HqTaskStatus; position: number; req: number };
@@ -71,6 +113,11 @@ export default function HqBoardPage() {
   const [overrides, setOverrides] = useState<Record<string, Override>>({});
   const [finishedLimit, setFinishedLimit] = useState(FINISHED_PAGE);
   const debouncedQ = useDebouncedValue(q.trim(), 300);
+  const view = useSyncExternalStore(subscribeView, getView, () => null);
+  // Done is the long tail: a header button until someone opens it.
+  const [doneOpen, setDoneOpen] = useState(false);
+  // List view: every stage heading folds; open stages start expanded, Done and Cancelled folded.
+  const [listOpen, setListOpen] = useState<Partial<Record<HqTaskStatus, boolean>>>({});
 
   const columns = useMemo<HqTaskStatus[]>(
     () => (showCancelled ? [...HQ_BOARD_COLUMNS, 'cancelled'] : HQ_BOARD_COLUMNS),
@@ -231,104 +278,212 @@ export default function HqBoardPage() {
   const agents = members.filter((m) => m.kind === 'agent');
   const people = members.filter((m) => m.kind === 'human');
 
+  const isFinished = (status: HqTaskStatus) => status === 'done' || status === 'cancelled';
+  // A finished stage can have more than the loaded page even when the current filter shows none.
+  const hasTasks = (status: HqTaskStatus) => grouped[status].length > 0 || (isFinished(status) && finishedMayHaveMore);
+  const listStages = columns.filter(hasTasks);
+  const emptyStages = columns.filter((st) => !hasTasks(st));
+  // Every stage is always a lane, left to right; Done goes last and starts as a header button.
+  const laneStages = [...columns.filter((st) => st !== 'done'), ...columns.filter((st) => st === 'done')];
+  const boardTemplate = laneStages.map((st) => (st === 'done' && !doneOpen ? 'auto' : 'minmax(13.5rem,1fr)')).join(' ');
+
+  const finishedFooter = () =>
+    finishedLimit < FINISHED_MAX ? (
+      <button
+        type="button"
+        className="w-full py-1 text-[13px] text-slate-500 hover:underline disabled:opacity-50"
+        disabled={finishedQuery.isFetching}
+        onClick={() => setFinishedLimit((n) => Math.min(n + FINISHED_PAGE, FINISHED_MAX))}
+      >
+        {finishedQuery.isFetching ? 'Loading…' : 'Show more'}
+      </button>
+    ) : (
+      <p className="py-1 text-center text-[13px] text-slate-500">Showing the latest {FINISHED_MAX}. Use search to find older tasks.</p>
+    );
+
   return (
-    <div className="space-y-5">
+    <div className={HQ_PAGE}>
       <PageHeader
-        icon={<KanbanSquare className="h-6 w-6 text-slate-700" />}
         title="Work"
-        description="Every task in the company, by stage. Drag a card to move it; give a task to an agent and it starts on its own."
+        description="Every task in the company, by stage. On the board, drag a card to move it; give a task to an agent and it starts on its own."
+        actions={
+          <Button onClick={() => setNewOpen(true)}>
+            <Plus className="h-4 w-4" /> New task
+          </Button>
+        }
       />
-      <div className="flex flex-wrap items-center gap-3">
-        <div className="relative w-64">
-          <Search className="pointer-events-none absolute left-2.5 top-2.5 h-4 w-4 text-slate-400" />
-          <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search tasks…" className="bg-white pl-8" />
-        </div>
-        <div className="w-56">
-          <Select value={assigneeId} onValueChange={setAssigneeId}>
-            <SelectTrigger className="w-full bg-white">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={ALL}>Everyone</SelectItem>
-              <SelectItem value="unassigned">Unassigned</SelectItem>
-              <SelectGroup>
-                <SelectLabel>Agents</SelectLabel>
-                {agents.map((m) => (
-                  <SelectItem key={m.id} value={m.id}>
-                    {m.avatar} {m.name}
-                  </SelectItem>
-                ))}
-              </SelectGroup>
-              <SelectGroup>
-                <SelectLabel>People</SelectLabel>
-                {people.map((m) => (
-                  <SelectItem key={m.id} value={m.id}>
-                    {m.avatar} {m.name}
-                  </SelectItem>
-                ))}
-              </SelectGroup>
-            </SelectContent>
-          </Select>
-        </div>
-        <label className="flex items-center gap-2 text-sm text-slate-600">
-          <Checkbox checked={showCancelled} onCheckedChange={(v) => setShowCancelled(v === true)} />
-          Show cancelled
-        </label>
-        {isLoading && <Loader2 className="h-4 w-4 animate-spin text-slate-400" />}
-        <Button className="ml-auto" onClick={() => setNewOpen(true)}>
-          <Plus className="h-4 w-4" /> New task
-        </Button>
-      </div>
 
-      {boardUnavailable && <LoadErrorState error={loadError} fallback="Could not load the board." onRetry={retryLoad} />}
-      {loadError && !boardUnavailable && <RefreshErrorBanner />}
-
-      {!boardUnavailable && (
-        <DndContext
-          sensors={sensors}
-          collisionDetection={boardCollision}
-          onDragStart={handleDragStart}
-          onDragEnd={handleDragEnd}
-          onDragCancel={() => {
-            setActiveTask(null);
-            stopPointerTracking.current?.();
-            stopPointerTracking.current = null;
-            pointerY.current = null;
-          }}
-        >
-          <div className="flex gap-3 overflow-x-auto pb-4">
-            {columns.map((status) => {
-              const tasks = grouped[status];
-              const finishedColumn = status === 'done' || status === 'cancelled';
-              return (
-                <Column key={status} status={status} count={tasks.length} countIsPartial={finishedColumn && finishedMayHaveMore}>
-                  {tasks.map((task) => (
-                    <DraggableCard key={task.id} task={task} onOpen={openTask} />
+      <Section title="Tasks by stage" actions={isLoading ? <Loader2 className="h-4 w-4 animate-spin text-slate-500" /> : undefined}>
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="relative w-full sm:w-64">
+            <Search className="pointer-events-none absolute left-2.5 top-2.5 h-4 w-4 text-slate-500" />
+            <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search tasks…" className="bg-white pl-8" />
+          </div>
+          <div className="w-full sm:w-56">
+            <Select value={assigneeId} onValueChange={setAssigneeId}>
+              <SelectTrigger className="w-full bg-white">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={ALL}>Everyone</SelectItem>
+                <SelectItem value="unassigned">Unassigned</SelectItem>
+                <SelectGroup>
+                  <SelectLabel>Agents</SelectLabel>
+                  {agents.map((m) => (
+                    <SelectItem key={m.id} value={m.id}>
+                      {m.avatar} {m.name}
+                    </SelectItem>
                   ))}
-                  {finishedColumn && finishedMayHaveMore && finishedLimit < FINISHED_MAX && (
-                    <button
-                      type="button"
-                      className="w-full py-1 text-xs text-slate-500 hover:underline disabled:opacity-50"
-                      disabled={finishedQuery.isFetching}
-                      onClick={() => setFinishedLimit((n) => Math.min(n + FINISHED_PAGE, FINISHED_MAX))}
-                    >
-                      {finishedQuery.isFetching ? 'Loading…' : 'Show more'}
-                    </button>
+                </SelectGroup>
+                <SelectGroup>
+                  <SelectLabel>People</SelectLabel>
+                  {people.map((m) => (
+                    <SelectItem key={m.id} value={m.id}>
+                      {m.avatar} {m.name}
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
+              </SelectContent>
+            </Select>
+          </div>
+          <label className="flex items-center gap-2 text-sm text-slate-600">
+            <Checkbox checked={showCancelled} onCheckedChange={(v) => setShowCancelled(v === true)} />
+            Show cancelled
+          </label>
+          <div role="group" aria-label="View" className="inline-flex rounded-md border border-slate-200 bg-white p-0.5 sm:ml-auto">
+            {([
+              ['board', 'Board', Columns3],
+              ['list', 'List', List],
+            ] as const).map(([value, label, Icon]) => (
+              <button
+                key={value}
+                type="button"
+                aria-pressed={view === value}
+                onClick={() => chooseView(value)}
+                className={cn(
+                  'inline-flex items-center gap-1.5 rounded px-3 py-1 text-sm font-medium transition-colors',
+                  view === value ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-100'
+                )}
+              >
+                <Icon className="size-4" /> {label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {boardUnavailable && <LoadErrorState error={loadError} fallback="Could not load the board." onRetry={retryLoad} />}
+        {loadError && !boardUnavailable && <RefreshErrorBanner />}
+
+        {!boardUnavailable && view === 'list' && (
+          <div className="space-y-4">
+            {listStages.map((status) => {
+              const open = listOpen[status] ?? !isFinished(status);
+              const total = `${grouped[status].length}${isFinished(status) && finishedMayHaveMore ? '+' : ''}`;
+              return (
+                <Panel key={status} className="overflow-hidden">
+                  <button
+                    type="button"
+                    aria-expanded={open}
+                    onClick={() => setListOpen((prev) => ({ ...prev, [status]: !open }))}
+                    className={cn(
+                      'flex w-full items-center gap-2 bg-slate-50 px-3 py-2 text-left transition-colors hover:bg-slate-100',
+                      open && 'border-b border-slate-200'
+                    )}
+                  >
+                    <span className={cn('h-2 w-2 rounded-full', COLUMN_ACCENTS[status])} />
+                    <h3 className={cn(HQ_LABEL, 'text-slate-700')}>{HQ_STATUS_LABELS[status]}</h3>
+                    <span className="text-[13px] text-slate-500" aria-hidden>
+                      ·
+                    </span>
+                    <span className="text-[13px] font-semibold tabular-nums text-slate-700">{total}</span>
+                    {open ? <ChevronDown className="size-4 text-slate-500" /> : <ChevronRight className="size-4 text-slate-500" />}
+                  </button>
+                  {open && (
+                    <>
+                      <ul className="divide-y divide-slate-100">
+                        {grouped[status].map((task) => (
+                          <TaskListRow key={task.id} task={task} onOpen={openTask} />
+                        ))}
+                      </ul>
+                      {isFinished(status) && finishedMayHaveMore && <div className="border-t border-slate-100 px-3 py-1">{finishedFooter()}</div>}
+                    </>
                   )}
-                  {finishedColumn && finishedMayHaveMore && finishedLimit >= FINISHED_MAX && (
-                    <p className="py-1 text-center text-xs text-slate-400">
-                      Showing the latest {FINISHED_MAX}. Use search to find older tasks.
-                    </p>
-                  )}
-                </Column>
+                </Panel>
               );
             })}
+            {listStages.length === 0 && !isLoading && <EmptyState>No tasks match.</EmptyState>}
+            {emptyStages.length > 0 && listStages.length > 0 && (
+              <p className="text-sm text-slate-500">No tasks in {emptyStages.map((st) => HQ_STATUS_LABELS[st]).join(', ')}.</p>
+            )}
           </div>
-          <DragOverlay>{activeTask ? <TaskCard task={activeTask} dragging /> : null}</DragOverlay>
-        </DndContext>
-      )}
+        )}
+
+        {!boardUnavailable && view === 'board' && (
+          <DndContext
+            sensors={sensors}
+            collisionDetection={boardCollision}
+            onDragStart={handleDragStart}
+            onDragEnd={handleDragEnd}
+            onDragCancel={() => {
+              setActiveTask(null);
+              stopPointerTracking.current?.();
+              stopPointerTracking.current = null;
+              pointerY.current = null;
+            }}
+          >
+            <div className="grid items-start gap-3 overflow-x-auto pb-2" style={{ gridTemplateColumns: boardTemplate }}>
+              {laneStages.map((status) => {
+                const tasks = grouped[status];
+                const partial = isFinished(status) && finishedMayHaveMore;
+                if (status === 'done' && !doneOpen) {
+                  return <DoneToggle key={status} count={tasks.length} partial={partial} onOpen={() => setDoneOpen(true)} />;
+                }
+                return (
+                  <Column
+                    key={status}
+                    status={status}
+                    count={tasks.length}
+                    countIsPartial={partial}
+                    onCollapse={status === 'done' ? () => setDoneOpen(false) : undefined}
+                  >
+                    {tasks.map((task) => (
+                      <DraggableCard key={task.id} task={task} onOpen={openTask} />
+                    ))}
+                    {isFinished(status) && finishedMayHaveMore && finishedFooter()}
+                  </Column>
+                );
+              })}
+            </div>
+            <DragOverlay>{activeTask ? <TaskCard task={activeTask} dragging /> : null}</DragOverlay>
+          </DndContext>
+        )}
+      </Section>
 
       <NewTaskDialog open={newOpen} onOpenChange={setNewOpen} members={members} />
+    </div>
+  );
+}
+
+/** The collapsed Done lane: a header button at the end of the lane row. Still a drop target. */
+function DoneToggle({ count, partial, onOpen }: { count: number; partial: boolean; onOpen: () => void }) {
+  const { setNodeRef, isOver } = useDroppable({ id: 'column:done', data: { type: 'column', status: 'done' as const } });
+  const total = `${count}${partial ? '+' : ''}`;
+  return (
+    <div
+      id="lane-done"
+      ref={setNodeRef}
+      className={cn('rounded-lg border border-slate-200 bg-slate-50 transition-colors', isOver && 'border-blue-300 bg-blue-50/60')}
+    >
+      <button
+        type="button"
+        onClick={onOpen}
+        aria-label={`Show Done (${total})`}
+        className="flex w-full items-center gap-2 whitespace-nowrap rounded-lg px-3 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-100 focus-visible:outline-2 focus-visible:outline-blue-500"
+      >
+        <span className={cn('h-2 w-2 rounded-full', COLUMN_ACCENTS.done)} />
+        Done · <span className="tabular-nums">{total}</span>
+        <ChevronRight className="size-4 text-slate-500" />
+      </button>
     </div>
   );
 }
@@ -337,33 +492,87 @@ function Column({
   status,
   count,
   countIsPartial,
+  onCollapse,
   children,
 }: {
   status: HqTaskStatus;
   count: number;
   countIsPartial?: boolean;
+  /** Set when the open lane can be folded back into its header button (Done). */
+  onCollapse?: () => void;
   children: React.ReactNode;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: `column:${status}`, data: { type: 'column', status } });
+  const label = HQ_STATUS_LABELS[status];
+  const total = `${count}${countIsPartial ? '+' : ''}`;
+
+  // A long lane scrolls inside; say how many cards are out of sight below.
+  const [scroller, setScroller] = useState<HTMLDivElement | null>(null);
+  const [content, setContent] = useState<HTMLDivElement | null>(null);
+  const [moreBelow, setMoreBelow] = useState(0);
+  useEffect(() => {
+    if (!scroller || !content) return;
+    const measure = () => {
+      const visibleBottom = scroller.scrollTop + scroller.clientHeight;
+      let hidden = 0;
+      scroller.querySelectorAll<HTMLElement>('[data-lane-card]').forEach((card) => {
+        if (card.offsetTop + card.offsetHeight / 2 > visibleBottom) hidden += 1;
+      });
+      setMoreBelow(hidden);
+    };
+    const observer = new ResizeObserver(measure);
+    observer.observe(scroller);
+    observer.observe(content);
+    scroller.addEventListener('scroll', measure, { passive: true });
+    return () => {
+      observer.disconnect();
+      scroller.removeEventListener('scroll', measure);
+    };
+  }, [scroller, content, count]);
+
   return (
-    <div className="flex w-72 shrink-0 flex-col">
-      <div className="mb-2 flex items-center gap-2 px-1">
+    <div
+      id={`lane-${status}`}
+      ref={setNodeRef}
+      className={cn(
+        'flex max-h-[calc(100vh-14rem)] min-w-0 flex-col rounded-lg border border-slate-200 bg-slate-50 transition-colors',
+        isOver && 'border-blue-300 bg-blue-50/60'
+      )}
+    >
+      <div className="flex shrink-0 items-center gap-2 rounded-t-lg border-b border-slate-200 bg-inherit px-3 py-2">
         <span className={cn('h-2 w-2 rounded-full', COLUMN_ACCENTS[status])} />
-        <span className="text-sm font-bold text-slate-700">{HQ_STATUS_LABELS[status]}</span>
-        <span className="text-xs text-slate-400">
-          {count}
-          {countIsPartial ? '+' : ''}
-        </span>
-      </div>
-      <div
-        ref={setNodeRef}
-        className={cn(
-          'min-h-[24rem] flex-1 space-y-2 rounded-xl border border-slate-200 bg-slate-100/60 p-2 transition-colors',
-          isOver && 'border-blue-300 bg-blue-50/60'
+        <h3 className={cn(HQ_LABEL, 'text-slate-700')}>{label}</h3>
+        <span className="ml-auto rounded bg-slate-100 px-1.5 text-[11px] font-semibold tabular-nums text-slate-600">{total}</span>
+        {onCollapse && (
+          <button type="button" onClick={onCollapse} aria-label={`Hide ${label}`} className="text-[13px] text-slate-500 hover:text-slate-900 hover:underline">
+            Hide
+          </button>
         )}
-      >
-        {children}
       </div>
+      <div ref={setScroller} className="relative min-h-0 flex-1 overflow-y-auto p-2">
+        <div ref={setContent} className="space-y-2">
+          {count === 0 && (
+            <div
+              className={cn(
+                'grid min-h-[5rem] place-items-center rounded-md border border-dashed border-slate-300 px-2 text-center text-[13px] text-slate-500 transition-colors',
+                isOver && 'border-blue-400 bg-blue-50 text-blue-700'
+              )}
+            >
+              No tasks — drop here
+            </div>
+          )}
+          {children}
+        </div>
+      </div>
+      {moreBelow > 0 && (
+        <button
+          type="button"
+          onClick={() => scroller?.scrollBy({ top: Math.max(scroller.clientHeight * 0.8, 120), behavior: 'smooth' })}
+          className="shrink-0 rounded-b-lg border-t border-slate-200 px-3 py-1.5 text-left text-[13px] font-medium text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900"
+        >
+          {moreBelow} more below ↓
+        </button>
+      )}
     </div>
   );
 }
@@ -381,6 +590,7 @@ function DraggableCard({ task, onOpen }: { task: HqTask; onOpen: (id: string) =>
         drag.setNodeRef(node);
         drop.setNodeRef(node);
       }}
+      data-lane-card=""
       {...drag.attributes}
       {...drag.listeners}
       className={cn('touch-none', drag.isDragging && 'opacity-30', drop.isOver && !drag.isDragging && 'border-t-2 border-blue-400 pt-1')}
@@ -395,11 +605,11 @@ function TaskCard({ task, onOpen, dragging }: { task: HqTask; onOpen?: (id: stri
     <div
       onClick={() => onOpen?.(task.id)}
       className={cn(
-        'cursor-pointer rounded-lg border border-slate-200 bg-white p-3 shadow-xs transition hover:border-slate-300 hover:shadow-sm',
-        dragging && 'rotate-1 shadow-lg ring-2 ring-blue-200'
+        'cursor-pointer rounded-lg border border-slate-200 bg-white px-3 py-2.5 transition hover:border-slate-300',
+        dragging && 'rotate-1 ring-2 ring-blue-200'
       )}
     >
-      <div className="mb-1 flex items-center gap-2">
+      <div className="flex items-start gap-2">
         {onOpen ? (
           // The draggable wrapper owns Enter/Space (start drag), so keyboard
           // users open the task with this button; it keeps its events from
@@ -407,7 +617,7 @@ function TaskCard({ task, onOpen, dragging }: { task: HqTask; onOpen?: (id: stri
           <button
             type="button"
             aria-label={`Open task #${task.number}`}
-            className="rounded font-mono text-[11px] text-slate-400 hover:text-slate-700 focus-visible:outline-2 focus-visible:outline-blue-500"
+            className="shrink-0 rounded font-mono text-[13px] leading-snug tabular-nums text-slate-500 hover:text-slate-900 focus-visible:outline-2 focus-visible:outline-blue-500"
             onClick={(e) => {
               e.stopPropagation();
               onOpen(task.id);
@@ -418,25 +628,76 @@ function TaskCard({ task, onOpen, dragging }: { task: HqTask; onOpen?: (id: stri
             #{task.number}
           </button>
         ) : (
-          <span className="font-mono text-[11px] text-slate-400">#{task.number}</span>
+          <span className="shrink-0 font-mono text-[13px] leading-snug tabular-nums text-slate-500">#{task.number}</span>
         )}
-        <PriorityBadge priority={task.priority} hideNormal />
+        <div className="line-clamp-3 min-w-0 flex-1 text-sm font-semibold leading-snug text-slate-950">{task.title}</div>
         {task.status === 'in_progress' && task.assignee?.kind === 'agent' && (
-          <Loader2 className="ml-auto h-3.5 w-3.5 animate-spin text-blue-500" />
+          <Loader2 className="mt-0.5 h-3.5 w-3.5 shrink-0 animate-spin text-blue-500" />
         )}
       </div>
-      <div className="line-clamp-3 text-sm font-semibold leading-snug text-slate-900">{task.title}</div>
-      <div className="mt-2 flex items-center gap-2 text-xs text-slate-500">
-        <MemberAvatar member={task.assignee} size="xs" />
-        <span className="truncate">{task.assignee?.name ?? 'Unassigned'}</span>
-        {task.messageCount > 0 && (
-          <span className="ml-auto flex items-center gap-0.5">
-            <MessageSquare className="h-3 w-3" />
-            {task.messageCount}
-          </span>
-        )}
-        <span className={cn(task.messageCount > 0 ? '' : 'ml-auto')}>{formatRelative(task.createdAt)}</span>
+      <div className="mt-1.5 space-y-0.5 text-[13px] text-slate-500">
+        <div className="flex items-center gap-1.5">
+          <MemberAvatar member={task.assignee} size="xs" />
+          <span className="min-w-0 truncate">{task.assignee?.name ?? 'Unassigned'}</span>
+        </div>
+        <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
+          {task.priority !== 2 && (
+            <>
+              <span className={PRIORITY_TEXT[task.priority]}>{HQ_PRIORITY_LABELS[task.priority]}</span>
+              <span aria-hidden>·</span>
+            </>
+          )}
+          <span className="tabular-nums">{formatRelative(task.createdAt)}</span>
+          {task.messageCount > 0 && (
+            <>
+              <span aria-hidden>·</span>
+              <span className="inline-flex items-center gap-0.5 tabular-nums">
+                <MessageSquare className="h-3 w-3" />
+                {task.messageCount}
+              </span>
+            </>
+          )}
+        </div>
       </div>
     </div>
+  );
+}
+
+/** One task in the List view: the full title wraps, nothing is truncated. */
+function TaskListRow({ task, onOpen }: { task: HqTask; onOpen: (id: string) => void }) {
+  return (
+    <li>
+      <button
+        type="button"
+        onClick={() => onOpen(task.id)}
+        className="flex w-full items-start gap-3 px-3 py-2.5 text-left transition-colors hover:bg-slate-50 focus-visible:bg-slate-50 focus-visible:outline-none"
+      >
+        <span className="w-11 shrink-0 pt-px font-mono text-[13px] leading-snug tabular-nums text-slate-500">#{task.number}</span>
+        <span className="min-w-0 flex-1">
+          <span className="block break-words text-sm font-semibold leading-snug text-slate-950">{task.title}</span>
+          <span className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[13px] text-slate-500">
+            <MemberAvatar member={task.assignee} size="xs" />
+            <span>{task.assignee?.name ?? 'Unassigned'}</span>
+            {task.priority !== 2 && (
+              <>
+                <span aria-hidden>·</span>
+                <span className={PRIORITY_TEXT[task.priority]}>{HQ_PRIORITY_LABELS[task.priority]}</span>
+              </>
+            )}
+            <span aria-hidden>·</span>
+            <span className="tabular-nums">{formatRelative(task.createdAt)}</span>
+            {task.messageCount > 0 && (
+              <span className="inline-flex items-center gap-0.5 tabular-nums">
+                <MessageSquare className="h-3 w-3" />
+                {task.messageCount}
+              </span>
+            )}
+          </span>
+        </span>
+        {task.status === 'in_progress' && task.assignee?.kind === 'agent' && (
+          <Loader2 className="mt-0.5 h-3.5 w-3.5 shrink-0 animate-spin text-blue-500" />
+        )}
+      </button>
+    </li>
   );
 }

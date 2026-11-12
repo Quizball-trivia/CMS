@@ -66,48 +66,45 @@ export function ProposalCard({ task, goal, onOpen }: { task: HqTask; goal?: HqGo
     );
 
   return (
-    <article className="flex flex-col rounded-3xl border-2 border-violet-200 bg-white p-6 shadow-sm transition hover:border-violet-300 hover:shadow-md">
-      <header className="flex items-center gap-3">
-        <MemberAvatar member={task.assignee} size="md" />
+    <article className="flex flex-col rounded-lg border border-amber-300 bg-white p-4 shadow-[inset_3px_0_0_0_theme(colors.amber.500)]">
+      <header className="flex items-center gap-2.5">
+        <MemberAvatar member={task.assignee} size="sm" />
         <div className="min-w-0 leading-tight">
-          <div className="truncate text-sm font-bold text-slate-800">{task.createdBy?.name ?? agentName}</div>
-          <div className="text-xs text-slate-400">suggests</div>
+          <div className="truncate text-sm font-semibold text-slate-800">{task.createdBy?.name ?? agentName}</div>
+          <div className="text-xs text-slate-500">suggests · #{task.number}</div>
         </div>
-        <span className="ml-auto text-2xl" aria-hidden>
-          💡
-        </span>
       </header>
 
-      <button type="button" onClick={() => onOpen?.(task.id)} className="mt-4 text-left">
-        <h3 className="text-2xl font-extrabold leading-tight tracking-tight text-slate-900 hover:underline">{task.title}</h3>
+      <button type="button" onClick={() => onOpen?.(task.id)} className="mt-3 text-left">
+        <h3 className="text-[15px] font-semibold leading-snug text-slate-950 hover:underline">{task.title}</h3>
       </button>
-      {p?.why && <p className="mt-2 line-clamp-2 text-base text-slate-600">{p.why}</p>}
+      {p?.why && <p className="mt-1.5 line-clamp-2 text-sm text-slate-600">{p.why}</p>}
       <DirectorNote task={task} className="mt-3" />
 
-      <div className="mt-4 flex flex-wrap gap-2 text-sm">
+      <div className="mt-3 flex flex-wrap gap-1.5 text-xs">
         {p?.expectedImpact && (
-          <span className="rounded-full bg-blue-50 px-3 py-1 font-medium text-blue-800" title="Expected impact">
-            📈 {p.expectedImpact}
+          <span className="rounded border border-slate-200 px-2 py-0.5 font-medium text-slate-700" title="Expected impact">
+            Impact: {p.expectedImpact}
           </span>
         )}
-        {p?.effort && <span className={cn('rounded-full px-3 py-1 font-medium', EFFORT_STYLES[p.effort])}>⏱ {EFFORT_LABELS[p.effort]}</span>}
+        {p?.effort && <span className={cn('rounded px-2 py-0.5 font-medium', EFFORT_STYLES[p.effort])}>Effort: {EFFORT_LABELS[p.effort]}</span>}
         {goal && (
-          <span className="inline-flex max-w-full items-center gap-1 rounded-full bg-slate-100 px-3 py-1 font-medium text-slate-700" title="Moves this goal">
+          <span className="inline-flex max-w-full items-center gap-1 rounded border border-slate-200 px-2 py-0.5 font-medium text-slate-700" title="Moves this goal">
             <Target className="h-3.5 w-3.5 shrink-0" />
             <span className="truncate">{goal.title}</span>
           </span>
         )}
       </div>
 
-      <div className="mt-auto grid grid-cols-3 gap-2 pt-6">
-        <Button size="lg" onClick={doIt} disabled={busy} className="h-12 bg-emerald-600 text-base font-bold text-white hover:bg-emerald-700">
-          <Check className="h-5 w-5" /> Do it
+      <div className="mt-auto flex flex-wrap gap-2 pt-4">
+        <Button size="sm" onClick={doIt} disabled={busy} className="bg-emerald-600 text-white hover:bg-emerald-700">
+          <Check className="h-4 w-4" /> Do it
         </Button>
-        <Button size="lg" variant="outline" onClick={() => setChangeOpen(true)} disabled={busy} className="h-12 text-base font-semibold">
-          <Pencil className="h-4 w-4" /> Change
+        <Button size="sm" variant="outline" onClick={() => setChangeOpen(true)} disabled={busy}>
+          <Pencil className="h-3.5 w-3.5" /> Change
         </Button>
-        <Button size="lg" variant="ghost" onClick={() => setNotNowOpen(true)} disabled={busy} className="h-12 text-base font-semibold text-slate-500">
-          <X className="h-5 w-5" /> Not now
+        <Button size="sm" variant="ghost" onClick={() => setNotNowOpen(true)} disabled={busy} className="text-slate-600">
+          <X className="h-4 w-4" /> Not now
         </Button>
       </div>
 

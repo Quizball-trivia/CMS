@@ -598,6 +598,19 @@ export interface HqBuildJob {
   prs?: HqBuildPr[];
   /** What the Builder has proven so far: a red/green test run, GPT code reviews asked for, play-test rounds. */
   proof?: { redGreen: boolean; reviews: number; playtests: number };
+  /** Play-test screenshots (short-lived signed links): the page on the base commit and with the change. */
+  screenshots?: HqBuildScreenshots | null;
+}
+
+export interface HqBuildShot {
+  size: 'phone' | 'desktop';
+  url: string;
+}
+
+export interface HqBuildScreenshots {
+  at: string | null;
+  before: HqBuildShot[];
+  after: HqBuildShot[];
 }
 
 export interface HqBuildPr {
@@ -619,6 +632,8 @@ export interface HqBuild {
   directorNote: string | null;
   createdAt: string;
   decidedAt: string | null;
+  /** The game the build is about (analytics mode id). Missing on an older backend. */
+  game?: string | null;
   job: HqBuildJob | null;
 }
 
@@ -627,6 +642,8 @@ export interface HqSubmitBuildRequest {
   spec: string;
   kind: HqBuildKind;
   repos: HqBuildRepo[];
+  /** The game the build is about (analytics mode id). */
+  game?: string | null;
 }
 
 /** `build_stopped`: the request was approved and its running build was stopped. */

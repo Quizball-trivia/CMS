@@ -53,21 +53,20 @@ it('shows admins the Company section and every department', () => {
   h.pathname = '/hq';
   render(<Sidebar />);
   const hrefs = links();
-  // The Director comes first: the founder talks to him.
-  expect(hrefs[0]).toBe('/hq/director');
-  for (const href of ['/hq/builds', '/hq/goals', '/hq/analytics', '/hq/team', '/hq/board', '/hq/inbox', '/hq/schedules', '/hq/activity']) expect(hrefs).toContain(href);
-  // Then Builds, Standup, Goals, Analytics, Agents, People, Work; Inbox/Automations/Activity under "More".
-  expect(hrefs.slice(0, 8)).toEqual(['/hq/director', '/hq/builds', '/hq', '/hq/goals', '/hq/analytics', '/hq/team', '/hq/people', '/hq/board']);
-  expect(within(nav()).getByText('Director')).toBeTruthy();
-  expect(within(nav()).getByText('Builds')).toBeTruthy();
-  expect(within(nav()).getByText('Standup')).toBeTruthy();
-  expect(within(nav()).getByText('More')).toBeTruthy();
-  expect(hrefs.indexOf('/hq/inbox')).toBeGreaterThan(hrefs.indexOf('/hq/departments/partners'));
+  // HQ first; then the daily places; the rest under "More".
+  expect(hrefs.slice(0, 11)).toEqual([
+    '/hq', '/hq/board', '/hq/builds', '/hq/team', '/hq/analytics',
+    '/hq/director', '/hq/goals', '/hq/inbox', '/hq/schedules', '/hq/content-gaps', '/hq/activity',
+  ]);
+  for (const heading of ['More', 'Departments']) expect(within(nav()).getByText(heading)).toBeTruthy();
+  expect(within(nav()).getByText('HQ')).toBeTruthy();
+  expect(within(nav()).getByText('Romero')).toBeTruthy();
+  expect(hrefs.indexOf('/settings')).toBeGreaterThan(hrefs.indexOf('/hq/departments/partners'));
   for (const key of ['leadership', 'growth', 'content', 'competitions', 'engineering', 'partners']) {
     expect(hrefs).toContain(`/hq/departments/${key}`);
   }
   expect(within(nav()).getByText('Work')).toBeTruthy();
-  expect(within(nav()).getByText('Automations')).toBeTruthy();
+  expect(within(nav()).getByText('Schedules')).toBeTruthy();
   expect(within(nav()).queryByText('Board')).toBeNull();
 });
 
@@ -89,7 +88,7 @@ it('keeps the Freecroco Staff page for admins', () => {
   expect(new Set(links()).has('/freecroco/staff')).toBe(true);
 });
 
-it('badges the Inbox with approvals + unread messages, and flags busy departments', () => {
+it('badges Messages with unread messages only, and flags busy departments', () => {
   h.role = 'admin';
   h.pathname = '/hq';
   h.overview = {
@@ -101,7 +100,7 @@ it('badges the Inbox with approvals + unread messages, and flags busy department
     ],
   };
   render(<Sidebar />);
-  expect(within(nav()).getByRole('link', { name: 'Inbox (5)' })).toBeTruthy();
+  expect(within(nav()).getByRole('link', { name: 'Messages (3)' })).toBeTruthy();
   expect(within(nav()).getByTitle('1 waiting for approval')).toBeTruthy();
   expect(within(nav()).getAllByLabelText('working').length).toBeGreaterThan(0);
 });

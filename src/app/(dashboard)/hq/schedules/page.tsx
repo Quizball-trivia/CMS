@@ -1,8 +1,8 @@
 'use client';
 
-import { CalendarClock, Loader2 } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 import { useHqMembers, useHqSchedules } from '@/hooks';
-import { LoadErrorState, PageHeader, RefreshErrorBanner } from '../hq-ui';
+import { HQ_PAGE, LoadErrorState, PageHeader, RefreshErrorBanner } from '../hq-ui';
 import { SchedulesTable } from '../schedules-ui';
 
 export default function HqAutomationsPage() {
@@ -17,11 +17,10 @@ export default function HqAutomationsPage() {
   const refreshFailed = (!!schedulesQuery.error && !!schedules) || (!!membersQuery.error && !!members);
 
   return (
-    <div className="space-y-5">
+    <div className={HQ_PAGE}>
       <PageHeader
-        icon={<CalendarClock className="h-6 w-6 text-slate-700" />}
-        title="Automations"
-        description="Recurring work that runs on its own: each automation creates a task for its agent at the set time, even while you sleep."
+        title="Schedules"
+        description="Recurring work that runs on its own: each automation creates a task for its agent at the set time, even while you sleep. Times are Tbilisi time unless shown otherwise."
       />
       {refreshFailed && <RefreshErrorBanner />}
       {loading ? (
