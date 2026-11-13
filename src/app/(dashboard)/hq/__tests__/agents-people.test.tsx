@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
 import type { HqMember } from '@/types';
 
@@ -83,4 +83,38 @@ it('filters the roster by state and marks agents that run outside HQ', () => {
     members.splice(members.indexOf(paused), 1);
     members.splice(members.indexOf(external), 1);
   }
+});
+
+const fromOtherTab = (key: string | null, newValue: string | null) =>
+  act(() => {
+    window.dispatchEvent(new StorageEvent('storage', { key, newValue }));
+  });
+
+it('follows a view chosen in another tab, even after this tab chose one itself', () => {
+  render(<AgentsPage />);
+  fireEvent.click(screen.getByRole('radio', { name: 'Cards' }));
+  expect(screen.getByRole('radio', { name: 'Cards' }).getAttribute('aria-checked')).toBe('true');
+  fromOtherTab('hq.agents.view', 'roster');
+  expect(screen.getByRole('radio', { name: 'Roster' }).getAttribute('aria-checked')).toBe('true');
+  expect(screen.getByText('Working on')).toBeTruthy();
+  // Unrelated keys are ignored; a cleared storage (key null) drops the remembered choice.
+  fireEvent.click(screen.getByRole('radio', { name: 'Cards' }));
+  fromOtherTab('another.key', 'roster');
+  expect(screen.getByRole('radio', { name: 'Cards' }).getAttribute('aria-checked')).toBe('true');
+  fromOtherTab(null, null);
+  expect(screen.getByRole('radio', { name: 'Roster' }).getAttribute('aria-checked')).toBe('true');
+});
+
+it('keeps the choice in memory when storage is blocked', () => {
+  vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+    throw new Error('blocked');
+  });
+  vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
+    throw new Error('blocked');
+  });
+  render(<AgentsPage />);
+  fireEvent.click(screen.getByRole('radio', { name: 'Cards' }));
+  expect(screen.getByRole('radio', { name: 'Cards' }).getAttribute('aria-checked')).toBe('true');
+  fireEvent.click(screen.getByRole('radio', { name: 'Roster' }));
+  expect(screen.getByRole('radio', { name: 'Roster' }).getAttribute('aria-checked')).toBe('true');
 });

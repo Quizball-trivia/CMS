@@ -300,7 +300,8 @@ function QueueTab() {
 
   const states = useGapStates(shown, game);
   const failed = states.filter((s) => s.query.error && !s.query.data);
-  const loading = states.some((s) => s.query.isLoading);
+  // isPending, not isLoading: a first request paused offline is pending but not "loading".
+  const loading = states.some((s) => s.query.isPending);
   const withRows = states.filter((s) => s.query.data?.length);
   // Stacked states get a light divider label, but only when more than one of them has gaps.
   const labelled = state === 'all' && withRows.length > 1;
@@ -343,6 +344,9 @@ function QueueTab() {
           </Select>
         </div>
       </div>
+      {summary.error && !summary.data && (
+        <LoadErrorState error={summary.error} fallback="Could not load the game list and counts." onRetry={() => void summary.refetch()} />
+      )}
       {failed.length > 0 && (
         <LoadErrorState error={failed[0].query.error} fallback="Could not load the content gaps." onRetry={() => failed.forEach((f) => void f.query.refetch())} />
       )}

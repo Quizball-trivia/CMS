@@ -55,13 +55,12 @@ export default function AnalyticsPage() {
         description="How many players we have, where they come from, what they play, and whether they come back."
         actions={
           <>
-            <div className="inline-flex rounded-md border border-slate-200 bg-white p-0.5" role="tablist" aria-label="Analytics view">
+            <div className="inline-flex rounded-md border border-slate-200 bg-white p-0.5" role="group" aria-label="Analytics view">
               {TABS.map((t) => (
                 <button
                   key={t.key}
                   type="button"
-                  role="tab"
-                  aria-selected={tab === t.key}
+                  aria-pressed={tab === t.key}
                   onClick={() => setTab(t.key)}
                   className={cn('rounded px-3 py-1.5 text-sm font-medium transition', tab === t.key ? 'bg-slate-900 text-white' : 'text-slate-600 hover:text-slate-900')}
                 >
@@ -73,13 +72,12 @@ export default function AnalyticsPage() {
             <span id="trend-period-label" className={HQ_LABEL}>
               Trend period
             </span>
-            <div className="inline-flex rounded-md border border-slate-200 bg-white p-0.5" role="radiogroup" aria-labelledby="trend-period-label">
+            <div className="inline-flex rounded-md border border-slate-200 bg-white p-0.5" role="group" aria-labelledby="trend-period-label">
               {PERIODS.map((p) => (
                 <button
                   key={p}
                   type="button"
-                  role="radio"
-                  aria-checked={days === p}
+                  aria-pressed={days === p}
                   onClick={() => setDays(p)}
                   className={cn('rounded px-3 py-1.5 text-sm font-medium tabular-nums transition', days === p ? 'bg-slate-900 text-white' : 'text-slate-600 hover:text-slate-900')}
                 >
@@ -93,9 +91,7 @@ export default function AnalyticsPage() {
       />
 
       {tab === 'website' ? (
-        <div role="tabpanel" aria-label="Website">
-          <PosthogSection days={days} />
-        </div>
+        <PosthogSection days={days} />
       ) : isLoading && !data ? (
         <div className="flex items-center gap-2 text-sm text-slate-600">
           <Loader2 className="h-4 w-4 animate-spin" /> Loading analytics…
@@ -103,7 +99,7 @@ export default function AnalyticsPage() {
       ) : !data ? (
         <LoadErrorState error={error} fallback="Could not load analytics." onRetry={() => void refetch()} />
       ) : (
-        <div role="tabpanel" aria-label="Players" className={cn('space-y-8 transition-opacity', isFetching && 'opacity-70')}>
+        <div className={cn('space-y-8 transition-opacity', isFetching && 'opacity-70')}>
           {error && <RefreshErrorBanner />}
           <SummaryStrip data={data} />
           <div className="grid gap-8 lg:grid-cols-2">
@@ -539,7 +535,7 @@ function ModesSection({ data }: { data: HqAnalytics }) {
 // ── PostHog ──
 
 function PosthogSection({ days }: { days: number }) {
-  const { data, isLoading, error, refetch } = useHqPosthog(days);
+  const { data, isLoading, error, refetch, isPlaceholderData } = useHqPosthog(days);
   if (isLoading && !data) {
     return (
       <Section title="Website (PostHog)">
@@ -564,7 +560,7 @@ function PosthogSection({ days }: { days: number }) {
       </Section>
     );
   }
-  return <PosthogStats data={data} days={days} />;
+  return <PosthogStats data={data} days={days} stale={isPlaceholderData} />;
 }
 
 function ConnectPosthog() {
@@ -590,18 +586,20 @@ function ConnectPosthog() {
 
 type PosthogConnected = Extract<HqPosthog, { connected: true; error?: undefined }>;
 
-function PosthogStats({ data, days }: { data: PosthogConnected; days: number }) {
+/** `stale`: the previous period's numbers, shown until the selected period's arrive, so they carry no period label. */
+function PosthogStats({ data, days, stale = false }: { data: PosthogConnected; days: number; stale?: boolean }) {
   const visitors = data.visitorsByDay;
   const totalVisitors = visitors.reduce((sum, d) => sum + d.visitors, 0);
   const funnel = data.funnel;
   const steps = funnelSteps(funnel);
   const top = steps[0]?.[1] ?? 0;
+  const period = stale ? '' : `, last ${days} days`;
 
   return (
-    <div className="space-y-8">
+    <div className={cn('space-y-8 transition-opacity', stale && 'opacity-70')}>
       <Section
         title="Summary"
-        description={`PostHog events from the website, last ${days} days. Not the same as the Players tab, which counts accounts in the QuizBall database.`}
+        description={`PostHog events from the website${period}. Not the same as the Players tab, which counts accounts in the QuizBall database.`}
       >
         <Panel className="grid grid-cols-1 divide-y divide-slate-200 sm:grid-cols-3 sm:divide-x sm:divide-y-0">
           {steps.length > 0 ? (
@@ -619,7 +617,7 @@ function PosthogStats({ data, days }: { data: PosthogConnected; days: number }) 
         </Panel>
       </Section>
       {visitors.length > 0 && (
-        <Section title="Website visitors" description={`PostHog · visitors (blue) and pageviews (grey) per day, last ${days} days.`}>
+        <Section title="Website visitors" description={`PostHog · visitors (blue) and pageviews (grey) per day${period}.`}>
           <Panel className="h-44 p-4">
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={visitors} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>

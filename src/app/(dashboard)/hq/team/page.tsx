@@ -26,11 +26,17 @@ const VIEW_EVENT = 'hq-agents-view';
 // The chosen view is remembered per browser. Storage can be blocked, so the choice also lives in memory.
 let memoryView: AgentsView | null = null;
 const subscribeView = (onChange: () => void) => {
+  // Another tab chose a view (or cleared storage): its choice replaces this tab's in-memory one.
+  const onStorage = (e: StorageEvent) => {
+    if (e.key !== null && e.key !== VIEW_STORAGE_KEY) return;
+    memoryView = e.newValue === 'roster' || e.newValue === 'cards' ? e.newValue : null;
+    onChange();
+  };
   window.addEventListener(VIEW_EVENT, onChange);
-  window.addEventListener('storage', onChange);
+  window.addEventListener('storage', onStorage);
   return () => {
     window.removeEventListener(VIEW_EVENT, onChange);
-    window.removeEventListener('storage', onChange);
+    window.removeEventListener('storage', onStorage);
   };
 };
 const readView = (): AgentsView => {

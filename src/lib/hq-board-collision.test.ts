@@ -15,9 +15,9 @@ const containers = [
   card('C', 120),
 ];
 
-function run(activeId: string, x: number, y: number) {
+function run(activeId: string, x: number, y: number, nodes: Record<string, HTMLElement> = {}) {
   const droppableRects = new Map(containers.map((c) => [c.id, c.rect]));
-  const droppableContainers = containers.map((c) => ({ id: c.id, data: { current: c.data.current }, rect: { current: c.rect } }));
+  const droppableContainers = containers.map((c) => ({ id: c.id, data: { current: c.data.current }, rect: { current: c.rect }, node: { current: nodes[c.id] ?? null } }));
   const args = {
     active: { id: activeId, data: { current: {} }, rect: { current: { initial: null, translated: rect(x - 100, y - 25, 200, 50) } } },
     collisionRect: rect(x - 100, y - 25, 200, 50),
@@ -56,5 +56,26 @@ describe('boardCollision', () => {
   });
   it('pointer back on its own slot is a no-op drop', () => {
     expect(run('B', 100, 80)).toEqual(['B']);
+  });
+  describe('lane scroller', () => {
+    // The lane header covers y 0–40; the scroller shows y 40–340. Card A is scrolled up under the header.
+    const lane = () => {
+      const scroller = document.createElement('div');
+      scroller.setAttribute('data-lane-scroller', '');
+      scroller.getBoundingClientRect = () => rect(0, 40, 200, 300) as DOMRect;
+      const nodes: Record<string, HTMLElement> = {};
+      for (const id of ['A', 'B', 'C']) {
+        nodes[id] = document.createElement('div');
+        scroller.appendChild(nodes[id]);
+      }
+      return nodes;
+    };
+    it('a scrolled-out card under the lane header does not win over the column', () => {
+      expect(run('C', 100, 30)).toEqual(['A']);
+      expect(run('C', 100, 30, lane())).toEqual(['B']);
+    });
+    it('a card inside the visible scroller still wins', () => {
+      expect(run('C', 100, 45, lane())).toEqual(['A']);
+    });
   });
 });

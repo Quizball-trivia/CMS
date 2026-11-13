@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
 import type { HqSettings } from '@/types';
 
@@ -98,12 +98,15 @@ it('keeps the automation control while paused, so usage can be checked before Re
   expect(screen.queryByRole('button', { name: 'Pause all' })).toBeNull();
 });
 
-it('with hideSummary the counts are not repeated: no summary text, and the notice area is gone while all is well', () => {
+it('with hideSummary the counts are not repeated: no summary text, and the notice area is out of the layout (not out of the accessibility tree) while all is well', () => {
   const { container } = render(<HqStatus settings={settings} today={today} compact hideSummary summary={<Link href="/hq/team">No agents working · 3 available · 1 paused</Link>} />);
   expect(screen.queryByRole('link', { name: /No agents working/ })).toBeNull();
   expect(screen.queryByText('Agents')).toBeNull(); // not even the compact fallback label
-  const notice = container.firstElementChild!.firstElementChild!; // the left notice area (cn drops its `flex` when hidden)
-  expect(notice.className).toMatch(/(^|\s)hidden(\s|$)/);
+  const notice = container.firstElementChild!.firstElementChild!; // the left notice area
+  // sr-only, not display:none, so the live regions inside it stay announceable.
+  expect(notice.className).toMatch(/(^|\s)sr-only(\s|$)/);
+  expect(notice.className).not.toMatch(/(^|\s)hidden(\s|$)/);
+  expect(within(notice as HTMLElement).getAllByRole('status')).toHaveLength(2);
   // The automation control stays.
   expect(screen.getByRole('button', { name: 'Automation on' })).toBeTruthy();
 });
@@ -123,4 +126,25 @@ it('with hideSummary the notice area still says when the plan blocks runs', () =
   expect(notice.className).not.toMatch(/(^|\s)hidden(\s|$)/);
   expect(notice.textContent).toContain('Claude plan limit reached, agents wait');
   expect(screen.queryByText('nobody working')).toBeNull();
+});
+
+it('announces a change in the paused state or the plan block through polite live regions that were already on the page', () => {
+  const summary = <Link href="/hq/team">No agents working · 3 available · 1 paused</Link>;
+  const { rerender } = render(<HqStatus settings={settings} today={today} compact summary={summary} />);
+  const regions = screen.getAllByRole('status');
+  expect(regions).toHaveLength(2);
+  for (const region of regions) expect(region.getAttribute('aria-live')).toBe('polite');
+  expect(regions.map((r) => r.textContent)).toEqual(['', '']);
+
+  rerender(<HqStatus settings={{ ...settings, paused: true, pausedReason: 'budget check' } as HqSettings} today={today} compact summary={summary} />);
+  // The same elements, now carrying the notice; the summary link is outside both.
+  expect(screen.getAllByRole('status')).toEqual(regions);
+  expect(regions[0].textContent).toMatch(/^Automation paused \(budget check\) ·/);
+  const link = screen.getByRole('link', { name: /No agents working/ });
+  for (const region of regions) expect(region.contains(link)).toBe(false);
+
+  rerender(<HqStatus settings={{ ...settings, plan: { state: 'limit', mode: 'normal', until: null, windows: [] } } as unknown as HqSettings} today={today} compact summary={summary} />);
+  expect(screen.getAllByRole('status')).toEqual(regions);
+  expect(regions[0].textContent).toBe('');
+  expect(regions[1].textContent).toContain('Claude plan limit reached, agents wait');
 });

@@ -197,7 +197,7 @@ export default function HqPage() {
   const counted = agentStatusCounts(members, busy);
   // A build runs but no Builder member is loaded (older data): still one agent at work, matching Working now.
   const builderMissing = runningBuilds.length > 0 && !members.some((m) => m.slug === 'builder' || (m.runtime as string) === 'hq_code');
-  const agentCounts = counted && builderMissing ? { ...counted, running: counted.running + 1 } : counted;
+  const allCounts = counted && builderMissing ? { ...counted, running: counted.running + 1 } : counted;
 
   // Which queries each section waits on. With a Director his list needs the builds; without one, the fallback
   // reads the overview and the standup. Either way the unread messages count.
@@ -211,6 +211,8 @@ export default function HqPage() {
   const shippedPhase = phaseOf(doneQ, buildsQ);
   const pulsePhase = phaseOf(pulseQ);
   const gamesPhase = phaseOf(analyticsQ);
+  // Who is working comes from the work queries: until they answer, the counts are unknown, not "0 working, all idle".
+  const agentCounts = workPhase === 'ready' ? allCounts : null;
 
   // People-sized: how many agents are at work (the Builder once, however many builds it runs).
   // Only agents count as "at work" (a person's or an unassigned task in progress is work, not an agent).
@@ -272,7 +274,7 @@ export default function HqPage() {
         </div>
         <StatTiles
           doneToday={doneToday}
-          doneTodayMore={phaseOf(doneQ, buildsQ) === 'ready' && shipped.totalIsLowerBound && shippedToday.length === feedItems.length}
+          doneTodayMore={phaseOf(doneQ, buildsQ) === 'ready' && done.length >= DONE_FETCH_LIMIT && done.every((t) => !!t.completedAt && Date.parse(t.completedAt) >= todayStart)}
           counts={agentCounts}
           onDoneToday={() => setOnlyToday(true)}
         />
@@ -836,7 +838,11 @@ function plainResult(outcome: string | null | undefined): string | null {
   if (last) return last === 'ship' ? 'agent review passed' : 'agent review asked for fixes';
   // Only an explicit verdict counts as a pass ("no P0" alone could still report a P1).
   if (/\bno (confirmed )?p0\s*\/\s*p1\s*\/\s*p2\b/i.test(outcome)) return 'agent review passed';
-  if (/verdict:\s*fix|\bp0\b.*\bfound|\bp1\b.*\bfound/i.test(outcome)) return 'agent review asked for fixes';
+  // A finding counts only when it is stated, not denied ("No P0 or P1 issues found" is not one).
+  const found = outcome
+    .split(/[\n.;,]/)
+    .some((c) => /\bp[01]\b.*\bfound\b/i.test(c) && !/\b(no|zero|0|none|without)\b.*\bp[01]\b/i.test(c));
+  if (found) return 'agent review asked for fixes';
   if (/^i approved\b/i.test(outcome)) return 'approved by Romero';
   return null;
 }

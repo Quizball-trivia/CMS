@@ -21,13 +21,12 @@ export function BuildShots({ shots, compact = false }: { shots: HqBuildScreensho
       <div className="flex flex-wrap items-center gap-2">
         <span className={HQ_LABEL}>Screenshots</span>
         {sizes.length > 1 && (
-          <div role="tablist" aria-label="Screen size" className="inline-flex rounded-md border border-slate-200 p-0.5">
+          <div role="group" aria-label="Screen size" className="inline-flex rounded-md border border-slate-200 p-0.5">
             {sizes.map((s) => (
               <button
                 key={s}
                 type="button"
-                role="tab"
-                aria-selected={s === shown}
+                aria-pressed={s === shown}
                 onClick={() => setSize(s)}
                 className={cn('rounded px-2 py-0.5 text-[12px] font-medium', s === shown ? 'bg-slate-900 text-white' : 'text-slate-600 hover:text-slate-950')}
               >
