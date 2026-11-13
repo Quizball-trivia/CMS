@@ -1,5 +1,5 @@
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
-import { afterEach, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import type { HqMember } from '@/types';
 
 vi.mock('next/navigation', () => ({
@@ -30,6 +30,21 @@ const members = [member('a1', 'Growth Writer', 'agent'), member('h1', 'Nika', 'h
 const { default: AgentsPage } = await import('../team/page');
 const { default: PeoplePage } = await import('../people/page');
 
+// One in-memory storage for every runtime (Node's own localStorage stub has no methods), fresh per test.
+function memoryStorage(): Storage {
+  const m = new Map<string, string>();
+  return {
+    get length() { return m.size; },
+    clear: () => m.clear(),
+    getItem: (k: string) => m.get(k) ?? null,
+    key: (i: number) => [...m.keys()][i] ?? null,
+    removeItem: (k: string) => void m.delete(k),
+    setItem: (k: string, v: string) => void m.set(k, String(v)),
+  };
+}
+beforeEach(() => {
+  Object.defineProperty(window, 'localStorage', { value: memoryStorage(), configurable: true });
+});
 afterEach(cleanup);
 
 it('lists only agents on the Agents page', () => {
@@ -85,8 +100,12 @@ it('filters the roster by state and marks agents that run outside HQ', () => {
   }
 });
 
+// Another tab writes the shared storage first, then this tab hears about it (as a browser does).
 const fromOtherTab = (key: string | null, newValue: string | null) =>
   act(() => {
+    if (key === null) window.localStorage.clear();
+    else if (newValue === null) window.localStorage.removeItem(key);
+    else window.localStorage.setItem(key, newValue);
     window.dispatchEvent(new StorageEvent('storage', { key, newValue }));
   });
 
@@ -106,12 +125,12 @@ it('follows a view chosen in another tab, even after this tab chose one itself',
 });
 
 it('keeps the choice in memory when storage is blocked', () => {
-  vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+  const blocked = () => {
     throw new Error('blocked');
-  });
-  vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
-    throw new Error('blocked');
-  });
+  };
+  const storage = window.localStorage;
+  vi.spyOn(storage, 'setItem').mockImplementation(blocked);
+  vi.spyOn(storage, 'getItem').mockImplementation(blocked);
   render(<AgentsPage />);
   fireEvent.click(screen.getByRole('radio', { name: 'Cards' }));
   expect(screen.getByRole('radio', { name: 'Cards' }).getAttribute('aria-checked')).toBe('true');
