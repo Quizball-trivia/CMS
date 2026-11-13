@@ -3,7 +3,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import type { HqBuild, HqBuildJob } from '@/types';
 
-const api = vi.hoisted(() => ({ listBuilds: vi.fn(), submitBuild: vi.fn(), cancelBuild: vi.fn() }));
+const api = vi.hoisted(() => ({ listBuilds: vi.fn(), submitBuild: vi.fn(), cancelBuild: vi.fn(), analytics: vi.fn() }));
 const toast = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn() }));
 vi.mock('@/lib/hq-api', () => ({ hqApi: api }));
 vi.mock('sonner', () => ({ toast }));
@@ -50,6 +50,7 @@ beforeEach(() => {
   api.listBuilds.mockReset().mockResolvedValue({ items: [waiting, running, failed, declined] });
   api.submitBuild.mockReset().mockResolvedValue({ ...waiting, id: 'b9', number: 15 });
   api.cancelBuild.mockReset().mockResolvedValue({ result: 'cancelled' });
+  api.analytics.mockReset().mockResolvedValue({ days: 30, modeLabels: { 'invented-duel': 'Invented Duel' } });
   toast.success.mockReset();
   toast.error.mockReset();
 });
@@ -75,7 +76,7 @@ it('names the state and what happens next, links the draft PR on the row, and pu
   const ready = build({ id: 'b5', number: 16, title: 'Ready banner', status: 'approved', job: job('ready_to_publish') });
   const prOpen = build({
     id: 'b6', number: 17, title: 'Open PR banner', status: 'approved',
-    job: { ...job('published'), prs: [{ repo: 'web', url: 'https://github.com/invented/web/pull/123' }, { repo: 'cms', url: 'javascript:alert(1)' }] },
+    job: { ...job('published'), prs: [{ repo: 'web', url: 'https://github.com/invented/web/pull/123' }, { repo: 'cms', url: 'javascript:alert(1)' }, { repo: 'backend', url: 'https://github.com@evil.example/pull/9' }] },
   });
   const merged = build({ id: 'b7', number: 18, title: 'Merged banner', status: 'approved', job: job('done') });
   api.listBuilds.mockResolvedValue({ items: [waiting, ready, merged, prOpen, failed, declined] });
@@ -90,7 +91,7 @@ it('names the state and what happens next, links the draft PR on the row, and pu
   expect(link.href).toBe('https://github.com/invented/web/pull/123');
   expect(waitingFor.parentElement).toBe(link.parentElement);
   expect(link.parentElement?.className).toContain('bg-amber-50');
-  // The unsafe URL is not a link.
+  // Neither the script URL nor the one with credentials (its real host is evil.example) is a link.
   expect(within(row('Open PR banner')).getAllByRole('link')).toHaveLength(1);
   // The badge and the sentence agree: the build passed, a draft PR is next ("Ready to publish" would overstate it).
   expect(within(row('Ready banner')).getByText('Ready for draft PR')).toBeTruthy();
@@ -274,7 +275,9 @@ it('shows the play-test screenshots before and after, phone and desktop', async 
   open('Club page banner');
   const imgs = () => screen.getAllByRole('img').map((i) => i.getAttribute('src'));
   expect(imgs()).toEqual(['https://example.test/before-phone.png', 'https://example.test/after-phone.png']);
-  fireEvent.click(screen.getByRole('tab', { name: 'Desktop' }));
+  expect(screen.getByRole('button', { name: 'Phone' }).getAttribute('aria-pressed')).toBe('true');
+  fireEvent.click(screen.getByRole('button', { name: 'Desktop' }));
+  expect(screen.getByRole('button', { name: 'Desktop' }).getAttribute('aria-pressed')).toBe('true');
   expect(imgs()).toEqual(['https://example.test/before-desktop.png', 'https://example.test/after-desktop.png']);
 });
 
@@ -285,6 +288,45 @@ it('says why a before shot is missing instead of showing nothing', async () => {
   await screen.findByText('Club page banner');
   open('Club page banner');
   expect(screen.getByText(/No before shot/)).toBeTruthy();
-  expect(screen.queryByRole('tab', { name: 'Desktop' })).toBeNull();
+  expect(screen.queryByRole('button', { name: 'Desktop' })).toBeNull();
 });
 
+
+it('tells a screen reader that a step the build went past without trying was skipped', async () => {
+  const backendOnly = build({
+    id: 'b8', number: 19, title: 'Backend only fix', status: 'approved',
+    job: { id: 'j8', number: 6, stage: 'ready_to_publish', note: null, runsUsed: 1, runLimit: 5, startedAt: '2026-11-10T09:05:00Z', finishedAt: null, proof: { redGreen: true, reviews: 1, playtests: 0 } },
+  });
+  api.listBuilds.mockResolvedValue({ items: [backendOnly] });
+  renderPage();
+  await screen.findByText('Backend only fix');
+  open('Backend only fix');
+  const playTest = screen.getByText('Play-test', { selector: '[data-step-state]' });
+  expect(playTest.getAttribute('data-step-state')).toBe('skipped');
+  expect(playTest.textContent).toBe('Play-test (skipped)');
+  expect(screen.getByText('Review', { selector: '[data-step-state]' }).textContent).toBe('Review');
+});
+
+it('says the games list is loading, and lets the user retry when it fails', async () => {
+  let fail = true;
+  api.analytics.mockImplementation(() => (fail ? Promise.reject(new Error('Analytics is down')) : Promise.resolve({ days: 30, modeLabels: { 'invented-duel': 'Invented Duel' } })));
+  renderPage();
+  await screen.findByText('Friends penalty mode');
+  fireEvent.click(screen.getByRole('button', { name: 'New build' }));
+  const alert = await screen.findByRole('alert');
+  expect(alert.textContent).toContain('Analytics is down');
+  fail = false;
+  fireEvent.click(within(alert).getByRole('button', { name: 'Retry' }));
+  await waitFor(() => expect(screen.queryByRole('alert')).toBeNull());
+  expect(api.analytics).toHaveBeenCalledTimes(2);
+  expect(screen.getByText(/Games played in the last 30 days/)).toBeTruthy();
+});
+
+it('disables the game selector with a loading label until the games list arrives', async () => {
+  api.analytics.mockReturnValue(new Promise(() => {}));
+  renderPage();
+  await screen.findByText('Friends penalty mode');
+  fireEvent.click(screen.getByRole('button', { name: 'New build' }));
+  const trigger = screen.getByText('Loading games…').closest('button') as HTMLButtonElement;
+  expect(trigger.disabled).toBe(true);
+});

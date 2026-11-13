@@ -220,12 +220,15 @@ export function SchedulesTable({
   members,
   showMember = true,
   fixedMemberId,
+  fixedMemberStatus,
   canCreate = true,
 }: {
   schedules: HqSchedule[];
   members: HqMember[];
   showMember?: boolean;
   fixedMemberId?: string;
+  /** The profile's own status (loaded with the profile): its schedules never depend on the member list loading. */
+  fixedMemberStatus?: HqMember['status'];
   /** False for an archived member: schedules can only run active/paused HQ agents. */
   canCreate?: boolean;
 }) {
@@ -241,7 +244,7 @@ export function SchedulesTable({
   // `members` excludes archived members, so an owner missing from a loaded list
   // (or the profile of an archived member) can't be run.
   const agentStatusOf = (s: HqSchedule): HqMember['status'] => {
-    if (fixedMemberId === s.member.id && !canCreate) return 'archived';
+    if (fixedMemberId === s.member.id) return fixedMemberStatus ?? (canCreate ? 'active' : 'archived');
     return members.find((m) => m.id === s.member.id)?.status ?? 'archived';
   };
   const ownerArchived = (s: HqSchedule) => agentStatusOf(s) === 'archived';
@@ -336,9 +339,30 @@ export function SchedulesTable({
         </Button>
       );
     }
+    if (status === 'unscheduled') {
+      // Re-sending its own timing clears the next run, so the scheduler places it again; no field has to change.
+      return (
+        <Button
+          size="sm"
+          variant="outline"
+          disabled={update.isPending}
+          onClick={() =>
+            update.mutate(
+              { id: s.id, data: { cron: s.cron, timezone: s.timezone } },
+              {
+                onSuccess: () => toast.success(`“${s.name}” will be scheduled again`),
+                onError: (e) => toast.error(errorMessage(e, 'Could not reschedule')),
+              }
+            )
+          }
+        >
+          Reschedule
+        </Button>
+      );
+    }
     return (
       <Button size="sm" variant="outline" onClick={() => setEditing(s)}>
-        {status === 'unscheduled' ? 'Set schedule' : 'Edit'}
+        Edit
       </Button>
     );
   };

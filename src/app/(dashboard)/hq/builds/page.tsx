@@ -164,6 +164,7 @@ function Stepper({ build, needsYou }: { build: HqBuild; needsYou: boolean }) {
           >
             {step.state === 'done' && <Check className="h-3 w-3 text-emerald-600" aria-hidden />}
             {step.label}
+            {step.state === 'skipped' && <span className="sr-only"> (skipped)</span>}
           </span>
         </li>
       ))}
@@ -261,7 +262,7 @@ function NewBuildForm({ onSent, onClose }: { onSent: () => void; onClose: () => 
   const [repos, setRepos] = useState<HqBuildRepo[]>([]);
   const [game, setGame] = useState<string>(NO_GAME);
   // The games as analytics counts them (its ids), so HQ can find the same game's plays later.
-  const { data: analytics } = useHqAnalytics(30);
+  const { data: analytics, isPending: gamesLoading, isError: gamesFailed, error: gamesError, refetch: refetchGames } = useHqAnalytics(30);
   const gameOptions = Object.entries(analytics?.modeLabels ?? {})
     .filter(([id]) => id !== 'other')
     .map(([value, label]) => ({ value, label }))
@@ -333,9 +334,9 @@ function NewBuildForm({ onSent, onClose }: { onSent: () => void; onClose: () => 
             <span id="build-game-label" className={cn(HQ_LABEL, 'block')}>
               Game
             </span>
-            <Select value={game} onValueChange={setGame}>
+            <Select value={game} onValueChange={setGame} disabled={gamesLoading}>
               <SelectTrigger className="w-full" aria-labelledby="build-game-label">
-                <SelectValue />
+                {gamesLoading ? <span className="text-slate-500">Loading games…</span> : <SelectValue />}
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value={NO_GAME}>No specific game</SelectItem>
@@ -346,7 +347,11 @@ function NewBuildForm({ onSent, onClose }: { onSent: () => void; onClose: () => 
                 ))}
               </SelectContent>
             </Select>
-            <p className="text-[13px] text-slate-600">Games played in the last 30 days. HQ shows this game’s plays before the build ships.</p>
+            {gamesFailed && !analytics ? (
+              <LoadErrorState error={gamesError} fallback="Could not load the games list." onRetry={() => void refetchGames()} />
+            ) : (
+              <p className="text-[13px] text-slate-600">Games played in the last 30 days. HQ shows this game’s plays before the build ships.</p>
+            )}
           </div>
 
           <fieldset className="space-y-1.5">
@@ -557,11 +562,12 @@ function JobSection({ job }: { job: HqBuildJob }) {
   );
 }
 
-/** Agent-recorded links: only well-formed http(s) URLs become links. */
+/** Agent-recorded links: only well-formed http(s) URLs without embedded credentials become links (`https://github.com@host/` has the host `host`). */
 function safeWebUrl(raw: string): URL | null {
   try {
     const url = new URL(raw);
-    return url.protocol === 'https:' || url.protocol === 'http:' ? url : null;
+    const isHttp = url.protocol === 'https:' || url.protocol === 'http:';
+    return isHttp && !url.username && !url.password ? url : null;
   } catch {
     return null;
   }

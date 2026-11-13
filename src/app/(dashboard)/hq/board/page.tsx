@@ -141,7 +141,10 @@ export default function HqBoardPage() {
 
   const openTasks = openQuery.data;
   const finishedTasks = finishedQuery.data;
-  const isLoading = openQuery.isLoading || finishedQuery.isLoading;
+  // Placeholder data is the previous filter's results, and a paused uncached query is pending without `isLoading`:
+  // neither may read as "no tasks".
+  const isLoading =
+    openQuery.isPending || finishedQuery.isPending || openQuery.isPlaceholderData || finishedQuery.isPlaceholderData;
   const loadError = openQuery.error ?? finishedQuery.error;
   // Nothing cached for a list that failed → the board would be misleading; show the error instead.
   const boardUnavailable = (!!openQuery.error && !openTasks) || (!!finishedQuery.error && !finishedTasks);
@@ -549,7 +552,7 @@ function Column({
           </button>
         )}
       </div>
-      <div ref={setScroller} className="relative min-h-0 flex-1 overflow-y-auto p-2">
+      <div ref={setScroller} data-lane-scroller="" className="relative min-h-0 flex-1 overflow-y-auto p-2">
         <div ref={setContent} className="space-y-2">
           {count === 0 && (
             <div

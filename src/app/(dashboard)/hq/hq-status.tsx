@@ -65,27 +65,33 @@ export function HqStatus({ settings, today, summary, compact = false, trailing, 
         settings.paused ? 'border border-red-200 bg-red-50/60 px-4 py-2.5' : ''
       )}
     >
-      <div className={cn('flex items-center gap-2', hideSummary && !settings.paused && !blocked && 'hidden')}>
+      {/* sr-only, not hidden: the live regions inside must stay in the accessibility tree to announce when a notice appears. */}
+      <div className={cn('flex items-center gap-2', hideSummary && !settings.paused && !blocked && 'sr-only')}>
         {/* In the calm line the dot belongs to "Automation on" (beside Usage and Pause), not to the agent counts. */}
         {!calm && <span className={cn('h-2 w-2 shrink-0 rounded-full', settings.paused ? 'bg-red-500' : 'bg-emerald-500')} />}
         {calm ? (
           <div className="text-[13px] tabular-nums text-slate-700">
             {/* The agents lead; automation being on is a setting (beside Usage and Pause), unless it is paused. */}
-            {settings.paused && (
-              <span className="font-semibold text-red-700">
-                Automation paused{settings.pausedReason ? ` (${settings.pausedReason})` : ''} ·{' '}
-              </span>
-            )}
+            {/* The notices are persistent polite live regions, so a change from refreshed settings is announced; the summary (a link) stays outside. */}
+            <span role="status" aria-live="polite">
+              {settings.paused && (
+                <span className="font-semibold text-red-700">
+                  Automation paused{settings.pausedReason ? ` (${settings.pausedReason})` : ''} ·{' '}
+                </span>
+              )}
+            </span>
             {!hideSummary && <span className="text-slate-800">{summary ?? 'Agents'}</span>}
             {/* What stops work starting is never hidden behind the Usage toggle. */}
-            {!settings.paused && blocked && (
-              <span className="ml-1 font-medium text-red-700">
-                · {blocked}
-              </span>
-            )}
+            <span role="status" aria-live="polite">
+              {!settings.paused && blocked && (
+                <span className="ml-1 font-medium text-red-700">
+                  · {blocked}
+                </span>
+              )}
+            </span>
           </div>
         ) : (
-          <div className="leading-tight">
+          <div className="leading-tight" role="status" aria-live="polite">
             <div className="text-sm font-semibold text-slate-950">{settings.paused ? 'Agents paused' : 'Agents on'}</div>
             <div className="max-w-56 truncate text-[11px] text-slate-500">
               {settings.paused ? settings.pausedReason || 'Nothing new starts until you resume' : `May start work · up to ${settings.maxConcurrentRuns} at a time`}

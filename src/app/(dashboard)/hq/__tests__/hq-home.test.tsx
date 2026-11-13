@@ -501,6 +501,15 @@ it('shows "60+" done today when every loaded completion is from today and the fe
   expect(doneCount()).toBe('60+');
 });
 
+it('keeps the team tiles unknown until the work data has answered (not "0 working, all idle")', () => {
+  h.members = [memberAgent('a', 'active')];
+  h.flags = { director: { isLoading: true } };
+  h.director = undefined;
+  render(<HqPage />);
+  expect(tileNumber('Working')).toBe('–');
+  expect(tileNumber('Idle')).toBe('–');
+});
+
 /** `n` finished tasks spread over the six invented agents, newest first by index, all inside the 7-day window. */
 function finishedBy(n: number, agents = AGENTS.length): HqTask[] {
   return Array.from({ length: n }, (_, i) =>
@@ -1724,6 +1733,13 @@ describe('plainResult', () => {
     ['# I approved this build for staging.', 'approved by Romero'],
   ])('maps %j to "%s"', (result, plain) => {
     expect(buildLine(10, result)).toBe(`Build #10: ${plain}`);
+  });
+
+  it('does not read a denied finding ("No P0 or P1 issues found.") as asking for fixes', () => {
+    expect(buildLine(17, '# No P0 or P1 issues found.')).not.toContain('asked for fixes');
+    expect(buildLine(18, '# One P1 issue found in the timer.')).toBe('Build #18: agent review asked for fixes');
+    expect(buildLine(19, '# Review complete\nNo P0 issues found; one P1 issue found in the timer.')).toBe('Build #19: agent review asked for fixes');
+    expect(buildLine(20, '# No P0 issues found but one P1 issue found in the timer.')).toBe('Build #20: agent review asked for fixes');
   });
 
   it('does not call a review passed on a softer wording ("no P0" alone could still hide a P1; "LGTM" is not a verdict)', () => {

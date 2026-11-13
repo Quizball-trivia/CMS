@@ -175,7 +175,7 @@ function MemberProfile({ member }: { member: HqMemberDetail }) {
 
           {isHqAgent && (
             <Section title="Schedules" count={member.schedules.length}>
-              <SchedulesTable schedules={member.schedules} members={members} showMember={false} fixedMemberId={member.id} canCreate={member.status !== 'archived'} />
+              <SchedulesTable schedules={member.schedules} members={members} showMember={false} fixedMemberId={member.id} fixedMemberStatus={member.status} canCreate={member.status !== 'archived'} />
             </Section>
           )}
 
