@@ -77,6 +77,12 @@ function runFailed(e: HqEvent): boolean {
   return e.level === 'error' || status === 'failed' || status === 'timeout';
 }
 
+// The worker logs a cancelled run as an info-level run_finished ("<name> cancelled #12: …").
+function runCancelled(e: HqEvent): boolean {
+  // Only the status before the summary counts: "Scout finished #50: cancelled #12 as a duplicate" finished.
+  return e.type === 'run_finished' && (e.data?.status === 'cancelled' || /\scancelled #\d+$/.test(e.message.split(': ')[0]));
+}
+
 // A task moved to done (the backend logs task_status with data.to = the new status).
 function taskCompleted(e: HqEvent): boolean {
   if (e.type !== 'task_status') return false;
@@ -124,7 +130,7 @@ const RESULT_LABELS: Record<string, string> = {
 };
 
 function resultLabel(e: HqEvent): string {
-  if (e.type === 'run_finished') return runFailed(e) ? 'Failed' : 'Finished';
+  if (e.type === 'run_finished') return runFailed(e) ? 'Failed' : runCancelled(e) ? 'Cancelled' : 'Finished';
   if (e.type === 'task_status') {
     const to = e.data?.to;
     if (to === 'done') return 'Done';

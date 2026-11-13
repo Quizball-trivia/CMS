@@ -1,14 +1,34 @@
 import { closestCorners, pointerWithin, type CollisionDetection } from '@dnd-kit/core';
 
 /**
+ * A card scrolled out of its lane's scroller keeps its droppable rect (dnd-kit measures the full element), so
+ * pointerWithin can hit it from the lane header. A card only counts while the pointer is inside its lane scroller.
+ */
+function pointerInLaneViewport(hit: { data?: { droppableContainer?: { node?: { current?: HTMLElement | null } } } }, p: { x: number; y: number } | null): boolean {
+  const scroller = hit.data?.droppableContainer?.node?.current?.closest('[data-lane-scroller]');
+  if (!scroller || !p) return true;
+  const r = scroller.getBoundingClientRect();
+  return p.x >= r.left && p.x <= r.right && p.y >= r.top && p.y <= r.bottom;
+}
+
+/**
  * What's under the pointer wins (a card, else the column it's in), so a card
  * dropped on an empty column next to a tall one lands there. Keyboard drags
  * have no pointer and fall back to closest corners.
  */
 export const boardCollision: CollisionDetection = (args) => {
-  const hits = pointerWithin(args);
-  if (hits.length === 0) return closestCorners(args);
-  const isCard = (h: (typeof hits)[number]) => h.data?.droppableContainer?.data?.current?.type === 'card';
+  const isCard = (h: ReturnType<typeof pointerWithin>[number]) => h.data?.droppableContainer?.data?.current?.type === 'card';
+  const hits = pointerWithin(args).filter((h) => !isCard(h) || pointerInLaneViewport(h, args.pointerCoordinates));
+  if (hits.length === 0) {
+    // Keyboard drags (no pointer) keep the plain fallback; a pointer drag never falls back onto a hidden card.
+    const p = args.pointerCoordinates;
+    if (!p) return closestCorners(args);
+    const visible = args.droppableContainers.filter((c) => {
+      if ((c.data.current as { type?: string } | undefined)?.type !== 'card') return true;
+      return pointerInLaneViewport({ data: { droppableContainer: c as never } }, p);
+    });
+    return closestCorners({ ...args, droppableContainers: visible });
+  }
   const others = hits.filter((h) => isCard(h) && h.id !== args.active.id);
   if (others.length) return others;
   // Pointer still over the dragged card's own slot: a no-op drop, not "move to the end".

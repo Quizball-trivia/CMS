@@ -2,16 +2,18 @@ import { cleanup, fireEvent, render, screen, within } from '@testing-library/rea
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 
 // Invented footballers only: the repository is public.
-const h = vi.hoisted(() => ({ gaps: [] as unknown[], fixes: [] as unknown[], summary: [] as unknown[], loading: false, calls: [] as Array<{ status?: string; game?: string }>, mutate: vi.fn(), gapMutate: vi.fn() }));
+const h = vi.hoisted(() => ({ gaps: [] as unknown[], fixes: [] as unknown[], summary: [] as unknown[], loading: false, paused: false, summaryFailed: false, calls: [] as Array<{ status?: string; game?: string }>, summaryRefetch: vi.fn(), mutate: vi.fn(), gapMutate: vi.fn() }));
 vi.mock('next/navigation', () => ({ usePathname: () => '/hq/content-gaps', useRouter: () => ({ replace: vi.fn() }), useSearchParams: () => new URLSearchParams() }));
 vi.mock('@/hooks', () => ({
   // One state at a time, like the real endpoint.
   useContentGaps: (p?: { status?: string; game?: string }) => {
     h.calls.push(p ?? {});
     const rows = (h.gaps as Array<{ status: string; game: string }>).filter((g) => (!p?.status || g.status === p.status) && (!p?.game || g.game === p.game));
-    return { data: h.loading ? undefined : rows, isLoading: h.loading, error: null, refetch: vi.fn() };
+    // A first request paused offline is pending but not loading (TanStack Query v5).
+    const pending = h.loading || h.paused;
+    return { data: pending ? undefined : rows, isLoading: h.loading, isPending: pending, error: null, refetch: vi.fn() };
   },
-  useContentGapsSummary: () => ({ data: h.summary }),
+  useContentGapsSummary: () => (h.summaryFailed ? { data: undefined, error: new Error('Summary is down'), refetch: h.summaryRefetch } : { data: h.summary, error: null, refetch: h.summaryRefetch }),
   useContentFixes: () => ({ data: h.fixes, isLoading: false, error: null, refetch: vi.fn() }),
   useUpdateContentFix: () => ({ mutate: h.mutate, isPending: false, error: null }),
   useUpdateContentGap: () => ({ mutate: h.gapMutate, isPending: false, error: null }),
@@ -23,6 +25,9 @@ beforeEach(() => {
   h.mutate.mockReset();
   h.gapMutate.mockReset();
   h.loading = false;
+  h.paused = false;
+  h.summaryFailed = false;
+  h.summaryRefetch.mockReset();
   h.calls = [];
   h.summary = [{ game: 'darts501', verdict: 'uncovered', status: 'open', gaps: 3, typed: 9, lastSeen: '2026-11-10T08:00:00Z' }];
   h.gaps = [{
@@ -155,6 +160,23 @@ it('one empty message when the whole view has no rows, a skeleton while the stat
   expect(screen.getByRole('status', { name: 'Loading gaps' })).toBeTruthy();
   expect(screen.queryByText(/Nothing needs review/)).toBeNull();
   expect(screen.queryByText('No gaps in this state.')).toBeNull();
+});
+
+it('a first request paused offline keeps the skeleton instead of claiming nothing needs review', () => {
+  h.paused = true;
+  render(<ContentGapsPage />);
+  expect(screen.getByRole('status', { name: 'Loading gaps' })).toBeTruthy();
+  expect(screen.queryByText(/Nothing needs review/)).toBeNull();
+});
+
+it('a failed summary says so and can be retried, while the gaps still show', () => {
+  h.summaryFailed = true;
+  render(<ContentGapsPage />);
+  const alert = screen.getByRole('alert');
+  expect(alert.textContent).toContain('Summary is down');
+  expect(screen.getByText('Wim Xell')).toBeTruthy();
+  fireEvent.click(within(alert).getByRole('button', { name: 'Retry' }));
+  expect(h.summaryRefetch).toHaveBeenCalledTimes(1);
 });
 
 it('the game filter is a named Select built from the summary, and narrows the list', () => {
