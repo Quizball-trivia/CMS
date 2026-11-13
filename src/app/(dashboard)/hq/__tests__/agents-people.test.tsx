@@ -124,6 +124,16 @@ it('follows a view chosen in another tab, even after this tab chose one itself',
   expect(screen.getByRole('radio', { name: 'Roster' }).getAttribute('aria-checked')).toBe('true');
 });
 
+it('a late event from another tab does not replace the view stored after it', () => {
+  render(<AgentsPage />);
+  // Another tab chose Cards, then this choice (Roster) was stored before the Cards event arrived.
+  window.localStorage.setItem('hq.agents.view', 'roster');
+  act(() => {
+    window.dispatchEvent(new StorageEvent('storage', { key: 'hq.agents.view', newValue: 'cards' }));
+  });
+  expect(screen.getByRole('radio', { name: 'Roster' }).getAttribute('aria-checked')).toBe('true');
+});
+
 it('keeps the choice in memory when storage is blocked', () => {
   const blocked = () => {
     throw new Error('blocked');

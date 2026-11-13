@@ -1739,6 +1739,7 @@ describe('plainResult', () => {
     expect(buildLine(17, '# No P0 or P1 issues found.')).not.toContain('asked for fixes');
     expect(buildLine(18, '# One P1 issue found in the timer.')).toBe('Build #18: agent review asked for fixes');
     expect(buildLine(19, '# Review complete\nNo P0 issues found; one P1 issue found in the timer.')).toBe('Build #19: agent review asked for fixes');
+    expect(buildLine(20, '# No P0 issues found but one P1 issue found in the timer.')).toBe('Build #20: agent review asked for fixes');
   });
 
   it('does not call a review passed on a softer wording ("no P0" alone could still hide a P1; "LGTM" is not a verdict)', () => {

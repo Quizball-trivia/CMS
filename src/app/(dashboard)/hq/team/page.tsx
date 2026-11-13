@@ -29,7 +29,14 @@ const subscribeView = (onChange: () => void) => {
   // Another tab chose a view (or cleared storage): its choice replaces this tab's in-memory one.
   const onStorage = (e: StorageEvent) => {
     if (e.key !== null && e.key !== VIEW_STORAGE_KEY) return;
-    memoryView = e.newValue === 'roster' || e.newValue === 'cards' ? e.newValue : null;
+    // Events arrive late: what is stored now wins over the value the event carries.
+    let stored: string | null = e.newValue;
+    try {
+      stored = window.localStorage.getItem(VIEW_STORAGE_KEY);
+    } catch {
+      // storage unreadable: the event's value is the best we have
+    }
+    memoryView = stored === 'roster' || stored === 'cards' ? stored : null;
     onChange();
   };
   window.addEventListener(VIEW_EVENT, onChange);

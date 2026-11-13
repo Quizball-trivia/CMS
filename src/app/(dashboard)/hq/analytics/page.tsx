@@ -597,6 +597,9 @@ function PosthogStats({ data, days, stale = false }: { data: PosthogConnected; d
 
   return (
     <div className={cn('space-y-8 transition-opacity', stale && 'opacity-70')}>
+      <p role="status" aria-live="polite" className={cn('text-[13px] text-slate-600', !stale && 'sr-only')}>
+        {stale ? 'Loading; showing the previous period' : ''}
+      </p>
       <Section
         title="Summary"
         description={`PostHog events from the website${period}. Not the same as the Players tab, which counts accounts in the QuizBall database.`}

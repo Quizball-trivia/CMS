@@ -19,7 +19,16 @@ function pointerInLaneViewport(hit: { data?: { droppableContainer?: { node?: { c
 export const boardCollision: CollisionDetection = (args) => {
   const isCard = (h: ReturnType<typeof pointerWithin>[number]) => h.data?.droppableContainer?.data?.current?.type === 'card';
   const hits = pointerWithin(args).filter((h) => !isCard(h) || pointerInLaneViewport(h, args.pointerCoordinates));
-  if (hits.length === 0) return closestCorners(args);
+  if (hits.length === 0) {
+    // Keyboard drags (no pointer) keep the plain fallback; a pointer drag never falls back onto a hidden card.
+    const p = args.pointerCoordinates;
+    if (!p) return closestCorners(args);
+    const visible = args.droppableContainers.filter((c) => {
+      if ((c.data.current as { type?: string } | undefined)?.type !== 'card') return true;
+      return pointerInLaneViewport({ data: { droppableContainer: c as never } }, p);
+    });
+    return closestCorners({ ...args, droppableContainers: visible });
+  }
   const others = hits.filter((h) => isCard(h) && h.id !== args.active.id);
   if (others.length) return others;
   // Pointer still over the dragged card's own slot: a no-op drop, not "move to the end".

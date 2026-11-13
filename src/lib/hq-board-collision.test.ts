@@ -74,6 +74,10 @@ describe('boardCollision', () => {
       expect(run('C', 100, 30)).toEqual(['A']);
       expect(run('C', 100, 30, lane())).toEqual(['B']);
     });
+    it('with the pointer outside every column, the fallback never picks a card outside its visible lane', () => {
+      const picked = run('C', 210, 25, lane());
+      expect(picked.some((id) => ['A', 'B'].includes(String(id)))).toBe(false);
+    });
     it('a card inside the visible scroller still wins', () => {
       expect(run('C', 100, 45, lane())).toEqual(['A']);
     });

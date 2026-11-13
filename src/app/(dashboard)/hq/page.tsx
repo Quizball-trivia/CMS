@@ -840,7 +840,7 @@ function plainResult(outcome: string | null | undefined): string | null {
   if (/\bno (confirmed )?p0\s*\/\s*p1\s*\/\s*p2\b/i.test(outcome)) return 'agent review passed';
   // A finding counts only when it is stated, not denied ("No P0 or P1 issues found" is not one).
   const found = outcome
-    .split(/[\n.;,]/)
+    .split(/[\n.;,]|\b(?:but|while|however|and)\b/i)
     .some((c) => /\bp[01]\b.*\bfound\b/i.test(c) && !/\b(no|zero|0|none|without)\b.*\bp[01]\b/i.test(c));
   if (found) return 'agent review asked for fixes';
   if (/^i approved\b/i.test(outcome)) return 'approved by Romero';
