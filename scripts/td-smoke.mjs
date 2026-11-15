@@ -74,10 +74,10 @@ try {
   await page.waitForURL(/\/td\/login\?next=%2Ftd%2Fteam/);
   check('anonymous visit goes to the login page', true);
 
-  // One role for Betsson's team: every tab but Settings, which is Quizball ops only.
+  // One role for Betsson's team: every tab but Integration and Settings, which are Quizball ops only.
   await signIn(page, 'editor@demo.tablederby.test');
   const memberNavFirst = await navLabels(page);
-  check('a Betsson member sees every tab but Settings', memberNavFirst.includes('Questions') && memberNavFirst.includes('Team') && memberNavFirst.includes('Integration') && !memberNavFirst.includes('Settings'), memberNavFirst.join(', '));
+  check('a Betsson member sees every tab but Integration and Settings', memberNavFirst.includes('Questions') && memberNavFirst.includes('Team') && !memberNavFirst.includes('Integration') && !memberNavFirst.includes('Settings'), memberNavFirst.join(', '));
   await page.goto(`${BASE}/td/settings`);
   await page.getByText('You do not have access to this section').waitFor();
   check('a Betsson member opening Settings directly is denied', true);
@@ -94,19 +94,10 @@ try {
   await page.getByText('invited@demo.tablederby.test').waitFor();
   check('Betsson admin sees the staff list', (await page.locator('table tbody tr').count()) === 5);
   const adminNav = await navLabels(page);
-  check('Betsson admin has Team and Integration but not Settings', adminNav.includes('Team') && adminNav.includes('Integration') && !adminNav.includes('Settings'));
+  check('Betsson admin has Team but not Integration or Settings', adminNav.includes('Team') && !adminNav.includes('Integration') && !adminNav.includes('Settings'));
   await page.goto(`${BASE}/td/integration`);
-  await page.getByText('td-evt-0056', { exact: true }).waitFor();
-  await page.getByLabel('Search webhook events').fill('td-evt-0004');
-  await page.keyboard.press('Enter');
-  await page.getByText('td-evt-0004', { exact: true }).first().click();
-  const event = page.locator('[data-slot="sheet-content"]');
-  await event.getByText('Envelope sent').waitFor();
-  check(
-    'Betsson admin searches webhook events and opens one with its attempts, without retry',
-    (await event.locator('tbody tr').count()) === 31 && (await event.getByRole('button', { name: /Retry/ }).count()) === 0,
-  );
-  await page.keyboard.press('Escape');
+  await page.getByText('You do not have access to this section').waitFor();
+  check('Betsson admin opening Integration directly is denied', true);
 
   // A new member: the admin makes an invitation link on the Team tab; opened signed out, it joins and signs in.
   await page.goto(`${BASE}/td/team`);

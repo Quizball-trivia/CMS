@@ -26,7 +26,7 @@ export interface TdTab {
 }
 
 const ALL = TD_ROLES;
-// Settings are Quizball ops only; Betsson's team sees everything else.
+// Integration and Settings are Quizball ops only; Betsson's team sees everything else.
 const ADMINS = ALL;
 const OPS: readonly TdRole[] = ['ops'];
 
@@ -93,7 +93,7 @@ export const TD_TABS: readonly TdTab[] = [
     label: t('Integration'),
     description: t('Session inits, launches and webhook deliveries with their reason codes, retry and search.'),
     group: 'settings',
-    roles: ADMINS,
+    roles: OPS,
   },
   {
     key: 'settings',
