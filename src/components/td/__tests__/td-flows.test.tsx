@@ -45,6 +45,7 @@ const { CorrectionForm, OpsReviews, Replay } = await import('../tabs/players-tab
 const { MaintenanceSetting, TdSettingsTab, TicketsSetting } = await import('../tabs/ops-tabs');
 const { TD_ADMIN_CONTRACT_VERSION } = await import('@/lib/td/contract');
 const { TdIntegrationTab } = await import('../tabs/integration-tab');
+const { TdTabGate } = await import('../td-tab-gate');
 const { TdTeam } = await import('../td-team');
 const { TdApiError } = await import('@/lib/td/api-client');
 const { createFakeLockManager, deferred, sleep } = await import('@/lib/td/__tests__/helpers');
@@ -1008,7 +1009,7 @@ describe('integration', () => {
   };
 
   it('lists events newest first, a page at a time, and finds a player’s by their Betsson id', async () => {
-    await signIn('betsson_admin');
+    await signIn('ops');
     renderTd(<TdIntegrationTab />);
     await waitFor(() => expect(rows()).toHaveLength(50));
     expect(rows()[0].textContent).toBe('td-evt-0056');
@@ -1022,8 +1023,19 @@ describe('integration', () => {
     for (const row of rows()) expect(row.closest('tr')!.textContent).toContain('bet-40017');
   });
 
-  it('opens an event with its envelope and attempts; a Betsson admin sees no retry', async () => {
+  it('is Quizball ops only: a Betsson admin is denied the tab', async () => {
     await signIn('betsson_admin');
+    renderTd(
+      <TdTabGate tab="integration">
+        <TdIntegrationTab />
+      </TdTabGate>,
+    );
+    expect(await screen.findByText('You do not have access to this section')).toBeTruthy();
+    expect(screen.queryByLabelText('Search webhook events')).toBeNull();
+  });
+
+  it('opens an event with its envelope and attempts', async () => {
+    await signIn('ops');
     renderTd(<TdIntegrationTab />);
     const sheet = await open('td-evt-0004');
     expect(await within(sheet).findByText('Given up')).toBeTruthy();
@@ -1032,7 +1044,6 @@ describe('integration', () => {
     // The partner's HTML answer is shown as text.
     expect(within(sheet).getAllByText('<html><body>Service Unavailable</body></html>').length).toBeGreaterThan(0);
     expect(sheet.querySelectorAll('tbody tr')).toHaveLength(31);
-    expect(within(sheet).queryByRole('button', { name: /Retry/ })).toBeNull();
   });
 
   it('ops retries a given-up event, and moves one bound to an earlier address only once confirmed', async () => {
