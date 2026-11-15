@@ -9,11 +9,11 @@ describe('Table Derby navigation', () => {
     expect(TD_TABS).toHaveLength(8);
   });
 
-  it('shows Betsson’s team the content, players, leaderboard, team and integration tabs', () => {
-    expect(keys('betsson_admin')).toEqual([...CONTENT, 'players', 'leaderboard', 'team', 'integration']);
+  it('shows Betsson’s team the content, players, leaderboard and team tabs', () => {
+    expect(keys('betsson_admin')).toEqual([...CONTENT, 'players', 'leaderboard', 'team']);
   });
 
-  it('gives settings to ops only', () => {
+  it('gives integration and settings to ops only', () => {
     expect(keys('ops')).toEqual([...CONTENT, 'players', 'leaderboard', 'team', 'integration', 'settings']);
   });
 
