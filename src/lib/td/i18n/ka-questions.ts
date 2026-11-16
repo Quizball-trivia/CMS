@@ -17,9 +17,9 @@ export const KA_QUESTIONS: Record<string, string> = {
   'Next page': 'შემდეგი გვერდი',
   '{n} archived': 'დაარქივდა: {n}',
   '{n} restored': 'აღდგა: {n}',
-  'Archive Question': 'კითხვის დაარქივება',
-  'Archive {n} selected questions? They leave the game at the next publish and can be restored.': 'დავაარქივოთ {n} მონიშნული კითხვა? ისინი თამაშიდან შემდეგი გამოქვეყნებისას გავა და მათი აღდგენა შესაძლებელია.',
-  'Archive this question? It leaves the game at the next publish and can be restored.': 'დავაარქივოთ ეს კითხვა? ის თამაშიდან შემდეგი გამოქვეყნებისას გავა და მისი აღდგენა შესაძლებელია.',
+  'Archive Question': 'თამაშიდან ამოღება (დაარქივება)',
+  'Archive {n} selected questions? They leave the game at the next publish and can be restored.': '{n} მონიშნული კითხვა თამაშიდან ამოვიღოთ? ისინი თამაშში აღარ გამოჩნდება მას შემდეგ, რაც დააჭერთ „გამოქვეყნებას“. არაფერი იშლება: მათ იპოვით ფილტრში „დაარქივებული“ და შეგიძლიათ ნებისმიერ დროს დააბრუნოთ.',
+  'Archive this question? It leaves the game at the next publish and can be restored.': 'ეს კითხვა თამაშიდან ამოვიღოთ? ის თამაშში აღარ გამოჩნდება მას შემდეგ, რაც დააჭერთ „გამოქვეყნებას“. არაფერი იშლება: მას იპოვით ფილტრში „დაარქივებული“ და შეგიძლიათ ნებისმიერ დროს დააბრუნოთ.',
 
   'Question Preview': 'კითხვის გადახედვა',
   'Edit Question': 'კითხვის რედაქტირება',
