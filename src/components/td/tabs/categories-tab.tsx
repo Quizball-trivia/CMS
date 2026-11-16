@@ -7,16 +7,36 @@ import { Dialog, DialogDescription, DialogHeader, DialogTitle } from '@/componen
 import { TdDialogContent } from '@/components/td/td-dialog';
 import { TdCategoryForm } from '@/components/td/categories/td-category-form';
 import { TdCategoryList } from '@/components/td/categories/td-category-list';
-import { categoryName, TD_CATEGORY_ROUNDS, useTdCategoryCounts, type TdCategoryRow } from '@/components/td/categories/td-category-data';
+import { categoryName, TD_CATEGORY_ROUNDS, useTdCategoryCounts, type TdCategoryRow, type TdCategoryType } from '@/components/td/categories/td-category-data';
 import { useTdAllRows } from '@/hooks/use-td-content';
 import { t } from '@/lib/td/i18n';
 
 const ALL = { status: 'draft,ready,approved,archived' };
+const ROUND_KEY = 'td.categories.round';
+
+/** The round chosen last in the new-category form, kept in this browser (a convenience only). */
+function rememberedRound(): TdCategoryType {
+  try {
+    const saved = window.localStorage.getItem(ROUND_KEY);
+    return TD_CATEGORY_ROUNDS.some((round) => round.type === saved) ? (saved as TdCategoryType) : 'card-categories';
+  } catch {
+    return 'card-categories';
+  }
+}
 
 /** The Quizball CMS's Categories page, for the categories of the two rounds that have them: one section a round, the archived ones last. */
 export function TdCategoriesTab() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingCategory, setEditingCategory] = useState<TdCategoryRow | undefined>(undefined);
+  const [lastRound, setLastRound] = useState<TdCategoryType>(() => (typeof window === 'undefined' ? 'card-categories' : rememberedRound()));
+  const chooseRound = (round: TdCategoryType) => {
+    setLastRound(round);
+    try {
+      window.localStorage.setItem(ROUND_KEY, round);
+    } catch {
+      // Not kept: the form still starts in the round chosen during this visit.
+    }
+  };
   // A link from the publish report names a category by its key (?q=).
   const [searchTerm, setSearchTerm] = useState(() => (typeof window === 'undefined' ? '' : (new URLSearchParams(window.location.search).get('q') ?? '')));
   // Asked before the dialog closes: the open form says whether it may be left.
@@ -131,7 +151,7 @@ export function TdCategoriesTab() {
             <DialogDescription className="text-gray-500 font-medium">{isEditing ? t('Update the category details below.') : t('Define a new content bucket for your questions.')}</DialogDescription>
           </DialogHeader>
           <div className="px-8 pb-8 overflow-y-auto flex-1">
-            <TdCategoryForm key={editingCategory?.id ?? 'new'} category={editingCategory} leaveRef={leaveRef} onSuccess={handleClose} />
+            <TdCategoryForm key={editingCategory?.id ?? 'new'} category={editingCategory} leaveRef={leaveRef} onSuccess={handleClose} initialRound={lastRound} onRoundChange={chooseRound} />
           </div>
         </TdDialogContent>
       </Dialog>
