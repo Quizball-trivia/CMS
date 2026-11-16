@@ -43,11 +43,11 @@ interface TdCategoryFormProps {
   onRoundChange?: (round: TdCategoryType) => void;
 }
 
-/** The names a new-category field gives: one a line, each once (by its letters, any case). */
+/** The names a new-category field gives: one a line or between commas, each once (by its letters, any case). */
 export function namesOf(text: string): string[] {
   const seen = new Set<string>();
   return text
-    .split('\n')
+    .split(/[\n,]/)
     .map((line) => line.trim())
     .filter((name) => {
       const folded = name.toLocaleLowerCase();
@@ -313,7 +313,7 @@ export function TdCategoryForm({ category, leaveRef, onSuccess, initialRound = '
                 disabled={busy !== null}
                 aria-invalid={nameIssues.length > 0}
               />
-              <p className="ml-1 text-xs text-muted-foreground">{t('One name a line: several categories are made at once.')}</p>
+              <p className="ml-1 text-xs text-muted-foreground">{t('One name a line, or names separated by commas: several categories are made at once.')}</p>
               {existing.error && !existing.data && <p className="ml-1 text-xs text-destructive">{t('The categories of this round could not be loaded, so new names cannot be checked. Close the window and try again.')}</p>}
               {already.length > 0 && <p className="ml-1 text-xs text-amber-700">{t('Already in this round, not made again: {names}', { names: already.join(', ') })}</p>}
             </>

@@ -25,7 +25,7 @@ export const KA_CATEGORIES: Record<string, string> = {
   'Saving…': 'ინახება…',
   'Category created successfully': 'კატეგორია წარმატებით შეიქმნა',
   'Category updated successfully': 'კატეგორია წარმატებით განახლდა',
-  'One name a line: several categories are made at once.': 'თითო სახელი თითო ხაზზე: ერთად რამდენიმე კატეგორია შეიქმნება.',
+  'One name a line, or names separated by commas: several categories are made at once.': 'თითო სახელი თითო ხაზზე ან მძიმით გამოყოფილი (მაგ. გუნდები, მუნდიალი): ერთად რამდენიმე კატეგორია შეიქმნება.',
   'Already in this round, not made again: {names}': 'ამ ტურში უკვე არსებობს, ხელახლა არ შეიქმნება: {names}',
   'Every name is a category of this round already.': 'ყველა სახელი ამ ტურში უკვე კატეგორიაა.',
   'Save {n} as drafts': '{n} კატეგორიის დრაფტად შენახვა',

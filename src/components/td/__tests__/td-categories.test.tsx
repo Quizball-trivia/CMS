@@ -143,7 +143,7 @@ describe('the Categories page', () => {
     expect(within(cardOf('Famous coaches')).getByText('Draft')).toBeTruthy();
   });
 
-  it('makes several box categories from one field, one a line, skipping a name the round has and a line written twice', async () => {
+  it('makes several box categories from one field, one a line or between commas, skipping a name the round has and a line written twice', async () => {
     const { admin } = await signIn('betsson_admin');
     await admin.content('box-categories').create({ data: { key: 'finals', title: 'Cup finals' } });
     renderPage();
@@ -151,7 +151,7 @@ describe('the Categories page', () => {
     const dialog = await screen.findByRole('dialog', { name: 'Create Category' });
     fireEvent.pointerDown(within(dialog).getByRole('combobox'), { button: 0, ctrlKey: false, pointerType: 'mouse' });
     fireEvent.click(await screen.findByRole('option', { name: ROUND_3 }));
-    fireEvent.change(within(dialog).getByLabelText('Name'), { target: { value: 'Derbies\n  Shirt numbers \n\ncup FINALS\nderbies\nRivalries' } });
+    fireEvent.change(within(dialog).getByLabelText('Name'), { target: { value: 'Derbies\n  Shirt numbers \n\ncup FINALS, derbies,Rivalries' } });
     expect(await within(dialog).findByText('Already in this round, not made again: cup FINALS')).toBeTruthy();
     fireEvent.click(within(dialog).getByRole('button', { name: 'Save 3 as drafts' }));
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
