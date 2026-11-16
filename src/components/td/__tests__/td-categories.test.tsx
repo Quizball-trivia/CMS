@@ -143,6 +143,40 @@ describe('the Categories page', () => {
     expect(within(cardOf('Famous coaches')).getByText('Draft')).toBeTruthy();
   });
 
+  it('makes several box categories from one field, one a line, skipping a name the round has and a line written twice', async () => {
+    const { admin } = await signIn('betsson_admin');
+    await admin.content('box-categories').create({ data: { key: 'finals', title: 'Cup finals' } });
+    renderPage();
+    fireEvent.click(screen.getByRole('button', { name: 'New Category' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Create Category' });
+    fireEvent.pointerDown(within(dialog).getByRole('combobox'), { button: 0, ctrlKey: false, pointerType: 'mouse' });
+    fireEvent.click(await screen.findByRole('option', { name: ROUND_3 }));
+    fireEvent.change(within(dialog).getByLabelText('Name'), { target: { value: 'Derbies\n  Shirt numbers \n\ncup FINALS\nderbies\nRivalries' } });
+    expect(await within(dialog).findByText('Already in this round, not made again: cup FINALS')).toBeTruthy();
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Save 3 as drafts' }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+
+    const titles = (await listOf(admin, 'box-categories', { status: 'draft,ready,approved,archived' })).map((row) => ('title' in row.data ? row.data.title : ''));
+    expect(titles.filter((title) => ['Derbies', 'Shirt numbers', 'Rivalries', 'Cup finals'].includes(title)).sort()).toEqual(['Cup finals', 'Derbies', 'Rivalries', 'Shirt numbers']);
+    expect(await listOf(admin, 'card-categories', { q: 'Derbies' })).toHaveLength(0);
+    expect(within(await waitFor(() => section(ROUND_3))).getByText('Rivalries')).toBeTruthy();
+  });
+
+  it('opens the new-category form in the round chosen last', async () => {
+    await signIn('betsson_admin');
+    renderPage();
+    await createCategory('Cup finals', 'III');
+    fireEvent.click(screen.getByRole('button', { name: 'New Category' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Create Category' });
+    expect(within(dialog).getByRole('combobox').textContent).toBe(ROUND_3);
+    cleanup();
+
+    // Kept in the browser: a page opened again starts there too.
+    renderPage();
+    fireEvent.click(screen.getByRole('button', { name: 'New Category' }));
+    expect(within(await screen.findByRole('dialog', { name: 'Create Category' })).getByRole('combobox').textContent).toBe(ROUND_3);
+  });
+
   it('shows the real number of a category’s cards and filters both sections by name', async () => {
     const { admin } = await signIn('betsson_admin');
     const coaches = await admin.content('card-categories').create({ data: { key: 'coaches', prompt: 'Famous coaches' } });

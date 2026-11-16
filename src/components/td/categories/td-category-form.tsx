@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { TdDialogContent } from '@/components/td/td-dialog';
 import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { newKey } from '@/components/td/content/content-types';
@@ -37,6 +38,23 @@ interface TdCategoryFormProps {
   /** Asked before the dialog closes: the form says whether it may be left. */
   leaveRef: MutableRefObject<() => boolean>;
   onSuccess?: () => void;
+  /** The round a new category starts in: the one chosen last. */
+  initialRound?: TdCategoryType;
+  onRoundChange?: (round: TdCategoryType) => void;
+}
+
+/** The names a new-category field gives: one a line, each once (by its letters, any case). */
+export function namesOf(text: string): string[] {
+  const seen = new Set<string>();
+  return text
+    .split('\n')
+    .map((line) => line.trim())
+    .filter((name) => {
+      const folded = name.toLocaleLowerCase();
+      if (!name || seen.has(folded)) return false;
+      seen.add(folded);
+      return true;
+    });
 }
 
 const inputClass = 'h-10 shadow-sm border-border/50 bg-white/5 backdrop-blur-md focus:ring-1 focus:ring-primary/30 transition-all rounded-xl';
@@ -47,7 +65,7 @@ const COLUMNS: Record<number, string> = { 1: 'grid-cols-1', 2: 'grid-cols-2', 3:
 type Busy = 'save' | 'restore' | 'publish';
 
 /** Quizball's category form: save as a draft, then publish the category with its cards or questions in one step. */
-export function TdCategoryForm({ category, leaveRef, onSuccess }: TdCategoryFormProps) {
+export function TdCategoryForm({ category, leaveRef, onSuccess, initialRound = 'card-categories', onRoundChange }: TdCategoryFormProps) {
   const { user } = useTdAuth();
   const write = useTdWrite();
   const countOf = useTdCategoryCounts();
@@ -55,7 +73,7 @@ export function TdCategoryForm({ category, leaveRef, onSuccess }: TdCategoryForm
   const roundId = useId();
 
   const [row, setRow] = useState<TdCategoryRow | null>(category ?? null);
-  const [round, setRound] = useState<TdCategoryType>('card-categories');
+  const [round, setRound] = useState<TdCategoryType>(initialRound);
   // What the field was loaded from, so a change can be told.
   const [base, setBase] = useState(category ? categoryText(category) : '');
   const [text, setText] = useState(base);
@@ -72,6 +90,12 @@ export function TdCategoryForm({ category, leaveRef, onSuccess }: TdCategoryForm
   const nameField = type === 'card-categories' ? 'prompt' : 'title';
   const name = text.trim();
   const dirty = creating ? name !== '' : name !== base;
+  // A new category's field takes several names, one a line; one already in the round is not made again.
+  const existing = useTdAllRows(round, { status: 'draft,ready,approved,archived' }, creating);
+  const taken = new Set((existing.data?.rows ?? []).map((other) => categoryText(other as TdCategoryRow).trim().toLocaleLowerCase()));
+  const typed = creating ? namesOf(text) : [];
+  const newNames = typed.filter((one) => !taken.has(one.toLocaleLowerCase()));
+  const already = typed.filter((one) => taken.has(one.toLocaleLowerCase()));
   const archived = row?.status === 'archived';
 
   const mayLeave = useCallback(() => !dirty || window.confirm(t('This one has changes that are not saved. Leave it without saving?')), [dirty]);
@@ -153,20 +177,40 @@ export function TdCategoryForm({ category, leaveRef, onSuccess }: TdCategoryForm
       return;
     }
     const keyPrefix = type === 'card-categories' ? 'cat' : 'box';
-    const found = contentWriteIssues(type, schemaName, 'create', { data: { key: newKey(keyPrefix), [nameField]: name } });
-    setIssues(found);
-    if (found.length) return;
+    if (newNames.length === 0) {
+      setNotice(t('Every name is a category of this round already.'));
+      return;
+    }
+    for (const one of newNames) {
+      const found = contentWriteIssues(type, schemaName, 'create', { data: { key: newKey(keyPrefix), [nameField]: one } });
+      if (found.length) {
+        setIssues(found.map((issue) => ({ ...issue, message: `${one}: ${issue.message}` })));
+        return;
+      }
+    }
+    setIssues([]);
     // The key is made up and never shown: a key that is taken is replaced by another.
-    const create = async () => {
+    const createOne = async (one: string) => {
       for (let attempt = 1; ; attempt++) {
         try {
-          return await write((operation) => api.create({ data: { key: newKey(keyPrefix), [nameField]: name } } as never, operation));
+          return await write((operation) => api.create({ data: { key: newKey(keyPrefix), [nameField]: one } } as never, operation));
         } catch (caught) {
           if (!isTdError(caught, 'already_exists') || attempt >= 5) throw caught;
         }
       }
     };
-    void run('save', create, t('Category created successfully'));
+    // One after another; the names not made yet stay in the field when one is refused.
+    const createAll = async () => {
+      for (const [index, one] of newNames.entries()) {
+        try {
+          await createOne(one);
+        } catch (caught) {
+          if (alive.current) setText(newNames.slice(index).join('\n'));
+          throw caught;
+        }
+      }
+    };
+    void run('save', createAll, newNames.length === 1 ? t('Category created successfully') : t('{n} categories created', { n: newNames.length }));
   };
 
   const transition = (action: 'restore', done: string) => {
@@ -228,7 +272,14 @@ export function TdCategoryForm({ category, leaveRef, onSuccess }: TdCategoryForm
             <Label htmlFor={roundId} className={labelClass}>
               {t('Round')}
             </Label>
-            <Select value={round} onValueChange={(next) => setRound(next as TdCategoryType)} disabled={busy !== null}>
+            <Select
+              value={round}
+              onValueChange={(next) => {
+                setRound(next as TdCategoryType);
+                onRoundChange?.(next as TdCategoryType);
+              }}
+              disabled={busy !== null}
+            >
               <SelectTrigger id={roundId} className={cn(inputClass, 'w-full')}>
                 <SelectValue />
               </SelectTrigger>
@@ -247,15 +298,32 @@ export function TdCategoryForm({ category, leaveRef, onSuccess }: TdCategoryForm
           <Label htmlFor={nameId} className={labelClass}>
             {t('Name')}
           </Label>
-          <Input
-            id={nameId}
-            placeholder={t('Category name')}
-            className={inputClass}
-            value={text}
-            onChange={(event) => setText(event.target.value)}
-            disabled={archived || busy !== null}
-            aria-invalid={nameIssues.length > 0}
-          />
+          {creating ? (
+            <>
+              <Textarea
+                id={nameId}
+                placeholder={t('Category name')}
+                className={cn(inputClass, 'h-auto min-h-[88px] py-2')}
+                rows={3}
+                value={text}
+                onChange={(event) => setText(event.target.value)}
+                disabled={busy !== null}
+                aria-invalid={nameIssues.length > 0}
+              />
+              <p className="ml-1 text-xs text-muted-foreground">{t('One name a line: several categories are made at once.')}</p>
+              {already.length > 0 && <p className="ml-1 text-xs text-amber-700">{t('Already in this round, not made again: {names}', { names: already.join(', ') })}</p>}
+            </>
+          ) : (
+            <Input
+              id={nameId}
+              placeholder={t('Category name')}
+              className={inputClass}
+              value={text}
+              onChange={(event) => setText(event.target.value)}
+              disabled={archived || busy !== null}
+              aria-invalid={nameIssues.length > 0}
+            />
+          )}
           {nameIssues.length > 0 && (
             <p role="alert" className="text-destructive text-[10px]">
               {[...new Set(nameIssues.map((issue) => issue.message))].join(' · ')}
@@ -275,7 +343,7 @@ export function TdCategoryForm({ category, leaveRef, onSuccess }: TdCategoryForm
       <div className="sticky -bottom-8 z-10 -mx-8 -mb-8 border-t border-slate-100 bg-white px-8 pt-4 pb-8">
         {creating ? (
           <Button type="submit" disabled={busy !== null || !dirty} className="w-full h-11 rounded-xl font-bold shadow-lg shadow-primary/20">
-            {busy === 'save' ? t('Saving…') : t('Save as Draft')}
+            {busy === 'save' ? t('Saving…') : newNames.length > 1 ? t('Save {n} as drafts', { n: newNames.length }) : t('Save as Draft')}
           </Button>
         ) : archived ? (
           actions?.restore.allowed && (
