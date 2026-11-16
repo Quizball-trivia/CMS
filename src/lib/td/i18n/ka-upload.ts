@@ -116,6 +116,8 @@ export const KA_UPLOAD: Record<string, string> = {
   'At most {max} clubs': 'მაქსიმუმ {max} კლუბი',
 
   // Pictures and cards already in the category
+  'Clues: one or two short words each, like the country and the club (“იტალია”, “იუვენტუსი”). They sit small under the face on the card; with no picture they are the only hint. No sentences.':
+    'Clue: თითო ერთი-ორი მოკლე სიტყვა, მაგალითად ქვეყანა და კლუბი („იტალია“, „იუვენტუსი“). ბარათზე სახის ქვეშ პატარად ჩანს; სურათის გარეშე ერთადერთი მინიშნებაა. წინადადებები არა.',
   'Answer: the first name is what the card shows. Add others only for nicknames or a very different spelling: the game already forgives typos, accents, capitals and Georgian or Latin letters, and the surname alone counts.':
     'Answer: პირველი სახელი ბარათზე ჩანს. სხვები დაამატეთ მხოლოდ მეტსახელისთვის ან სულ სხვა დაწერილობისთვის: თამაში ისედაც ითმენს შეცდომებს, აქცენტებს, დიდ ასოებს და ქართულ ან ლათინურ ასოებს, გვარიც საკმარისია.',
   'Choose the picture {name} under Pictures': 'სურათებში აირჩიეთ {name}',

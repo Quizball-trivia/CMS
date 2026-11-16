@@ -421,9 +421,9 @@ describe('the upload dialog', () => {
     const [messi] = await uploaded(admin, 'cards');
     expect(messi!.data).toMatchObject({ categoryKey: 'legends', value: 1, display: 'ლიონელ მესი', imageKey: null, photo: { id: 158023, ver: '24' } });
     expect(messi!.data.aliases).toEqual(['ლიონელ მესი', 'Lionel Messi']);
-    expect(messi!.data.lines).toHaveLength(3);
+    expect(messi!.data.lines).toEqual(['არგენტინა', 'ბარსელონა']);
     const buffon = (await admin.content('cards').list({ category: 'legends', status: 'draft,ready,approved', limit: 200 })).items.find((card) => card.data.key === 'buffon')!;
-    expect(buffon.data).toMatchObject({ display: 'Gianluigi Buffon', value: 2, photo: null, lines: ['იტალიელი მეკარე', '2006 წლის მსოფლიო ჩემპიონი'] });
+    expect(buffon.data).toMatchObject({ display: 'Gianluigi Buffon', value: 2, photo: null, lines: ['იტალია', 'იუვენტუსი'] });
     expect(buffon.data.imageKey).toMatch(/^pic-[0-9a-f]{24}$/);
     const image = (await admin.content('media').list({ status: 'draft,ready,approved', limit: 200 })).items.find((row) => row.data.key === buffon.data.imageKey);
     expect(image!.data).toMatchObject({ key: buffon.data.imageKey, author: null, license: null, source: null });
