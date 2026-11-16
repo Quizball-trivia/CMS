@@ -20,16 +20,15 @@ export const TD_UPLOAD_TYPES: readonly TdUploadType[] = ['cards', 'whoami-subjec
 /** The files' keywords stay as the Quizball CMS's .txt files have them; what they say is Georgian. */
 export const TD_UPLOAD_EXAMPLES: Record<TdUploadType, string> = {
   cards: `1.
-Clue 1: დავიბადე არგენტინაში 1987 წელს
-Clue 2: ბარსელონაში 21 წელი გავატარე
-Clue 3: 2022 წელს მსოფლიო ჩემპიონი გავხდი
+Clue 1: არგენტინა
+Clue 2: ბარსელონა
 Answer: ლიონელ მესი | Lionel Messi
 Points: 1
 Photo: 158023 | 24
 
 2.
-Clue 1: იტალიელი მეკარე
-Clue 2: 2006 წლის მსოფლიო ჩემპიონი
+Clue 1: იტალია
+Clue 2: იუვენტუსი
 Answer: ბუფონი | Buffon
 Points: 2
 Image: buffon.jpg`,

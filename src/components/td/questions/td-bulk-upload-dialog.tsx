@@ -142,6 +142,7 @@ const TYPE_OPTIONS: Array<{ value: UploadQuestionType; label: string }> = [
 
 const FORMAT_NOTES: Partial<Record<UploadQuestionType, string[]>> = {
   cards: [
+    t('Clues: one or two short words each, like the country and the club (“იტალია”, “იუვენტუსი”). They sit small under the face on the card; with no picture they are the only hint. No sentences.'),
     t('Answer: the first name is what the card shows. Add others only for nicknames or a very different spelling: the game already forgives typos, accents, capitals and Georgian or Latin letters, and the surname alone counts.'),
   ],
   'box-questions': [t('Optional: “Category: მუნდიალი” puts the question in that category, and the upload makes the category when there is none of that name. When every question has one, no category needs to be chosen.')],
