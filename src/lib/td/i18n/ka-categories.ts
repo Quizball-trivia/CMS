@@ -30,6 +30,7 @@ export const KA_CATEGORIES: Record<string, string> = {
   'Every name is a category of this round already.': 'ყველა სახელი ამ ტურში უკვე კატეგორიაა.',
   'Save {n} as drafts': '{n} კატეგორიის დრაფტად შენახვა',
   '{n} categories created': 'შეიქმნა {n} კატეგორია',
+  'The categories of this round could not be loaded, so new names cannot be checked. Close the window and try again.': 'ამ ტურის კატეგორიები ვერ ჩაიტვირთა, ამიტომ ახალი სახელების შემოწმება ვერ ხერხდება. დახურეთ ფანჯარა და სცადეთ ხელახლა.',
 
   // categories/td-category-questions.tsx
   'Cards ({n})': 'ბარათები ({n})',

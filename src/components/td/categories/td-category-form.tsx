@@ -92,6 +92,8 @@ export function TdCategoryForm({ category, leaveRef, onSuccess, initialRound = '
   const dirty = creating ? name !== '' : name !== base;
   // A new category's field takes several names, one a line; one already in the round is not made again.
   const existing = useTdAllRows(round, { status: 'draft,ready,approved,archived' }, creating);
+  // Until the round's categories are all known, a name cannot be told new: nothing is made.
+  const known = !creating || existing.data?.complete === true;
   const taken = new Set((existing.data?.rows ?? []).map((other) => categoryText(other as TdCategoryRow).trim().toLocaleLowerCase()));
   const typed = creating ? namesOf(text) : [];
   const newNames = typed.filter((one) => !taken.has(one.toLocaleLowerCase()));
@@ -177,6 +179,7 @@ export function TdCategoryForm({ category, leaveRef, onSuccess, initialRound = '
       return;
     }
     const keyPrefix = type === 'card-categories' ? 'cat' : 'box';
+    if (!known) return;
     if (newNames.length === 0) {
       setNotice(t('Every name is a category of this round already.'));
       return;
@@ -311,6 +314,7 @@ export function TdCategoryForm({ category, leaveRef, onSuccess, initialRound = '
                 aria-invalid={nameIssues.length > 0}
               />
               <p className="ml-1 text-xs text-muted-foreground">{t('One name a line: several categories are made at once.')}</p>
+              {existing.error && !existing.data && <p className="ml-1 text-xs text-destructive">{t('The categories of this round could not be loaded, so new names cannot be checked. Close the window and try again.')}</p>}
               {already.length > 0 && <p className="ml-1 text-xs text-amber-700">{t('Already in this round, not made again: {names}', { names: already.join(', ') })}</p>}
             </>
           ) : (
@@ -342,7 +346,7 @@ export function TdCategoryForm({ category, leaveRef, onSuccess, initialRound = '
       {/* Kept in sight at the foot of the dialog, however far its cards scroll. */}
       <div className="sticky -bottom-8 z-10 -mx-8 -mb-8 border-t border-slate-100 bg-white px-8 pt-4 pb-8">
         {creating ? (
-          <Button type="submit" disabled={busy !== null || !dirty} className="w-full h-11 rounded-xl font-bold shadow-lg shadow-primary/20">
+          <Button type="submit" disabled={busy !== null || !dirty || !known} className="w-full h-11 rounded-xl font-bold shadow-lg shadow-primary/20">
             {busy === 'save' ? t('Saving…') : newNames.length > 1 ? t('Save {n} as drafts', { n: newNames.length }) : t('Save as Draft')}
           </Button>
         ) : archived ? (
