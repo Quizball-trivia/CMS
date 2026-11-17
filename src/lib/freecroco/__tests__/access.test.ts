@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   canAccessPath,
   canEditRankedPoints,
+  canSeeOpponentSplit,
   canManageStaff,
   canResendDeliveries,
   cmsRole,
@@ -86,7 +87,7 @@ describe('route access', () => {
 });
 
 describe('ranked points editing', () => {
-  it('is for Quizball admins only', () => {
+  it('is hidden from Freecroco staff', () => {
     expect(canEditRankedPoints('admin')).toBe(true);
     expect(canEditRankedPoints('partner_staff')).toBe(false);
   });
@@ -105,5 +106,12 @@ describe('staff accounts', () => {
     const items = [{ href: '/freecroco' }, { href: '/freecroco/games' }, { href: '/freecroco/staff' }];
     expect(navItemsForRole(items, 'partner_staff').map((i) => i.href)).toEqual(['/freecroco', '/freecroco/games']);
     expect(navItemsForRole(items, 'admin')).toHaveLength(3);
+  });
+});
+
+describe('ranked opponent split', () => {
+  it('is for Quizball admins only', () => {
+    expect(canSeeOpponentSplit('admin')).toBe(true);
+    expect(canSeeOpponentSplit('partner_staff')).toBe(false);
   });
 });

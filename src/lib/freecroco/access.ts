@@ -86,3 +86,9 @@ export function canEditRankedPoints(role: string | null | undefined): boolean {
 export function canManageStaff(role: string | null | undefined): boolean {
   return cmsRole(role) === 'admin';
 }
+
+/** Whether ranked matches are split into against Freecroco players and against bots: hidden from Freecroco staff,
+ *  who asked not to see it (2026-11-17). */
+export function canSeeOpponentSplit(role: string | null | undefined): boolean {
+  return cmsRole(role) !== 'partner_staff';
+}

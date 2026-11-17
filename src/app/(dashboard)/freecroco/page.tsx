@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useContext, useState } from 'react';
 import { Activity, ChartColumn, Coins, Gamepad, Send, Swords, UserPlus } from 'lucide-react';
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { useFreecrocoStats } from '@/hooks';
@@ -13,6 +13,8 @@ import { Label } from '@/components/ui/label';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { cn } from '@/lib/utils';
 import { useFcText } from '@/lib/freecroco/i18n';
+import { canSeeOpponentSplit } from '@/lib/freecroco/access';
+import { AuthContext } from '@/providers/auth-provider';
 import {
   deliveryHealth,
   formatAge,
@@ -266,6 +268,7 @@ export default function FreecrocoOverviewPage() {
 
 function Overview({ today }: { today: string }) {
   const { t } = useFcText();
+  const role = useContext(AuthContext)?.user?.role;
   const [choice, setChoice] = useState<RangeChoice>({ preset: STATS_DEFAULT_RANGE_DAYS });
   // A preset follows the Georgian day, so a page left open past midnight moves on with it.
   const range = choice.preset === null ? choice.range : lastDays(today, choice.preset);
@@ -330,8 +333,12 @@ function Overview({ today }: { today: string }) {
               <CardContent className="grid grid-cols-2 gap-4 sm:grid-cols-4">
                 <Figure label={t('Plays')} value={formatCount(data.ranked.plays)} />
                 <Figure label={t('Matches')} value={formatCount(data.ranked.matches)} />
-                <Figure label={t('Vs Freecroco players')} value={formatCount(data.ranked.vsPlayers)} />
-                <Figure label={t('Vs bots')} value={formatCount(data.ranked.vsBots)} />
+                {canSeeOpponentSplit(role) && (
+                  <>
+                    <Figure label={t('Vs Freecroco players')} value={formatCount(data.ranked.vsPlayers)} />
+                    <Figure label={t('Vs bots')} value={formatCount(data.ranked.vsBots)} />
+                  </>
+                )}
                 <Figure label={t('Settled')} value={formatCount(data.ranked.settled)} />
                 <Figure label={t('Cancelled')} value={formatCount(data.ranked.cancelled)} />
                 <Figure label={t('Returned')} value={formatCount(data.ranked.returned)} hint={t('Play given back')} />
