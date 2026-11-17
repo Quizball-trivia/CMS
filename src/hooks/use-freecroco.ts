@@ -213,11 +213,18 @@ export function useSetFreecrocoPlayerStatus() {
         queryClient.cancelQueries({ queryKey: freecrocoKeys.player(input.playerId) }),
         queryClient.cancelQueries({ queryKey: freecrocoKeys.playerLists() }),
       ]),
-    onSuccess: (player) => {
+    onSuccess: async (player) => {
       queryClient.setQueryData(freecrocoKeys.player(player.playerId), player);
-      return queryClient.invalidateQueries({ queryKey: freecrocoKeys.playerLists() });
+      // A list fetch may have restarted (e.g. on focus) before the change landed: drop it so the refetch reads the change.
+      await queryClient.cancelQueries({ queryKey: freecrocoKeys.playerLists() });
+      await queryClient.invalidateQueries({ queryKey: freecrocoKeys.playerLists() });
     },
-    onError: (error) => logger.error('freecroco', 'Failed to change player status', getErrorLogDetails(error)),
+    onError: (error, input) => {
+      logger.error('freecroco', 'Failed to change player status', getErrorLogDetails(error));
+      // onMutate cancelled these reads; nothing changed on the server, so load them again.
+      void queryClient.invalidateQueries({ queryKey: freecrocoKeys.player(input.playerId) });
+      void queryClient.invalidateQueries({ queryKey: freecrocoKeys.playerLists() });
+    },
   });
 }
 

@@ -102,3 +102,23 @@ it('is in Georgian for Freecroco staff', async () => {
   expect(screen.getAllByRole('button', { name: 'დაბლოკვა' }).length).toBeGreaterThan(0);
   expect(screen.getByRole('button', { name: 'განბლოკვა' })).toBeTruthy();
 });
+
+it('steps back a page when a ban empties the page it was on', async () => {
+  const mock = getFreecrocoMock();
+  const real = mock.listPlayers.bind(mock);
+  // Pretend there are 51 active players: page 2 holds one, and after the ban the list has 50.
+  let total = 51;
+  vi.spyOn(mock, 'listPlayers').mockImplementation(async (query) => {
+    const page = await real({ ...query, offset: 0 });
+    const items = query.offset >= total ? [] : page.items.slice(0, 1);
+    return { total, items };
+  });
+  renderPage();
+  await screen.findByText(/of 51/);
+  fireEvent.click(screen.getByRole('button', { name: 'Next page' }));
+  await screen.findByText(/51–51 of 51/);
+  total = 50;
+  fireEvent.click(screen.getAllByRole('button', { name: 'Ban' })[0]);
+  fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Ban player' }));
+  await screen.findByText(/1–50 of 50/);
+});

@@ -197,3 +197,23 @@ it('a lookup still in flight when a ban lands cannot put the old status back', a
   await waitFor(() => expect(result.current.read.data?.status).toBe('blocked'));
   expect(client.getQueryData<PartnerPlayerView>(freecrocoKeys.player('p-1'))?.status).toBe('blocked');
 });
+
+it('loads the player again after a refused change, since the change cancelled that read', async () => {
+  const active: PartnerPlayerView = {
+    playerId: 'p-2', displayName: 'P', status: 'active', blockReason: null, statusChangedAt: null,
+    firstSeenAt: '2026-11-17T00:00:00.000Z', lastSeenAt: null, today: [],
+  };
+  vi.mocked(freecrocoService.getPlayer).mockReset().mockResolvedValue(active);
+  vi.mocked(freecrocoService.setPlayerStatus).mockRejectedValueOnce(new Error('forbidden'));
+  const { wrapper } = setup();
+  const { result } = renderHook(
+    () => ({ read: useFreecrocoPlayer('p-2'), write: useSetFreecrocoPlayerStatus() }),
+    { wrapper },
+  );
+  await waitFor(() => expect(result.current.read.data?.status).toBe('active'));
+  const calls = vi.mocked(freecrocoService.getPlayer).mock.calls.length;
+  await act(async () => {
+    await result.current.write.mutateAsync({ playerId: 'p-2', action: 'block', reason: null }).catch(() => undefined);
+  });
+  await waitFor(() => expect(vi.mocked(freecrocoService.getPlayer).mock.calls.length).toBeGreaterThan(calls));
+});

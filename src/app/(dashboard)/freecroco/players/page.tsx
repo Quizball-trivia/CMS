@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Ban, ChevronLeft, ChevronRight, Search, UserCheck, Users } from 'lucide-react';
 import { toast } from 'sonner';
 import { useDebouncedValue, useFreecrocoPlayer, useFreecrocoPlayers, useSetFreecrocoPlayerStatus } from '@/hooks';
@@ -45,13 +45,18 @@ export default function FreecrocoPlayersPage() {
   const [pending, setPending] = useState<PendingChange | null>(null);
   const [details, setDetails] = useState<string | null>(null);
   const debounced = useDebouncedValue(search.trim(), 300);
-  const { data, isLoading, error } = useFreecrocoPlayers({
+  const { data, isLoading, isPlaceholderData, error } = useFreecrocoPlayers({
     search: debounced || undefined,
     status,
     limit: PAGE_SIZE,
     offset: page * PAGE_SIZE,
   });
   const total = data?.total ?? 0;
+  // A ban or unban can shrink the filtered list under the current page: step back to its last page.
+  const lastPage = Math.max(0, Math.ceil(total / PAGE_SIZE) - 1);
+  useEffect(() => {
+    if (data && !isPlaceholderData && page > lastPage) setPage(lastPage);
+  }, [data, isPlaceholderData, page, lastPage]);
   const from = total === 0 ? 0 : page * PAGE_SIZE + 1;
   const to = Math.min(total, (page + 1) * PAGE_SIZE);
 
