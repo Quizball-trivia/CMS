@@ -12,7 +12,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { cn } from '@/lib/utils';
-import { GAME_LABELS } from '@/lib/freecroco/games';
+import { useFcText } from '@/lib/freecroco/i18n';
 import {
   deliveryHealth,
   formatAge,
@@ -43,6 +43,7 @@ interface KpiProps {
 }
 
 function Kpi({ label, metric, today, yesterday, icon: Icon, accent }: KpiProps) {
+  const { t } = useFcText();
   return (
     <Card className="gap-3 py-5">
       <CardHeader className="flex flex-row items-center justify-between space-y-0">
@@ -53,13 +54,13 @@ function Kpi({ label, metric, today, yesterday, icon: Icon, accent }: KpiProps) 
       </CardHeader>
       <CardContent className="flex items-end justify-between gap-3">
         <div>
-          <p className="text-xs text-slate-500">Today</p>
+          <p className="text-xs text-slate-500">{t('Today')}</p>
           <p className="text-3xl font-bold tracking-tight text-slate-900 tabular-nums" data-testid={`kpi-${metric}-today`}>
             {formatCount(today[metric])}
           </p>
         </div>
         <div className="text-right">
-          <p className="text-xs text-slate-500">Yesterday</p>
+          <p className="text-xs text-slate-500">{t('Yesterday')}</p>
           <p className="text-lg font-semibold text-slate-600 tabular-nums" data-testid={`kpi-${metric}-yesterday`}>
             {formatCount(yesterday[metric])}
           </p>
@@ -80,8 +81,9 @@ function Figure({ label, value, hint }: { label: string; value: string; hint?: s
 }
 
 function RangePicker({ today, value, onChange }: { today: string; value: DayRange; onChange: (choice: RangeChoice) => void }) {
+  const { t } = useFcText();
   const [draft, setDraft] = useState<DayRange>(value);
-  const problem = rangeProblem(draft, today);
+  const problem = rangeProblem(draft, today, t);
 
   return (
     <form
@@ -91,7 +93,7 @@ function RangePicker({ today, value, onChange }: { today: string; value: DayRang
         if (!problem) onChange({ preset: null, range: draft });
       }}
     >
-      <div className="flex gap-1" role="group" aria-label="Quick ranges">
+      <div className="flex gap-1" role="group" aria-label={t('Quick ranges')}>
         {STATS_PRESETS.map((days) => (
           <Button
             key={days}
@@ -103,12 +105,12 @@ function RangePicker({ today, value, onChange }: { today: string; value: DayRang
               onChange({ preset: days });
             }}
           >
-            {days} days
+            {t('{days} days', { days })}
           </Button>
         ))}
       </div>
       <div className="space-y-1">
-        <Label htmlFor="fc-stats-from" className="text-xs">From</Label>
+        <Label htmlFor="fc-stats-from" className="text-xs">{t('From')}</Label>
         <Input
           id="fc-stats-from"
           type="date"
@@ -119,7 +121,7 @@ function RangePicker({ today, value, onChange }: { today: string; value: DayRang
         />
       </div>
       <div className="space-y-1">
-        <Label htmlFor="fc-stats-to" className="text-xs">To</Label>
+        <Label htmlFor="fc-stats-to" className="text-xs">{t('To')}</Label>
         <Input
           id="fc-stats-to"
           type="date"
@@ -129,13 +131,14 @@ function RangePicker({ today, value, onChange }: { today: string; value: DayRang
           onChange={(e) => setDraft({ ...draft, to: e.target.value })}
         />
       </div>
-      <Button type="submit" size="sm" disabled={problem !== null}>Apply</Button>
+      <Button type="submit" size="sm" disabled={problem !== null}>{t('Apply')}</Button>
       {problem && <p className="w-full text-xs text-red-500">{problem}</p>}
     </form>
   );
 }
 
 function DailyChart({ daily }: { daily: PartnerDayStats[] }) {
+  const { t } = useFcText();
   const [metric, setMetric] = useState<StatsMetric>('activePlayers');
   const chosen = STATS_METRICS.find((m) => m.key === metric)!;
   const data = daily.map((d) => ({ ...d, label: shortDay(d.day) }));
@@ -143,8 +146,8 @@ function DailyChart({ daily }: { daily: PartnerDayStats[] }) {
   return (
     <Card>
       <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2 space-y-0">
-        <CardTitle className="text-base font-semibold text-slate-900">Daily</CardTitle>
-        <div className="flex flex-wrap gap-1" role="group" aria-label="Chart metric">
+        <CardTitle className="text-base font-semibold text-slate-900">{t('Daily')}</CardTitle>
+        <div className="flex flex-wrap gap-1" role="group" aria-label={t('Chart metric')}>
           {STATS_METRICS.map((m) => (
             <Button
               key={m.key}
@@ -154,7 +157,7 @@ function DailyChart({ daily }: { daily: PartnerDayStats[] }) {
               aria-pressed={m.key === metric}
               onClick={() => setMetric(m.key)}
             >
-              {m.label}
+              {t(m.label)}
             </Button>
           ))}
         </div>
@@ -174,7 +177,7 @@ function DailyChart({ daily }: { daily: PartnerDayStats[] }) {
               <YAxis tick={{ fontSize: 12, fill: '#64748b' }} axisLine={false} tickLine={false} width={56} allowDecimals={false} />
               <Tooltip
                 contentStyle={{ borderRadius: 12, border: '1px solid #e2e8f0', fontSize: 13 }}
-                formatter={(v) => [formatCount(Number(v)), chosen.label]}
+                formatter={(v) => [formatCount(Number(v)), t(chosen.label)]}
               />
               <Area type="monotone" dataKey={metric} stroke={chosen.color} strokeWidth={2.5} fill="url(#fcDailyFill)" />
             </AreaChart>
@@ -186,13 +189,14 @@ function DailyChart({ daily }: { daily: PartnerDayStats[] }) {
 }
 
 function DailyTable({ daily }: { daily: PartnerDayStats[] }) {
+  const { t } = useFcText();
   return (
     <Table>
       <TableHeader>
         <TableRow>
-          <TableHead>Day</TableHead>
+          <TableHead>{t('Day')}</TableHead>
           {STATS_METRICS.map((m) => (
-            <TableHead key={m.key} className="text-right">{m.label}</TableHead>
+            <TableHead key={m.key} className="text-right">{t(m.label)}</TableHead>
           ))}
         </TableRow>
       </TableHeader>
@@ -211,27 +215,28 @@ function DailyTable({ daily }: { daily: PartnerDayStats[] }) {
 }
 
 function GamesTable({ stats }: { stats: PartnerStats }) {
+  const { t, game } = useFcText();
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-base font-semibold text-slate-900">By game</CardTitle>
+        <CardTitle className="text-base font-semibold text-slate-900">{t('By game')}</CardTitle>
       </CardHeader>
       <CardContent>
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Game</TableHead>
-              <TableHead className="text-right">Plays</TableHead>
-              <TableHead className="text-right">Finished</TableHead>
-              <TableHead className="text-right">Average score</TableHead>
-              <TableHead className="text-right">Max score</TableHead>
-              <TableHead className="text-right">Players</TableHead>
+              <TableHead>{t('Game')}</TableHead>
+              <TableHead className="text-right">{t('Plays')}</TableHead>
+              <TableHead className="text-right">{t('Finished')}</TableHead>
+              <TableHead className="text-right">{t('Average score')}</TableHead>
+              <TableHead className="text-right">{t('Max score')}</TableHead>
+              <TableHead className="text-right">{t('Players')}</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {sortGamesByPlays(stats.games).map((g) => (
               <TableRow key={g.gameId}>
-                <TableCell className="font-medium text-gray-900">{GAME_LABELS[g.gameId]}</TableCell>
+                <TableCell className="font-medium text-gray-900">{game(g.gameId)}</TableCell>
                 <TableCell className="text-right tabular-nums">{formatCount(g.plays)}</TableCell>
                 <TableCell className="text-right tabular-nums">{formatCount(g.finished)}</TableCell>
                 <TableCell className="text-right tabular-nums">{formatCount(g.averageScore)}</TableCell>
@@ -253,12 +258,14 @@ const HEALTH_BADGE = {
 } as const;
 
 export default function FreecrocoOverviewPage() {
+  const { t } = useFcText();
   const today = useGeorgiaToday();
-  if (!today) return <p className="text-sm text-gray-400">Loading…</p>;
+  if (!today) return <p className="text-sm text-gray-400">{t('Loading…')}</p>;
   return <Overview today={today} />;
 }
 
 function Overview({ today }: { today: string }) {
+  const { t } = useFcText();
   const [choice, setChoice] = useState<RangeChoice>({ preset: STATS_DEFAULT_RANGE_DAYS });
   // A preset follows the Georgian day, so a page left open past midnight moves on with it.
   const range = choice.preset === null ? choice.range : lastDays(today, choice.preset);
@@ -270,45 +277,45 @@ function Overview({ today }: { today: string }) {
         <div>
           <div className="flex items-center gap-2">
             <ChartColumn className="size-6 text-gray-700" />
-            <h1 className="text-2xl font-semibold text-gray-900">Freecroco overview</h1>
+            <h1 className="text-2xl font-semibold text-gray-900">{t('Freecroco overview')}</h1>
           </div>
           <p className="mt-1 text-sm text-gray-500">
-            Days are Georgia time (Asia/Tbilisi). A player is active on a day they start at least one play.
+            {t('Days are Georgia time (Asia/Tbilisi). A player is active on a day they start at least one play.')}
           </p>
         </div>
         <RangePicker key={`${range.from}|${range.to}`} today={today} value={range} onChange={setChoice} />
       </div>
 
-      {isLoading && <p className="text-sm text-gray-400">Loading…</p>}
+      {isLoading && <p className="text-sm text-gray-400">{t('Loading…')}</p>}
       {!isLoading && !data && (
         <div className="space-y-3">
-          <p className="text-sm text-red-500">Failed to load the overview.</p>
+          <p className="text-sm text-red-500">{t('Failed to load the overview.')}</p>
           <Button variant="outline" size="sm" onClick={() => void refetch()}>
-            Retry
+            {t('Retry')}
           </Button>
         </div>
       )}
 
       {data && (
         <div className={cn('space-y-6', isFetching && 'opacity-70 transition-opacity')}>
-          {isError && <p className="text-sm text-amber-700">Showing the last loaded numbers; the refresh failed.</p>}
+          {isError && <p className="text-sm text-amber-700">{t('Showing the last loaded numbers; the refresh failed.')}</p>}
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            <Kpi label="Active players" metric="activePlayers" today={data.todayStats} yesterday={data.yesterdayStats} icon={Activity} accent="bg-emerald-100 text-emerald-700" />
-            <Kpi label="New players" metric="newPlayers" today={data.todayStats} yesterday={data.yesterdayStats} icon={UserPlus} accent="bg-indigo-100 text-indigo-700" />
-            <Kpi label="Plays started" metric="playsStarted" today={data.todayStats} yesterday={data.yesterdayStats} icon={Gamepad} accent="bg-sky-100 text-sky-700" />
-            <Kpi label="Points sent" metric="pointsSent" today={data.todayStats} yesterday={data.yesterdayStats} icon={Coins} accent="bg-rose-100 text-rose-700" />
+            <Kpi label={t('Active players')} metric="activePlayers" today={data.todayStats} yesterday={data.yesterdayStats} icon={Activity} accent="bg-emerald-100 text-emerald-700" />
+            <Kpi label={t('New players')} metric="newPlayers" today={data.todayStats} yesterday={data.yesterdayStats} icon={UserPlus} accent="bg-indigo-100 text-indigo-700" />
+            <Kpi label={t('Plays started')} metric="playsStarted" today={data.todayStats} yesterday={data.yesterdayStats} icon={Gamepad} accent="bg-sky-100 text-sky-700" />
+            <Kpi label={t('Points sent')} metric="pointsSent" today={data.todayStats} yesterday={data.yesterdayStats} icon={Coins} accent="bg-rose-100 text-rose-700" />
           </div>
 
           <Card className="py-5">
             <CardContent className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-              <Figure label="Players ever" value={formatCount(data.totals.playersEver)} />
-              <Figure label="Active, last 7 days" value={formatCount(data.totals.activeLast7Days)} />
+              <Figure label={t('Players ever')} value={formatCount(data.totals.playersEver)} />
+              <Figure label={t('Active, last 7 days')} value={formatCount(data.totals.activeLast7Days)} />
               <Figure
-                label="New in range"
+                label={t('New in range')}
                 value={formatCount(data.totals.newPlayers)}
                 hint={`${formatDay(data.from)} – ${formatDay(data.to)}`}
               />
-              <Figure label="Active in range" value={formatCount(data.totals.activeInRange)} />
+              <Figure label={t('Active in range')} value={formatCount(data.totals.activeInRange)} />
             </CardContent>
           </Card>
 
@@ -318,38 +325,38 @@ function Overview({ today }: { today: string }) {
             <Card>
               <CardHeader className="flex flex-row items-center gap-2 space-y-0">
                 <Swords className="size-4 text-gray-600" />
-                <CardTitle className="text-base font-semibold text-slate-900">Ranked</CardTitle>
+                <CardTitle className="text-base font-semibold text-slate-900">{t('Ranked')}</CardTitle>
               </CardHeader>
               <CardContent className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-                <Figure label="Plays" value={formatCount(data.ranked.plays)} />
-                <Figure label="Matches" value={formatCount(data.ranked.matches)} />
-                <Figure label="Vs Freecroco players" value={formatCount(data.ranked.vsPlayers)} />
-                <Figure label="Vs bots" value={formatCount(data.ranked.vsBots)} />
-                <Figure label="Settled" value={formatCount(data.ranked.settled)} />
-                <Figure label="Cancelled" value={formatCount(data.ranked.cancelled)} />
-                <Figure label="Returned" value={formatCount(data.ranked.returned)} hint="Play given back" />
-                <Figure label="In progress" value={formatCount(data.ranked.open)} />
+                <Figure label={t('Plays')} value={formatCount(data.ranked.plays)} />
+                <Figure label={t('Matches')} value={formatCount(data.ranked.matches)} />
+                <Figure label={t('Vs Freecroco players')} value={formatCount(data.ranked.vsPlayers)} />
+                <Figure label={t('Vs bots')} value={formatCount(data.ranked.vsBots)} />
+                <Figure label={t('Settled')} value={formatCount(data.ranked.settled)} />
+                <Figure label={t('Cancelled')} value={formatCount(data.ranked.cancelled)} />
+                <Figure label={t('Returned')} value={formatCount(data.ranked.returned)} hint={t('Play given back')} />
+                <Figure label={t('In progress')} value={formatCount(data.ranked.open)} />
               </CardContent>
             </Card>
 
             <Card>
               <CardHeader className="flex flex-row items-center gap-2 space-y-0">
                 <Send className="size-4 text-gray-600" />
-                <CardTitle className="text-base font-semibold text-slate-900">Score delivery</CardTitle>
+                <CardTitle className="text-base font-semibold text-slate-900">{t('Score delivery')}</CardTitle>
                 <Badge className={cn('ml-auto', HEALTH_BADGE[deliveryHealth(data.delivery.oldestPendingSeconds)].className)}>
-                  {HEALTH_BADGE[deliveryHealth(data.delivery.oldestPendingSeconds)].label}
+                  {t(HEALTH_BADGE[deliveryHealth(data.delivery.oldestPendingSeconds)].label)}
                 </Badge>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="grid grid-cols-3 gap-4">
-                  <Figure label="Sent" value={formatCount(data.delivery.sent)} hint="Plays in range" />
-                  <Figure label="Pending" value={formatCount(data.delivery.pending)} hint="Plays in range" />
-                  <Figure label="Dead" value={formatCount(data.delivery.dead)} hint="Plays in range" />
+                  <Figure label={t('Sent')} value={formatCount(data.delivery.sent)} hint={t('Plays in range')} />
+                  <Figure label={t('Pending')} value={formatCount(data.delivery.pending)} hint={t('Plays in range')} />
+                  <Figure label={t('Dead')} value={formatCount(data.delivery.dead)} hint={t('Plays in range')} />
                 </div>
                 <div className="grid grid-cols-3 gap-4 border-t border-slate-100 pt-4">
-                  <Figure label="Pending now" value={formatCount(data.delivery.pendingNow)} />
-                  <Figure label="Dead now" value={formatCount(data.delivery.deadNow)} />
-                  <Figure label="Oldest pending" value={formatAge(data.delivery.oldestPendingSeconds)} />
+                  <Figure label={t('Pending now')} value={formatCount(data.delivery.pendingNow)} />
+                  <Figure label={t('Dead now')} value={formatCount(data.delivery.deadNow)} />
+                  <Figure label={t('Oldest pending')} value={formatAge(data.delivery.oldestPendingSeconds, t)} />
                 </div>
               </CardContent>
             </Card>
@@ -359,7 +366,7 @@ function Overview({ today }: { today: string }) {
 
           <Card>
             <CardHeader>
-              <CardTitle className="text-base font-semibold text-slate-900">Day by day</CardTitle>
+              <CardTitle className="text-base font-semibold text-slate-900">{t('Day by day')}</CardTitle>
             </CardHeader>
             <CardContent>
               <DailyTable daily={data.daily} />

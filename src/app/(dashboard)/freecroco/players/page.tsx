@@ -18,7 +18,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Textarea } from '@/components/ui/textarea';
-import { GAME_LABELS } from '@/lib/freecroco/games';
+import { useFcText } from '@/lib/freecroco/i18n';
 import { formatGeorgiaTime } from '@/lib/td/georgia';
 import { cn } from '@/lib/utils';
 import { ApiClientError } from '@/services';
@@ -38,6 +38,7 @@ interface PendingChange {
 }
 
 export default function FreecrocoPlayersPage() {
+  const { t } = useFcText();
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState<PlayerStatusFilter>('all');
   const [page, setPage] = useState(0);
@@ -58,22 +59,21 @@ export default function FreecrocoPlayersPage() {
     <div className="space-y-6">
       <div className="flex items-center gap-2">
         <Users className="size-6 text-gray-700" />
-        <h1 className="text-2xl font-semibold text-gray-900">Freecroco players</h1>
+        <h1 className="text-2xl font-semibold text-gray-900">{t('Freecroco players')}</h1>
       </div>
       <p className="-mt-4 text-sm text-gray-500">
-        Everyone who has opened Quizball from Freecroco. Banning ends a player&apos;s open game at once and stops them
-        opening Quizball until they are unbanned.
+        {t("Everyone who has opened Quizball from Freecroco. Banning ends a player's open game at once and stops them opening Quizball until they are unbanned.")}
       </p>
 
       <div className="flex flex-wrap items-end gap-3">
         <div className="w-full max-w-sm space-y-1.5">
-          <Label htmlFor="fc-player-search">Search</Label>
+          <Label htmlFor="fc-player-search">{t('Search')}</Label>
           <div className="relative">
             <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-gray-400" />
             <Input
               id="fc-player-search"
               className="pl-8"
-              placeholder="Freecroco player id or name"
+              placeholder={t('Freecroco player id or name')}
               value={search}
               onChange={(e) => {
                 setSearch(e.target.value);
@@ -82,7 +82,7 @@ export default function FreecrocoPlayersPage() {
             />
           </div>
         </div>
-        <div className="flex gap-1" role="group" aria-label="Status">
+        <div className="flex gap-1" role="group" aria-label={t('Status')}>
           {FILTERS.map((f) => (
             <Button
               key={f.value}
@@ -94,33 +94,33 @@ export default function FreecrocoPlayersPage() {
                 setPage(0);
               }}
             >
-              {f.label}
+              {t(f.label)}
             </Button>
           ))}
         </div>
       </div>
 
-      {error && <p className="text-sm text-red-500">Failed to load players.</p>}
+      {error && <p className="text-sm text-red-500">{t('Failed to load players.')}</p>}
 
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead>Player</TableHead>
-            <TableHead className="w-56">Status</TableHead>
-            <TableHead className="w-20 text-right">Plays</TableHead>
-            <TableHead className="w-44">First seen</TableHead>
-            <TableHead className="w-44">Last seen</TableHead>
-            <TableHead className="w-32 text-right">Action</TableHead>
+            <TableHead>{t('Player')}</TableHead>
+            <TableHead className="w-56">{t('Status')}</TableHead>
+            <TableHead className="w-20 text-right">{t('Plays')}</TableHead>
+            <TableHead className="w-44">{t('First seen')}</TableHead>
+            <TableHead className="w-44">{t('Last seen')}</TableHead>
+            <TableHead className="w-32 text-right">{t('Action')}</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           {isLoading && !data ? (
             <TableRow>
-              <TableCell colSpan={6} className="text-center text-sm text-gray-400">Loading…</TableCell>
+              <TableCell colSpan={6} className="text-center text-sm text-gray-400">{t('Loading…')}</TableCell>
             </TableRow>
           ) : data?.items.length === 0 ? (
             <TableRow>
-              <TableCell colSpan={6} className="text-center text-sm text-gray-400">No players match.</TableCell>
+              <TableCell colSpan={6} className="text-center text-sm text-gray-400">{t('No players match.')}</TableCell>
             </TableRow>
           ) : (
             data?.items.map((p) => (
@@ -138,11 +138,11 @@ export default function FreecrocoPlayersPage() {
                 <TableCell>
                   {p.status === 'blocked' ? (
                     <div className="space-y-0.5">
-                      <Badge className="bg-red-100 text-red-700 hover:bg-red-100">Banned</Badge>
+                      <Badge className="bg-red-100 text-red-700 hover:bg-red-100">{t('Banned')}</Badge>
                       {p.blockReason && <div className="text-xs text-gray-500">{p.blockReason}</div>}
                     </div>
                   ) : (
-                    <Badge className="bg-green-100 text-green-700 hover:bg-green-100">Active</Badge>
+                    <Badge className="bg-green-100 text-green-700 hover:bg-green-100">{t('Active')}</Badge>
                   )}
                 </TableCell>
                 <TableCell className="text-right tabular-nums">{p.plays}</TableCell>
@@ -151,11 +151,11 @@ export default function FreecrocoPlayersPage() {
                 <TableCell className="text-right">
                   {p.status === 'blocked' ? (
                     <Button variant="outline" size="sm" onClick={() => setPending({ player: p, action: 'unblock' })}>
-                      <UserCheck className="size-4" /> Unban
+                      <UserCheck className="size-4" /> {t('Unban')}
                     </Button>
                   ) : (
                     <Button variant="destructive" size="sm" onClick={() => setPending({ player: p, action: 'block' })}>
-                      <Ban className="size-4" /> Ban
+                      <Ban className="size-4" /> {t('Ban')}
                     </Button>
                   )}
                 </TableCell>
@@ -166,11 +166,11 @@ export default function FreecrocoPlayersPage() {
       </Table>
 
       <div className={cn('flex items-center justify-end gap-3 text-sm text-gray-500', total === 0 && 'invisible')}>
-        <span className="tabular-nums">{from}–{to} of {total}</span>
-        <Button variant="outline" size="icon-sm" aria-label="Previous page" disabled={page === 0} onClick={() => setPage(page - 1)}>
+        <span className="tabular-nums">{t('{from}–{to} of {total}', { from, to, total })}</span>
+        <Button variant="outline" size="icon-sm" aria-label={t('Previous page')} disabled={page === 0} onClick={() => setPage(page - 1)}>
           <ChevronLeft className="size-4" />
         </Button>
-        <Button variant="outline" size="icon-sm" aria-label="Next page" disabled={to >= total} onClick={() => setPage(page + 1)}>
+        <Button variant="outline" size="icon-sm" aria-label={t('Next page')} disabled={to >= total} onClick={() => setPage(page + 1)}>
           <ChevronRight className="size-4" />
         </Button>
       </div>
@@ -189,6 +189,7 @@ export default function FreecrocoPlayersPage() {
 }
 
 function StatusDialog({ pending, onClose }: { pending: PendingChange | null; onClose: () => void }) {
+  const { t } = useFcText();
   const [reason, setReason] = useState('');
   const setStatus = useSetFreecrocoPlayerStatus();
   const action = pending?.action;
@@ -206,15 +207,17 @@ function StatusDialog({ pending, onClose }: { pending: PendingChange | null; onC
       { playerId: pending.player.playerId, action: pending.action, reason: pending.action === 'block' ? reason.trim() || null : null },
       {
         onSuccess: () => {
-          toast.success(pending.action === 'block' ? `${name} is banned` : `${name} is unbanned`);
+          toast.success(pending.action === 'block' ? t('{name} is banned', { name }) : t('{name} is unbanned', { name }));
           setReason('');
           onClose();
         },
         onError: (error) => {
           toast.error(
             error instanceof ApiClientError && error.status === 403
-              ? 'Only editors can ban or unban players.'
-              : `Failed to ${pending.action === 'block' ? 'ban' : 'unban'} the player.`,
+              ? t('Only editors can ban or unban players.')
+              : pending.action === 'block'
+                ? t('Failed to ban the player.')
+                : t('Failed to unban the player.'),
           );
         },
       },
@@ -225,16 +228,16 @@ function StatusDialog({ pending, onClose }: { pending: PendingChange | null; onC
     <Dialog open={pending !== null} onOpenChange={(open) => !open && close()}>
       <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle>{action === 'block' ? `Ban ${name}?` : `Unban ${name}?`}</DialogTitle>
+          <DialogTitle>{action === 'block' ? t('Ban {name}?', { name }) : t('Unban {name}?', { name })}</DialogTitle>
           <DialogDescription>
             {action === 'block'
-              ? 'Their open game ends now without a score, and they cannot open Quizball from Freecroco until unbanned.'
-              : 'They can open Quizball from Freecroco again. A game that ended with the ban stays used.'}
+              ? t('Their open game ends now without a score, and they cannot open Quizball from Freecroco until unbanned.')
+              : t('They can open Quizball from Freecroco again. A game that ended with the ban stays used.')}
           </DialogDescription>
         </DialogHeader>
         {action === 'block' && (
           <div className="space-y-1.5">
-            <Label htmlFor="fc-ban-reason">Reason (optional)</Label>
+            <Label htmlFor="fc-ban-reason">{t('Reason (optional)')}</Label>
             <Textarea
               id="fc-ban-reason"
               value={reason}
@@ -246,9 +249,9 @@ function StatusDialog({ pending, onClose }: { pending: PendingChange | null; onC
           </div>
         )}
         <DialogFooter>
-          <Button variant="outline" disabled={setStatus.isPending} onClick={close}>Cancel</Button>
+          <Button variant="outline" disabled={setStatus.isPending} onClick={close}>{t('Cancel')}</Button>
           <Button variant={action === 'block' ? 'destructive' : 'default'} disabled={setStatus.isPending} onClick={confirm}>
-            {setStatus.isPending ? 'Saving…' : action === 'block' ? 'Ban player' : 'Unban'}
+            {setStatus.isPending ? t('Saving…') : action === 'block' ? t('Ban player') : t('Unban')}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -265,6 +268,7 @@ function PlayerDetails({
   onClose: () => void;
   onChange: (change: PendingChange) => void;
 }) {
+  const { t, game } = useFcText();
   const { data, isLoading, error } = useFreecrocoPlayer(playerId);
   return (
     <Dialog open={playerId !== null} onOpenChange={(open) => !open && onClose()}>
@@ -273,41 +277,48 @@ function PlayerDetails({
           <DialogTitle>{data?.displayName || playerId}</DialogTitle>
           <DialogDescription className="font-mono text-xs">{playerId}</DialogDescription>
         </DialogHeader>
-        {isLoading && <p className="text-sm text-gray-400">Loading…</p>}
-        {error && <p className="text-sm text-red-500">Failed to load the player.</p>}
+        {isLoading && <p className="text-sm text-gray-400">{t('Loading…')}</p>}
+        {error && <p className="text-sm text-red-500">{t('Failed to load the player.')}</p>}
         {data && (
           <div className="space-y-4 text-sm">
             <div className="space-y-1 text-gray-600">
               <div>
-                Status:{' '}
+                {t('Status:')}{' '}
                 {data.status === 'blocked' ? (
                   <span className="font-medium text-red-700">
-                    Banned{data.statusChangedAt && ` since ${formatGeorgiaTime(data.statusChangedAt)}`}
+                    {data.statusChangedAt
+                      ? t('Banned since {time}', { time: formatGeorgiaTime(data.statusChangedAt) })
+                      : t('Banned')}
                     {data.blockReason && ` · ${data.blockReason}`}
                   </span>
                 ) : (
-                  <span className="font-medium text-green-700">Active</span>
+                  <span className="font-medium text-green-700">{t('Active')}</span>
                 )}
               </div>
-              <div>First seen {formatGeorgiaTime(data.firstSeenAt)} · Last seen {formatGeorgiaTime(data.lastSeenAt)}</div>
+              <div>
+                {t('First seen {first} · Last seen {last}', {
+                  first: formatGeorgiaTime(data.firstSeenAt),
+                  last: formatGeorgiaTime(data.lastSeenAt),
+                })}
+              </div>
             </div>
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Game</TableHead>
-                  <TableHead className="w-28">Plays today</TableHead>
-                  <TableHead className="w-20">Limit</TableHead>
+                  <TableHead>{t('Game')}</TableHead>
+                  <TableHead className="w-28">{t('Plays today')}</TableHead>
+                  <TableHead className="w-20">{t('Limit')}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {data.today.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={3} className="text-center text-gray-400">No games today.</TableCell>
+                    <TableCell colSpan={3} className="text-center text-gray-400">{t('No games today.')}</TableCell>
                   </TableRow>
                 ) : (
                   data.today.map((row) => (
                     <TableRow key={row.gameId}>
-                      <TableCell>{GAME_LABELS[row.gameId]}</TableCell>
+                      <TableCell>{game(row.gameId)}</TableCell>
                       <TableCell className="tabular-nums">{row.playsUsed}</TableCell>
                       <TableCell className="tabular-nums">{row.playsLimit}</TableCell>
                     </TableRow>
@@ -321,11 +332,11 @@ function PlayerDetails({
           {data &&
             (data.status === 'blocked' ? (
               <Button variant="outline" onClick={() => onChange({ player: data, action: 'unblock' })}>
-                <UserCheck className="size-4" /> Unban
+                <UserCheck className="size-4" /> {t('Unban')}
               </Button>
             ) : (
               <Button variant="destructive" onClick={() => onChange({ player: data, action: 'block' })}>
-                <Ban className="size-4" /> Ban
+                <Ban className="size-4" /> {t('Ban')}
               </Button>
             ))}
         </DialogFooter>

@@ -86,3 +86,19 @@ it('opens a player to show today and can ban from there', async () => {
   fireEvent.click(within(dialog).getByRole('button', { name: 'Ban' }));
   expect(await screen.findByText('Ban Player 2001?')).toBeTruthy();
 });
+
+it('is in Georgian for Freecroco staff', async () => {
+  const { AuthContext } = await import('@/providers/auth-provider');
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  render(
+    <AuthContext.Provider value={{ user: { role: 'partner_staff' } as never, isLoading: false, isAuthenticated: true, login: vi.fn(), logout: vi.fn() }}>
+      <QueryClientProvider client={client}>
+        <FreecrocoPlayersPage />
+      </QueryClientProvider>
+    </AuthContext.Provider>,
+  );
+  expect(await screen.findByText('Freecroco-ს მოთამაშეები')).toBeTruthy();
+  await screen.findByText('Player 2000');
+  expect(screen.getAllByRole('button', { name: 'დაბლოკვა' }).length).toBeGreaterThan(0);
+  expect(screen.getByRole('button', { name: 'განბლოკვა' })).toBeTruthy();
+});

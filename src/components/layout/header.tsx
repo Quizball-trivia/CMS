@@ -11,9 +11,13 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { LogOut } from 'lucide-react';
 import { MobileNav } from './mobile-nav';
+import { cmsRole } from '@/lib/freecroco/access';
+import { fcLangForRole, fcText } from '@/lib/freecroco/i18n';
 
 export function Header() {
   const { user, logout } = useAuth();
+  const { t } = fcText(fcLangForRole(user?.role));
+  const roleLabel = cmsRole(user?.role) === 'partner_staff' ? t('Freecroco staff member') : user?.role || 'Administrator';
 
   const initials = user?.nickname
     ? user.nickname
@@ -36,7 +40,7 @@ export function Header() {
               </Avatar>
               <div className="flex flex-col items-start text-left hidden sm:flex">
                 <span className="text-xs font-bold leading-none tracking-tight">{user?.nickname || 'Admin'}</span>
-                <span className="text-[11px] text-slate-500 leading-none mt-1 font-medium">{user?.role || 'Administrator'}</span>
+                <span className="text-[11px] text-slate-500 leading-none mt-1 font-medium">{roleLabel}</span>
               </div>
             </Button>
           </DropdownMenuTrigger>
@@ -56,7 +60,7 @@ export function Header() {
               className="cursor-pointer gap-2 py-2.5 rounded-lg text-destructive focus:text-destructive focus:bg-destructive/10 transition-colors"
             >
               <LogOut className="h-4 w-4" />
-              <span className="text-sm font-medium">Log out</span>
+              <span className="text-sm font-medium">{t('Log out')}</span>
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>

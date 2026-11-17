@@ -1,4 +1,5 @@
 import { addDays, dayNumber } from '@/lib/td/georgia';
+import { plain, type Translate } from './translate';
 import type { PartnerDayStats, PartnerGameStats } from '@/types/freecroco';
 
 /** The backend's limit: at most this many days per overview, both ends included. */
@@ -17,13 +18,13 @@ export function lastDays(today: string, days: number): DayRange {
 }
 
 /** Why the range cannot be asked for, or null. */
-export function rangeProblem(range: DayRange, today: string): string | null {
+export function rangeProblem(range: DayRange, today: string, t: Translate = plain): string | null {
   const from = dayNumber(range.from);
   const to = dayNumber(range.to);
-  if (from === null || to === null) return 'Pick both dates';
-  if (from > to) return 'From must be on or before To';
-  if (range.to > today) return 'To cannot be after today';
-  if (to - from + 1 > STATS_MAX_RANGE_DAYS) return `At most ${STATS_MAX_RANGE_DAYS} days at a time`;
+  if (from === null || to === null) return t('Pick both dates');
+  if (from > to) return t('From must be on or before To');
+  if (range.to > today) return t('To cannot be after today');
+  if (to - from + 1 > STATS_MAX_RANGE_DAYS) return t('At most {days} days at a time', { days: STATS_MAX_RANGE_DAYS });
   return null;
 }
 
@@ -48,13 +49,13 @@ export const shortDay = (day: string) => shortDayFormat.format(new Date(`${day}T
 
 export const formatCount = (n: number | null | undefined) => (n === null || n === undefined ? '—' : n.toLocaleString('en-US'));
 
-export function formatAge(seconds: number | null): string {
+export function formatAge(seconds: number | null, t: Translate = plain): string {
   if (seconds === null) return '—';
-  if (seconds < 60) return `${seconds} s`;
+  if (seconds < 60) return t('{seconds} s', { seconds });
   const minutes = Math.floor(seconds / 60);
-  if (minutes < 60) return `${minutes} min`;
+  if (minutes < 60) return t('{minutes} min', { minutes });
   const hours = Math.floor(minutes / 60);
-  return minutes % 60 === 0 ? `${hours} h` : `${hours} h ${minutes % 60} min`;
+  return minutes % 60 === 0 ? t('{hours} h', { hours }) : t('{hours} h {minutes} min', { hours, minutes: minutes % 60 });
 }
 
 export type DeliveryHealth = 'ok' | 'degraded' | 'down';

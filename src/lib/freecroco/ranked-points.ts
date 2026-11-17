@@ -1,4 +1,5 @@
 import type { RankedPointsPair, RankedPointsTable } from '@/types/freecroco';
+import { plain, type Translate } from './translate';
 
 // Same bounds as the backend (internal API section 2, ranked points).
 export const MAX_RANKED_POINTS = 5000;
@@ -30,20 +31,19 @@ export function isValidPoints(value: unknown): value is number {
   return typeof value === 'number' && Number.isInteger(value) && value >= 0 && value <= MAX_RANKED_POINTS;
 }
 
-const VALUE_ERROR = `Whole number from 0 to ${MAX_RANKED_POINTS}`;
-const ROW_ERROR = 'Winner points must be at least the loser points';
-
-export function validateRankedPoints(table: RankedPointsTable): RankedPointsValidation {
+export function validateRankedPoints(table: RankedPointsTable, t: Translate = plain): RankedPointsValidation {
   const errors: RankedPointsErrors = {};
+  const valueError = t('Whole number from 0 to {max}', { max: MAX_RANKED_POINTS });
+  const rowError = t('Winner points must be at least the loser points');
   const pair = (key: string, p: RankedPointsPair) => {
-    if (!isValidPoints(p.winner)) errors[`${key}.winner`] = VALUE_ERROR;
-    if (!isValidPoints(p.loser)) errors[`${key}.loser`] = VALUE_ERROR;
-    if (isValidPoints(p.winner) && isValidPoints(p.loser) && p.winner < p.loser) errors[`${key}.row`] = ROW_ERROR;
+    if (!isValidPoints(p.winner)) errors[`${key}.winner`] = valueError;
+    if (!isValidPoints(p.loser)) errors[`${key}.loser`] = valueError;
+    if (isValidPoints(p.winner) && isValidPoints(p.loser) && p.winner < p.loser) errors[`${key}.row`] = rowError;
   };
   table.margins.forEach((p, i) => pair(`margins.${i}`, p));
   pair('penaltyWin', table.penaltyWin);
-  if (!isValidPoints(table.drawAfterPenalties)) errors.drawAfterPenalties = VALUE_ERROR;
-  if (!isValidPoints(table.leftNotAhead)) errors.leftNotAhead = VALUE_ERROR;
+  if (!isValidPoints(table.drawAfterPenalties)) errors.drawAfterPenalties = valueError;
+  if (!isValidPoints(table.leftNotAhead)) errors.leftNotAhead = valueError;
   return { valid: Object.keys(errors).length === 0, errors };
 }
 

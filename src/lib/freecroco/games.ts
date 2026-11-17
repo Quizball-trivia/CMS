@@ -1,4 +1,5 @@
 import type { PartnerGameConfig, PartnerGameId, PartnerGamesConfig } from '@/types/freecroco';
+import { plain, type Translate } from './translate';
 
 export const PARTNER_GAME_IDS: readonly PartnerGameId[] = [
   'ranked',
@@ -52,7 +53,7 @@ export interface GamesValidation {
 }
 
 /** Order must be a unique 1..n; limits are whole numbers within the game's bound. */
-export function validateGames(games: readonly PartnerGameConfig[]): GamesValidation {
+export function validateGames(games: readonly PartnerGameConfig[], t: Translate = plain): GamesValidation {
   const rows: GamesValidation['rows'] = {};
   const count = games.length;
   const seen = new Map<number, PartnerGameId>();
@@ -60,15 +61,15 @@ export function validateGames(games: readonly PartnerGameConfig[]): GamesValidat
   for (const game of games) {
     const errors: GameRowErrors = {};
     if (!Number.isInteger(game.order) || game.order < 1 || game.order > count) {
-      errors.order = `Order must be a whole number from 1 to ${count}`;
+      errors.order = t('Order must be a whole number from 1 to {count}', { count });
     } else if (seen.has(game.order)) {
-      errors.order = 'Order must be unique';
-      rows[seen.get(game.order)!] = { ...rows[seen.get(game.order)!], order: 'Order must be unique' };
+      errors.order = t('Order must be unique');
+      rows[seen.get(game.order)!] = { ...rows[seen.get(game.order)!], order: t('Order must be unique') };
     } else {
       seen.set(game.order, game.gameId);
     }
     if (!isValidLimit(game.gameId, game.defaultLimit)) {
-      errors.defaultLimit = `Plays per day must be a whole number from 0 to ${maxLimitFor(game.gameId)}`;
+      errors.defaultLimit = t('Plays per day must be a whole number from 0 to {max}', { max: maxLimitFor(game.gameId) });
     }
     if (errors.order || errors.defaultLimit) rows[game.gameId] = { ...rows[game.gameId], ...errors };
   }
