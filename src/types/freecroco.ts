@@ -119,9 +119,40 @@ export interface PartnerPlayerView {
   playerId: string;
   displayName: string;
   status: 'active' | 'blocked';
+  /** Why the player was blocked, when a reason was given; null while active. */
+  blockReason: string | null;
+  statusChangedAt: string | null;
   firstSeenAt: string;
   lastSeenAt: string | null;
   today: Array<{ gameId: PartnerGameId; playsUsed: number; playsLimit: number }>;
+}
+
+export type PlayerStatusAction = 'block' | 'unblock';
+
+export type PlayerStatusFilter = 'all' | 'active' | 'blocked';
+
+export interface PlayersQuery {
+  search?: string;
+  status: PlayerStatusFilter;
+  limit: number;
+  offset: number;
+}
+
+export interface PartnerPlayerListItem {
+  playerId: string;
+  displayName: string;
+  status: 'active' | 'blocked';
+  blockReason: string | null;
+  statusChangedAt: string | null;
+  firstSeenAt: string;
+  lastSeenAt: string | null;
+  /** Plays started, all time. */
+  plays: number;
+}
+
+export interface PartnerPlayersPage {
+  items: PartnerPlayerListItem[];
+  total: number;
 }
 
 export interface PartnerDayStats {

@@ -46,11 +46,21 @@ describe('dashboard layout guard', () => {
 
   it('shows partner staff the Freecroco section', () => {
     h.auth.user = { role: 'partner_staff' };
-    h.pathname = '/freecroco/calendar';
+    h.pathname = '/freecroco/players';
     renderPage();
     expect(h.replace).not.toHaveBeenCalled();
     expect(screen.getByText('page content')).toBeTruthy();
   });
+
+  it.each(['/freecroco/calendar', '/freecroco/deliveries', '/freecroco/ranked-points'])(
+    'sends partner staff from the hidden %s back to the section',
+    (path) => {
+      h.auth.user = { role: 'partner_staff' };
+      h.pathname = path;
+      renderPage();
+      expect(h.replace).toHaveBeenCalledWith('/freecroco');
+    },
+  );
 
   it('sends partner staff from the admin-only Staff page back to the section', () => {
     h.auth.user = { role: 'partner_staff' };

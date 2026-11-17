@@ -31,16 +31,18 @@ afterEach(cleanup);
 const nav = () => screen.getByRole('navigation', { name: 'CMS navigation' });
 const links = () => within(nav()).getAllByRole('link').map((a) => a.getAttribute('href'));
 
-it('shows partner staff the Partners department with Freecroco only — no HQ, no Staff page', () => {
+it('shows partner staff the Partners department with Freecroco only — no HQ, Staff, Calendar, Deliveries or Ranked points', () => {
   h.role = 'partner_staff';
   h.pathname = '/freecroco';
   render(<Sidebar />);
   const hrefs = new Set(links());
   expect([...hrefs].every((href) => href === '/freecroco' || href?.startsWith('/freecroco/'))).toBe(true);
-  for (const href of ['/freecroco', '/freecroco/games', '/freecroco/calendar', '/freecroco/ranked-points', '/freecroco/deliveries', '/freecroco/players']) {
+  for (const href of ['/freecroco', '/freecroco/games', '/freecroco/players']) {
     expect(hrefs.has(href)).toBe(true);
   }
-  expect(hrefs.has('/freecroco/staff')).toBe(false);
+  for (const href of ['/freecroco/staff', '/freecroco/calendar', '/freecroco/ranked-points', '/freecroco/deliveries']) {
+    expect(hrefs.has(href)).toBe(false);
+  }
   expect(hrefs.has('/hq/departments/partners')).toBe(false);
   expect(within(nav()).queryByText('Company')).toBeNull();
   expect(within(nav()).queryByText('Content')).toBeNull();

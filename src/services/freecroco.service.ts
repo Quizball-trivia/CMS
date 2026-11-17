@@ -6,7 +6,10 @@ import type {
   DeliveriesResponse,
   DeliveryAttemptsResponse,
   PartnerGamesConfig,
+  PartnerPlayersPage,
   PartnerPlayerView,
+  PlayerStatusAction,
+  PlayersQuery,
   PartnerStaffList,
   PartnerStaffMember,
   PartnerStats,
@@ -42,7 +45,13 @@ const realApi: FreecrocoApi = {
   async resendDelivery(eventId) {
     await freecrocoRequest<void>('POST', `/deliveries/${encodeURIComponent(eventId)}/resend`);
   },
+  listPlayers: (query) =>
+    freecrocoRequest<PartnerPlayersPage>('GET', '/players', {
+      query: { status: query.status, limit: query.limit, offset: query.offset, ...(query.search ? { search: query.search } : {}) },
+    }),
   getPlayer: (playerId) => freecrocoRequest<PartnerPlayerView>('GET', player(playerId)),
+  setPlayerStatus: (playerId, action, reason) =>
+    freecrocoRequest<PartnerPlayerView>('POST', `${player(playerId)}/${action}`, { body: action === 'block' ? { reason } : {} }),
   getStats: (from, to) => freecrocoRequest<PartnerStats>('GET', '/stats', { query: { from, to } }),
   listStaff: () => freecrocoRequest<PartnerStaffList>('GET', '/staff'),
   addStaff: (request) => freecrocoRequest<StaffAddResult>('POST', '/staff', { body: request }),
@@ -68,7 +77,10 @@ export const freecrocoService = {
   listDeliveries: (query: Parameters<FreecrocoApi['listDeliveries']>[0]) => api().listDeliveries(query),
   listAttempts: (eventId: string) => api().listAttempts(eventId),
   resendDelivery: (eventId: string) => api().resendDelivery(eventId),
+  listPlayers: (query: PlayersQuery) => api().listPlayers(query),
   getPlayer: (playerId: string) => api().getPlayer(playerId),
+  setPlayerStatus: (playerId: string, action: PlayerStatusAction, reason: string | null) =>
+    api().setPlayerStatus(playerId, action, reason),
   getStats: (from: string, to: string) => api().getStats(from, to),
   listStaff: () => api().listStaff(),
   addStaff: (request: StaffAddRequest) => api().addStaff(request),

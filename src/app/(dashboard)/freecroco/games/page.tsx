@@ -11,7 +11,6 @@ import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import {
   buildGamesPayload,
-  GAME_LABELS,
   isGamesDirty,
   maxLimitFor,
   moveGame,
@@ -20,10 +19,12 @@ import {
   validateGames,
 } from '@/lib/freecroco/games';
 import { isStaleVersion, STALE_GAMES_MESSAGE } from '@/lib/freecroco/errors';
+import { useFcText } from '@/lib/freecroco/i18n';
 import { getErrorFeedback } from '@/lib/error-feedback';
 import type { PartnerGameConfig, PartnerGameId } from '@/types/freecroco';
 
 export default function FreecrocoGamesPage() {
+  const { t, game: gameName } = useFcText();
   const { data, isLoading, isError, isFetching, refetch } = useFreecrocoGames();
   const save = useSaveFreecrocoGames();
   // null = no local edits; the table then shows the server copy. The version is pinned when editing
@@ -36,14 +37,14 @@ export default function FreecrocoGamesPage() {
   // kept, and Save stays blocked until a reload succeeds.
   const [conflict, setConflict] = useState(false);
 
-  if (isLoading) return <p className="text-sm text-gray-400">Loading…</p>;
+  if (isLoading) return <p className="text-sm text-gray-400">{t('Loading…')}</p>;
   // A failed refetch keeps the data it had: only a screen with nothing to show gives way to an error.
   if (!data) {
     return (
       <div className="space-y-3">
-        <p className="text-sm text-red-500">Failed to load the games.</p>
+        <p className="text-sm text-red-500">{t('Failed to load the games.')}</p>
         <Button variant="outline" size="sm" onClick={() => void refetch()}>
-          Retry
+          {t('Retry')}
         </Button>
       </div>
     );
@@ -53,7 +54,7 @@ export default function FreecrocoGamesPage() {
   // A refetch (reconnect, another tab) can move the server copy under an open draft.
   const outdated = draft !== null && draft.baseVersion !== data.version;
   const dirty = draft !== null && isGamesDirty(data.games, draft.games);
-  const validation = validateGames(games);
+  const validation = validateGames(games, t);
   const saving = busy || save.isPending;
 
   const edit = (next: PartnerGameConfig[]) => setDraft({ baseVersion: draft?.baseVersion ?? data.version, games: next });
@@ -66,7 +67,7 @@ export default function FreecrocoGamesPage() {
       if (reloaded.isError || !conflict) return;
       setConflict(false);
       setDraft(null);
-      toast.warning(STALE_GAMES_MESSAGE);
+      toast.warning(t(STALE_GAMES_MESSAGE));
     } finally {
       setBusy(false);
     }
@@ -74,14 +75,14 @@ export default function FreecrocoGamesPage() {
 
   const handleSave = async () => {
     if (!draft || outdated || conflict || !validation.valid) {
-      toast.error(outdated ? 'The games changed since you started editing' : 'Fix the highlighted fields first');
+      toast.error(outdated ? t('The games changed since you started editing') : t('Fix the highlighted fields first'));
       return;
     }
     setBusy(true);
     try {
       await save.mutateAsync(buildGamesPayload(draft.baseVersion, games));
       setDraft(null);
-      toast.success('Games saved');
+      toast.success(t('Games saved'));
     } catch (err) {
       if (isStaleVersion(err)) {
         // The hook already tried to reload the server copy; confirm it, then drop the draft that was
@@ -89,14 +90,14 @@ export default function FreecrocoGamesPage() {
         const reloaded = await refetch();
         if (reloaded.isError) {
           setConflict(true);
-          toast.error('Someone else saved first, and the latest games could not be loaded. Retry the refresh.');
+          toast.error(t('Someone else saved first, and the latest games could not be loaded. Retry the refresh.'));
           return;
         }
         setDraft(null);
-        toast.warning(STALE_GAMES_MESSAGE);
+        toast.warning(t(STALE_GAMES_MESSAGE));
         return;
       }
-      const feedback = getErrorFeedback(err, 'Failed to save games');
+      const feedback = getErrorFeedback(err, t('Failed to save games'));
       toast.error(feedback.title, { description: feedback.description });
     } finally {
       setBusy(false);
@@ -108,7 +109,7 @@ export default function FreecrocoGamesPage() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2">
           <Gamepad className="size-6 text-gray-700" />
-          <h1 className="text-2xl font-semibold text-gray-900">Freecroco games</h1>
+          <h1 className="text-2xl font-semibold text-gray-900">{t('Freecroco games')}</h1>
         </div>
         <div className="flex items-center gap-2">
           {dirty && (
@@ -116,36 +117,36 @@ export default function FreecrocoGamesPage() {
               setDraft(null);
               setConflict(false);
             }} disabled={saving}>
-              Discard changes
+              {t('Discard changes')}
             </Button>
           )}
           <Button onClick={handleSave} disabled={!dirty || outdated || conflict || !validation.valid || saving}>
-            {saving ? 'Saving…' : 'Save'}
+            {saving ? t('Saving…') : t('Save')}
           </Button>
         </div>
       </div>
       <p className="-mt-4 text-sm text-gray-500">
-        Which games Freecroco players see, in what order, and how many times a day each can be played. Ranked is
-        always shown first when enabled. A date can override the daily count on the Calendar.
+        {t('Which games Freecroco players see, in what order, and how many times a day each can be played. Ranked is always shown first when enabled. A date can override the daily count on the Calendar.')}
       </p>
 
       {(isError || conflict) && (
         <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
           <span>
-            Could not refresh the games. Showing the last copy that loaded
-            {conflict ? '; your changes are kept but cannot be saved until it refreshes.' : '.'}
+            {conflict
+              ? t('Could not refresh the games. Showing the last copy that loaded; your changes are kept but cannot be saved until it refreshes.')
+              : t('Could not refresh the games. Showing the last copy that loaded.')}
           </span>
           <Button variant="outline" size="sm" disabled={isFetching || saving} onClick={() => void handleRetry()}>
-            Refresh again
+            {t('Refresh again')}
           </Button>
         </div>
       )}
 
       {outdated && (
         <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
-          <span>The games were updated while you were editing, so your changes can no longer be saved.</span>
+          <span>{t('The games were updated while you were editing, so your changes can no longer be saved.')}</span>
           <Button variant="outline" size="sm" onClick={() => setDraft(null)}>
-            Discard my changes and show the latest
+            {t('Discard my changes and show the latest')}
           </Button>
         </div>
       )}
@@ -153,11 +154,11 @@ export default function FreecrocoGamesPage() {
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead className="w-24">Order</TableHead>
-            <TableHead>Game</TableHead>
-            <TableHead className="w-24">Enabled</TableHead>
-            <TableHead className="w-48">Plays per day</TableHead>
-            <TableHead className="w-36">Status</TableHead>
+            <TableHead className="w-24">{t('Order')}</TableHead>
+            <TableHead>{t('Game')}</TableHead>
+            <TableHead className="w-24">{t('Enabled')}</TableHead>
+            <TableHead className="w-48">{t('Plays per day')}</TableHead>
+            <TableHead className="w-36">{t('Status')}</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -171,7 +172,7 @@ export default function FreecrocoGamesPage() {
                     <Button
                       variant="ghost"
                       size="icon-sm"
-                      aria-label={`Move ${GAME_LABELS[game.gameId]} up`}
+                      aria-label={t('Move {game} up', { game: gameName(game.gameId) })}
                       disabled={saving || index === 0}
                       onClick={() => edit(moveGame(games, game.gameId, -1))}
                     >
@@ -180,7 +181,7 @@ export default function FreecrocoGamesPage() {
                     <Button
                       variant="ghost"
                       size="icon-sm"
-                      aria-label={`Move ${GAME_LABELS[game.gameId]} down`}
+                      aria-label={t('Move {game} down', { game: gameName(game.gameId) })}
                       disabled={saving || index === games.length - 1}
                       onClick={() => edit(moveGame(games, game.gameId, 1))}
                     >
@@ -188,12 +189,12 @@ export default function FreecrocoGamesPage() {
                     </Button>
                   </div>
                 </TableCell>
-                <TableCell className="font-medium text-gray-900">{GAME_LABELS[game.gameId]}</TableCell>
+                <TableCell className="font-medium text-gray-900">{gameName(game.gameId)}</TableCell>
                 <TableCell>
                   <Checkbox
                     checked={game.enabled}
                     disabled={saving}
-                    aria-label={`${GAME_LABELS[game.gameId]} enabled`}
+                    aria-label={t('{game} enabled', { game: gameName(game.gameId) })}
                     onCheckedChange={(checked) => edit(updateGame(games, game.gameId, { enabled: checked === true }))}
                   />
                 </TableCell>
@@ -208,9 +209,9 @@ export default function FreecrocoGamesPage() {
                 </TableCell>
                 <TableCell>
                   {game.ready ? (
-                    <Badge className="bg-green-100 text-green-700 hover:bg-green-100">Ready</Badge>
+                    <Badge className="bg-green-100 text-green-700 hover:bg-green-100">{t('Ready')}</Badge>
                   ) : (
-                    <Badge variant="secondary">Not live yet</Badge>
+                    <Badge variant="secondary">{t('Not live yet')}</Badge>
                   )}
                 </TableCell>
               </TableRow>
@@ -235,6 +236,7 @@ function LimitInput({
   disabled: boolean;
   onChange: (value: number) => void;
 }) {
+  const { t, game } = useFcText();
   return (
     <div className="space-y-1">
       <Input
@@ -244,7 +246,7 @@ function LimitInput({
         step={1}
         className="h-8 w-24"
         disabled={disabled}
-        aria-label={`${GAME_LABELS[gameId]} plays per day`}
+        aria-label={t('{game} plays per day', { game: game(gameId) })}
         aria-invalid={Boolean(error)}
         // An emptied box is NaN, which validateGames rejects.
         value={Number.isNaN(value) ? '' : value}

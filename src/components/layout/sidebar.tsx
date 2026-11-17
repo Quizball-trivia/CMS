@@ -8,6 +8,7 @@ import { cn } from '@/lib/utils';
 import { useAuth } from '@/providers';
 import { useHqOverview } from '@/hooks';
 import { cmsRole, FREECROCO_ROOT, navGroupsForRole, navItemsForRole } from '@/lib/freecroco/access';
+import { fcLangForRole, fcText } from '@/lib/freecroco/i18n';
 import { HQ_DEPARTMENTS, departmentHref, toolsForUser, withoutHiddenRealData } from '@/lib/hq-departments';
 import { useRealAnalyticsVisible } from '@/hooks/use-real-analytics-visible';
 import type { HqDepartment, HqDepartmentKey } from '@/types';
@@ -104,17 +105,17 @@ function rootRoutes(hrefs: string[]): string[] {
 // `routes` (the group's access rule) lists the top-level tools — or the department
 // page when there are none — so the Partners group stays visible to partner staff
 // (just /freecroco) while its admin-only Overview and Staff links are filtered per item.
-function departmentGroups(email: string | null | undefined, showRealData: boolean): DepartmentGroup[] {
+function departmentGroups(email: string | null | undefined, showRealData: boolean, t: (s: string) => string = (s) => s): DepartmentGroup[] {
   return HQ_DEPARTMENTS.map((d) => ({
     key: d.key,
-    title: d.name,
+    title: t(d.name),
     icon: DEPARTMENT_ICONS[d.key] ?? LayoutDashboard,
     routes: d.tools.length > 0 ? rootRoutes(d.tools.map((t) => t.href)) : [departmentHref(d.key)],
     children: [
-      { title: 'Overview', href: departmentHref(d.key), exact: true },
+      { title: t('Overview'), href: departmentHref(d.key), exact: true },
       // Real-data pages stay out of sight unless enabled in Preferences; some tools are
       // limited to specific accounts (e.g. Player activity).
-      ...withoutHiddenRealData(toolsForUser(d, email), showRealData).map((t) => ({ title: t.title, href: t.href, icon: t.icon, exact: t.exact })),
+      ...withoutHiddenRealData(toolsForUser(d, email), showRealData).map((tool) => ({ title: t(tool.title), href: tool.href, icon: tool.icon, exact: tool.exact })),
     ],
   }));
 }
@@ -133,6 +134,8 @@ export function Sidebar({ variant = 'rail' }: { variant?: 'rail' | 'drawer' }) {
   const pathname = usePathname();
   const { user } = useAuth();
   const isAdmin = cmsRole(user?.role) === 'admin';
+  // Freecroco staff read Georgian; everyone else sees the menu in English.
+  const { t } = fcText(fcLangForRole(user?.role));
   // Live signals (approvals, who's working) for admins only — partner staff can't read HQ.
   const { data: overview } = useHqOverview({ enabled: isAdmin, refetchInterval: 60_000 });
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
@@ -142,7 +145,7 @@ export function Sidebar({ variant = 'rail' }: { variant?: 'rail' | 'drawer' }) {
     .filter((section) => section.items.length > 0);
   const footer = navItemsForRole(footerItems, user?.role);
   const showRealData = useRealAnalyticsVisible();
-  const groups = navGroupsForRole(departmentGroups(user?.email, showRealData), user?.role)
+  const groups = navGroupsForRole(departmentGroups(user?.email, showRealData, t), user?.role)
     .map((group) => ({ ...group, children: navItemsForRole(group.children, user?.role) }))
     .filter((group) => group.children.length > 0);
 
@@ -173,7 +176,7 @@ export function Sidebar({ variant = 'rail' }: { variant?: 'rail' | 'drawer' }) {
         />
         <span className="hidden leading-tight navwide:block">
           <span className="block text-sm font-semibold tracking-tight text-slate-950">QuizBall HQ</span>
-          <span className="block text-[11px] font-medium text-slate-500">{isAdmin ? 'Company workspace' : 'Partner workspace'}</span>
+          <span className="block text-[11px] font-medium text-slate-500">{isAdmin ? 'Company workspace' : t('Partner workspace')}</span>
         </span>
       </Link>
 
@@ -225,7 +228,7 @@ export function Sidebar({ variant = 'rail' }: { variant?: 'rail' | 'drawer' }) {
               className="mb-0.5 hidden min-h-11 w-full items-center gap-1 rounded-md px-3 md:min-h-9 text-[13px] font-medium text-slate-500 hover:bg-slate-50 hover:text-slate-800 navwide:flex"
             >
               <ChevronRight className={cn('size-3 transition', deptOpen && 'rotate-90')} />
-              Departments
+              {t('Departments')}
             </button>
             <div className={cn('space-y-0.5', !deptOpen && 'navwide:hidden')}>
             {groups.map((group) => {

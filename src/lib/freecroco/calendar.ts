@@ -1,6 +1,7 @@
 import { addDays, dayNumber } from '@/lib/td/georgia';
 import type { CalendarChange, CalendarOverride, CalendarResponse, PartnerGameConfig, PartnerGameId } from '@/types/freecroco';
 import { isValidLimit, maxLimitFor, PARTNER_GAME_IDS } from './games';
+import { plain, type Translate } from './translate';
 
 export const MAX_CHANGES_PER_SAVE = 100;
 export const CALENDAR_HORIZON_DAYS = 90;
@@ -150,12 +151,15 @@ export function buildChangeSet(
   );
 }
 
-export function validateChangeSet(changes: readonly CalendarChange[]): string | null {
+export function validateChangeSet(changes: readonly CalendarChange[], t: Translate = plain): string | null {
   if (changes.length > MAX_CHANGES_PER_SAVE) {
-    return `A save takes at most ${MAX_CHANGES_PER_SAVE} changes; ${changes.length} are pending. Save in smaller batches.`;
+    return t('A save takes at most {max} changes; {count} are pending. Save in smaller batches.', {
+      max: MAX_CHANGES_PER_SAVE,
+      count: changes.length,
+    });
   }
   const bad = changes.find((c) => c.limit !== null && !isValidLimit(c.gameId, c.limit));
-  if (bad) return `${bad.date}: plays per day must be a whole number from 0 to ${maxLimitFor(bad.gameId)}`;
+  if (bad) return t('{date}: plays per day must be a whole number from 0 to {max}', { date: bad.date, max: maxLimitFor(bad.gameId) });
   return null;
 }
 

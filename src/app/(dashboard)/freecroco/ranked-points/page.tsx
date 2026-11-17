@@ -10,6 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { canEditRankedPoints } from '@/lib/freecroco/access';
 import { isStaleVersion, STALE_RANKED_POINTS_MESSAGE } from '@/lib/freecroco/errors';
+import { useFcText } from '@/lib/freecroco/i18n';
 import {
   DRAW_AFTER_PENALTIES_LABEL,
   isRankedPointsDirty,
@@ -27,6 +28,7 @@ import { getErrorFeedback } from '@/lib/error-feedback';
 import type { RankedPointsPair, RankedPointsTable } from '@/types/freecroco';
 
 export default function FreecrocoRankedPointsPage() {
+  const { t, tr } = useFcText();
   const { user } = useAuth();
   const canEdit = canEditRankedPoints(user?.role);
   const { data, isLoading, isError, isFetching, refetch } = useFreecrocoRankedPoints();
@@ -37,13 +39,13 @@ export default function FreecrocoRankedPointsPage() {
   const [busy, setBusy] = useState(false);
   const [conflict, setConflict] = useState(false);
 
-  if (isLoading) return <p className="text-sm text-gray-400">Loading…</p>;
+  if (isLoading) return <p className="text-sm text-gray-400">{t('Loading…')}</p>;
   if (!data) {
     return (
       <div className="space-y-3">
-        <p className="text-sm text-red-500">Failed to load the ranked points.</p>
+        <p className="text-sm text-red-500">{t('Failed to load the ranked points.')}</p>
         <Button variant="outline" size="sm" onClick={() => void refetch()}>
-          Retry
+          {t('Retry')}
         </Button>
       </div>
     );
@@ -52,7 +54,7 @@ export default function FreecrocoRankedPointsPage() {
   const points = draft?.points ?? data.points;
   const outdated = draft !== null && draft.baseVersion !== data.version;
   const dirty = draft !== null && isRankedPointsDirty(data.points, draft.points);
-  const validation = validateRankedPoints(points);
+  const validation = validateRankedPoints(points, t);
   const saving = busy || save.isPending;
   const locked = !canEdit || saving;
   const maxScore = validation.valid ? rankedMaxScore(points) : null;
@@ -66,7 +68,7 @@ export default function FreecrocoRankedPointsPage() {
       if (reloaded.isError || !conflict) return;
       setConflict(false);
       setDraft(null);
-      toast.warning(STALE_RANKED_POINTS_MESSAGE);
+      toast.warning(t(STALE_RANKED_POINTS_MESSAGE));
     } finally {
       setBusy(false);
     }
@@ -74,27 +76,27 @@ export default function FreecrocoRankedPointsPage() {
 
   const handleSave = async () => {
     if (!draft || outdated || conflict || !validation.valid) {
-      toast.error(outdated ? 'The ranked points changed since you started editing' : 'Fix the highlighted fields first');
+      toast.error(outdated ? t('The ranked points changed since you started editing') : t('Fix the highlighted fields first'));
       return;
     }
     setBusy(true);
     try {
       await save.mutateAsync({ version: draft.baseVersion, points: draft.points });
       setDraft(null);
-      toast.success('Ranked points saved');
+      toast.success(t('Ranked points saved'));
     } catch (err) {
       if (isStaleVersion(err)) {
         const reloaded = await refetch();
         if (reloaded.isError) {
           setConflict(true);
-          toast.error('Someone else saved first, and the latest ranked points could not be loaded. Retry the refresh.');
+          toast.error(t('Someone else saved first, and the latest ranked points could not be loaded. Retry the refresh.'));
           return;
         }
         setDraft(null);
-        toast.warning(STALE_RANKED_POINTS_MESSAGE);
+        toast.warning(t(STALE_RANKED_POINTS_MESSAGE));
         return;
       }
-      const feedback = getErrorFeedback(err, 'Failed to save ranked points');
+      const feedback = getErrorFeedback(err, t('Failed to save ranked points'));
       toast.error(feedback.title, { description: feedback.description });
     } finally {
       setBusy(false);
@@ -110,7 +112,7 @@ export default function FreecrocoRankedPointsPage() {
       {(['winner', 'loser'] as const).map((side) => (
         <TableCell key={side}>
           <PointsInput
-            label={`${label} ${side}`}
+            label={side === 'winner' ? t('{label} winner', { label }) : t('{label} loser', { label })}
             value={pair[side]}
             error={validation.errors[`${key}.${side}`]}
             disabled={locked}
@@ -126,7 +128,7 @@ export default function FreecrocoRankedPointsPage() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2">
           <Trophy className="size-6 text-gray-700" />
-          <h1 className="text-2xl font-semibold text-gray-900">Ranked points</h1>
+          <h1 className="text-2xl font-semibold text-gray-900">{t('Ranked points')}</h1>
         </div>
         {canEdit && (
           <div className="flex items-center gap-2">
@@ -135,43 +137,42 @@ export default function FreecrocoRankedPointsPage() {
                 setDraft(null);
                 setConflict(false);
               }} disabled={saving}>
-                Discard changes
+                {t('Discard changes')}
               </Button>
             )}
             <Button onClick={handleSave} disabled={!dirty || outdated || conflict || !validation.valid || saving}>
-              {saving ? 'Saving…' : 'Save'}
+              {saving ? t('Saving…') : t('Save')}
             </Button>
           </div>
         )}
       </div>
       <p className="-mt-4 text-sm text-gray-500">
-        The points a Freecroco ranked match is worth. A match is scored with the table that was in force when it
-        started, so a save applies to matches that start after it.
+        {t('The points a Freecroco ranked match is worth. A match is scored with the table that was in force when it started, so a save applies to matches that start after it.')}
       </p>
 
       <div className="rounded-md border border-sky-200 bg-sky-50 px-3 py-2 text-sm text-sky-800">
-        These values are agreed with Freecroco: changing them changes the points Freecroco receives for every ranked
-        match. Agree a change with Freecroco before saving it.
-        {!canEdit && ' Only Quizball admins can change them.'}
+        {t('These values are agreed with Freecroco: changing them changes the points Freecroco receives for every ranked match. Agree a change with Freecroco before saving it.')}
+        {!canEdit && ` ${t('Only Quizball admins can change them.')}`}
       </div>
 
       {(isError || conflict) && (
         <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
           <span>
-            Could not refresh the ranked points. Showing the last copy that loaded
-            {conflict ? '; your changes are kept but cannot be saved until it refreshes.' : '.'}
+            {conflict
+              ? t('Could not refresh the ranked points. Showing the last copy that loaded; your changes are kept but cannot be saved until it refreshes.')
+              : t('Could not refresh the ranked points. Showing the last copy that loaded.')}
           </span>
           <Button variant="outline" size="sm" disabled={isFetching || saving} onClick={() => void handleRetry()}>
-            Refresh again
+            {t('Refresh again')}
           </Button>
         </div>
       )}
 
       {outdated && (
         <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
-          <span>The ranked points were updated while you were editing, so your changes can no longer be saved.</span>
+          <span>{t('The ranked points were updated while you were editing, so your changes can no longer be saved.')}</span>
           <Button variant="outline" size="sm" onClick={() => setDraft(null)}>
-            Discard my changes and show the latest
+            {t('Discard my changes and show the latest')}
           </Button>
         </div>
       )}
@@ -179,18 +180,18 @@ export default function FreecrocoRankedPointsPage() {
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead>Result</TableHead>
-            <TableHead className="w-40">Winner</TableHead>
-            <TableHead className="w-40">Loser</TableHead>
+            <TableHead>{t('Result')}</TableHead>
+            <TableHead className="w-40">{t('Winner')}</TableHead>
+            <TableHead className="w-40">{t('Loser')}</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           {points.margins.map((pair, i) =>
-            pairRow(MARGIN_LABELS[i] ?? `Win by ${i + 1} goals`, `margins.${i}`, pair, (side, value) =>
+            pairRow(MARGIN_LABELS[i] ? t(MARGIN_LABELS[i]) : t('Win by {count} goals', { count: i + 1 }), `margins.${i}`, pair, (side, value) =>
               edit(updateMargin(points, i, side, value)),
             ),
           )}
-          {pairRow(PENALTY_WIN_LABEL, 'penaltyWin', points.penaltyWin, (side, value) =>
+          {pairRow(t(PENALTY_WIN_LABEL), 'penaltyWin', points.penaltyWin, (side, value) =>
             edit(updatePenaltyWin(points, side, value)),
           )}
         </TableBody>
@@ -199,19 +200,19 @@ export default function FreecrocoRankedPointsPage() {
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead>Result</TableHead>
-            <TableHead className="w-40">Points</TableHead>
+            <TableHead>{t('Result')}</TableHead>
+            <TableHead className="w-40">{t('Points')}</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           <TableRow>
             <TableCell className="font-medium text-gray-900">
-              {DRAW_AFTER_PENALTIES_LABEL}
-              <p className="text-xs font-normal text-gray-500">Each player</p>
+              {t(DRAW_AFTER_PENALTIES_LABEL)}
+              <p className="text-xs font-normal text-gray-500">{t('Each player')}</p>
             </TableCell>
             <TableCell>
               <PointsInput
-                label={DRAW_AFTER_PENALTIES_LABEL}
+                label={t(DRAW_AFTER_PENALTIES_LABEL)}
                 value={points.drawAfterPenalties}
                 error={validation.errors.drawAfterPenalties}
                 disabled={locked}
@@ -221,14 +222,14 @@ export default function FreecrocoRankedPointsPage() {
           </TableRow>
           <TableRow>
             <TableCell className="font-medium text-gray-900">
-              {LEFT_NOT_AHEAD_LABEL}
+              {t(LEFT_NOT_AHEAD_LABEL)}
               <p className="text-xs font-normal text-gray-500">
-                The player who stayed; when ahead they get the winner points for the margin instead. The leaver gets 0.
+                {t('The player who stayed; when ahead they get the winner points for the margin instead. The leaver gets 0.')}
               </p>
             </TableCell>
             <TableCell>
               <PointsInput
-                label={LEFT_NOT_AHEAD_LABEL}
+                label={t(LEFT_NOT_AHEAD_LABEL)}
                 value={points.leftNotAhead}
                 error={validation.errors.leftNotAhead}
                 disabled={locked}
@@ -240,8 +241,14 @@ export default function FreecrocoRankedPointsPage() {
       </Table>
 
       <p className="text-sm text-gray-500">
-        Most one match can score: <span className="font-medium tabular-nums text-gray-900">{maxScore ?? '–'}</span>
-        {' '}(players see it as &ldquo;up to&rdquo;). Values are whole numbers from 0 to {MAX_RANKED_POINTS}.
+        {tr('Most one match can score: {max} (players see it as “up to”). Values are whole numbers from 0 to {limit}.', {
+          max: (
+            <span key="max" className="font-medium tabular-nums text-gray-900">
+              {maxScore ?? '–'}
+            </span>
+          ),
+          limit: MAX_RANKED_POINTS,
+        })}
       </p>
     </div>
   );

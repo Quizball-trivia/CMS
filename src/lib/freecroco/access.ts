@@ -7,6 +7,13 @@ export const PARTNER_STAFF_ROLE = 'partner_staff';
 export const FREECROCO_ROOT = '/freecroco';
 /** Staff accounts are granted by Quizball admins; a partner editor must never grant access. */
 export const FREECROCO_STAFF = `${FREECROCO_ROOT}/staff`;
+/** Pages Freecroco asked not to see (2026-11-17): they run no promotions and the points table is agreed between the
+ *  companies. Quizball admins keep them. */
+export const FREECROCO_ADMIN_ONLY = [
+  `${FREECROCO_ROOT}/calendar`,
+  `${FREECROCO_ROOT}/deliveries`,
+  `${FREECROCO_ROOT}/ranked-points`,
+] as const;
 export const ADMIN_HOME = '/hq';
 
 /** Quizball admins see everything, partner staff only their section; any other account (e.g. a removed staff
@@ -26,6 +33,7 @@ interface RouteRule {
 export const ROUTE_ROLES: readonly RouteRule[] = [
   { route: FREECROCO_ROOT, roles: ['admin', 'partner_staff'] },
   { route: FREECROCO_STAFF, roles: ['admin'] },
+  ...FREECROCO_ADMIN_ONLY.map((route) => ({ route, roles: ['admin'] as const })),
 ];
 const DEFAULT_ROLES: readonly CmsRole[] = ['admin'];
 
@@ -77,4 +85,10 @@ export function canEditRankedPoints(role: string | null | undefined): boolean {
 
 export function canManageStaff(role: string | null | undefined): boolean {
   return cmsRole(role) === 'admin';
+}
+
+/** Whether ranked matches are split into against Freecroco players and against bots: hidden from Freecroco staff,
+ *  who asked not to see it (2026-11-17). */
+export function canSeeOpponentSplit(role: string | null | undefined): boolean {
+  return cmsRole(role) !== 'partner_staff';
 }
