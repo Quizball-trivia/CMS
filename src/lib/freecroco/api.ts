@@ -5,7 +5,10 @@ import type {
   DeliveriesResponse,
   DeliveryAttempt,
   PartnerGamesConfig,
+  PartnerPlayersPage,
   PartnerPlayerView,
+  PlayerStatusAction,
+  PlayersQuery,
   PartnerStaffList,
   PartnerStaffMember,
   PartnerStats,
@@ -26,7 +29,9 @@ export interface FreecrocoApi {
   listDeliveries(query: DeliveriesQuery): Promise<DeliveriesResponse>;
   listAttempts(eventId: string): Promise<DeliveryAttempt[]>;
   resendDelivery(eventId: string): Promise<void>;
+  listPlayers(query: PlayersQuery): Promise<PartnerPlayersPage>;
   getPlayer(playerId: string): Promise<PartnerPlayerView>;
+  setPlayerStatus(playerId: string, action: PlayerStatusAction, reason: string | null): Promise<PartnerPlayerView>;
   getStats(from: string, to: string): Promise<PartnerStats>;
   listStaff(): Promise<PartnerStaffList>;
   addStaff(request: StaffAddRequest): Promise<StaffAddResult>;

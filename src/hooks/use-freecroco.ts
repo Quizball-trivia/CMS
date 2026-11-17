@@ -6,6 +6,8 @@ import type {
   DeliveriesQuery,
   PartnerGamesConfig,
   PartnerStaffList,
+  PlayerStatusAction,
+  PlayersQuery,
   RankedPointsUpdate,
   StaffAddRequest,
   StaffRole,
@@ -25,6 +27,8 @@ export const freecrocoKeys = {
   deliveryList: (query: Omit<DeliveriesQuery, 'cursor'>) => [...freecrocoKeys.deliveries(), query] as const,
   attempts: (eventId: string) => [...freecrocoKeys.deliveries(), 'attempts', eventId] as const,
   player: (playerId: string) => [...freecrocoKeys.all, 'player', playerId] as const,
+  playerLists: () => [...freecrocoKeys.all, 'players'] as const,
+  playerList: (query: PlayersQuery) => [...freecrocoKeys.playerLists(), query] as const,
   stats: (from: string, to: string) => [...freecrocoKeys.all, 'stats', from, to] as const,
   staff: () => [...freecrocoKeys.all, 'staff'] as const,
 };
@@ -180,12 +184,40 @@ export function useResendFreecrocoDelivery() {
   });
 }
 
+export function useFreecrocoPlayers(query: PlayersQuery) {
+  return useQuery({
+    queryKey: freecrocoKeys.playerList(query),
+    queryFn: () => freecrocoService.listPlayers(query),
+    // Keep the current page on screen while the next one or a new search loads.
+    placeholderData: keepPreviousData,
+  });
+}
+
 export function useFreecrocoPlayer(playerId: string | null) {
   return useQuery({
     queryKey: freecrocoKeys.player(playerId ?? ''),
     queryFn: () => freecrocoService.getPlayer(playerId!),
     enabled: Boolean(playerId),
     retry: false,
+  });
+}
+
+export function useSetFreecrocoPlayerStatus() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { playerId: string; action: PlayerStatusAction; reason: string | null }) =>
+      freecrocoService.setPlayerStatus(input.playerId, input.action, input.reason),
+    // A lookup still in flight read the player before this change and must not overwrite it when it lands.
+    onMutate: (input) =>
+      Promise.all([
+        queryClient.cancelQueries({ queryKey: freecrocoKeys.player(input.playerId) }),
+        queryClient.cancelQueries({ queryKey: freecrocoKeys.playerLists() }),
+      ]),
+    onSuccess: (player) => {
+      queryClient.setQueryData(freecrocoKeys.player(player.playerId), player);
+      return queryClient.invalidateQueries({ queryKey: freecrocoKeys.playerLists() });
+    },
+    onError: (error) => logger.error('freecroco', 'Failed to change player status', getErrorLogDetails(error)),
   });
 }
 

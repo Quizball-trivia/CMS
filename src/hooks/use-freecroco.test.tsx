@@ -3,13 +3,26 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { ReactNode } from 'react';
 import { afterEach, expect, it, vi } from 'vitest';
 import { ApiClientError, freecrocoService } from '@/services';
-import { freecrocoKeys, useFreecrocoCalendar, useFreecrocoGames, useReloadFreecrocoCalendar, useSaveFreecrocoCalendar, useSaveFreecrocoGames } from './use-freecroco';
+import {
+  freecrocoKeys,
+  useFreecrocoCalendar,
+  useFreecrocoGames,
+  useFreecrocoPlayer,
+  useReloadFreecrocoCalendar,
+  useSaveFreecrocoCalendar,
+  useSaveFreecrocoGames,
+  useSetFreecrocoPlayerStatus,
+} from './use-freecroco';
+import type { PartnerPlayerView } from '@/types/freecroco';
 
 vi.mock('@/services', async () => {
   const actual = await vi.importActual<typeof import('@/services/api-client')>('@/services/api-client');
   return {
     ApiClientError: actual.ApiClientError,
-    freecrocoService: { getGames: vi.fn(), putGames: vi.fn(), getCalendar: vi.fn(), putCalendar: vi.fn() },
+    freecrocoService: {
+      getGames: vi.fn(), putGames: vi.fn(), getCalendar: vi.fn(), putCalendar: vi.fn(),
+      getPlayer: vi.fn(), setPlayerStatus: vi.fn(),
+    },
   };
 });
 afterEach(cleanup);
@@ -162,4 +175,25 @@ it('writes the saved calendar into every range loaded at the version the save wa
   });
   expect(client.getQueryData(old)).toEqual({ version: 0, overrides: [] });
   client.clear();
+});
+
+it('a lookup still in flight when a ban lands cannot put the old status back', async () => {
+  const active: PartnerPlayerView = {
+    playerId: 'p-1', displayName: 'P', status: 'active', blockReason: null, statusChangedAt: null,
+    firstSeenAt: '2026-11-17T00:00:00.000Z', lastSeenAt: null, today: [],
+  };
+  const banned: PartnerPlayerView = { ...active, status: 'blocked', blockReason: 'bot', statusChangedAt: '2026-11-17T00:01:00.000Z' };
+  let resolveOld!: (p: PartnerPlayerView) => void;
+  vi.mocked(freecrocoService.getPlayer).mockReturnValueOnce(new Promise((r) => (resolveOld = r)));
+  vi.mocked(freecrocoService.setPlayerStatus).mockResolvedValue(banned);
+  const { client, wrapper } = setup();
+  const { result } = renderHook(
+    () => ({ read: useFreecrocoPlayer('p-1'), write: useSetFreecrocoPlayerStatus() }),
+    { wrapper },
+  );
+  await waitFor(() => expect(freecrocoService.getPlayer).toHaveBeenCalled());
+  await act(() => result.current.write.mutateAsync({ playerId: 'p-1', action: 'block', reason: 'bot' }));
+  await act(async () => resolveOld(active));
+  await waitFor(() => expect(result.current.read.data?.status).toBe('blocked'));
+  expect(client.getQueryData<PartnerPlayerView>(freecrocoKeys.player('p-1'))?.status).toBe('blocked');
 });
