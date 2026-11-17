@@ -37,7 +37,7 @@ function fmt(n: number): string {
 interface StatCardProps {
   label: string;
   value: number;
-  sub: string;
+  sub?: string;
   icon: React.ElementType;
   accent: string;
 }
@@ -55,7 +55,7 @@ function StatCard({ label, value, sub, icon: Icon, accent }: StatCardProps) {
         <div className="text-3xl font-bold tracking-tight text-slate-900 tabular-nums">
           {fmt(value)}
         </div>
-        <p className="mt-1 text-xs text-slate-500">{sub}</p>
+        {sub != null && <p className="mt-1 text-xs text-slate-500">{sub}</p>}
       </CardContent>
     </Card>
   );
@@ -99,7 +99,6 @@ export default function StatsPage() {
         <StatCard
           label="Total Users"
           value={totalUsers}
-          sub="Registered + guests who played"
           icon={UsersIcon}
           accent="bg-slate-100 text-slate-700"
         />
