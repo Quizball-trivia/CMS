@@ -38,11 +38,19 @@ describe('role to navigation mapping', () => {
 });
 
 describe('route access', () => {
-  it.each(['/freecroco', '/freecroco/calendar', '/freecroco/deliveries/', '/freecroco/players'])(
+  it.each(['/freecroco', '/freecroco/games', '/freecroco/players', '/freecroco/players/'])(
     'lets partner staff open %s',
     (path) => {
       expect(canAccessPath('partner_staff', path)).toBe(true);
       expect(guardRedirect('partner_staff', path)).toBeNull();
+    },
+  );
+
+  it.each(['/freecroco/calendar', '/freecroco/deliveries/', '/freecroco/ranked-points'])(
+    'keeps %s from partner staff but not from Quizball admins',
+    (path) => {
+      expect(guardRedirect('partner_staff', path)).toBe('/freecroco');
+      expect(guardRedirect('admin', path)).toBeNull();
     },
   );
 
