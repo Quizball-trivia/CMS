@@ -13,7 +13,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { canResendDeliveries } from '@/lib/freecroco/access';
 import { isNotResendable, NOT_RESENDABLE_MESSAGE } from '@/lib/freecroco/errors';
-import { GAME_LABELS, PARTNER_GAME_IDS } from '@/lib/freecroco/games';
+import { PARTNER_GAME_IDS } from '@/lib/freecroco/games';
+import { useFcText } from '@/lib/freecroco/i18n';
 import { formatGeorgiaTime } from '@/lib/td/georgia';
 import { getErrorFeedback } from '@/lib/error-feedback';
 import type { DeliveriesQuery, DeliveryItem, DeliveryStatus, PartnerGameId } from '@/types/freecroco';
@@ -44,9 +45,10 @@ function toQuery(f: FilterDraft): Omit<DeliveriesQuery, 'cursor'> {
 const STATUS_LABELS: Record<DeliveryStatus, string> = { sent: 'Sent', pending: 'Pending', dead: 'Failed' };
 
 function StatusBadge({ status }: { status: DeliveryStatus }) {
-  if (status === 'sent') return <Badge className="bg-green-100 text-green-700 hover:bg-green-100">Sent</Badge>;
-  if (status === 'dead') return <Badge className="bg-red-100 text-red-700 hover:bg-red-100">Failed</Badge>;
-  return <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-100">Pending</Badge>;
+  const { t } = useFcText();
+  if (status === 'sent') return <Badge className="bg-green-100 text-green-700 hover:bg-green-100">{t('Sent')}</Badge>;
+  if (status === 'dead') return <Badge className="bg-red-100 text-red-700 hover:bg-red-100">{t('Failed')}</Badge>;
+  return <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-100">{t('Pending')}</Badge>;
 }
 
 /** qb_72fc8a70-…-7b48ed72504e → qb_72fc8a70…504e; the full id is in the tooltip and copied on click. */
@@ -62,6 +64,7 @@ function shortGeorgiaTime(iso: string): string {
 }
 
 export default function FreecrocoDeliveriesPage() {
+  const { t, tn, game } = useFcText();
   const { user } = useAuth();
   const canResend = canResendDeliveries(user?.role);
   // Filters apply on demand, so typing a player id does not fire a request per keystroke.
@@ -80,17 +83,17 @@ export default function FreecrocoDeliveriesPage() {
   const items = deliveries.data?.pages.flatMap((page) => page.items) ?? [];
 
   const handleResend = async (item: DeliveryItem) => {
-    if (!window.confirm(`Resend event ${item.eventId} to Freecroco?\n\nIt is sent again with the same event id.`)) return;
+    if (!window.confirm(t('Resend event {eventId} to Freecroco?\n\nIt is sent again with the same event id.', { eventId: item.eventId }))) return;
     try {
       await resend.mutateAsync(item.eventId);
-      toast.success('Resend queued');
+      toast.success(t('Resend queued'));
     } catch (err) {
       if (isNotResendable(err)) {
         // The list is stale: the hook already refetched it, so the row now shows its real status.
-        toast.warning(NOT_RESENDABLE_MESSAGE);
+        toast.warning(t(NOT_RESENDABLE_MESSAGE));
         return;
       }
-      const feedback = getErrorFeedback(err, 'Failed to resend');
+      const feedback = getErrorFeedback(err, t('Failed to resend'));
       toast.error(feedback.title, { description: feedback.description });
     }
   };
@@ -99,10 +102,10 @@ export default function FreecrocoDeliveriesPage() {
     <div className="space-y-6">
       <div className="flex items-center gap-2">
         <Send className="size-6 text-gray-700" />
-        <h1 className="text-2xl font-semibold text-gray-900">Freecroco deliveries</h1>
+        <h1 className="text-2xl font-semibold text-gray-900">{t('Freecroco deliveries')}</h1>
       </div>
       <p className="-mt-4 text-sm text-gray-500">
-        Score events sent to Freecroco. Open a row to see each attempt. Times are Georgia time.
+        {t('Score events sent to Freecroco. Open a row to see each attempt. Times are Georgia time.')}
       </p>
 
       <form
@@ -113,43 +116,43 @@ export default function FreecrocoDeliveriesPage() {
         }}
       >
         <div className="space-y-1.5">
-          <Label>Status</Label>
+          <Label>{t('Status')}</Label>
           <Select value={draft.status} onValueChange={(v) => setDraft({ ...draft, status: v as FilterDraft['status'] })}>
-            <SelectTrigger className="w-full" aria-label="Status"><SelectValue /></SelectTrigger>
+            <SelectTrigger className="w-full" aria-label={t('Status')}><SelectValue /></SelectTrigger>
             <SelectContent>
-              <SelectItem value={ANY}>Any status</SelectItem>
+              <SelectItem value={ANY}>{t('Any status')}</SelectItem>
               {STATUSES.map((s) => (
-                <SelectItem key={s} value={s}>{STATUS_LABELS[s]}</SelectItem>
+                <SelectItem key={s} value={s}>{t(STATUS_LABELS[s])}</SelectItem>
               ))}
             </SelectContent>
           </Select>
         </div>
         <div className="space-y-1.5">
-          <Label>Game</Label>
+          <Label>{t('Game')}</Label>
           <Select value={draft.gameId} onValueChange={(v) => setDraft({ ...draft, gameId: v as FilterDraft['gameId'] })}>
-            <SelectTrigger className="w-full" aria-label="Game"><SelectValue /></SelectTrigger>
+            <SelectTrigger className="w-full" aria-label={t('Game')}><SelectValue /></SelectTrigger>
             <SelectContent>
-              <SelectItem value={ANY}>Any game</SelectItem>
+              <SelectItem value={ANY}>{t('Any game')}</SelectItem>
               {PARTNER_GAME_IDS.map((id) => (
-                <SelectItem key={id} value={id}>{GAME_LABELS[id]}</SelectItem>
+                <SelectItem key={id} value={id}>{game(id)}</SelectItem>
               ))}
             </SelectContent>
           </Select>
         </div>
         <div className="space-y-1.5">
-          <Label htmlFor="fc-player">Player id</Label>
+          <Label htmlFor="fc-player">{t('Player id')}</Label>
           <Input id="fc-player" value={draft.playerId} onChange={(e) => setDraft({ ...draft, playerId: e.target.value })} />
         </div>
         <div className="space-y-1.5">
-          <Label htmlFor="fc-from">From</Label>
+          <Label htmlFor="fc-from">{t('From')}</Label>
           <Input id="fc-from" type="date" value={draft.from} onChange={(e) => setDraft({ ...draft, from: e.target.value })} />
         </div>
         <div className="space-y-1.5">
-          <Label htmlFor="fc-to">To</Label>
+          <Label htmlFor="fc-to">{t('To')}</Label>
           <Input id="fc-to" type="date" value={draft.to} onChange={(e) => setDraft({ ...draft, to: e.target.value })} />
         </div>
         <div className="flex items-end gap-2">
-          <Button type="submit">Apply</Button>
+          <Button type="submit">{t('Apply')}</Button>
           <Button
             type="button"
             variant="ghost"
@@ -158,23 +161,23 @@ export default function FreecrocoDeliveriesPage() {
               applyFilters(EMPTY);
             }}
           >
-            Reset
+            {t('Reset')}
           </Button>
         </div>
       </form>
 
       {deliveries.isLoading ? (
-        <p className="text-sm text-gray-400">Loading…</p>
+        <p className="text-sm text-gray-400">{t('Loading…')}</p>
       ) : deliveries.error && items.length === 0 ? (
         <div className="space-y-3">
-          <p className="text-sm text-red-500">Failed to load deliveries.</p>
+          <p className="text-sm text-red-500">{t('Failed to load deliveries.')}</p>
           <Button variant="outline" size="sm" disabled={deliveries.isFetching} onClick={() => void deliveries.refetch()}>
-            Retry
+            {t('Retry')}
           </Button>
         </div>
       ) : items.length === 0 ? (
         <div className="rounded-lg border border-dashed border-gray-200 py-12 text-center text-sm text-gray-400">
-          No deliveries match.
+          {t('No deliveries match.')}
         </div>
       ) : (
         <>
@@ -182,12 +185,12 @@ export default function FreecrocoDeliveriesPage() {
             <TableHeader>
               <TableRow>
                 <TableHead className="w-8" />
-                <TableHead>When</TableHead>
-                <TableHead>Player</TableHead>
-                <TableHead>Game</TableHead>
-                <TableHead className="w-16 text-right">Score</TableHead>
-                <TableHead>Delivery</TableHead>
-                <TableHead>Event</TableHead>
+                <TableHead>{t('When')}</TableHead>
+                <TableHead>{t('Player')}</TableHead>
+                <TableHead>{t('Game')}</TableHead>
+                <TableHead className="w-16 text-right">{t('Score')}</TableHead>
+                <TableHead>{t('Delivery')}</TableHead>
+                <TableHead>{t('Event')}</TableHead>
                 {canResend && <TableHead className="w-24 text-right" />}
               </TableRow>
             </TableHeader>
@@ -202,7 +205,7 @@ export default function FreecrocoDeliveriesPage() {
                           variant="ghost"
                           size="icon-sm"
                           aria-expanded={open}
-                          aria-label={`${open ? 'Hide' : 'Show'} attempts for ${item.eventId}`}
+                          aria-label={open ? t('Hide attempts for {eventId}', { eventId: item.eventId }) : t('Show attempts for {eventId}', { eventId: item.eventId })}
                           onClick={() => setExpanded(open ? null : item.eventId)}
                         >
                           {open ? <ChevronDown className="size-4" /> : <ChevronRight className="size-4" />}
@@ -212,13 +215,13 @@ export default function FreecrocoDeliveriesPage() {
                         {shortGeorgiaTime(item.occurredAt)}
                       </TableCell>
                       <TableCell className="font-mono text-xs">{item.playerId}</TableCell>
-                      <TableCell className="whitespace-nowrap">{GAME_LABELS[item.gameId]}</TableCell>
+                      <TableCell className="whitespace-nowrap">{game(item.gameId)}</TableCell>
                       <TableCell className="text-right tabular-nums">{item.score}</TableCell>
                       <TableCell>
                         <div className="flex items-center gap-2 whitespace-nowrap">
                           <StatusBadge status={item.status} />
                           <span className="text-xs text-gray-500">
-                            {item.attempts} {item.attempts === 1 ? 'try' : 'tries'}
+                            {tn(item.attempts, '{count} try', '{count} tries')}
                             {item.lastHttpStatus !== null && item.lastHttpStatus !== undefined ? ` · ${item.lastHttpStatus}` : ''}
                           </span>
                         </div>
@@ -230,9 +233,9 @@ export default function FreecrocoDeliveriesPage() {
                         <button
                           type="button"
                           className="font-mono text-xs text-gray-500 hover:text-gray-900"
-                          title={`${item.eventId} (click to copy)`}
+                          title={t('{eventId} (click to copy)', { eventId: item.eventId })}
                           onClick={() => {
-                            void navigator.clipboard?.writeText(item.eventId).then(() => toast.success('Event id copied'), () => undefined);
+                            void navigator.clipboard?.writeText(item.eventId).then(() => toast.success(t('Event id copied')), () => undefined);
                           }}
                         >
                           {shortEventId(item.eventId)}
@@ -242,7 +245,7 @@ export default function FreecrocoDeliveriesPage() {
                         <TableCell className="text-right">
                           {item.status === 'dead' && (
                             <Button variant="outline" size="sm" disabled={resend.isPending} onClick={() => handleResend(item)}>
-                              <RotateCw className="size-3.5" /> Resend
+                              <RotateCw className="size-3.5" /> {t('Resend')}
                             </Button>
                           )}
                         </TableCell>
@@ -263,15 +266,15 @@ export default function FreecrocoDeliveriesPage() {
           </Table>
           {deliveries.error && (
             <p className="flex items-center gap-2 text-sm text-red-600">
-              Could not refresh deliveries; the rows shown may be out of date.
+              {t('Could not refresh deliveries; the rows shown may be out of date.')}
               <Button variant="outline" size="sm" onClick={() => deliveries.refetch()} disabled={deliveries.isFetching}>
-                Retry
+                {t('Retry')}
               </Button>
             </p>
           )}
           {deliveries.hasNextPage && (
             <Button variant="outline" onClick={() => deliveries.fetchNextPage()} disabled={deliveries.isFetchingNextPage}>
-              {deliveries.isFetchingNextPage ? 'Loading…' : 'Load more'}
+              {deliveries.isFetchingNextPage ? t('Loading…') : t('Load more')}
             </Button>
           )}
         </>
@@ -281,10 +284,11 @@ export default function FreecrocoDeliveriesPage() {
 }
 
 function Attempts({ eventId }: { eventId: string }) {
+  const { t } = useFcText();
   const { data, isLoading, error } = useFreecrocoAttempts(eventId, true);
-  if (isLoading) return <p className="text-xs text-gray-400">Loading attempts…</p>;
-  if (error) return <p className="text-xs text-red-500">Failed to load attempts.</p>;
-  if (!data || data.length === 0) return <p className="text-xs text-gray-400">No attempts yet; waiting for the first one.</p>;
+  if (isLoading) return <p className="text-xs text-gray-400">{t('Loading attempts…')}</p>;
+  if (error) return <p className="text-xs text-red-500">{t('Failed to load attempts.')}</p>;
+  if (!data || data.length === 0) return <p className="text-xs text-gray-400">{t('No attempts yet; waiting for the first one.')}</p>;
   return (
     <ol className="space-y-1 text-xs">
       {data.map((attempt) => (
@@ -292,9 +296,9 @@ function Attempts({ eventId }: { eventId: string }) {
           <span className="w-6 text-gray-400">#{attempt.attempt}</span>
           <span className="text-gray-600">{formatGeorgiaTime(attempt.attemptedAt)}</span>
           <span className={attempt.httpStatus !== null && attempt.httpStatus < 300 ? 'text-green-700' : 'text-red-600'}>
-            {attempt.httpStatus ?? 'no response'}
+            {attempt.httpStatus ?? t('no response')}
           </span>
-          {attempt.latencyMs !== null && <span className="text-gray-400">{attempt.latencyMs} ms</span>}
+          {attempt.latencyMs !== null && <span className="text-gray-400">{t('{ms} ms', { ms: attempt.latencyMs })}</span>}
           {attempt.error && <span className="text-gray-500">{attempt.error}</span>}
         </li>
       ))}

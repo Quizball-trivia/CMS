@@ -203,6 +203,8 @@ export function createFreecrocoMock(options: { today?: string; delayMs?: number 
           playerId,
           displayName: `Player ${2000 + i}`,
           status: i === 7 ? 'blocked' : 'active',
+          blockReason: i === 7 ? 'Multiple accounts' : null,
+          statusChangedAt: i === 7 ? new Date(now - 2 * 86_400_000).toISOString() : null,
           firstSeenAt: new Date(now - 20 * 86_400_000).toISOString(),
           lastSeenAt: new Date(now - i * 3_600_000).toISOString(),
           today: [
@@ -326,11 +328,52 @@ export function createFreecrocoMock(options: { today?: string; delayMs?: number 
       deliveries = deliveries.map((d) => (d.eventId === eventId ? { ...d, status: 'pending', attempts: 0, lastAttemptAt: null, lastHttpStatus: null, lastError: null } : d));
     },
 
+    async listPlayers(query) {
+      await wait();
+      const needle = query.search?.trim().toLowerCase() ?? '';
+      const matching = [...players.values()]
+        .filter((p) => query.status === 'all' || p.status === query.status)
+        .filter((p) => !needle || p.playerId.toLowerCase().includes(needle) || p.displayName.toLowerCase().includes(needle))
+        .sort((a, b) => b.firstSeenAt.localeCompare(a.firstSeenAt) || b.playerId.localeCompare(a.playerId));
+      return {
+        total: matching.length,
+        items: matching.slice(query.offset, query.offset + query.limit).map((p) => ({
+          playerId: p.playerId,
+          displayName: p.displayName,
+          status: p.status,
+          blockReason: p.blockReason,
+          statusChangedAt: p.statusChangedAt,
+          firstSeenAt: p.firstSeenAt,
+          lastSeenAt: p.lastSeenAt,
+          plays: p.today.reduce((sum, t) => sum + t.playsUsed, 0),
+        })),
+      };
+    },
+
     async getPlayer(playerId) {
       await wait();
       const player = players.get(playerId);
       if (!player) throw fail(404, 'not_found', 'No player with that id');
       return { ...player, today: player.today.map((t) => ({ ...t })) };
+    },
+
+    async setPlayerStatus(playerId, action, reason) {
+      await wait();
+      const player = players.get(playerId);
+      if (!player) throw fail(404, 'not_found', 'No player with that id');
+      const trimmed = reason?.trim() || null;
+      if (trimmed && trimmed.length > 200) throw fail(400, 'invalid_request', 'reason: at most 200 characters');
+      const blocked = action === 'block';
+      const changed = player.status !== (blocked ? 'blocked' : 'active');
+      const next: PartnerPlayerView = {
+        ...player,
+        status: blocked ? 'blocked' : 'active',
+        // As the server: a repeated ban without a reason keeps the one already given.
+        blockReason: blocked ? (trimmed ?? (changed ? null : player.blockReason)) : null,
+        statusChangedAt: new Date().toISOString(),
+      };
+      players.set(playerId, next);
+      return { ...next, today: next.today.map((t) => ({ ...t })) };
     },
 
     async getStats(from, to) {

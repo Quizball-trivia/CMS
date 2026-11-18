@@ -99,3 +99,13 @@ describe('freecroco mock backend', () => {
     });
   });
 });
+
+describe('setPlayerStatus', () => {
+  it('trims and bounds the reason, and a repeated ban without one keeps the earlier reason', async () => {
+    const mock = createFreecrocoMock({ delayMs: 0 });
+    await expect(mock.setPlayerStatus('fc-2001', 'block', 'x'.repeat(201))).rejects.toMatchObject({ status: 400 });
+    expect((await mock.setPlayerStatus('fc-2001', 'block', '  bot  ')).blockReason).toBe('bot');
+    expect((await mock.setPlayerStatus('fc-2001', 'block', null)).blockReason).toBe('bot');
+    expect((await mock.setPlayerStatus('fc-2001', 'unblock', null)).blockReason).toBeNull();
+  });
+});
