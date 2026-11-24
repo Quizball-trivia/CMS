@@ -3654,9 +3654,7 @@ export type WriterJobRequest = {
 };
 
 /** POST /admin/writer/jobs/:id/cancel: {}. A queued or running job stops; its drafts so far stay. */
-export type WriterCancelRequest = {
-
-};
+export type WriterCancelRequest = Record<string, never>;
 
 /** PATCH /admin/writer/schedules/:mode (any of the five modes): only what changes, with revision (the one the member saw: a schedule changed since is refused, 409 conflict); enabled, hour (Georgia time, 0 to 23), requested (1 to 50), topic (null removes it), difficulty (easy, house, hard), autoPublish (its jobs publish on their own), autoDailyCap (0 to 1000: rows the mode’s jobs publish on their own per Georgian day). Once a day after that hour, an enabled schedule makes a job. */
 export type WriterSchedulePatch = {
