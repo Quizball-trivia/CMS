@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState, type MouseEvent } from 'react';
 import { motion } from 'framer-motion';
-import { Archive, ArchiveRestore, ChevronLeft, ChevronRight, FileText, HelpCircle, Image as ImageIcon, Layers, Loader2, MoreHorizontal, Plus, Rocket, Search, X } from 'lucide-react';
+import { Archive, ArchiveRestore, ChevronLeft, ChevronRight, FileText, HelpCircle, Image as ImageIcon, Layers, Loader2, MoreHorizontal, Plus, Rocket, Search, Sparkles, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
@@ -15,9 +15,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { TdCardImage } from '@/components/td/content/td-card-image';
 import { TdContentEditorDialog, type TdEditorTarget } from '@/components/td/content/td-content-editor';
 import { TdErrorPanel } from '@/components/td/td-error-panel';
+import { AutoChip } from '@/components/td/writer/td-writer-review';
 import { TD_SHOWN_WORDS, TD_STATUS_LABELS, TD_STATUS_WORDS, useTdShownStatus, type TdShownStatus } from '@/components/td/content/td-status';
 import { tdKeys, useTdAllRows, useTdContentList, type TdListQuery } from '@/hooks/use-td-content';
-import type { TdContentRow, TdContentStatus, TdContentType } from '@/lib/td/admin-api';
+import type { TdContentRow, TdContentSource, TdContentStatus, TdContentType } from '@/lib/td/admin-api';
 import { tdAdmin, tdTokens } from '@/lib/td/client';
 import { tdErrorText } from '@/lib/td/errors';
 import { t, tn } from '@/lib/td/i18n';
@@ -107,9 +108,19 @@ function readParam(name: string): string {
   return typeof window === 'undefined' ? '' : (new URLSearchParams(window.location.search).get(name) ?? '');
 }
 
+/** Drafts made by the AI writer carry this note (the API's writer/service.ts); rows it published itself, the longer one. */
+const AI_NOTE = 'AI მწერალი';
+const AI_AUTO_NOTE = 'AI მწერალი · ავტომატური';
+/** Statuses a link may open the list on (`?status=`). */
+const LINKABLE_STATUSES: readonly TdContentStatus[] = ['draft', 'ready', 'approved', 'archived'];
+/** Written by the AI writer, or not (`?source=`). */
+const SOURCES: readonly TdContentSource[] = ['ai', 'other'];
+const SOURCE_WORDS: Record<TdContentSource, string> = { ai: 'AI', other: t('Other') };
+
 /** The Quizball CMS's Questions page (app/(dashboard)/questions with
  *  components/questions/question-list.tsx), for Table Derby's game modes:
  *  the same header, toolbar, filter chips, rows, review dialog and paging. */
+
 export function TdQuestionsTab() {
   const { user } = useTdAuth();
   const queryClient = useQueryClient();
@@ -118,8 +129,9 @@ export function TdQuestionsTab() {
   const [searchQuery, setSearchQuery] = useState(() => readParam('q'));
   const [q, setQ] = useState(() => readParam('q'));
   const [category, setCategory] = useState(() => readParam('category') || ANY_CATEGORY);
-  const [status, setStatus] = useState<'all' | TdContentStatus>('all');
+  const [status, setStatus] = useState<'all' | TdContentStatus>(() => (LINKABLE_STATUSES.find((st) => st === readParam('status')) ?? 'all'));
   const [difficulty, setDifficulty] = useState<'all' | (typeof DIFFICULTIES)[number]>('all');
+  const [source, setSource] = useState<'all' | TdContentSource>(() => SOURCES.find((s) => s === readParam('source')) ?? 'all');
   const [asked, setPage] = useState(1);
   const [selected, setSelected] = useState<string[]>([]);
   const [bulk, setBulk] = useState<{ completed: number; total: number; failed: number } | null>(null);
@@ -143,8 +155,13 @@ export function TdQuestionsTab() {
   const labelled = mode.type === 'practice-questions';
   const filtered = (mode.categoryType || labelled) && category !== ANY_CATEGORY ? category : undefined;
   const query = useMemo<TdListQuery>(
-    () => ({ q: q || undefined, status: status === 'all' ? undefined : status === 'draft' ? 'draft,ready' : status, category: filtered }),
-    [q, status, filtered],
+    () => ({
+      q: q || undefined,
+      status: status === 'all' ? undefined : status === 'draft' ? 'draft,ready' : status,
+      category: filtered,
+      source: source === 'all' ? undefined : source,
+    }),
+    [q, status, filtered, source],
   );
   // The API filters by text, status and category; difficulty is read from every practice question.
   const list = useTdContentList(mode.type, query, !byDifficulty);
@@ -246,6 +263,7 @@ export function TdQuestionsTab() {
       setCategory(ANY_CATEGORY);
       setStatus('all');
       setDifficulty('all');
+      setSource('all');
       setSearchQuery(text);
       searched.current = text.trim();
       setQ(text.trim());
@@ -448,6 +466,21 @@ export function TdQuestionsTab() {
                   ))}
                 </SelectContent>
               </Select>
+              <Select value={source} onValueChange={(value) => reset(() => setSource(value as typeof source))}>
+                <SelectTrigger aria-label={t('Source')} className={cn(TRIGGER, 'w-[130px]')}>
+                  <SelectValue placeholder={t('Source')} />
+                </SelectTrigger>
+                <SelectContent className="rounded-xl border-gray-200 bg-white shadow-xl">
+                  <SelectItem value="all" className={ITEM}>
+                    {t('Source')}
+                  </SelectItem>
+                  {SOURCES.map((option) => (
+                    <SelectItem key={option} value={option} className={ITEM}>
+                      {SOURCE_WORDS[option]}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
               {mode.type === 'practice-questions' && (
                 <Select value={difficulty} onValueChange={(value) => reset(() => setDifficulty(value as typeof difficulty))}>
                   <SelectTrigger aria-label={t('Difficulty')} className={cn(TRIGGER, 'w-[140px]')}>
@@ -510,6 +543,12 @@ export function TdQuestionsTab() {
             {status !== 'all' && (
               <button type="button" onClick={() => reset(() => setStatus('all'))} className={CHIP}>
                 {t('Status: {status}', { status: TD_STATUS_WORDS[status] })}
+                <X className="h-3 w-3" />
+              </button>
+            )}
+            {source !== 'all' && (
+              <button type="button" onClick={() => reset(() => setSource('all'))} className={CHIP}>
+                {t('Source: {source}', { source: SOURCE_WORDS[source] })}
                 <X className="h-3 w-3" />
               </button>
             )}
@@ -634,6 +673,13 @@ export function TdQuestionsTab() {
                             </div>
                           )}
                           {shown.points !== undefined && <span className="text-xs font-bold text-slate-500">{tn(shown.points, '{count} point', '{count} points')}</span>}
+                          {row.note.startsWith(AI_AUTO_NOTE) ? (
+                            <AutoChip />
+                          ) : row.note.startsWith(AI_NOTE) && (
+                            <span className="inline-flex items-center gap-1 rounded-md bg-violet-50 px-1.5 py-0.5 text-[10px] font-bold text-violet-700" title={t('Written by the AI writer')}>
+                              <Sparkles className="h-3 w-3" /> AI
+                            </span>
+                          )}
                         </div>
                       </div>
                     </div>

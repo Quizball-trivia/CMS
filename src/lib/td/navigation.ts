@@ -5,6 +5,7 @@ import { isTableDerbyPath, TD_ROOT } from '@/lib/workspace-guard';
 export type TdTabKey =
   | 'dashboard'
   | 'questions'
+  | 'writer'
   | 'categories'
   | 'players'
   | 'leaderboard'
@@ -60,6 +61,14 @@ export const TD_TABS: readonly TdTab[] = [
     href: `${TD_ROOT}/questions`,
     label: t('Questions'),
     description: t('The cards and questions of the match rounds and practice: search, edit, upload, approve.'),
+    group: 'content',
+    roles: ALL,
+  },
+  {
+    key: 'writer',
+    href: `${TD_ROOT}/writer`,
+    label: t('AI Questions'),
+    description: t('An AI writes questions for every mode as drafts, now or every day. You check them and publish as usual.'),
     group: 'content',
     roles: ALL,
   },

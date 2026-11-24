@@ -6,6 +6,7 @@ import type { DailyCycle } from '../georgia';
 import { addDays, georgiaToday } from '../georgia';
 import type { Data } from './model';
 import { seedWebhooks, type MockWebhook } from './integration';
+import { seedWriter, type MockWriterState } from './writer';
 import { seedContent } from './seed-content';
 import { MOCK_STAFF } from './staff';
 
@@ -14,7 +15,10 @@ import { MOCK_STAFF } from './staff';
 // 6: Football Logic's rows carry imageAKey and imageBKey (contract v9).
 // 7: no seeded Football Logic question is without text, and the one that asks of a picture has it.
 // 8: releases take their dailies from the game's code packs, Stat Sniper among them (contract v12).
-export const MOCK_DB_SCHEMA = 8;
+// 12: the AI writer keeps verdicts, rejects and members' rejections (writer v2).
+// 13: writer jobs and schedules may publish on their own (writer v3).
+// 14: schedules carry a revision; a publication may be restricted to some changes.
+export const MOCK_DB_SCHEMA = 14;
 
 export interface Actor {
   id: string | null;
@@ -163,6 +167,8 @@ export interface MockPublication {
   /** A publish's snapshot of the approved content and the release id it makes. */
   snapshot: (ReleaseSnapshot & { releaseId: string }) | null;
   notify: Publication['notify'];
+  /** Only these changes (a row leaving: version null); anything else fails it, held. */
+  allowed?: { id: string; version: number | null }[] | null;
 }
 
 export interface MockPlayer {
@@ -220,6 +226,7 @@ export interface MockDb {
   settings: Settings;
   reviews: OpsReview[];
   webhooks: MockWebhook[];
+  writer: MockWriterState;
 }
 
 export const SEED_UPLOAD_ID = '00000000-0000-4000-8000-00000000f001';
@@ -346,6 +353,7 @@ export function seedDb(now: number): MockDb {
       maintenance: { enabled: false, version: 0, updatedAt: null, updatedBy: null },
     },
     webhooks: seedWebhooks(now, players, matches.filter((m) => m.status === 'settled').map((m) => m.id)),
+    writer: seedWriter(now),
     reviews: [
       {
         id: seedId(0x6000, 1),

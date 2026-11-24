@@ -357,6 +357,7 @@ export interface ListQuery {
   to?: string;
   sort?: 'natural' | 'updated' | 'created';
   dir?: 'asc' | 'desc';
+  source?: 'ai' | 'other';
   cursor?: string;
   limit?: string;
 }
@@ -374,6 +375,8 @@ export function list(db: MockDb, type: TdContentType, query: ListQuery) {
     throw new MockError(400, 'invalid_request', `${type} has no dates to filter by`);
   const tests = [filter('category', query.category), filter('puzzle', query.puzzle), filter('game', query.game)];
   const needle = query.q?.toLowerCase();
+  // Made by the AI writer: a row one of its jobs created.
+  const ai = query.source ? new Set(db.writer.jobs.flatMap((job) => job.rowIds)) : null;
   const sort = query.sort ?? 'natural';
   const dir = query.dir === 'desc' ? -1 : 1;
   const value = (row: MockRow) =>
@@ -383,6 +386,7 @@ export function list(db: MockDb, type: TdContentType, query: ListQuery) {
     .filter((row) => tests.every((test) => test(row)))
     .filter((row) => (query.from === undefined || String(row.data.date) >= query.from) && (query.to === undefined || String(row.data.date) <= query.to))
     .filter((row) => !needle || JSON.stringify(row.data).toLowerCase().includes(needle))
+    .filter((row) => !ai || ai.has(row.id) === (query.source === 'ai'))
     .sort((a, b) => {
       const va = value(a);
       const vb = value(b);

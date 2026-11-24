@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { safeNextPath, tabForSegment, tabsForRole, TD_TABS } from '../navigation';
 
-const CONTENT = ['dashboard', 'categories', 'questions'];
+const CONTENT = ['dashboard', 'categories', 'questions', 'writer'];
 const keys = (role: Parameters<typeof tabsForRole>[0]) => tabsForRole(role).map((tab) => tab.key);
 
 describe('Table Derby navigation', () => {
   it('has the Quizball CMS’s pages, adapted: the rounds are game modes of the one Questions page', () => {
-    expect(TD_TABS).toHaveLength(8);
+    expect(TD_TABS).toHaveLength(9);
   });
 
   it('shows Betsson’s team the content, players, leaderboard and team tabs', () => {

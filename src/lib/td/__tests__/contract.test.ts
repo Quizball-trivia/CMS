@@ -18,10 +18,10 @@ describe('pinned admin contract', () => {
     expect(TD_CONTRACT.contract).toBe('table-derby-admin');
   });
 
-  it('is v13: one role for Betsson’s team; a release’s dailies are a record by game (Stat Sniper, or Football Logic in one from before)', () => {
+  it('is v16: one role for Betsson’s team; a release’s dailies are a record by game (Stat Sniper, or Football Logic in one from before); the AI question writer with its review queue and auto-publish', () => {
     expect((TD_CONTRACT as unknown as { roles: string[] }).roles).toEqual(['betsson_admin', 'ops']);
-    expect(TD_ADMIN_CONTRACT_VERSION).toBe(13);
-    expect(TD_CONTRACT.version).toBe(13);
+    expect(TD_ADMIN_CONTRACT_VERSION).toBe(16);
+    expect(TD_CONTRACT.version).toBe(16);
     type Schema = { type?: string; properties?: Record<string, Schema>; required?: string[]; propertyNames?: { enum: string[] }; additionalProperties?: Schema | boolean };
     const schemas = TD_CONTRACT.schemas as Record<string, Schema>;
     const games = ['statSniper', 'footballLogic', 'putInOrder', 'careerPath'];
