@@ -76,6 +76,33 @@ export interface TdPageQuery {
 
 const page = ({ cursor, limit }: TdPageQuery = {}) => ({ cursor, limit });
 
+/* ── The AI writer (contract v16) ─────────────────────────────────── */
+
+/** Rows the AI writer made (`ai`) or not (`other`): the content list's `source`. */
+export type TdContentSource = NonNullable<C.ContentListQuery['source']>;
+export type TdWriterMode = C.WriterJob['mode'];
+/** How hard a job writes: like the house's own questions (default), easier, or harder. */
+export type TdWriterDifficulty = C.WriterJob['difficulty'];
+export const TD_WRITER_REJECT_STAGES = ['plan', 'format', 'duplicate', 'same_fact', 'giveaway', 'fact', 'judge', 'too_easy', 'category', 'api'] as const satisfies readonly C.WriterJobReject['stage'][];
+export type TdWriterRejectStage = C.WriterJobReject['stage'];
+export const TD_WRITER_REVIEW_REASONS = ['wrong', 'too_easy', 'duplicate', 'ambiguous', 'bad_georgian', 'other'] as const satisfies readonly C.WriterRejectRequest['reason'][];
+export type TdWriterReviewReason = C.WriterRejectRequest['reason'];
+
+export type TdWriterJob = C.WriterJob;
+export type TdWriterSchedule = C.WriterSchedule;
+export type TdWriterOverview = C.WriterOverview;
+export type TdWriterJobReject = C.WriterJobReject;
+export type TdWriterJobDetail = C.WriterJobDetail;
+export type TdWriterVerdict = C.WriterVerdict;
+export type TdWriterReviewItem = C.WriterReviewItem;
+export type TdWriterReviewList = C.WriterReviewPage;
+export type TdWriterRejectRequest = C.WriterRejectRequest;
+export type TdWriterRejectResponse = C.WriterRejectResult;
+export type TdWriterRejectFailure = Extract<TdWriterRejectResponse['items'][number], { ok: false }>['code'];
+/** The review list: what waits for a member, or what jobs published themselves (contract v16). */
+export type TdWriterReviewKind = NonNullable<C.WriterReviewQuery['filter']>;
+export type TdWriterReleaseState = NonNullable<C.WriterJob['releaseState']>;
+
 /** One typed call per route of the pinned admin contract. */
 export function createTdAdminApi(api: TdApiClient) {
   const content = <T extends TdContentType>(type: T) => {
@@ -134,8 +161,9 @@ export function createTdAdminApi(api: TdApiClient) {
     },
     releases: {
       validate: (options?: TdRequestOptions) => api.post<C.ReleaseReport>('/admin/releases/validate', undefined, options),
-      publish: (idemKey: string, options?: TdRequestOptions) =>
-        api.post<C.Publication>('/admin/releases/publish', { idemKey }, options),
+      /** `only`: the publication may carry these changes alone (a row leaving: version null), else it fails `held`. */
+      publish: (idemKey: string, options?: TdRequestOptions, only?: C.PublishRequest['only']) =>
+        api.post<C.Publication>('/admin/releases/publish', only ? { idemKey, only } : { idemKey }, options),
       rollback: (releaseId: string, idemKey: string, options?: TdRequestOptions) =>
         api.post<C.Publication>(`/admin/releases/${segment(releaseId)}/rollback`, { idemKey }, options),
       list: (query?: TdPageQuery, options?: TdRequestOptions) =>
@@ -186,6 +214,23 @@ export function createTdAdminApi(api: TdApiClient) {
       /** Ops. With `retarget`, an event bound to an earlier webhook address moves to the current one. */
       retryWebhook: (eventId: string, retarget: boolean, options?: TdRequestOptions) =>
         api.post<C.WebhookEventDetail>(`/admin/integration/webhooks/${segment(eventId)}/retry`, retarget ? { retarget: true } : {}, options),
+    },
+    writer: {
+      /** The latest 50 jobs, both daily schedules, and whether the writer is connected. */
+      overview: (options?: TdRequestOptions) => api.get<TdWriterOverview>('/admin/writer', options),
+      /** Generate now. `requestId`: one per press (sent again, the same job answers). */
+      generate: (body: C.WriterJobRequest, options?: TdRequestOptions) =>
+        api.post<TdWriterJob>('/admin/writer/jobs', body, options),
+      /** A job and every question it wrote, as each stands now. */
+      job: (jobId: string, options?: TdRequestOptions) => api.get<TdWriterJobDetail>(`/admin/writer/jobs/${segment(jobId)}`, options),
+      cancel: (jobId: string, options?: TdRequestOptions) => api.post<TdWriterJob>(`/admin/writer/jobs/${segment(jobId)}/cancel`, {}, options),
+      schedule: (mode: C.WriterSchedule['mode'], body: C.WriterSchedulePatch, options?: TdRequestOptions) =>
+        api.patch<TdWriterSchedule>(`/admin/writer/schedules/${segment(mode)}`, body, options),
+      /** The AI rows of a mode still waiting for a member, newest first. */
+      review: (query: { mode: TdWriterMode; filter?: TdWriterReviewKind; jobId?: string } & TdPageQuery, options?: TdRequestOptions) =>
+        api.get<TdWriterReviewList>(`/admin/writer/review${queryString(query)}`, options),
+      /** Archives never-published AI drafts at the revision shown, with the reason; each item answers for itself. */
+      reject: (body: TdWriterRejectRequest, options?: TdRequestOptions) => api.post<TdWriterRejectResponse>('/admin/writer/reject', body, options),
     },
     staff: {
       /** A one-time invitation link token (48 hours), to hand over: the API never emails it. */

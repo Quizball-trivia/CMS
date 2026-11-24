@@ -290,6 +290,13 @@ export function advance(db: MockDb, now: number) {
       continue;
     }
     const snapshot = p.snapshot!;
+    if (p.done === 0 && due >= 1 && outsideAllowed(db, p)) {
+      p.status = 'failed';
+      p.error = { code: 'held', message: 'the release would carry other changes too; a member publishes it' };
+      p.finishedAt = new Date(now).toISOString();
+      p.updatedAt = p.finishedAt;
+      continue;
+    }
     while (p.status === 'running' && p.done < due) {
       const phase = PHASES[p.done];
       if (phase === 'validate' && !p.report?.ok) {
@@ -367,14 +374,38 @@ const base = (ctx: MockContext) => ({
   notify: { state: 'none' as const, attempts: 0, at: null },
 });
 
-export async function publish(ctx: MockContext, idemKey: string) {
+export async function publish(ctx: MockContext, idemKey: string, only?: { id: string; version: number | null }[]) {
   const found = byKey(ctx.db, idemKey, 'publish', null);
   if (found) return { status: 200, body: publicationView(found) };
   holdSlot(ctx.db);
   const made = await report(ctx.db, ctx.now);
-  const p: MockPublication = { ...base(ctx), idemKey, kind: 'publish', done: 0, releaseId: null, report: made.report, snapshot: { ...made.snapshot, releaseId: made.releaseId } };
+  const p: MockPublication = {
+    ...base(ctx),
+    idemKey,
+    kind: 'publish',
+    done: 0,
+    releaseId: null,
+    report: made.report,
+    snapshot: { ...made.snapshot, releaseId: made.releaseId },
+    allowed: only?.map((c) => ({ id: c.id, version: c.version })) ?? null,
+  };
   ctx.db.publications.push(p);
   return { status: 202, body: publicationView(p) };
+}
+
+/** A restricted publication's release would change something it may not carry (as the API's snapshot phase). */
+function outsideAllowed(db: MockDb, p: MockPublication): boolean {
+  if (!p.allowed) return false;
+  const current = db.releases.find((r) => r.id === p.previousReleaseId);
+  if (p.previousReleaseId && (!current || current.members.length === 0)) return true;
+  const may = new Map(p.allowed.map((a) => [a.id, a.version]));
+  const was = new Map((current?.members ?? []).map((m) => [m.id, m.contentVersion]));
+  const next = p.snapshot!.members;
+  const kept = new Set(next.map((m) => m.id));
+  for (const m of next) if (was.get(m.id) !== m.contentVersion && may.get(m.id) !== m.contentVersion) return true;
+  for (const id of was.keys()) if (!kept.has(id) && may.get(id) !== null) return true;
+  // A row it was to take out is still in (restored meanwhile).
+  return p.allowed.some((a) => a.version === null && kept.has(a.id));
 }
 
 export function rollback(ctx: MockContext, target: string, idemKey: string) {
