@@ -330,6 +330,76 @@ export function apiScenarios(h: () => Harness) {
     }
   });
 
+  it('writer: any member asks for AI drafts (one press, one job; three at once), stops them and sets the daily schedule', async () => {
+    const requestId = '7b1c2d3e-4f5a-4b6c-8d7e-9f0a1b2c3d41';
+    const first = await h().call('betsson_admin', 'POST', '/admin/writer/jobs', { body: { requestId, mode: 'penalty-questions', requested: 3, topic: 'Derbies' } });
+    expect(first).toMatchObject({ status: 201, body: { status: 'queued', requested: 3, scheduled: false } });
+    const again = await h().call('betsson_admin', 'POST', '/admin/writer/jobs', { body: { requestId, mode: 'penalty-questions', requested: 3, topic: 'Derbies' } });
+    expect(again).toMatchObject({ status: 200, body: { id: (first.body as { id: string }).id } });
+    expect(await h().call('ops', 'POST', '/admin/writer/jobs', { body: { requestId: '8c2d3e4f-5a6b-4c7d-9e8f-0a1b2c3d4e52', mode: 'penalty-questions', requested: 2, categoryKey: 'box-x' } })).toMatchObject({
+      status: 409,
+      body: { code: 'conflict' },
+    });
+    expect(await h().call('ops', 'POST', '/admin/writer/jobs', { body: { requestId: '9d3e4f5a-6b7c-4d8e-8f9a-1b2c3d4e5f63', mode: 'box-questions', requested: 2, categoryKey: 'box-nowhere' } })).toMatchObject({
+      status: 404,
+    });
+    expect(await h().call('ops', 'POST', '/admin/writer/jobs', { body: { requestId, mode: 'penalty-questions', requested: 51 } })).toMatchObject({ status: 400 });
+    const overview = await h().call('ops', 'GET', '/admin/writer');
+    expect(overview.status).toBe(200);
+    expect((overview.body as { schedules: unknown[] }).schedules).toHaveLength(5);
+    expect(overview.body).toMatchObject({ agent: { online: expect.any(Boolean) }, toReview: { cards: expect.any(Number), whoamiSubjects: expect.any(Number), penaltyQuestions: expect.any(Number), practiceQuestions: expect.any(Number) } });
+    const detail = await h().call('betsson_admin', 'GET', `/admin/writer/jobs/${(first.body as { id: string }).id}`);
+    expect(detail).toMatchObject({ status: 200, body: { job: { id: (first.body as { id: string }).id }, questions: expect.any(Array) } });
+    expect(await h().call('betsson_admin', 'GET', '/admin/writer/jobs/0b1c2d3e-4f5a-4b6c-8d7e-9f0a1b2c3d4e')).toMatchObject({ status: 404 });
+    const stopped = await h().call('ops', 'POST', `/admin/writer/jobs/${(first.body as { id: string }).id}/cancel`, { body: {} });
+    expect(stopped).toMatchObject({ status: 200, body: { status: 'cancelled' } });
+    expect(await h().call('ops', 'POST', `/admin/writer/jobs/${(first.body as { id: string }).id}/cancel`, { body: {} })).toMatchObject({ status: 409 });
+    // A schedule change names the version it changes (updatedAt as read): a stale one is refused.
+    const seen = async () =>
+      ((await h().call('ops', 'GET', '/admin/writer')).body as { schedules: { mode: string; revision: number }[] }).schedules.find((s) => s.mode === 'box-questions')!.revision;
+    const first0 = await seen();
+    expect(await h().call('betsson_admin', 'PATCH', '/admin/writer/schedules/box-questions', { body: { revision: first0, enabled: true, hour: 23, requested: 10 } })).toMatchObject({
+      status: 200,
+      body: { enabled: true, hour: 23, requested: 10 },
+    });
+    expect(await h().call('betsson_admin', 'PATCH', '/admin/writer/schedules/box-questions', { body: { revision: first0, enabled: false } })).toMatchObject({ status: 409, body: { code: 'conflict' } });
+    expect(await h().call('betsson_admin', 'PATCH', '/admin/writer/schedules/box-questions', { body: { enabled: false } })).toMatchObject({ status: 400 });
+    expect(await h().call('betsson_admin', 'PATCH', '/admin/writer/schedules/box-questions', { body: { revision: await seen(), enabled: false } })).toMatchObject({ status: 200, body: { enabled: false } });
+    expect(await h().call('betsson_admin', 'PATCH', '/admin/writer/schedules/media', { body: { revision: first0, enabled: true } })).toMatchObject({ status: 404 });
+    expect(await h().call('betsson_admin', 'PATCH', '/admin/writer/schedules/box-questions', { body: { revision: first0, hour: 24 } })).toMatchObject({ status: 400 });
+    expect(await h().call('ops', 'PATCH', '/admin/writer/schedules/box-questions', { body: { revision: await seen(), difficulty: 'hard' } })).toMatchObject({ status: 200, body: { difficulty: 'hard' } });
+    expect(await h().call('ops', 'PATCH', '/admin/writer/schedules/box-questions', { body: { revision: await seen(), difficulty: 'impossible' } })).toMatchObject({ status: 400 });
+  });
+
+  it('writer: the review queue lists a mode’s AI drafts; a rejection answers per item, never archiving what is not the writer’s', async () => {
+    const hard = await h().call('ops', 'POST', '/admin/writer/jobs', { body: { requestId: '1e2f3a4b-5c6d-4e7f-8a9b-0c1d2e3f4a5b', mode: 'whoami-subjects', requested: 2, difficulty: 'hard' } });
+    expect(hard).toMatchObject({ status: 201, body: { difficulty: 'hard', stopReason: null, rejectedBy: { duplicate: expect.any(Number), too_easy: expect.any(Number) } } });
+    await h().call('ops', 'POST', `/admin/writer/jobs/${(hard.body as { id: string }).id}/cancel`, { body: {} });
+    const page = await h().call('betsson_admin', 'GET', '/admin/writer/review?mode=penalty-questions&limit=5');
+    expect(page).toMatchObject({ status: 200, body: { items: expect.any(Array) } });
+    expect(await h().call('betsson_admin', 'GET', '/admin/writer/review')).toMatchObject({ status: 400 });
+    expect(await h().call('betsson_admin', 'GET', '/admin/writer/review?mode=media')).toMatchObject({ status: 400 });
+    const missing = '2f3a4b5c-6d7e-4f8a-9b0c-1d2e3f4a5b6c';
+    expect(await h().call('ops', 'POST', '/admin/writer/reject', { body: { items: [{ id: missing, rowRevision: 1 }], reason: 'wrong' } })).toMatchObject({
+      status: 200,
+      body: { items: [{ id: missing, ok: false, code: 'not_found' }] },
+    });
+    const own = (await h().call('ops', 'POST', '/admin/content/penalty-questions', { body: { data: { key: 'writer-not-ai', q: 'Invented: not by the writer?', display: 'Nobody', aliases: ['nobody'] } } })).body as { id: string; version: number };
+    expect(await h().call('ops', 'POST', '/admin/writer/reject', { body: { items: [{ id: own.id, rowRevision: own.version }], reason: 'other', note: 'Invented note' } })).toMatchObject({
+      status: 200,
+      body: { items: [{ id: own.id, ok: false, code: 'not_ai' }] },
+    });
+    expect(await h().call('ops', 'GET', `/admin/content/penalty-questions/${own.id}`)).toMatchObject({ status: 200, body: { status: 'draft' } });
+    expect(await h().call('ops', 'POST', '/admin/writer/reject', { body: { items: [{ id: missing, rowRevision: 1 }], reason: 'boring' } })).toMatchObject({ status: 400 });
+    expect(await h().call('ops', 'POST', '/admin/writer/reject', { body: { items: [], reason: 'wrong' } })).toMatchObject({ status: 400 });
+    const ai = await h().call('ops', 'GET', '/admin/content/penalty-questions?source=ai&status=draft,ready,approved,archived');
+    expect(ai.status).toBe(200);
+    expect((ai.body as { items: Array<{ id: string }> }).items.some((row) => row.id === own.id)).toBe(false);
+    const other = await h().call('ops', 'GET', `/admin/content/penalty-questions?source=other&q=${encodeURIComponent('Invented: not by the writer')}`);
+    expect((other.body as { items: Array<{ id: string }> }).items.map((row) => row.id)).toContain(own.id);
+    expect(await h().call('ops', 'GET', '/admin/content/penalty-questions?source=upload')).toMatchObject({ status: 400 });
+  });
+
   it('integration: webhooks are for Betsson admins and ops to read, and for ops to retry', async () => {
     expect(await h().call('betsson_admin', 'POST', '/admin/integration/webhooks/no-such-event/retry', { body: {} })).toMatchObject({ status: 403 });
     expect((await h().call('betsson_admin', 'GET', '/admin/integration/webhooks?limit=5')).status).toBe(200);

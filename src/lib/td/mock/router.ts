@@ -18,6 +18,7 @@ import * as integration from './integration';
 import * as media from './media';
 import * as ops from './ops';
 import * as releases from './releases';
+import * as writer from './writer';
 import { SEED_UPLOAD_PNG_BASE64 } from './seed-content';
 import { clone, json, MockError, refuse } from './util';
 
@@ -156,7 +157,7 @@ export function createMockAdmin({ storage, blobs, now, lock }: MockAdminDeps) {
       case 'POST /admin/releases/validate':
         return json(200, await releases.validate(ctx));
       case 'POST /admin/releases/publish': {
-        const out = await releases.publish(ctx, body.idemKey);
+        const out = await releases.publish(ctx, body.idemKey, body.only);
         return json(out.status, out.body);
       }
       case 'POST /admin/releases/:id/rollback': {
@@ -205,6 +206,22 @@ export function createMockAdmin({ storage, blobs, now, lock }: MockAdminDeps) {
         return json(200, integration.get(ctx, params.id));
       case 'POST /admin/integration/webhooks/:id/retry':
         return json(200, integration.retry(ctx, params.id, checked<{ retarget?: boolean }>().retarget ?? false, retryLimiter));
+      case 'GET /admin/writer':
+        return json(200, writer.overview(ctx));
+      case 'POST /admin/writer/jobs': {
+        const out = writer.createJob(ctx, checked());
+        return json(out.status, out.job);
+      }
+      case 'GET /admin/writer/jobs/:id':
+        return json(200, writer.jobDetail(ctx, params.id));
+      case 'POST /admin/writer/jobs/:id/cancel':
+        return json(200, writer.cancel(ctx, params.id));
+      case 'PATCH /admin/writer/schedules/:mode':
+        return json(200, writer.patchSchedule(ctx, params.mode, checked()));
+      case 'GET /admin/writer/review':
+        return json(200, writer.review(ctx, query));
+      case 'POST /admin/writer/reject':
+        return json(200, writer.reject(ctx, checked()));
       case 'GET /admin/settings':
         return json(200, ops.settings(ctx));
       case 'PATCH /admin/settings/tickets-per-day':
@@ -236,6 +253,8 @@ export function createMockAdmin({ storage, blobs, now, lock }: MockAdminDeps) {
       const ctx: content.MockContext = { db, staff, now: now() };
       releases.advance(db, ctx.now);
       integration.advance(db, ctx.now);
+      writer.advance(db, ctx.now);
+      await writer.releasePending(db, ctx.now);
       try {
         const response = await dispatch(ctx, route, params, req);
         save(db);

@@ -6,6 +6,7 @@ import { TD_TAB_GROUP_LABELS, tabsForRole, type TdTab, type TdTabGroup, type TdT
 import { cn } from '@/lib/utils';
 import type { TdRole } from '@/types/td';
 import { TD_TAB_ICONS } from './td-tab-icons';
+import { TdWriterBadge } from './writer/td-writer-badge';
 
 const GROUP_ICONS: Record<TdTabGroup, LucideIcon> = {
   analytics: CircleGauge,
@@ -57,7 +58,7 @@ export function TdNav({ role, activeKey }: { role: TdRole; activeKey: TdTabKey |
                         aria-label={tab.label}
                         aria-current={active ? 'page' : undefined}
                         className={cn(
-                          'mx-auto grid size-10 place-items-center rounded-xl transition lg:mx-0 lg:flex lg:h-10 lg:w-auto lg:items-center lg:gap-3 lg:rounded-lg lg:border-l-2 lg:px-3 lg:text-xs lg:font-bold',
+                          'relative mx-auto grid size-10 place-items-center rounded-xl transition lg:mx-0 lg:flex lg:h-10 lg:w-auto lg:items-center lg:gap-3 lg:rounded-lg lg:border-l-2 lg:px-3 lg:text-xs lg:font-bold',
                           active
                             ? 'bg-blue-50 text-blue-700 ring-1 ring-blue-100 lg:border-blue-600 lg:ring-0'
                             : 'text-slate-400 hover:bg-slate-50 hover:text-slate-700 lg:border-transparent',
@@ -66,6 +67,7 @@ export function TdNav({ role, activeKey }: { role: TdRole; activeKey: TdTabKey |
                         <Icon className="size-4 shrink-0" />
                         <span className="hidden min-w-0 flex-1 truncate lg:block">{tab.label}</span>
                         {tab.hint && <span className="hidden shrink-0 text-[10px] font-semibold text-slate-400 lg:inline">{tab.hint}</span>}
+                        {tab.key === 'writer' && <TdWriterBadge />}
                       </Link>
                     </li>
                   );

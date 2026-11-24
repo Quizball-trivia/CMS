@@ -21,6 +21,7 @@ export const tdKeys = {
   imports: ['td', 'imports'] as const,
   ops: ['td', 'ops'] as const,
   integration: ['td', 'integration'] as const,
+  writer: ['td', 'writer'] as const,
 };
 
 const PAGE = 50;

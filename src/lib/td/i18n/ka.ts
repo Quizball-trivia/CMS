@@ -10,6 +10,7 @@ import { KA_PUBLISH } from './ka-publish';
 import { KA_QUESTIONS } from './ka-questions';
 import { KA_SHELL } from './ka-shell';
 import { KA_UPLOAD } from './ka-upload';
+import { KA_WRITER } from './ka-writer';
 
 export const KA_PARTS = {
   common: KA_COMMON,
@@ -22,6 +23,7 @@ export const KA_PARTS = {
   dashboard: KA_DASHBOARD,
   categories: KA_CATEGORIES,
   upload: KA_UPLOAD,
+  writer: KA_WRITER,
 } as const;
 
 export const KA: Record<string, string> = {
@@ -35,4 +37,5 @@ export const KA: Record<string, string> = {
   ...KA_DASHBOARD,
   ...KA_CATEGORIES,
   ...KA_UPLOAD,
+  ...KA_WRITER,
 };
