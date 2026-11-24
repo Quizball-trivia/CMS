@@ -4,6 +4,7 @@ import { logger } from '@/lib/logger';
 import { getErrorLogDetails } from '@/lib/error-feedback';
 import { DEFAULT_PROMPT_TYPE } from '@/types';
 import type {
+  DailyGame,
   ListAgentJobsParams,
   SaveAgentPromptRequest,
   SpawnAgentJobRequest,
@@ -35,6 +36,9 @@ export const agentKeys = {
     [...agentKeys.all, 'prompts', type] as const,
   promptHistory: (role: string, type: string = DEFAULT_PROMPT_TYPE) =>
     [...agentKeys.prompts(type), 'history', role] as const,
+  dayBatches: () => [...agentKeys.all, 'day-batches'] as const,
+  dayBatchBuffers: () => [...agentKeys.dayBatches(), 'buffers'] as const,
+  dayBatch: (id: string) => [...agentKeys.dayBatches(), 'detail', id] as const,
 };
 
 export function useAgentJobs(params?: ListAgentJobsParams) {
@@ -373,4 +377,72 @@ export function useActivatePromptVersion() {
       });
     },
   });
+}
+
+// ── daily-game day batches ──
+
+export function useDayBatchBuffers() {
+  return useQuery({
+    queryKey: agentKeys.dayBatchBuffers(),
+    queryFn: () => agentsApi.getDayBatchBuffers(),
+    refetchInterval: 15000,
+  });
+}
+
+export function useDayBatches() {
+  return useQuery({
+    queryKey: agentKeys.dayBatches(),
+    queryFn: () => agentsApi.listDayBatches({ limit: 30 }),
+    refetchInterval: 15000,
+  });
+}
+
+export function useDayBatch(batchId: string | null) {
+  return useQuery({
+    queryKey: agentKeys.dayBatch(batchId ?? ''),
+    queryFn: () => agentsApi.getDayBatch(batchId!),
+    enabled: !!batchId,
+    // the dry run reflects the days table now: re-check it, so a date taken meanwhile shows before Approve is clicked
+    refetchInterval: 15000,
+  });
+}
+
+function useDayBatchMutation<TArgs>(mutationFn: (args: TArgs) => Promise<unknown>, label: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn,
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: agentKeys.dayBatches() });
+      queryClient.invalidateQueries({ queryKey: agentKeys.reviewCount() });
+      queryClient.invalidateQueries({ queryKey: agentKeys.jobs() });
+    },
+    onError: (error) => {
+      logger.error('agents', label, getErrorLogDetails(error));
+    },
+  });
+}
+
+export function useApproveDayBatch() {
+  return useDayBatchMutation((batchId: string) => agentsApi.approveDayBatch(batchId), 'Failed to approve day batch');
+}
+
+export function useRejectDayBatch() {
+  return useDayBatchMutation(
+    ({ batchId, reason }: { batchId: string; reason: string }) => agentsApi.rejectDayBatch(batchId, reason),
+    'Failed to reject day batch'
+  );
+}
+
+export function useSpawnDayBatch() {
+  return useDayBatchMutation(
+    ({ game, days }: { game: DailyGame; days: number }) => agentsApi.spawnDayBatch(game, days),
+    'Failed to start day batch build'
+  );
+}
+
+export function useSetDayBatchHold() {
+  return useDayBatchMutation(
+    ({ game, hold }: { game: DailyGame; hold: boolean }) => agentsApi.setDayBatchHold(game, hold),
+    'Failed to change day batch review setting'
+  );
 }

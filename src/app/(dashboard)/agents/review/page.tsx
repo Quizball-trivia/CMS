@@ -5,7 +5,8 @@ import { Inbox, Loader2, Check, X, CalendarClock, Trophy, ChevronDown, ChevronRi
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
-import { useReviewQueue, useApproveQuestion, useRejectQuestion, useRegenerateQuestion, useUpdateReviewQuestion } from '@/hooks';
+import { useDayBatches, useReviewQueue, useApproveQuestion, useRejectQuestion, useRegenerateQuestion, useUpdateReviewQuestion } from '@/hooks';
+import { DayBatchReviewCard } from '../day-batches-ui';
 import { getLocalizedTextByLang } from '@/lib/utils';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -16,6 +17,13 @@ import { TranslationProgressStrip } from '../translation-progress';
 import type { AgentReviewGroup, AgentReviewItem, AgentQuestionPayload, I18nField } from '@/types';
 
 function SourceBadge({ source }: { source: string }) {
+  if (source === 'days') {
+    return (
+      <Badge variant="outline" className="border-violet-200 bg-violet-50 text-violet-700">
+        <CalendarClock className="mr-1 h-3 w-3" /> Daily game
+      </Badge>
+    );
+  }
   if (source === 'daily') {
     return (
       <Badge variant="outline" className="border-violet-200 bg-violet-50 text-violet-700">
@@ -611,8 +619,12 @@ function FilterPill({ active, label, count, onClick }: { active: boolean; label:
 
 export default function ReviewPage() {
   const { data, isLoading } = useReviewQueue();
-  const [sourceFilter, setSourceFilter] = useState<'all' | 'ranked' | 'daily'>('all');
+  const [sourceFilter, setSourceFilter] = useState<'all' | 'ranked' | 'daily' | 'days'>('all');
+  // daily-game batches that need a person (held for review, or failed validation): same queue, same decisions
+  const { data: batches } = useDayBatches();
+  const dayBatches = (batches ?? []).filter((b) => b.status === 'pending');
   const [typeFilter, setTypeFilter] = useState<string>('all');
+  const showDays = (sourceFilter === 'all' || sourceFilter === 'days') && typeFilter === 'all';
 
   const allGroups = data?.groups ?? [];
   const allItems = allGroups.flatMap((g) => g.items);
@@ -622,7 +634,7 @@ export default function ReviewPage() {
     .filter((g) => sourceFilter === 'all' || g.source === sourceFilter)
     .map((g) => ({ ...g, items: g.items.filter(typeMatch) }))
     .filter((g) => g.items.length > 0);
-  const count = groups.reduce((s, g) => s + g.items.length, 0);
+  const count = groups.reduce((s, g) => s + g.items.length, 0) + (showDays ? dayBatches.length : 0);
 
   const sourceCount = (s: string) => allGroups.filter((g) => g.source === s).reduce((n, g) => n + g.items.length, 0);
 
@@ -636,8 +648,8 @@ export default function ReviewPage() {
           <h1 className="text-2xl font-bold tracking-tight text-slate-900">Review Queue</h1>
           <p className="text-sm text-slate-500">
             {count > 0
-              ? `${count} agent-generated question${count === 1 ? '' : 's'} waiting for review. Approve to go live.`
-              : 'Agent-generated questions awaiting review.'}
+              ? `${count} agent-generated item${count === 1 ? '' : 's'} waiting for review. Approve to go live.`
+              : 'Agent-generated questions and daily-game days awaiting review.'}
           </p>
         </div>
       </div>
@@ -655,9 +667,10 @@ export default function ReviewPage() {
       <div className="space-y-2">
         <div className="flex flex-wrap items-center gap-1.5">
           <span className="mr-1 text-[10px] font-black uppercase tracking-widest text-slate-400">Source</span>
-          <FilterPill active={sourceFilter === 'all'} label="All" count={allItems.length} onClick={() => setSourceFilter('all')} />
+          <FilterPill active={sourceFilter === 'all'} label="All" count={allItems.length + dayBatches.length} onClick={() => setSourceFilter('all')} />
           <FilterPill active={sourceFilter === 'daily'} label="Daily challenge" count={sourceCount('daily')} onClick={() => setSourceFilter('daily')} />
           <FilterPill active={sourceFilter === 'ranked'} label="Ranked" count={sourceCount('ranked')} onClick={() => setSourceFilter('ranked')} />
+          <FilterPill active={sourceFilter === 'days'} label="Daily games" count={dayBatches.length} onClick={() => setSourceFilter('days')} />
         </div>
         <div className="flex flex-wrap items-center gap-1.5">
           <span className="mr-1 text-[10px] font-black uppercase tracking-widest text-slate-400">Type</span>
@@ -674,7 +687,7 @@ export default function ReviewPage() {
         <div className="flex items-center gap-2 py-10 text-sm text-slate-500">
           <Loader2 className="h-4 w-4 animate-spin" /> Loading review queue…
         </div>
-      ) : groups.length === 0 ? (
+      ) : groups.length === 0 && !(showDays && dayBatches.length > 0) ? (
         <Card className="border-slate-200 shadow-sm">
           <CardContent className="flex flex-col items-center gap-2 py-14 text-center">
             <Check className="h-8 w-8 text-emerald-500" />
@@ -684,7 +697,8 @@ export default function ReviewPage() {
         </Card>
       ) : (
         <div className="space-y-4">
-          {groups.map((g) => (
+          {showDays ? dayBatches.map((b) => <DayBatchReviewCard key={b.id} summary={b} />) : null}
+          {sourceFilter === 'days' ? null : groups.map((g) => (
             <Group key={`${g.source}-${g.topic}`} group={g} />
           ))}
         </div>
