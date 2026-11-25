@@ -9,7 +9,7 @@ import { useHarnessOverview, useSetHarnessPolicy, useUpdateHarnessSettings } fro
 import { formatRelative } from '@/lib/hq-board';
 import { cn } from '@/lib/utils';
 import type { HarnessAccount, HarnessOverview, HarnessReleaseStatus } from '@/types';
-import { EmptyState, errorMessage, HQ_LABEL, HQ_PAGE, LoadErrorState, PageHeader, Panel, Section, Stat } from '../hq-ui';
+import { EmptyState, errorMessage, HQ_LABEL, HQ_PAGE, LoadErrorState, PageHeader, Panel, RefreshErrorBanner, Section, Stat } from '../hq-ui';
 
 // HQ → Content: the agent harness that keeps game content full, first slice
 // Classic ranked. People only steer here (pause, run caps, release mode);
@@ -59,9 +59,17 @@ function usage(a: HarnessAccount): string {
 function accountState(a: HarnessAccount): { label: string; tone: string } {
   if (a.reservedForPeople) return { label: 'People only', tone: 'bg-slate-100 text-slate-700' };
   if (a.status === 'disabled') return { label: 'Off', tone: 'bg-slate-100 text-slate-600' };
-  if (a.blockedUntil && Date.parse(a.blockedUntil) > Date.now()) {
+  const now = Date.now();
+  if (a.blockedUntil && Date.parse(a.blockedUntil) > now) {
     return { label: a.state === 'auth' ? 'Login problem' : 'At its limit', tone: 'bg-amber-100 text-amber-800' };
   }
+  // Same rule as the worker's router: a window that hasn't reset yet and is refused or past the account's share.
+  const full = Object.values(a.windows ?? {}).some(
+    (w) =>
+      !(w.resets_at && Date.parse(w.resets_at) <= now) &&
+      (w.status === 'rejected' || (typeof w.utilization === 'number' && w.utilization * 100 >= a.softPct))
+  );
+  if (full) return { label: 'At its limit', tone: 'bg-amber-100 text-amber-800' };
   return { label: 'Ready', tone: 'bg-emerald-100 text-emerald-800' };
 }
 
@@ -143,6 +151,8 @@ export default function HqContentPage() {
         </div>
       ) : (
         <>
+          {/* A failed refresh keeps the last data on screen; say so, so nobody acts on stale numbers. */}
+          {error && <RefreshErrorBanner />}
           {data.settings.paused && (
             <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
               <b>Agents are paused.</b> {data.settings.pausedReason ?? ''} Nothing new starts until someone switches them on.

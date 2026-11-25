@@ -89,3 +89,20 @@ it('shows a load error with a retry', () => {
   render(<HqContentPage />);
   expect(screen.getByRole('button', { name: /retry|try again/i })).toBeTruthy();
 });
+
+it('marks an account at its usage share as not ready, like the router', () => {
+  const base = overview();
+  h.data = overview({
+    accounts: [{ ...base.accounts[0], windows: { five_hour: { status: 'allowed', utilization: 0.95, resets_at: '2999-01-01T00:00:00Z' } } }],
+  });
+  render(<HqContentPage />);
+  expect(screen.getByText('At its limit')).toBeTruthy();
+  expect(screen.queryByText('Ready')).toBeNull();
+});
+
+it('keeps the data but warns when a refresh fails', () => {
+  h.error = new Error('down');
+  render(<HqContentPage />);
+  expect(screen.getByText('manchester-united')).toBeTruthy();
+  expect(screen.getByText(/couldn.t refresh/i)).toBeTruthy();
+});
