@@ -14,4 +14,5 @@ export * from './use-campaign-quiz-pages';
 export * from './use-retention';
 export * from './use-freecroco';
 export * from './use-hq';
+export * from './use-harness';
 export * from './use-content-gaps';
