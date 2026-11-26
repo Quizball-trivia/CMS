@@ -1,10 +1,13 @@
 // Data layer for the HQ Content tab (`/admin/harness`), through the shared apiClient like hq-api.ts.
 import { apiClient } from '@/services';
-import type { HarnessCreateEvent, HarnessCreateRequest, HarnessItemAction, HarnessOverview, HarnessPriority, HarnessSettings, HarnessUpdateSettingsRequest } from '@/types';
+import type { HarnessGames, HarnessCreateEvent, HarnessCreateRequest, HarnessItemAction, HarnessOverview, HarnessPriority, HarnessSettings, HarnessUpdateSettingsRequest } from '@/types';
 
 const BASE = '/admin/harness';
 
 export const harnessApi = {
+  games(): Promise<HarnessGames> {
+    return apiClient.get<HarnessGames>(`${BASE}/games`);
+  },
   overview(): Promise<HarnessOverview> {
     return apiClient.get<HarnessOverview>(`${BASE}/overview`);
   },

@@ -308,3 +308,37 @@ export interface HarnessUpdateSettingsRequest {
   maxConcurrentRuns?: number;
   dailyRunLimit?: number;
 }
+
+// ── Games hub ──────────────────────────────────────────────────────────────
+
+export type HarnessGameGroup = 'match' | 'daily' | 'party' | 'solo' | 'live' | 'partner';
+export type HarnessGameState = 'on' | 'off' | 'paused' | 'beta' | 'retired';
+/** Plays in the last 7 days and in the 7 before. */
+export interface HarnessCounted {
+  now: number;
+  before: number;
+}
+
+export interface HarnessGame {
+  key: string;
+  name: string;
+  group: HarnessGameGroup;
+  what: string;
+  state: HarnessGameState;
+  /** The game's real page on the site. */
+  route: string | null;
+  /** Where it can be played alone on the staging site: the playground (every screen) or a demo (one scripted run). */
+  preview: { kind: 'playground'; game: string } | { kind: 'demo'; slug: string } | null;
+  stats: {
+    /** Daily game: players who started a day, and how many finished it. */
+    started: HarnessCounted | null;
+    finished: HarnessCounted | null;
+    /** Matches, games with friends or solo rounds. */
+    played: HarnessCounted | null;
+  };
+}
+
+export interface HarnessGames {
+  generatedAt: string;
+  games: HarnessGame[];
+}
