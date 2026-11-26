@@ -471,3 +471,25 @@ it('lists what was taken out of the show pack and why', () => {
   expect(screen.getByText('ძველი კითხვა')).toBeTruthy();
   expect(screen.getByText('The record was broken in 2026.')).toBeTruthy();
 });
+
+it('keeps the status honest in the awkward cases: put-off jobs, logins, a limit reached mid-run, a seat that ran out while running', () => {
+  const used = [seat('Ultra', { state: 'limit', blockedUntil: '2026-11-27T02:00:00Z' })];
+  h.data = { ...overview(), accounts: used, queue: { running: 0, ready: 0, waiting: 9, nextAt: '2026-11-27T02:00:00Z', dailyLimitReached: false } };
+  render(<HqContentPage />);
+  expect(screen.getByText('Every subscription is used up. The first one is back Fri 06:00. 9 jobs waiting.')).toBeTruthy();
+  cleanup();
+  h.data = { ...overview(), accounts: [seat('Codex', { state: 'auth', blockedUntil: '2026-11-26T18:20:00Z' })], queue: { running: 0, ready: 4, waiting: 0, nextAt: null, dailyLimitReached: false } };
+  render(<HqContentPage />);
+  expect(screen.getByText('Agents cannot work')).toBeTruthy();
+  expect(screen.getByText('Every subscription needs a new login on the worker. 4 jobs waiting.')).toBeTruthy();
+  cleanup();
+  h.data = { ...overview(), accounts: [seat('Ultra', { running: 2 })], queue: { running: 2, ready: 3, waiting: 0, nextAt: null, dailyLimitReached: true } };
+  render(<HqContentPage />);
+  expect(screen.getByText('Agents finishing for today')).toBeTruthy();
+  cleanup();
+  h.data = { ...overview(), accounts: [seat('Ultra', { running: 1, state: 'limit', blockedUntil: '2026-11-27T02:00:00Z' }), seat('Premium 1')], queue: { running: 1, ready: 0, waiting: 0, nextAt: null, dailyLimitReached: false } };
+  render(<HqContentPage />);
+  expect(screen.getByText('1 running now on 1 subscription.')).toBeTruthy();
+  open('Agents');
+  expect(screen.getByText(/1 still finishing/)).toBeTruthy();
+});

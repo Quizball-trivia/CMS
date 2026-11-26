@@ -125,17 +125,31 @@ export function agentsNow(o: HarnessOverview, now: number = Date.now()): AgentsN
   if (o.settings.paused) return { tone: 'paused', headline: 'Agents paused', detail: 'Nothing new starts until someone switches them on.' };
   const q = o.queue;
   if (!q) return { tone: 'working', headline: 'Agents working', detail: '' };
-  if (q.dailyLimitReached) return { tone: 'waiting', headline: 'Agents stopped for today', detail: "Today's run limit is reached. They start again at midnight, or when the limit is raised in the Engine room." };
-  const seats = o.accounts.filter((a) => !a.reservedForPeople && a.status === 'active').map((a) => seatState(a, now));
-  const usable = seats.filter((s) => s.kind === 'working' || s.kind === 'free').length;
+  const active = o.accounts.filter((a) => !a.reservedForPeople && a.status === 'active');
+  const seats = active.map((a) => seatState(a, now));
   const jobs = (n: number) => `${n} job${n === 1 ? '' : 's'}`;
-  if (q.running > 0) {
-    const on = seats.filter((s) => s.kind === 'working').length;
-    return { tone: 'working', headline: 'Agents working', detail: `${q.running} running now on ${on} subscription${on === 1 ? '' : 's'}${q.ready ? `, ${jobs(q.ready)} next in line` : ''}.` };
+  // Counted from the runs themselves: a seat that just ran out can still be finishing one.
+  const on = active.filter((a) => (a.running ?? 0) > 0).length;
+  const runningText = `${q.running} running now on ${on} subscription${on === 1 ? '' : 's'}`;
+  if (q.dailyLimitReached) {
+    const when = "Today's run limit is reached. New work starts again at midnight, or when the limit is raised in the Engine room.";
+    return q.running > 0
+      ? { tone: 'waiting', headline: 'Agents finishing for today', detail: `${runningText}; nothing new starts. ${when}` }
+      : { tone: 'waiting', headline: 'Agents stopped for today', detail: when };
   }
-  if (q.ready > 0 && seats.length > 0 && usable === 0) {
+  if (q.running > 0) return { tone: 'working', headline: 'Agents working', detail: `${runningText}${q.ready ? `, ${jobs(q.ready)} next in line` : ''}.` };
+  // Jobs put off because no seat was usable count too: they are waiting for a seat, not resting.
+  const pending = q.ready + q.waiting;
+  const usable = seats.filter((s) => s.kind === 'working' || s.kind === 'free').length;
+  if (pending > 0 && seats.length > 0 && usable === 0) {
+    const logins = seats.filter((s) => s.kind === 'login').length;
+    if (logins === seats.length) return { tone: 'waiting', headline: 'Agents cannot work', detail: `Every subscription needs a new login on the worker. ${jobs(pending)} waiting.` };
     const back = seats.map((s) => s.until).filter((t): t is string => !!t).sort()[0];
-    return { tone: 'waiting', headline: 'Agents waiting', detail: `Every subscription is used up${back ? `. The first one is back ${georgianTime(back)}` : ''}. ${jobs(q.ready)} waiting.` };
+    return {
+      tone: 'waiting',
+      headline: 'Agents waiting',
+      detail: `Every subscription is used up${logins ? ` or needs a new login (${logins})` : ''}${back ? `. The first one is back ${georgianTime(back)}` : ''}. ${jobs(pending)} waiting.`,
+    };
   }
   if (q.ready > 0) return { tone: 'working', headline: 'Agents working', detail: `${jobs(q.ready)} about to start.` };
   if (q.waiting > 0) return { tone: 'idle', headline: 'Agents resting', detail: `${jobs(q.waiting)} scheduled${q.nextAt ? `, the next ${georgianTime(q.nextAt)}` : ''}.` };

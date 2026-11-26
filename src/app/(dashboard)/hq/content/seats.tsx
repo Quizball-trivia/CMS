@@ -64,7 +64,10 @@ export function Seats({ data }: { data: HarnessOverview }) {
                   </div>
                 );
               })}
-              <p className="text-[12px] tabular-nums text-slate-500">{a.runsToday ?? 0} runs today</p>
+              <p className="text-[12px] tabular-nums text-slate-500">
+                {a.runsToday ?? 0} runs today
+                {st.kind !== 'working' && (a.running ?? 0) > 0 ? ` · ${a.running} still finishing` : ''}
+              </p>
             </Panel>
           );
         })}
