@@ -29,6 +29,23 @@ export interface AnalyticsOverview {
   signupsPerDay: DayCount[];
   gamesPerDay: GamesPerDayEntry[];
   countries: CountryBreakdown[];
+  /** totals.totalUsers, actives and the day series include Table Derby's players; these are the parts.
+   *  Optional: absent from backends that predate it. tableDerby is null until its first sync. */
+  breakdown?: {
+    quizball: { totalUsers: number; dau: number; wau: number; mau: number };
+    tableDerby: {
+      day: string;
+      updatedAt: string;
+      totalUsers: number;
+      newUsers: number;
+      dau: number;
+      wau: number;
+      mau: number;
+      matches: number;
+      dauSeries: DayCount[];
+      signupsPerDay: DayCount[];
+    } | null;
+  };
   generatedAt: string;
   timezone: 'Asia/Tbilisi';
 }
