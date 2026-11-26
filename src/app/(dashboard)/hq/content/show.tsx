@@ -230,6 +230,25 @@ function Pack({ pack, show }: { pack: HarnessShowPack; show: HarnessShow }) {
         </Panel>
       ))}
 
+      {pack.removed && pack.removed.length > 0 && (
+        <details className="rounded-lg border border-slate-200 bg-white">
+          <summary className="cursor-pointer px-4 py-2.5 text-sm font-medium text-slate-900">
+            Taken out of this pack ({pack.removed.length})
+          </summary>
+          <ul className="divide-y divide-slate-100 border-t border-slate-100">
+            {pack.removed.map((r, i) => (
+              <li key={i} className="space-y-1 px-4 py-2.5 text-sm">
+                <div className="text-[12px] text-slate-600">
+                  {KIND_LABEL[r.kind ?? ''] ?? 'Question'} · {r.by === 'checker' ? 'removed by the checker' : 'swapped by a person'}
+                </div>
+                <Both t={r.text} />
+                {r.note && <p className="rounded-md bg-red-50 px-2.5 py-1.5 text-[13px] text-red-800">{r.note}</p>}
+              </li>
+            ))}
+          </ul>
+        </details>
+      )}
+
       <Dialog open={confirm !== null} onOpenChange={(o) => !o && !busy && setConfirm(null)}>
         <DialogContent>
           <DialogHeader>

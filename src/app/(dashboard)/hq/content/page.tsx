@@ -6,16 +6,17 @@ import { Loader2, Pause, Play } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { useHarnessOverview, useSetHarnessPolicy, useUpdateHarnessSettings } from '@/hooks';
+import { useHarnessOverview, useSetHarnessPolicy, useUpdateHarnessSettings, useHqClock } from '@/hooks';
 import { formatRelative } from '@/lib/hq-board';
 import { cn } from '@/lib/utils';
 import type { HarnessOverview, HarnessReleaseStatus } from '@/types';
 import { EmptyState, errorMessage, HQ_LABEL, HQ_PAGE, LoadErrorState, PageHeader, Panel, RefreshErrorBanner, Section } from '../hq-ui';
 import { AskHq } from './ask';
 import { EngineRoom } from './engine';
-import { flow, plainEvent, stuckCount } from './plain';
+import { agentsNow, flow, plainEvent, stuckCount } from './plain';
 import { JustLive, NeedsYou } from './questions';
 import { Runway } from './runway';
+import { Seats } from './seats';
 import { Show, ShowSummary } from './show';
 import { Events, NewCategories } from './plans';
 import { CategoryBoard, Orders } from './steering';
@@ -74,8 +75,16 @@ function Controls({ data }: { data: HarnessOverview }) {
   );
 }
 
+const NOW_TONE: Record<string, [string, string]> = {
+  working: ['text-emerald-700', 'animate-pulse bg-emerald-500'],
+  paused: ['text-amber-700', 'bg-amber-500'],
+  waiting: ['text-amber-700', 'bg-amber-500'],
+  idle: ['text-slate-700', 'bg-slate-400'],
+};
+
 function StatusLine({ data }: { data: HarnessOverview }) {
   const stuck = stuckCount(data);
+  const now = agentsNow(data, useHqClock().getTime());
   const parts: Array<{ n: number; text: string; tone: string }> = [
     { n: data.today.live, text: 'new questions in ranked today', tone: 'text-emerald-700' },
     { n: data.classic.totalShortage, text: `still missing in ${data.classic.shortCategories} categories`, tone: data.classic.totalShortage ? 'text-amber-700' : 'text-emerald-700' },
@@ -83,15 +92,16 @@ function StatusLine({ data }: { data: HarnessOverview }) {
   ];
   return (
     <Panel className="flex flex-wrap items-center gap-x-6 gap-y-2 px-5 py-4">
-      <span className={cn('inline-flex items-center gap-2 text-sm font-semibold', data.settings.paused ? 'text-amber-700' : 'text-emerald-700')}>
-        <span className={cn('h-2.5 w-2.5 rounded-full', data.settings.paused ? 'bg-amber-500' : 'animate-pulse bg-emerald-500')} aria-hidden />
-        {data.settings.paused ? 'Agents paused' : 'Agents working'}
+      <span className={cn('inline-flex items-center gap-2 text-sm font-semibold', NOW_TONE[now.tone][0])}>
+        <span className={cn('h-2.5 w-2.5 rounded-full', NOW_TONE[now.tone][1])} aria-hidden />
+        {now.headline}
       </span>
       {parts.map((p) => (
         <span key={p.text} className="text-[15px] text-slate-700">
           <b className={cn('text-xl tabular-nums', p.tone)}>{p.n.toLocaleString()}</b> {p.text}
         </span>
       ))}
+      {now.detail && <p className="w-full text-[13px] text-slate-600">{now.detail}</p>}
     </Panel>
   );
 }
@@ -164,6 +174,7 @@ function Team({ data }: { data: HarnessOverview }) {
                   </span>
                 </div>
                 <p className="text-[13px] text-slate-600">{a.description}</p>
+                {a.altModel && <p className="text-[12px] text-slate-500">When its own AI is busy or used up, it works on {a.altProvider === 'claude' ? 'Claude' : 'Codex'} instead.</p>}
                 <p className="text-[12px] tabular-nums text-slate-500">
                   {a.runsToday} runs today{a.lastRunAt ? ` · last ${formatRelative(a.lastRunAt)}` : ''}
                 </p>
@@ -172,7 +183,7 @@ function Team({ data }: { data: HarnessOverview }) {
           </div>
         </Section>
       ))}
-      <p className="text-[13px] text-slate-600">Makers and checkers run on different AI models, so no agent marks its own work.</p>
+      <p className="text-[13px] text-slate-600">A checker never runs on the AI model that wrote what it checks, so no agent marks its own work.</p>
     </div>
   );
 }
@@ -284,7 +295,12 @@ export default function HqContentPage() {
               <NewCategories proposals={data.proposals} />
             </>
           )}
-          {tab === 'agents' && <Team data={data} />}
+          {tab === 'agents' && (
+            <>
+              <Seats data={data} />
+              <Team data={data} />
+            </>
+          )}
           {tab === 'engine' && (
             <>
               <p className="text-sm text-slate-600">
