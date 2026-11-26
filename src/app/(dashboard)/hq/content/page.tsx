@@ -271,10 +271,14 @@ export default function HqContentPage() {
             })}
           </div>
 
+          {/* Steering in plain words lives with the day's picture; the other tabs start straight at their own content.
+              It stays mounted (only hidden) on them, so a message being typed or sent is never lost by switching tabs. */}
+          <div hidden={tab !== 'today'}>
+            <AskHq asks={data.asks} paused={data.settings.paused} />
+          </div>
+
           {tab === 'today' && (
             <>
-              {/* Steering in plain words lives with the day's picture; the other tabs start straight at their own content. */}
-              <AskHq asks={data.asks} paused={data.settings.paused} />
               <StatusLine data={data} />
               <Runway rows={data.runway} />
               {/* `show` is missing only while the backend is a version behind this page. */}
