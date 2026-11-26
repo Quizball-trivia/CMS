@@ -537,7 +537,18 @@ export interface HqAnalytics {
   days: number;
   series: Array<{ date: string; newUsers: number; activePlayers: number; matches: number }>;
   actives: { dau: number; wau: number; mau: number };
-  totals: { registeredUsers: number };
+  /** usersInclPartners and tableDerbyUsers are absent on backends before Table Derby was counted in. */
+  totals: { registeredUsers: number; tableDerbyUsers?: number; usersInclPartners?: number };
+  /** Table Derby's latest synced counts; its actives are in `actives` only when inActives (its day is today). */
+  tableDerby?: {
+    day: string;
+    updatedAt: string;
+    totalUsers: number;
+    dau: number;
+    wau: number;
+    mau: number;
+    inActives: boolean;
+  } | null;
   modes: Array<{ mode: string; matches: number; share: number }>;
   /** Top modes + 'other' per day: `{ date, [mode]: count }`. */
   modesByDay: Array<{ date: string } & Record<string, number | string>>;

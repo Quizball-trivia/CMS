@@ -6,6 +6,8 @@ import { ChevronRight, Loader2, Plug } from 'lucide-react';
 import { useHqAnalytics, useHqPosthog } from '@/hooks';
 import { cn } from '@/lib/utils';
 import { formatTbilisi } from '@/lib/hq-board';
+import { tableDerbyAsOf, tableDerbyLine } from '@/lib/table-derby-line';
+import { useNow } from '@/hooks/use-now';
 import {
   countryFlag,
   countryName,
@@ -182,17 +184,34 @@ function retentionHeadline(data: HqAnalytics) {
 
 /** The one KPI strip of the Players tab. Everything below it is trends and breakdowns. */
 function SummaryStrip({ data }: { data: HqAnalytics }) {
+  const now = useNow(60_000);
+  const td = data.tableDerby ?? null;
+  // Table Derby's actives are included only when its latest synced day is today; otherwise they are named apart.
+  const activeNote = (value: (t: NonNullable<typeof td>) => number) =>
+    !td
+      ? ''
+      : td.inActives
+        ? tableDerbyLine(td, value, now, n)
+        : ` · Table Derby not included (${n(value(td))}${tableDerbyAsOf(td, now)})`;
   const newInPeriod = data.series.reduce((sum, d) => sum + d.newUsers, 0);
   const d7 = retentionHeadline(data);
   const small = d7?.size !== undefined && d7.size < SMALL_SAMPLE;
   return (
     <Section title="Summary" description={`QuizBall database · as of ${formatTbilisi(data.generatedAt)}, Tbilisi time. Only New players follows the trend period; the other figures use fixed windows.`}>
       <Panel className="grid grid-cols-2 gap-px overflow-hidden bg-slate-200 lg:grid-cols-3 2xl:grid-cols-6 [&>*]:bg-white">
-        <Metric label="Active today" value={n(data.actives.dau)} hint="DAU · incl. guests, Tbilisi day" />
-        <Metric label="Active 7 days" value={n(data.actives.wau)} hint="WAU · incl. guests and today" />
-        <Metric label="Active 30 days" value={n(data.actives.mau)} hint="MAU · incl. guests and today" />
+        <Metric label="Active today" value={n(data.actives.dau)} hint={`DAU · incl. guests, Tbilisi day${activeNote((t) => t.dau)}`} />
+        <Metric label="Active 7 days" value={n(data.actives.wau)} hint={`WAU · incl. guests and today${activeNote((t) => t.wau)}`} />
+        <Metric label="Active 30 days" value={n(data.actives.mau)} hint={`MAU · incl. guests and today${activeNote((t) => t.mau)}`} />
         <Metric label="New players" value={n(newInPeriod)} hint={`registered, last ${data.days} days`} />
-        <Metric label="Registered players" value={n(data.totals.registeredUsers)} hint="all accounts, no guests" />
+        {data.totals.usersInclPartners !== undefined && td ? (
+          <Metric
+            label="Players"
+            value={n(data.totals.usersInclPartners)}
+            hint={`${n(data.totals.registeredUsers)} registered accounts (no guests)${tableDerbyLine(td, (t) => t.totalUsers, now, n)}`}
+          />
+        ) : (
+          <Metric label="Registered players" value={n(data.totals.registeredUsers)} hint="all accounts, no guests" />
+        )}
         <Metric
           label="Week-2 retention"
           value={d7 ? d7.label : '—'}

@@ -1,6 +1,12 @@
-import type { AnalyticsOverview } from '@/types/admin-analytics';
+/** Table Derby's part of a Quizball total: counts synced from Table Derby every 30 minutes, per Tbilisi day. */
+export interface TableDerbyPart {
+  /** The latest synced Tbilisi day (YYYY-MM-DD): the counts are that day's. */
+  day: string;
+  updatedAt: string;
+}
 
-type TableDerby = NonNullable<NonNullable<AnalyticsOverview['breakdown']>['tableDerby']>;
+/** A sync older than this is shown with its time, even when its day is today. */
+const SYNC_SHOWN_AFTER_MS = 2 * 60 * 60_000;
 
 const tbilisiDay = (at: Date) =>
   new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Tbilisi', year: 'numeric', month: '2-digit', day: '2-digit' }).format(at);
@@ -8,20 +14,29 @@ const tbilisiDay = (at: Date) =>
 const tbilisiTime = (at: Date) =>
   new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Tbilisi', hour: '2-digit', minute: '2-digit' }).format(at);
 
+const shortDay = (ymd: string) => ymd.slice(5).replace('-', '/');
+
 /**
- * The "of which Table Derby" suffix of a total. Its numbers are the latest
- * synced day's: when that is not today (Tbilisi) the suffix says which day and
- * when it was synced, so an old count is never read as today's.
+ * How old Table Derby's numbers are, judged at render time (`now`): its day
+ * when that is not today in Tbilisi, and its sync time when that is more than
+ * two hours ago. Empty when both are current.
  */
-export function tableDerbyLine(
-  td: TableDerby | null | undefined,
-  value: (td: TableDerby) => number,
-  generatedAt: string,
+export function tableDerbyAsOf(td: TableDerbyPart, now: Date): string {
+  const synced = new Date(td.updatedAt);
+  const syncedValid = !Number.isNaN(synced.getTime());
+  const syncedText = syncedValid ? `synced ${shortDay(tbilisiDay(synced))} ${tbilisiTime(synced)}` : 'sync time unknown';
+  if (td.day !== tbilisiDay(now)) return ` (as of ${shortDay(td.day)}, ${syncedText})`;
+  if (!syncedValid || now.getTime() - synced.getTime() > SYNC_SHOWN_AFTER_MS) return ` (${syncedText})`;
+  return '';
+}
+
+/** The "of which Table Derby" suffix of a figure; empty without Table Derby numbers. */
+export function tableDerbyLine<T extends TableDerbyPart>(
+  td: T | null | undefined,
+  value: (td: T) => number,
+  now: Date,
   format: (n: number) => string,
 ): string {
   if (!td) return '';
-  const now = new Date(generatedAt);
-  const stale = td.day !== tbilisiDay(Number.isNaN(now.getTime()) ? new Date() : now);
-  const asOf = stale ? ` (as of ${td.day.slice(5).replace('-', '/')}, synced ${tbilisiDay(new Date(td.updatedAt)).slice(5).replace('-', '/')} ${tbilisiTime(new Date(td.updatedAt))})` : '';
-  return ` · of which Table Derby ${format(value(td))}${asOf}`;
+  return ` · of which Table Derby ${format(value(td))}${tableDerbyAsOf(td, now)}`;
 }

@@ -14,6 +14,7 @@ import { useAnalyticsOverview } from '@/hooks/use-admin-analytics';
 import { RealDataGate } from '@/components/analytics/real-data-gate';
 import type { AnalyticsOverview } from '@/types/admin-analytics';
 import { tableDerbyLine } from '@/lib/table-derby-line';
+import { useNow } from '@/hooks/use-now';
 
 // Categorical palette: validated slot order (dataviz six-checks, light surface).
 // Color follows the MODE, never its rank — the mapping is fixed; everything
@@ -84,6 +85,8 @@ function buildModeSeries(data: AnalyticsOverview) {
 
 function AnalyticsInner() {
   const { data, isLoading, isError } = useAnalyticsOverview();
+  // Table Derby's staleness is judged against the clock, not when the (cached) overview was computed.
+  const now = useNow(60_000);
 
   const modeSeries = useMemo(() => (data ? buildModeSeries(data) : []), [data]);
   const modeTotals = useMemo(() => {
@@ -107,7 +110,7 @@ function AnalyticsInner() {
   const signupSeries = data.signupsPerDay.map((d) => ({ day: shortDay(d.day), count: d.count }));
   const stackOrder = [...Object.keys(MODE_COLORS), 'other'];
   const td = data.breakdown?.tableDerby ?? null;
-  const ofTableDerby = (value: (t: NonNullable<typeof td>) => number) => tableDerbyLine(td, value, data.generatedAt, fmt);
+  const ofTableDerby = (value: (t: NonNullable<typeof td>) => number) => tableDerbyLine(td, value, now, fmt);
 
   return (
     <div className="space-y-6 p-6">
