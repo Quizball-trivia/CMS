@@ -113,6 +113,9 @@ function overview(over: Partial<HarnessOverview> = {}): HarnessOverview {
   };
 }
 
+/** Opens one of the Content tab's sections. */
+const open = (name: string) => fireEvent.click(screen.getByRole('tab', { name: new RegExp(`^${name}`) }));
+
 beforeEach(() => {
   h.data = overview();
   h.error = null;
@@ -138,6 +141,7 @@ it('shows the five steps with what is in each', () => {
 
 it('lists boosted categories first, by name, with how long until full', () => {
   render(<HqContentPage />);
+  open('Library');
   const table = screen.getByText('Full in').closest('table')!;
   const names = within(table).getAllByRole('row').slice(1).map((r) => within(r).getAllByRole('cell')[0].textContent);
   expect(names[0]).toContain('AC Milan');
@@ -148,6 +152,7 @@ it('lists boosted categories first, by name, with how long until full', () => {
 
 it('holds a category from its priority switch', () => {
   render(<HqContentPage />);
+  open('Library');
   const group = screen.getByRole('group', { name: 'Priority for Manchester United' });
   fireEvent.click(within(group).getByRole('button', { name: 'Hold' }));
   expect(h.steeringMutate).toHaveBeenCalledWith({ categoryId: 'c1', priority: 'hold' }, expect.anything());
@@ -179,6 +184,7 @@ it('shows questions in another language', () => {
 
 it('shows orders with their progress and can cancel an open one', () => {
   render(<HqContentPage />);
+  open('In progress');
   expect(screen.getByText('Champions League finals')).toBeTruthy();
   expect(screen.getByText(/needed by 2026-12-10/)).toBeTruthy();
   const orders = screen.getByText('Champions League finals').closest('section')!;
@@ -192,14 +198,18 @@ it('puts activity in plain words and hides engine noise', () => {
   expect(screen.queryByText(/worker w1 started/)).toBeNull();
 });
 
-it('keeps the engine room closed until asked', () => {
+it('keeps the technical view in its own tab, and shows the agents as a team', () => {
   render(<HqContentPage />);
   expect(screen.queryByText('Fact Checker')).toBeNull();
-  fireEvent.click(screen.getByRole('button', { name: /engine room/i }));
+  open('Agents');
   expect(screen.getByText('Fact Checker')).toBeTruthy();
+  expect(screen.getByText('Checking')).toBeTruthy();
+  expect(screen.getByText('Working')).toBeTruthy();
+  open('Engine room');
   expect(screen.getByText('(waits, no fallback)')).toBeTruthy();
   expect(screen.getByText('five-hour 42%')).toBeTruthy();
 });
+
 
 it('pauses running agents with a reason', () => {
   render(<HqContentPage />);
@@ -217,8 +227,9 @@ it('shows a load error with a retry', () => {
 it('keeps the data but warns when a refresh fails', () => {
   h.error = new Error('down');
   render(<HqContentPage />);
-  expect(screen.getByText('Manchester United', { selector: 'div' })).toBeTruthy();
   expect(screen.getByText(/couldn.t refresh/i)).toBeTruthy();
+  open('Library');
+  expect(screen.getByText('Manchester United', { selector: 'div' })).toBeTruthy();
 });
 
 it('lets the team apply only the Assistant proposals they tick', () => {
@@ -238,6 +249,7 @@ it('sends a message to the Assistant', () => {
 
 it('shows events with their progress and new categories ready to go live', () => {
   render(<HqContentPage />);
+  open('In progress');
   expect(screen.getByText('El Clásico')).toBeTruthy();
   expect(screen.getByText('Real Madrid, Barcelona · 10 each · by Tato')).toBeTruthy();
   fireEvent.click(screen.getByRole('button', { name: /go live/i }));
@@ -246,6 +258,7 @@ it('shows events with their progress and new categories ready to go live', () =>
 
 it('adds an event for the categories picked', () => {
   render(<HqContentPage />);
+  open('In progress');
   fireEvent.click(screen.getByRole('button', { name: /add event/i }));
   fireEvent.change(screen.getByLabelText('Event'), { target: { value: 'El Clásico' } });
   fireEvent.change(screen.getByLabelText('Date'), { target: { value: '2026-12-14' } });
@@ -262,17 +275,27 @@ it('keeps a new category from going live until ranked can use it', () => {
   const base = overview();
   h.data = overview({ proposals: [{ ...base.proposals[0], clueChain: 0 }] });
   render(<HqContentPage />);
+  open('In progress');
   expect(screen.getByText('Before it can go live, add a clue-chain question under Questions.')).toBeTruthy();
   expect((screen.getByRole('button', { name: /go live/i }) as HTMLButtonElement).disabled).toBe(true);
 });
 
 it('shows the games running out of content first, and the rest on request', () => {
   render(<HqContentPage />);
-  const runway = screen.getByText('Runway').closest('section')!;
+  const runway = screen.getByRole('heading', { name: /^Runway/ }).closest('section')!;
   expect(within(runway).getByText('Dato Falso')).toBeTruthy();
   expect(within(runway).getByText('Running out')).toBeTruthy();
   expect(within(runway).getByText(/Needs more days and its fixed end date lifted/)).toBeTruthy();
   expect(within(runway).queryByText('Minesweeper')).toBeNull();
   fireEvent.click(within(runway).getByRole('button', { name: 'Show all 2' }));
   expect(within(runway).getByText('Minesweeper')).toBeTruthy();
+});
+
+it('counts what is urgent on the tabs and opens the full runway', () => {
+  render(<HqContentPage />);
+  expect(screen.getByRole('tab', { name: /^Runway/ }).textContent).toContain('1'); // one game under 14 days
+  expect(screen.getByRole('tab', { name: /^In progress/ }).textContent).toContain('1'); // one open order
+  open('Runway');
+  expect(screen.getByText('Minesweeper')).toBeTruthy(); // every game, not only the short ones
+  expect(screen.queryByText('Just went live')).toBeNull();
 });
