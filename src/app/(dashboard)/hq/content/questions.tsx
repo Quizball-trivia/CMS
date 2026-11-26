@@ -149,7 +149,7 @@ export function NeedsYou({ items, total }: { items: HarnessNeedsYouItem[]; total
       title="Needs you"
       count={Math.max(total, items.length)}
       countTone="attention"
-      description={`Questions the agents could not settle after several tries. Approve, send back with a note, or reject.${total > items.length ? ` Showing the newest ${items.length} of ${total}.` : ''}`}
+      description={`The agents check, fix and publish on their own. A question lands here only when a step kept failing for technical reasons. Approve, send back with a note, or reject.${total > items.length ? ` Showing the newest ${items.length} of ${total}.` : ''}`}
       actions={items.length ? <LanguagePicker value={lang} onChange={setLang} /> : undefined}
     >
       {items.length === 0 ? (

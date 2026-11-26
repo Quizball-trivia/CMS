@@ -10,9 +10,11 @@ import { formatRelative } from '@/lib/hq-board';
 import { cn } from '@/lib/utils';
 import type { HarnessOverview, HarnessReleaseStatus } from '@/types';
 import { EmptyState, errorMessage, HQ_LABEL, HQ_PAGE, LoadErrorState, PageHeader, Panel, RefreshErrorBanner, Section } from '../hq-ui';
+import { AskHq } from './ask';
 import { EngineRoom } from './engine';
 import { flow, plainEvent, stuckCount } from './plain';
 import { JustLive, NeedsYou } from './questions';
+import { Events, NewCategories } from './plans';
 import { CategoryBoard, Orders } from './steering';
 
 // HQ → Content, for the content team: what the agents are doing in plain
@@ -160,12 +162,14 @@ export default function HqContentPage() {
           )}
 
           <StatusLine data={data} />
+          <AskHq asks={data.asks} paused={data.settings.paused} />
           <Flow data={data} />
           {data.needsYou.length > 0 && <NeedsYou items={data.needsYou} total={stuckCount(data)} />}
           <CategoryBoard categories={data.classic.categories} direction={data.direction} />
           <Orders requests={data.requests} categories={data.allCategories} />
+          <Events events={data.contentEvents} categories={data.allCategories} />
+          <NewCategories proposals={data.proposals} />
           <JustLive items={data.recentLive} />
-          {data.needsYou.length === 0 && <NeedsYou items={data.needsYou} total={0} />}
           <Activity data={data} />
 
           <section className="rounded-lg border border-slate-200">
