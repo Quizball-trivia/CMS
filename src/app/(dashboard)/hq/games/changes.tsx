@@ -141,6 +141,13 @@ function Change({ c }: { c: HarnessGameChange }) {
   const st = STATUS[c.status];
   const busy = replan.isPending || cancel.isPending;
   const canChange = ['planning', 'planned', 'failed', 'suggested'].includes(c.status);
+  // The editor opens on the request as it is now (someone else may have rewritten it since this card first drew).
+  const startEditing = () => {
+    setText(c.request);
+    setEditing(true);
+  };
+  const sendAgain = () =>
+    replan.mutate({ id: c.id, request: c.request }, { onSuccess: () => toast.success('Sent to the planner again.'), onError: (e) => toast.error(errorMessage(e, 'Could not send it again')) });
   const save = () =>
     replan.mutate(
       { id: c.id, request: text.trim() },
@@ -165,7 +172,7 @@ function Change({ c }: { c: HarnessGameChange }) {
           <Loader2 className="h-4 w-4 animate-spin" /> The planner is reading the game&apos;s code. A plan usually takes a few minutes.
         </p>
       )}
-      {c.status === 'failed' && <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-800">The planner could not finish: {c.error ?? 'no reason given'}. You can send it again.</p>}
+      {c.status === 'failed' && <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-800">The planner could not finish: {c.error ?? 'no reason given'}. </p>}
 
       {c.plan && (
         <div className="space-y-3 rounded-lg border border-slate-200 p-3">
@@ -220,8 +227,13 @@ function Change({ c }: { c: HarnessGameChange }) {
       ) : (
         canChange && (
           <div className="flex flex-wrap gap-2">
+            {c.status === 'failed' && (
+              <Button size="sm" onClick={sendAgain} disabled={busy} aria-label={`Send change ${c.number} to the planner again`}>
+                {replan.isPending && <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />} Send it again
+              </Button>
+            )}
             {c.status !== 'suggested' && (
-              <Button size="sm" variant="outline" onClick={() => setEditing(true)} disabled={busy}>
+              <Button size="sm" variant="outline" onClick={startEditing} disabled={busy}>
                 <PencilLine className="mr-1 h-3.5 w-3.5" /> Rewrite the request
               </Button>
             )}

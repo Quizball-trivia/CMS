@@ -187,3 +187,16 @@ it('lets a person rewrite a request to answer the planner, or cancel it', () => 
   fireEvent.click(screen.getByRole('button', { name: 'Cancel change 1' }));
   expect(h.cancelMutate).toHaveBeenCalledWith('c1', expect.anything());
 });
+
+it('sends a failed plan again as it is, and opens the editor on the request as it is now', () => {
+  h.data = hub([game('tenable')]);
+  h.changes = [aChange(1, { status: 'failed', error: 'timeout' })];
+  const view = render(<HqGamesPage />);
+  fireEvent.click(screen.getByRole('button', { name: 'Send change 1 to the planner again' }));
+  expect(h.replanMutate).toHaveBeenCalledWith({ id: 'c1', request: 'Give four lives instead of three in the daily game.' }, expect.anything());
+  // Someone else rewrites the request while this page is open.
+  h.changes = [aChange(1, { status: 'planned', request: 'Five lives, everywhere.' })];
+  view.rerender(<HqGamesPage />);
+  fireEvent.click(screen.getByRole('button', { name: /Rewrite the request/ }));
+  expect((screen.getByLabelText('Rewrite the request for change 1') as HTMLTextAreaElement).value).toBe('Five lives, everywhere.');
+});
