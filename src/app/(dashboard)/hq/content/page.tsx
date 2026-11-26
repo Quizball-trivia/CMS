@@ -1,7 +1,8 @@
 'use client';
 
 import { useState } from 'react';
-import { ChevronDown, Loader2, Pause, Play } from 'lucide-react';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import { Loader2, Pause, Play } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -133,16 +134,84 @@ function Activity({ data }: { data: HarnessOverview }) {
   );
 }
 
+const TEAM_LABEL: Record<string, [string, string]> = {
+  sensing: ['Sensing', 'Notice what is happening'],
+  suggesting: ['Suggesting', 'Turn it into proposals for you'],
+  making: ['Making', 'Create the content'],
+  checking: ['Checking', 'A different AI checks every piece'],
+  localization: ['Localizing', 'Make it native in each language'],
+  foundation: ['Looking after', 'Keep what is live true and fair'],
+  live: ['Live', 'Run things as they happen'],
+};
+
+/** The agents as a team, in plain words. The technical view (accounts, fallbacks) is in the Engine room. */
+function Team({ data }: { data: HarnessOverview }) {
+  const teams = Object.keys(TEAM_LABEL).filter((t) => data.agents.some((a) => a.team === t));
+  // The pause switch stops every agent, whatever its own setting.
+  const working = (a: HarnessOverview['agents'][number]) => a.status === 'active' && !data.settings.paused;
+  return (
+    <div className="space-y-6">
+      {teams.map((t) => (
+        <Section key={t} title={TEAM_LABEL[t][0]} description={TEAM_LABEL[t][1]}>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {data.agents.filter((a) => a.team === t).map((a) => (
+              <Panel key={a.slug} className="space-y-1 p-4">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="font-medium text-slate-900">{a.name}</span>
+                  <span className={cn('rounded px-1.5 py-0.5 text-[12px] font-medium', working(a) ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-600')}>
+                    {working(a) ? 'Working' : 'Paused'}
+                  </span>
+                </div>
+                <p className="text-[13px] text-slate-600">{a.description}</p>
+                <p className="text-[12px] tabular-nums text-slate-500">
+                  {a.runsToday} runs today{a.lastRunAt ? ` · last ${formatRelative(a.lastRunAt)}` : ''}
+                </p>
+              </Panel>
+            ))}
+          </div>
+        </Section>
+      ))}
+      <p className="text-[13px] text-slate-600">Makers and checkers run on different AI models, so no agent marks its own work.</p>
+    </div>
+  );
+}
+
+const TABS = [
+  { key: 'today', label: 'Today' },
+  { key: 'runway', label: 'Runway' },
+  { key: 'library', label: 'Library' },
+  { key: 'plans', label: 'In progress' },
+  { key: 'agents', label: 'Agents' },
+  { key: 'engine', label: 'Engine room' },
+] as const;
+type TabKey = (typeof TABS)[number]['key'];
+const isTab = (v: string | null): v is TabKey => TABS.some((t) => t.key === v);
+
 export default function HqContentPage() {
   const { data, error, isLoading, refetch } = useHarnessOverview();
-  const [engineOpen, setEngineOpen] = useState(false);
+  const router = useRouter();
+  const pathname = usePathname();
+  const params = useSearchParams();
+  const fromUrl = params.get('tab');
+  const [tab, setTabState] = useState<TabKey>(isTab(fromUrl) ? fromUrl : 'today');
+  // The address wins when it changes under the page (the sidebar link, back and forward).
+  const [seenUrl, setSeenUrl] = useState(fromUrl);
+  if (fromUrl !== seenUrl) {
+    setSeenUrl(fromUrl);
+    setTabState(isTab(fromUrl) ? fromUrl : 'today');
+  }
+  // The tab is in the address, so a link opens the same view.
+  const setTab = (next: TabKey) => {
+    setTabState(next);
+    router.replace(next === 'today' ? pathname : `${pathname}?tab=${next}`);
+  };
 
   return (
     <div className={HQ_PAGE}>
       <PageHeader
         eyebrow="HQ"
         title="Content"
-        description="Agents keep the game's questions full, checked and translated. You steer: what goes first, what it should be about, and what isn't good enough."
+        description="Agents keep the game's content full, checked and translated. You steer: what goes first, what it should be about, and what isn't good enough."
         actions={data ? <Controls data={data} /> : undefined}
       />
 
@@ -162,39 +231,63 @@ export default function HqContentPage() {
             </div>
           )}
 
-          <StatusLine data={data} />
           <AskHq asks={data.asks} paused={data.settings.paused} />
-          <Runway rows={data.runway} />
-          <Flow data={data} />
-          {data.needsYou.length > 0 && <NeedsYou items={data.needsYou} total={stuckCount(data)} />}
-          <CategoryBoard categories={data.classic.categories} direction={data.direction} />
-          <Orders requests={data.requests} categories={data.allCategories} />
-          <Events events={data.contentEvents} categories={data.allCategories} />
-          <NewCategories proposals={data.proposals} />
-          <JustLive items={data.recentLive} />
-          <Activity data={data} />
 
-          <section className="rounded-lg border border-slate-200">
-            <button
-              type="button"
-              aria-expanded={engineOpen}
-              onClick={() => setEngineOpen((v) => !v)}
-              className="flex w-full items-center justify-between px-4 py-3 text-left"
-            >
-              <span>
-                <span className="text-[15px] font-semibold text-slate-950">Engine room</span>
-                <span className="ml-2 text-sm text-slate-600">
-                  agents, model accounts, work queue · {data.today.runs} runs today{data.today.failed ? `, ${data.today.failed} failed` : ''}
-                </span>
-              </span>
-              <ChevronDown className={cn('h-4 w-4 text-slate-500 transition-transform', engineOpen && 'rotate-180')} />
-            </button>
-            {engineOpen && (
-              <div className="border-t border-slate-200 p-4">
-                <EngineRoom data={data} />
-              </div>
-            )}
-          </section>
+          <div role="tablist" aria-label="Content sections" className="flex gap-1 overflow-x-auto border-b border-slate-200">
+            {TABS.map((t) => {
+              const badge =
+                t.key === 'runway' ? data.runway.filter((r) => r.daysLeft < 14).length : t.key === 'plans' ? data.requests.filter((r) => r.status === 'open').length : 0;
+              return (
+                <button
+                  key={t.key}
+                  type="button"
+                  role="tab"
+                  aria-selected={tab === t.key}
+                  onClick={() => setTab(t.key)}
+                  className={cn(
+                    '-mb-px whitespace-nowrap border-b-2 px-3 py-2 text-sm font-medium',
+                    tab === t.key ? 'border-slate-900 text-slate-950' : 'border-transparent text-slate-600 hover:text-slate-900'
+                  )}
+                >
+                  {t.label}
+                  {badge > 0 && (
+                    <span className={cn('ml-1.5 rounded-full px-1.5 py-0.5 text-[11px] font-semibold', t.key === 'runway' ? 'bg-red-50 text-red-700' : 'bg-slate-100 text-slate-700')}>
+                      {badge}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+
+          {tab === 'today' && (
+            <>
+              <StatusLine data={data} />
+              <Runway rows={data.runway} />
+              <Flow data={data} />
+              {data.needsYou.length > 0 && <NeedsYou items={data.needsYou} total={stuckCount(data)} />}
+              <JustLive items={data.recentLive} />
+              <Activity data={data} />
+            </>
+          )}
+          {tab === 'runway' && <Runway rows={data.runway} expanded />}
+          {tab === 'library' && <CategoryBoard categories={data.classic.categories} direction={data.direction} />}
+          {tab === 'plans' && (
+            <>
+              <Orders requests={data.requests} categories={data.allCategories} />
+              <Events events={data.contentEvents} categories={data.allCategories} />
+              <NewCategories proposals={data.proposals} />
+            </>
+          )}
+          {tab === 'agents' && <Team data={data} />}
+          {tab === 'engine' && (
+            <>
+              <p className="text-sm text-slate-600">
+                For whoever looks after the system: {data.today.runs} runs today{data.today.failed ? `, ${data.today.failed} failed` : ''}.
+              </p>
+              <EngineRoom data={data} />
+            </>
+          )}
         </>
       )}
     </div>

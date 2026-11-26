@@ -25,8 +25,9 @@ function needs(r: HarnessRunwayRow): string {
   return 'Needs more days and its fixed end date lifted';
 }
 
-export function Runway({ rows }: { rows: HarnessRunwayRow[] }) {
-  const [showAll, setShowAll] = useState(false);
+/** `expanded`: every game from the start (the Runway tab); otherwise the short ones first (Today). */
+export function Runway({ rows, expanded = false }: { rows: HarnessRunwayRow[]; expanded?: boolean }) {
+  const [showAll, setShowAll] = useState(expanded);
   const urgent = rows.filter((r) => r.daysLeft < SOON);
   const shown = showAll ? rows : urgent.length ? urgent : rows.slice(0, 4);
   return (
