@@ -13,6 +13,7 @@ import {
 import { useAnalyticsOverview } from '@/hooks/use-admin-analytics';
 import { RealDataGate } from '@/components/analytics/real-data-gate';
 import type { AnalyticsOverview } from '@/types/admin-analytics';
+import { tableDerbyLine } from '@/lib/table-derby-line';
 
 // Categorical palette: validated slot order (dataviz six-checks, light surface).
 // Color follows the MODE, never its rank — the mapping is fixed; everything
@@ -106,7 +107,7 @@ function AnalyticsInner() {
   const signupSeries = data.signupsPerDay.map((d) => ({ day: shortDay(d.day), count: d.count }));
   const stackOrder = [...Object.keys(MODE_COLORS), 'other'];
   const td = data.breakdown?.tableDerby ?? null;
-  const ofTableDerby = (n: number) => (td ? ` · of which Table Derby ${fmt(n)}` : '');
+  const ofTableDerby = (value: (t: NonNullable<typeof td>) => number) => tableDerbyLine(td, value, data.generatedAt, fmt);
 
   return (
     <div className="space-y-6 p-6">
@@ -120,7 +121,7 @@ function AnalyticsInner() {
 
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <StatCard label="Total users" value={fmt(data.totals.totalUsers)}
-          sub={`registered + guests who played${ofTableDerby(td?.totalUsers ?? 0)}`} icon={UsersIcon} accent="bg-blue-50 text-blue-600" />
+          sub={`registered + guests who played${ofTableDerby((t) => t.totalUsers)}`} icon={UsersIcon} accent="bg-blue-50 text-blue-600" />
         <StatCard label="Registered" value={fmt(data.totals.registered)}
           sub="real accounts (no bots/seeds)" icon={UserCheck} accent="bg-emerald-50 text-emerald-600" />
         <StatCard label="Playing guests" value={fmt(data.totals.playingGuests)}
@@ -130,9 +131,9 @@ function AnalyticsInner() {
       </div>
 
       <div className="grid grid-cols-3 gap-4">
-        <StatCard label="DAU" value={fmt(data.actives.dau)} sub={`played today${ofTableDerby(td?.dau ?? 0)}`} icon={Activity} accent="bg-blue-50 text-blue-600" />
-        <StatCard label="WAU" value={fmt(data.actives.wau)} sub={`played, last 7 days${ofTableDerby(td?.wau ?? 0)}`} icon={Activity} accent="bg-blue-50 text-blue-600" />
-        <StatCard label="MAU" value={fmt(data.actives.mau)} sub={`played, last 30 days${ofTableDerby(td?.mau ?? 0)}`} icon={Activity} accent="bg-blue-50 text-blue-600" />
+        <StatCard label="DAU" value={fmt(data.actives.dau)} sub={`played today${ofTableDerby((t) => t.dau)}`} icon={Activity} accent="bg-blue-50 text-blue-600" />
+        <StatCard label="WAU" value={fmt(data.actives.wau)} sub={`played, last 7 days${ofTableDerby((t) => t.wau)}`} icon={Activity} accent="bg-blue-50 text-blue-600" />
+        <StatCard label="MAU" value={fmt(data.actives.mau)} sub={`played, last 30 days${ofTableDerby((t) => t.mau)}`} icon={Activity} accent="bg-blue-50 text-blue-600" />
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
