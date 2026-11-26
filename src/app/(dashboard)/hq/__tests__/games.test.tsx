@@ -1,10 +1,12 @@
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
-import { afterEach, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, expect, it, vi } from 'vitest';
 import type { HarnessGame, HarnessGames } from '@/types';
 
 const h = vi.hoisted(() => ({ data: undefined as unknown, error: null as unknown }));
 vi.mock('@/hooks', () => ({ useHarnessGames: () => ({ data: h.data, error: h.error, isLoading: false, refetch: vi.fn() }) }));
 
+// The preview site is read when games.ts loads: pin it, whatever the shell that runs the tests has set.
+vi.stubEnv('NEXT_PUBLIC_GAME_PREVIEW_URL', '');
 const { default: HqGamesPage } = await import('../games/page');
 const { change, finishRate, previewUrl, worthALook } = await import('../games/games');
 
@@ -18,6 +20,7 @@ afterEach(() => {
   cleanup();
   h.error = null;
 });
+afterAll(() => vi.unstubAllEnvs());
 
 it('puts every game in its group with its state, its numbers and how to play it', () => {
   h.data = hub([

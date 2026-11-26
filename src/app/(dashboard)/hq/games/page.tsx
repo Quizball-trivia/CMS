@@ -176,7 +176,7 @@ export default function HqGamesPage() {
 
           <p className="text-[13px] text-slate-600">
             {data.weeks ? `Numbers are for ${day(data.weeks.now[0])} to ${day(data.weeks.now[1])}, compared with ${day(data.weeks.before[0])} to ${day(data.weeks.before[1])}. ` : ''}
-            Only real players count. A daily game counts players who started a day; the other numbers count games played. Previews run on the staging site ({PREVIEW_SITE.replace(/^https?:\/\//, '')}).
+            Only real players count. A daily game counts players who started a day, the live show counts players who took part, and the other numbers count games played. Previews run on the staging site ({PREVIEW_SITE.replace(/^https?:\/\//, '')}).
           </p>
         </>
       )}
