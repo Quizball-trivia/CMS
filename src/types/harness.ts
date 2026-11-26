@@ -344,3 +344,36 @@ export interface HarnessGames {
   weeks?: { before: [string, string]; now: [string, string] };
   games: HarnessGame[];
 }
+
+// ── Changes to a game ──────────────────────────────────────────────────────
+
+export type HarnessGameChangeStatus = 'suggested' | 'planning' | 'planned' | 'building' | 'ready' | 'merged' | 'declined' | 'cancelled' | 'failed';
+
+/** What the Game Planner writes for a person to judge before anything is built. */
+export interface HarnessGamePlan {
+  summary: string;
+  size: 'small' | 'medium' | 'large';
+  changes: Array<{ area: 'website' | 'server' | 'both'; what: string }>;
+  risks: string[];
+  test: string[];
+  /** What the planner needs answered to build the right thing. */
+  questions: string[];
+}
+
+export interface HarnessGameChange {
+  id: string;
+  /** A short number people can say ("change 12"). */
+  number: number;
+  gameKey: string;
+  gameName: string;
+  title: string;
+  request: string;
+  source: 'person' | 'agent';
+  requestedBy: string | null;
+  status: HarnessGameChangeStatus;
+  plan: HarnessGamePlan | null;
+  error: string | null;
+  decidedBy: string | null;
+  createdAt: string;
+  updatedAt: string;
+}

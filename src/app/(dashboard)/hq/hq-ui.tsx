@@ -75,8 +75,12 @@ export function Section({
 }
 
 /** Flat bordered surface. */
-export function Panel({ children, className, as: As = 'div' }: { children: ReactNode; className?: string; as?: 'div' | 'article' | 'section' }) {
-  return <As className={cn('rounded-lg border border-slate-200 bg-white', className)}>{children}</As>;
+export function Panel({ children, className, as: As = 'div', 'aria-label': label }: { children: ReactNode; className?: string; as?: 'div' | 'article' | 'section'; 'aria-label'?: string }) {
+  return (
+    <As className={cn('rounded-lg border border-slate-200 bg-white', className)} aria-label={label}>
+      {children}
+    </As>
+  );
 }
 
 export function CountPill({ n, tone = 'neutral' }: { n: number; tone?: 'neutral' | 'attention' }) {

@@ -1,13 +1,14 @@
 'use client';
 
 import { useState } from 'react';
-import { ExternalLink, Loader2, Play, Search } from 'lucide-react';
+import { ExternalLink, Loader2, MessageSquarePlus, Play, Search } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { useHarnessGames } from '@/hooks';
+import { useHarnessGameChanges, useHarnessGames } from '@/hooks';
 import { cn } from '@/lib/utils';
 import type { HarnessGame, HarnessGameGroup, HarnessGameState } from '@/types';
 import { Delta, EmptyState, HQ_PAGE, LoadErrorState, Meter, PageHeader, Panel, RefreshErrorBanner, Section } from '../hq-ui';
+import { AskForChange, Changes, isOpenChange } from './changes';
 import { finishRate, GROUPS, PREVIEW_SITE, previewUrl, size, worthALook } from './games';
 
 // The Games hub: every game the product has, on one page. Play any of them
@@ -40,7 +41,7 @@ function Lead({ game }: { game: HarnessGame }) {
   );
 }
 
-function GameCard({ game, onPlay }: { game: HarnessGame; onPlay: () => void }) {
+function GameCard({ game, onPlay, onAsk, openChanges }: { game: HarnessGame; onPlay: () => void; onAsk: () => void; openChanges: number }) {
   const st = STATE[game.state];
   const rate = finishRate(game);
   const friends = game.stats.started ? game.stats.played : null;
@@ -82,12 +83,20 @@ function GameCard({ game, onPlay }: { game: HarnessGame; onPlay: () => void }) {
         ) : (
           <span className="rounded bg-slate-100 px-1.5 py-1 text-[12px] text-slate-600">No preview yet</span>
         )}
+        <Button size="sm" variant="outline" onClick={onAsk} aria-label={`Ask for a change to ${game.name}`}>
+          <MessageSquarePlus className="mr-1 h-3.5 w-3.5" /> Ask for a change
+        </Button>
         {game.route && (
           <a className="inline-flex items-center gap-1 text-[13px] font-medium text-slate-700 underline-offset-2 hover:underline" href={`${PREVIEW_SITE}${game.route}`} target="_blank" rel="noreferrer">
             Open the real game <ExternalLink className="h-3.5 w-3.5" aria-hidden />
           </a>
         )}
       </div>
+      {openChanges > 0 && (
+        <p className="text-[12px] font-medium text-sky-700">
+          {openChanges} change{openChanges === 1 ? '' : 's'} in progress
+        </p>
+      )}
     </Panel>
   );
 }
@@ -128,7 +137,10 @@ function PlayDialog({ game, onClose }: { game: HarnessGame | null; onClose: () =
 
 export default function HqGamesPage() {
   const { data, error, isLoading, refetch } = useHarnessGames();
+  const changes = useHarnessGameChanges();
   const [playing, setPlaying] = useState<HarnessGame | null>(null);
+  const [asking, setAsking] = useState<HarnessGame | null>(null);
+  const openFor = (key: string) => (changes.data ?? []).filter((c) => c.gameKey === key && isOpenChange(c)).length;
   const [query, setQuery] = useState('');
   const [group, setGroup] = useState<HarnessGameGroup | 'all'>('all');
   const wanted = query.trim().toLowerCase();
@@ -152,6 +164,8 @@ export default function HqGamesPage() {
       ) : (
         <>
           {error && <RefreshErrorBanner />}
+
+          <Changes changes={changes.data} failed={!!changes.error} />
 
           <Section title="Worth a look" count={flags.length} countTone="attention" description="Games where most players who start do not finish, or where plays fell by a third in a week.">
             {flags.length === 0 ? (
@@ -216,7 +230,7 @@ export default function HqGamesPage() {
               <Section key={group.key} title={group.title} count={games.length} description={group.description}>
                 <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
                   {games.map((g) => (
-                    <GameCard key={g.key} game={g} onPlay={() => setPlaying(g)} />
+                    <GameCard key={g.key} game={g} onPlay={() => setPlaying(g)} onAsk={() => setAsking(g)} openChanges={openFor(g.key)} />
                   ))}
                 </div>
               </Section>
@@ -231,6 +245,7 @@ export default function HqGamesPage() {
       )}
 
       <PlayDialog game={playing} onClose={() => setPlaying(null)} />
+      <AskForChange game={asking} onClose={() => setAsking(null)} />
     </div>
   );
 }

@@ -1,9 +1,16 @@
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterAll, afterEach, expect, it, vi } from 'vitest';
-import type { HarnessGame, HarnessGames } from '@/types';
+import type { HarnessGame, HarnessGameChange, HarnessGames } from '@/types';
 
-const h = vi.hoisted(() => ({ data: undefined as unknown, error: null as unknown }));
-vi.mock('@/hooks', () => ({ useHarnessGames: () => ({ data: h.data, error: h.error, isLoading: false, refetch: vi.fn() }) }));
+const h = vi.hoisted(() => ({ data: undefined as unknown, error: null as unknown, changes: [] as unknown, createMutate: vi.fn(), replanMutate: vi.fn(), cancelMutate: vi.fn() }));
+vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
+vi.mock('@/hooks', () => ({
+  useHarnessGames: () => ({ data: h.data, error: h.error, isLoading: false, refetch: vi.fn() }),
+  useHarnessGameChanges: () => ({ data: h.changes, error: null }),
+  useCreateGameChange: () => ({ mutate: h.createMutate, isPending: false }),
+  useReplanGameChange: () => ({ mutate: h.replanMutate, isPending: false }),
+  useCancelGameChange: () => ({ mutate: h.cancelMutate, isPending: false }),
+}));
 
 // The preview site is read when games.ts loads: pin it, whatever the shell that runs the tests has set.
 vi.stubEnv('NEXT_PUBLIC_GAME_PREVIEW_URL', '');
@@ -20,6 +27,8 @@ const hub = (games: HarnessGame[]): HarnessGames => ({ generatedAt: '2026-11-27T
 afterEach(() => {
   cleanup();
   h.error = null;
+  h.changes = [];
+  vi.clearAllMocks();
 });
 afterAll(() => vi.unstubAllEnvs());
 
@@ -111,4 +120,83 @@ it('shows a change as a small up or down mark, and nothing when there is nothing
   expect(text(5, 0)).toBe('new');
   expect(text(100, 100)).toBe('no change');
   expect(text(0, 0)).toBe('');
+});
+
+const aChange = (number: number, over: Partial<HarnessGameChange> = {}): HarnessGameChange => ({
+  id: `c${number}`, number, gameKey: 'tenable', gameName: 'Football Tenable', title: 'Four lives', request: 'Give four lives instead of three in the daily game.', source: 'person', requestedBy: 'Nika',
+  status: 'planning', plan: null, error: null, decidedBy: null, createdAt: '2026-11-27T08:00:00Z', updatedAt: '2026-11-27T08:00:00Z', ...over,
+});
+
+it('sends a request for a change from a game card', () => {
+  h.data = hub([game('tenable')]);
+  render(<HqGamesPage />);
+  expect(screen.getByText(/No changes in progress/)).toBeTruthy();
+  fireEvent.click(screen.getByRole('button', { name: 'Ask for a change to tenable' }));
+  const send = screen.getByRole('button', { name: /Send to the planner/ }) as HTMLButtonElement;
+  expect(send.disabled).toBe(true);
+  fireEvent.change(screen.getByLabelText('In a few words'), { target: { value: 'Four lives' } });
+  fireEvent.change(screen.getByLabelText('What should change, and why'), { target: { value: '  Give four lives instead of three.  ' } });
+  fireEvent.click(send);
+  expect(h.createMutate).toHaveBeenCalledWith({ gameKey: 'tenable', title: 'Four lives', request: 'Give four lives instead of three.' }, expect.anything());
+});
+
+it('shows each change with how far along it is, its plan in plain words, and what the planner needs to know', () => {
+  h.data = hub([game('tenable')]);
+  h.changes = [
+    aChange(2),
+    aChange(1, {
+      status: 'planned',
+      plan: { summary: 'Daily players get four wrong guesses.', size: 'small', changes: [{ area: 'server', what: 'Lives go from 3 to 4.' }], risks: ['Scores get higher.'], test: ['Give three wrong answers: still in.'], questions: ['Practice lists too?'] },
+    }),
+    aChange(3, { status: 'cancelled' }),
+  ];
+  render(<HqGamesPage />);
+  const list = screen.getByRole('heading', { name: /^Changes/ }).closest('section')!;
+  // Open ones only, until asked; the count is what waits for a person.
+  expect(within(list).getAllByRole('article').map((a) => a.getAttribute('aria-label'))).toEqual(['Change 2', 'Change 1']);
+  expect(within(list).getByRole('heading', { name: /^Changes\s*1/ })).toBeTruthy();
+  const planning = within(list).getByRole('article', { name: 'Change 2' });
+  expect(within(planning).getByText('Being planned')).toBeTruthy();
+  expect(within(planning).getByText(/The planner is reading the game/)).toBeTruthy();
+  const planned = within(list).getByRole('article', { name: 'Change 1' });
+  expect(within(planned).getByText('Plan ready')).toBeTruthy();
+  expect(within(planned).getByText('Planned').getAttribute('aria-current')).toBe('step');
+  expect(within(planned).getByText('Small change')).toBeTruthy();
+  expect(within(planned).getByText('Lives go from 3 to 4.')).toBeTruthy();
+  expect(within(planned).getByText('Practice lists too?')).toBeTruthy();
+  expect(within(planned).getByText(/not connected yet/)).toBeTruthy();
+  // The game's card says work is in progress on it.
+  expect(screen.getByText('2 changes in progress')).toBeTruthy();
+  fireEvent.click(within(list).getByRole('button', { name: 'Show 1 finished' }));
+  expect(within(list).getByRole('article', { name: 'Change 3' })).toBeTruthy();
+});
+
+it('lets a person rewrite a request to answer the planner, or cancel it', () => {
+  h.data = hub([game('tenable')]);
+  h.changes = [aChange(1, { status: 'planned' })];
+  render(<HqGamesPage />);
+  const card = screen.getByRole('article', { name: 'Change 1' });
+  fireEvent.click(within(card).getByRole('button', { name: /Rewrite the request/ }));
+  const again = within(card).getByRole('button', { name: /Plan it again/ }) as HTMLButtonElement;
+  expect(again.disabled).toBe(true); // nothing changed yet
+  fireEvent.change(within(card).getByLabelText('Rewrite the request for change 1'), { target: { value: 'Four lives in the daily and in practice lists.' } });
+  fireEvent.click(again);
+  expect(h.replanMutate).toHaveBeenCalledWith({ id: 'c1', request: 'Four lives in the daily and in practice lists.' }, expect.anything());
+  cleanup();
+  render(<HqGamesPage />);
+  fireEvent.click(screen.getByRole('button', { name: 'Cancel change 1' }));
+  expect(h.cancelMutate).toHaveBeenCalledWith('c1', expect.anything());
+});
+
+it('sends a failed plan again as it is, and opens the editor on the request as it is now', () => {
+  h.data = hub([game('tenable')]);
+  h.changes = [aChange(1, { status: 'failed', error: 'timeout' })];
+  const view = render(<HqGamesPage />);
+  fireEvent.click(screen.getByRole('button', { name: 'Send change 1 to the planner again' }));
+  expect(h.replanMutate).toHaveBeenCalledWith({ id: 'c1', request: 'Give four lives instead of three in the daily game.' }, expect.anything());
+  // Someone else rewrites the request while this page is open.
+  h.changes = [aChange(1, { status: 'planned', request: 'Five lives, everywhere.' })];
+  view.rerender(<HqGamesPage />);
+  fireEvent.click(screen.getByRole('button', { name: /Rewrite the request/ }));
+  expect((screen.getByLabelText('Rewrite the request for change 1') as HTMLTextAreaElement).value).toBe('Five lives, everywhere.');
 });
