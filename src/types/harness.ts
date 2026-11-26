@@ -20,6 +20,67 @@ export interface HarnessCategoryHealth {
   inPipeline: number;
   needed: number;
   shortage: number;
+  /** The category's name for people (falls back to the slug). */
+  name: string;
+  priority: HarnessPriority;
+  /** The team's direction note for this category ('' = none). */
+  direction: string;
+  /** Questions this category got from the agents in the last 7 days: the fill rate. */
+  liveLast7d: number;
+}
+
+export type HarnessPriority = 'boost' | 'normal' | 'hold';
+
+/** A question as the Content tab shows it: every language, the right answer marked. */
+export interface HarnessQuestion {
+  prompt: Record<string, string>;
+  options: Array<{ text: Record<string, string>; correct: boolean }>;
+  explanation: Record<string, string>;
+}
+
+export interface HarnessNeedsYouItem {
+  id: string;
+  version: number;
+  category: string | null;
+  difficulty: 'easy' | 'medium' | 'hard';
+  question: HarnessQuestion;
+  issues: string[];
+  updatedAt: string | null;
+}
+
+export interface HarnessLiveItem {
+  id: string;
+  version: number;
+  category: string | null;
+  difficulty: 'easy' | 'medium' | 'hard';
+  question: HarnessQuestion;
+  questionId: string | null;
+  releasedAt: string | null;
+}
+
+export interface HarnessRequest {
+  id: string;
+  category: string | null;
+  difficulty: 'easy' | 'medium' | 'hard';
+  count: number;
+  topic: string;
+  deadline: string | null;
+  requestedBy: string | null;
+  status: 'open' | 'done' | 'cancelled';
+  live: number;
+  working: number;
+  dropped: number;
+  createdAt: string | null;
+}
+
+export type HarnessItemAction = 'flag' | 'approve' | 'reject' | 'send_back';
+
+export interface HarnessCreateRequest {
+  categoryId: string;
+  difficulty: 'easy' | 'medium' | 'hard';
+  count: number;
+  topic: string;
+  deadline?: string | null;
 }
 
 export interface HarnessAccount {
@@ -72,6 +133,9 @@ export interface HarnessEvent {
   level: 'info' | 'warn' | 'error';
   message: string;
   itemId: string | null;
+  /** The item's category and English question, when the event is about one. */
+  category?: string | null;
+  prompt?: string | null;
   createdAt: string | null;
 }
 
@@ -85,7 +149,15 @@ export interface HarnessPolicy {
 
 export interface HarnessOverview {
   settings: HarnessSettings;
-  today: { runs: number; costCents: number; failed: number };
+  today: { runs: number; costCents: number; failed: number; live: number };
+  /** The team's direction note for every category ('' = none). */
+  direction: string;
+  /** Every active category, for ordering questions (also ones with no ranked play yet). */
+  allCategories: Array<{ id: string; name: string }>;
+  /** The newest 30 stuck questions; the full count is the escalated stage count. */
+  needsYou: HarnessNeedsYouItem[];
+  recentLive: HarnessLiveItem[];
+  requests: HarnessRequest[];
   classic: { viewCap: number; shortCategories: number; totalShortage: number; categories: HarnessCategoryHealth[] };
   stages: Array<{ mode: string; stage: string; count: number }>;
   jobs: Array<{ kind: string; status: string; count: number }>;
