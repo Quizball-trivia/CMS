@@ -299,3 +299,11 @@ it('counts what is urgent on the tabs and opens the full runway', () => {
   expect(screen.getByText('Minesweeper')).toBeTruthy(); // every game, not only the short ones
   expect(screen.queryByText('Just went live')).toBeNull();
 });
+
+it('shows every agent as paused while the pause switch is on', () => {
+  h.data = overview({ settings: { paused: true, pausedReason: 'maintenance', maxConcurrentRuns: 3, dailyRunLimit: 1500, updatedAt: null } });
+  render(<HqContentPage />);
+  open('Agents');
+  expect(screen.queryByText('Working')).toBeNull();
+  expect(screen.getByText('Paused')).toBeTruthy();
+});

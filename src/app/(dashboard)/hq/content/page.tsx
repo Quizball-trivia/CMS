@@ -147,6 +147,8 @@ const TEAM_LABEL: Record<string, [string, string]> = {
 /** The agents as a team, in plain words. The technical view (accounts, fallbacks) is in the Engine room. */
 function Team({ data }: { data: HarnessOverview }) {
   const teams = Object.keys(TEAM_LABEL).filter((t) => data.agents.some((a) => a.team === t));
+  // The pause switch stops every agent, whatever its own setting.
+  const working = (a: HarnessOverview['agents'][number]) => a.status === 'active' && !data.settings.paused;
   return (
     <div className="space-y-6">
       {teams.map((t) => (
@@ -156,8 +158,8 @@ function Team({ data }: { data: HarnessOverview }) {
               <Panel key={a.slug} className="space-y-1 p-4">
                 <div className="flex items-center justify-between gap-2">
                   <span className="font-medium text-slate-900">{a.name}</span>
-                  <span className={cn('rounded px-1.5 py-0.5 text-[12px] font-medium', a.status === 'active' ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-600')}>
-                    {a.status === 'active' ? 'Working' : 'Paused'}
+                  <span className={cn('rounded px-1.5 py-0.5 text-[12px] font-medium', working(a) ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-600')}>
+                    {working(a) ? 'Working' : 'Paused'}
                   </span>
                 </div>
                 <p className="text-[13px] text-slate-600">{a.description}</p>
@@ -192,6 +194,12 @@ export default function HqContentPage() {
   const params = useSearchParams();
   const fromUrl = params.get('tab');
   const [tab, setTabState] = useState<TabKey>(isTab(fromUrl) ? fromUrl : 'today');
+  // The address wins when it changes under the page (the sidebar link, back and forward).
+  const [seenUrl, setSeenUrl] = useState(fromUrl);
+  if (fromUrl !== seenUrl) {
+    setSeenUrl(fromUrl);
+    setTabState(isTab(fromUrl) ? fromUrl : 'today');
+  }
   // The tab is in the address, so a link opens the same view.
   const setTab = (next: TabKey) => {
     setTabState(next);
