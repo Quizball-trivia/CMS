@@ -493,3 +493,15 @@ it('keeps the status honest in the awkward cases: put-off jobs, logins, a limit 
   open('Agents');
   expect(screen.getByText(/1 still finishing/)).toBeTruthy();
 });
+
+it('never calls a seat with a rejected login free, and says so when no subscription is switched on', () => {
+  h.data = { ...overview(), accounts: [seat('Codex', { provider: 'codex', state: 'auth', blockedUntil: null })], queue: { running: 0, ready: 4, waiting: 0, nextAt: null, dailyLimitReached: false } };
+  render(<HqContentPage />);
+  expect(screen.getByText('Agents cannot work')).toBeTruthy();
+  open('Agents');
+  expect(screen.getByText('Needs a new login')).toBeTruthy();
+  cleanup();
+  h.data = { ...overview(), accounts: [seat('Old', { status: 'disabled' })], queue: { running: 0, ready: 4, waiting: 0, nextAt: null, dailyLimitReached: false } };
+  render(<HqContentPage />);
+  expect(screen.getByText('No subscription is switched on for the agents. 4 jobs waiting.')).toBeTruthy();
+});

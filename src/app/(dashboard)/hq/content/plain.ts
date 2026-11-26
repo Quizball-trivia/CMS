@@ -110,7 +110,8 @@ function usedUpUntil(a: Seat, now: number): string | null | undefined {
 /** One subscription in plain words: off, needs a login, used up (until when), working, or free. */
 export function seatState(a: Seat, now: number = Date.now()): SeatState {
   if (a.reservedForPeople || a.status !== 'active') return { kind: 'off', label: 'Not used by agents', until: null };
-  if (a.state === 'auth' && a.blockedUntil && Date.parse(a.blockedUntil) > now) return { kind: 'login', label: 'Needs a new login', until: null };
+  // A rejected login stays a login problem until a run succeeds on the seat again, whether or not its retry pause is over.
+  if (a.state === 'auth') return { kind: 'login', label: 'Needs a new login', until: null };
   const until = usedUpUntil(a, now);
   if (until !== undefined) return { kind: 'used-up', label: until ? `Used up until ${georgianTime(until)}` : 'Used up for now', until };
   const running = a.running ?? 0;
@@ -141,7 +142,8 @@ export function agentsNow(o: HarnessOverview, now: number = Date.now()): AgentsN
   // Jobs put off because no seat was usable count too: they are waiting for a seat, not resting.
   const pending = q.ready + q.waiting;
   const usable = seats.filter((s) => s.kind === 'working' || s.kind === 'free').length;
-  if (pending > 0 && seats.length > 0 && usable === 0) {
+  if (pending > 0 && seats.length === 0) return { tone: 'waiting', headline: 'Agents cannot work', detail: `No subscription is switched on for the agents. ${jobs(pending)} waiting.` };
+  if (pending > 0 && usable === 0) {
     const logins = seats.filter((s) => s.kind === 'login').length;
     if (logins === seats.length) return { tone: 'waiting', headline: 'Agents cannot work', detail: `Every subscription needs a new login on the worker. ${jobs(pending)} waiting.` };
     const back = seats.map((s) => s.until).filter((t): t is string => !!t).sort()[0];
