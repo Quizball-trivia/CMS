@@ -13,13 +13,15 @@ import { contentGapsApi } from '@/lib/content-gaps-api';
 import { harnessApi } from '@/lib/harness-api';
 import { hqApi } from '@/lib/hq-api';
 import { AuthContext } from '@/providers/auth-provider';
-import type { HarnessGames, HarnessOverview, HqAnalytics } from '@/types';
+import type { HarnessGameChange, HarnessGames, HarnessOverview, HqAnalytics } from '@/types';
 
 export interface HqSnapshot {
   takenAt: string;
   overview: HarnessOverview;
   games: HarnessGames;
   analytics: HqAnalytics;
+  /** Optional: GET /admin/harness/games/changes items. */
+  gameChanges?: HarnessGameChange[];
 }
 
 type Api = Record<string, (...args: unknown[]) => Promise<unknown>>;
@@ -35,7 +37,11 @@ function installSnapshot(snapshot: HqSnapshot): () => void {
     Object.assign(target, over);
     undo.push(() => Object.assign(target, original));
   };
-  patch(harnessApi, { overview: async () => structuredClone(snapshot.overview), games: async () => structuredClone(snapshot.games) });
+  patch(harnessApi, {
+    overview: async () => structuredClone(snapshot.overview),
+    games: async () => structuredClone(snapshot.games),
+    gameChanges: async () => ({ items: structuredClone(snapshot.gameChanges ?? []) }),
+  });
   patch(hqApi, { analytics: async () => structuredClone(snapshot.analytics), posthog: async () => ({ connected: false }) });
   patch(contentGapsApi, { list: async () => ({ items: [] }), summary: async () => ({ items: [] }), listFixes: async () => ({ items: [] }) });
   return () => undo.forEach((f) => f());

@@ -128,3 +128,26 @@ export function useNewShowPack() {
 export function useApproveShowPack() {
   return useHarnessMutation((v: { id: string; seen: string }) => harnessApi.approveShowPack(v.id, v.seen), SHOW_CHANGE);
 }
+
+// ── Changes to a game ──
+
+/** Polls while the planner is working, so a plan appears by itself; otherwise once a minute. */
+export function useHarnessGameChanges() {
+  return useQuery({
+    queryKey: [...harnessKeys.all, 'game-changes'] as const,
+    queryFn: async () => (await harnessApi.gameChanges()).items,
+    refetchInterval: (q) => (q.state.data?.some((c) => c.status === 'planning' || c.status === 'building') ? HARNESS_REFETCH_MS : 60_000),
+  });
+}
+
+export function useCreateGameChange() {
+  return useHarnessMutation((body: { gameKey: string; title: string; request: string }) => harnessApi.createGameChange(body));
+}
+
+export function useReplanGameChange() {
+  return useHarnessMutation((v: { id: string; request: string }) => harnessApi.replanGameChange(v.id, v.request));
+}
+
+export function useCancelGameChange() {
+  return useHarnessMutation((id: string) => harnessApi.cancelGameChange(id));
+}
