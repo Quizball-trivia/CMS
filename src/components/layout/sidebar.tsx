@@ -6,33 +6,21 @@ import { usePathname } from 'next/navigation';
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/providers';
-import { useHqOverview } from '@/hooks';
 import { cmsRole, FREECROCO_ROOT, navGroupsForRole, navItemsForRole } from '@/lib/freecroco/access';
 import { fcLangForRole, fcText } from '@/lib/freecroco/i18n';
-import { HQ_DEPARTMENTS, departmentHref, toolsForUser, withoutHiddenRealData } from '@/lib/hq-departments';
+import { HQ_DEPARTMENTS, toolsForUser, withoutHiddenRealData } from '@/lib/hq-departments';
 import { useRealAnalyticsVisible } from '@/hooks/use-real-analytics-visible';
-import type { HqDepartment, HqDepartmentKey } from '@/types';
+import type { HqDepartmentKey } from '@/types';
 import {
-  Activity,
   BarChart3,
-  Bot,
-  CalendarClock,
   ChevronRight,
-  Compass,
-  FileSearch,
-  Flag,
   Gamepad2,
-  Hammer,
   Handshake,
-  Inbox,
-  KanbanSquare,
   LayoutDashboard,
   PenLine,
   Settings2,
-  Target,
   TrendingUp,
   Trophy,
-  Wrench,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -59,30 +47,13 @@ type DepartmentGroup = {
 
 type NavSection = { title: string; items: NavItem[] };
 
-// HQ pages in four groups, most-used first. The Director leads: the founder talks to him.
+// The two pages that look across the whole company. Everything else belongs to a department.
 const hqSections: NavSection[] = [
   {
-    // No heading: the five places the founder uses every day.
     title: '',
     items: [
-      { title: 'HQ', href: '/hq', icon: LayoutDashboard, exact: true, hint: 'What needs you, who is working on what, what shipped' },
-      { title: 'Content', href: '/hq/content', icon: PenLine, hint: 'Content agents: Classic ranked pools, pipeline, accounts' },
-      { title: 'Games', href: '/hq/games', icon: Gamepad2, hint: 'Every game: play it, see how it is doing' },
-      { title: 'Work', href: '/hq/board', icon: KanbanSquare, hint: 'Every task, by stage' },
-      { title: 'Builds', href: '/hq/builds', icon: Hammer, hint: 'Features the Builder makes, request to PR' },
-      { title: 'Team', href: '/hq/team', icon: Bot, hint: 'Agents and people', alsoActive: ['/hq/people'] },
-      { title: 'Analytics', href: '/hq/analytics', icon: BarChart3, hint: 'Players, games and retention' },
-    ],
-  },
-  {
-    title: 'More',
-    items: [
-      { title: 'Romero', href: '/hq/director', icon: Compass, hint: 'Chat with the Director and his decision log' },
-      { title: 'Goals', href: '/hq/goals', icon: Target, hint: 'North Star, this week, today' },
-      { title: 'Messages', href: '/hq/inbox', icon: Inbox, hint: 'Messages from your team. Approvals and blocked work are on HQ' },
-      { title: 'Schedules', href: '/hq/schedules', icon: CalendarClock, hint: 'Scheduled agent work' },
-      { title: 'Content gaps', href: '/hq/content-gaps', icon: FileSearch, hint: 'Answers players typed that we could not judge' },
-      { title: 'Activity', href: '/hq/activity', icon: Activity, hint: 'What agents did, as a log' },
+      { title: 'Home', href: '/hq', icon: LayoutDashboard, exact: true, hint: 'How we are doing, what the agents are doing, what needs a person' },
+      { title: 'Analytics', href: '/hq/analytics', icon: BarChart3, hint: 'Players, growth, retention and games' },
     ],
   },
 ];
@@ -91,11 +62,10 @@ const hqSections: NavSection[] = [
 const footerItems: NavItem[] = [{ title: 'Preferences', href: '/settings', icon: Settings2 }];
 
 const DEPARTMENT_ICONS: Record<HqDepartmentKey, LucideIcon> = {
-  leadership: Flag,
-  growth: TrendingUp,
   content: PenLine,
+  games: Gamepad2,
   competitions: Trophy,
-  engineering: Wrench,
+  growth: TrendingUp,
   partners: Handshake,
 };
 
@@ -104,18 +74,17 @@ function rootRoutes(hrefs: string[]): string[] {
   return hrefs.filter((href) => !hrefs.some((other) => other !== href && href.startsWith(`${other}/`)));
 }
 
-// One group per department: its HQ overview page, then the existing tools it owns.
-// `routes` (the group's access rule) lists the top-level tools — or the department
-// page when there are none — so the Partners group stays visible to partner staff
-// (just /freecroco) while its admin-only Overview and Staff links are filtered per item.
+// One group per department: its own HQ page first (where its agents and numbers live), then the CMS tools it owns.
+// `routes` (the group's access rule) lists the top-level tools, so the Partners group stays visible to partner staff
+// (just /freecroco) while the links they may not open are filtered per item.
 function departmentGroups(email: string | null | undefined, showRealData: boolean, t: (s: string) => string = (s) => s): DepartmentGroup[] {
   return HQ_DEPARTMENTS.map((d) => ({
     key: d.key,
     title: t(d.name),
     icon: DEPARTMENT_ICONS[d.key] ?? LayoutDashboard,
-    routes: d.tools.length > 0 ? rootRoutes(d.tools.map((t) => t.href)) : [departmentHref(d.key)],
+    routes: d.tools.length > 0 ? rootRoutes(d.tools.map((t) => t.href)) : d.home ? [d.home] : [],
     children: [
-      { title: t('Overview'), href: departmentHref(d.key), exact: true },
+      ...(d.home ? [{ title: t('Overview'), href: d.home, exact: false }] : []),
       // Real-data pages stay out of sight unless enabled in Preferences; some tools are
       // limited to specific accounts (e.g. Player activity).
       ...withoutHiddenRealData(toolsForUser(d, email), showRealData).map((tool) => ({ title: t(tool.title), href: tool.href, icon: tool.icon, exact: tool.exact })),
@@ -139,8 +108,6 @@ export function Sidebar({ variant = 'rail' }: { variant?: 'rail' | 'drawer' }) {
   const isAdmin = cmsRole(user?.role) === 'admin';
   // Freecroco staff read Georgian; everyone else sees the menu in English.
   const { t } = fcText(fcLangForRole(user?.role));
-  // Live signals (approvals, who's working) for admins only — partner staff can't read HQ.
-  const { data: overview } = useHqOverview({ enabled: isAdmin, refetchInterval: 60_000 });
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
 
   const sections = hqSections
@@ -151,10 +118,6 @@ export function Sidebar({ variant = 'rail' }: { variant?: 'rail' | 'drawer' }) {
   const groups = navGroupsForRole(departmentGroups(user?.email, showRealData, t), user?.role)
     .map((group) => ({ ...group, children: navItemsForRole(group.children, user?.role) }))
     .filter((group) => group.children.length > 0);
-
-  // The Messages badge: unread messages only (approvals and blocked work are on HQ).
-  const inboxCount = overview ? overview.inboxUnread : 0;
-  const deptSignals = new Map<string, HqDepartment>((overview?.departments ?? []).map((d) => [d.key, d]));
 
   return (
     <aside
@@ -189,7 +152,6 @@ export function Sidebar({ variant = 'rail' }: { variant?: 'rail' | 'drawer' }) {
           // (< navwide) always shows its icons.
           const containsActive = section.items.some((item) => isItemActive(pathname, item));
           const open = !section.title || (openGroups[`section:${section.title}`] ?? containsActive);
-          const badgeHidden = !open && inboxCount > 0 && section.items.some((i) => i.href === '/hq/inbox');
           return (
             <div key={section.title || 'main'} className="space-y-0.5">
               {section.title && (
@@ -201,7 +163,6 @@ export function Sidebar({ variant = 'rail' }: { variant?: 'rail' | 'drawer' }) {
                 >
                   <ChevronRight className={cn('size-3 transition', open && 'rotate-90')} />
                   {section.title}
-                  {badgeHidden && <span className="ml-auto rounded bg-amber-500 px-1.5 text-[10px] font-semibold tabular-nums tracking-normal text-white">{inboxCount}</span>}
                 </button>
               )}
               <div className={cn('space-y-0.5', !open && 'navwide:hidden')}>
@@ -210,7 +171,6 @@ export function Sidebar({ variant = 'rail' }: { variant?: 'rail' | 'drawer' }) {
                     key={item.href}
                     item={item}
                     active={isItemActive(pathname, item)}
-                    badge={item.href === '/hq/inbox' ? inboxCount : 0}
                   />
                 ))}
               </div>
@@ -237,9 +197,6 @@ export function Sidebar({ variant = 'rail' }: { variant?: 'rail' | 'drawer' }) {
             {groups.map((group) => {
               const containsActive = group.children.some((c) => isItemActive(pathname, c)) || group.routes.some((r) => matches(pathname, r));
               const expanded = openGroups[group.key] ?? containsActive;
-              const signal = deptSignals.get(group.key);
-              const working = (signal?.working.length ?? 0) > 0;
-              const approvals = signal?.counts.needsApproval ?? 0;
               const headerHref = group.children[0].href;
 
               return (
@@ -255,24 +212,8 @@ export function Sidebar({ variant = 'rail' }: { variant?: 'rail' | 'drawer' }) {
                       title={group.title}
                       className="flex h-full min-w-0 flex-1 items-center justify-center gap-3 px-3 text-sm font-medium navwide:justify-start"
                     >
-                      <span className="relative leading-none" aria-hidden>
-                        <group.icon className="size-4 shrink-0" />
-                        {working && (
-                          <span className="absolute -right-1 -top-1 h-2 w-2 animate-pulse rounded-full bg-blue-500 ring-2 ring-white navwide:hidden" />
-                        )}
-                      </span>
+                      <group.icon className="size-4 shrink-0" aria-hidden />
                       <span className="hidden min-w-0 flex-1 truncate navwide:block">{group.title}</span>
-                      {working && (
-                        <span title="An agent is working right now" aria-label="working" className="hidden h-2 w-2 animate-pulse rounded-full bg-blue-500 navwide:inline-block" />
-                      )}
-                      {approvals > 0 && (
-                        <span
-                          title={`${approvals} waiting for approval`}
-                          className="hidden h-5 min-w-5 items-center justify-center rounded bg-amber-500 px-1.5 text-[11px] font-semibold tabular-nums text-white navwide:inline-flex"
-                        >
-                          {approvals}
-                        </span>
-                      )}
                     </Link>
                     <button
                       type="button"

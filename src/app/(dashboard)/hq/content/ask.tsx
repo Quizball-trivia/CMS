@@ -6,7 +6,7 @@ import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { useApplyHarnessAsk, useCreateHarnessAsk, useDismissHarnessAsk } from '@/hooks';
-import { formatRelative } from '@/lib/hq-board';
+import { formatRelative } from '@/lib/hq-time';
 import { cn } from '@/lib/utils';
 import type { HarnessAsk } from '@/types';
 import { errorMessage, Panel } from '../hq-ui';

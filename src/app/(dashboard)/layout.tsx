@@ -4,14 +4,8 @@ import { Suspense, useEffect } from 'react';
 import { notFound, usePathname, useRouter } from 'next/navigation';
 import { useAuth } from '@/providers';
 import { Sidebar, Header, EnvironmentBanner } from '@/components/layout';
-import { cmsRole, guardRedirect } from '@/lib/freecroco/access';
-import { departmentForPath } from '@/lib/hq-departments';
-import dynamic from 'next/dynamic';
+import { guardRedirect } from '@/lib/freecroco/access';
 import { Loader2 } from 'lucide-react';
-
-// Loaded on demand: it pulls in HQ's task dialog and Markdown stack, which no
-// other CMS page needs; it only renders for admins on department tool pages.
-const DepartmentBar = dynamic(() => import('@/components/hq/department-bar').then((m) => m.DepartmentBar), { ssr: false });
 
 export default function DashboardLayout({
   children,
@@ -59,12 +53,6 @@ export default function DashboardLayout({
           <Header />
           <main className="flex-1 p-4 md:p-6 overflow-y-auto">
             <div className="max-w-[1800px] mx-auto space-y-6">
-              {/* Ties each existing tool page to its HQ department (admins only; not on HQ pages). */}
-              {cmsRole(user?.role) === 'admin' && departmentForPath(pathname) && (
-                <Suspense fallback={null}>
-                  <DepartmentBar pathname={pathname} />
-                </Suspense>
-              )}
               {children}
             </div>
           </main>
