@@ -8,21 +8,10 @@ import { cn } from '@/lib/utils';
 import { useAuth } from '@/providers';
 import { cmsRole, FREECROCO_ROOT, navGroupsForRole, navItemsForRole } from '@/lib/freecroco/access';
 import { fcLangForRole, fcText } from '@/lib/freecroco/i18n';
-import { HQ_DEPARTMENTS, toolsForUser, withoutHiddenRealData } from '@/lib/hq-departments';
+import { DEPARTMENT_LOOK, HQ_DEPARTMENTS, toolsForUser, withoutHiddenRealData } from '@/lib/hq-departments';
 import { useRealAnalyticsVisible } from '@/hooks/use-real-analytics-visible';
 import type { HqDepartmentKey } from '@/types';
-import {
-  BarChart3,
-  ChevronRight,
-  Gamepad2,
-  Handshake,
-  LayoutDashboard,
-  PenLine,
-  Settings2,
-  TrendingUp,
-  Trophy,
-  type LucideIcon,
-} from 'lucide-react';
+import { BarChart3, ChevronRight, LayoutDashboard, Settings2, type LucideIcon } from 'lucide-react';
 
 type NavItem = {
   title: string;
@@ -40,6 +29,8 @@ type DepartmentGroup = {
   key: HqDepartmentKey;
   title: string;
   icon: LucideIcon;
+  /** The department's colour, on its icon. */
+  tint: string;
   /** Access rule: every route must be allowed for the group to show (see navGroupsForRole). */
   routes: string[];
   children: NavItem[];
@@ -61,14 +52,6 @@ const hqSections: NavSection[] = [
 // Browser preferences (e.g. showing real-data pages); not part of any department.
 const footerItems: NavItem[] = [{ title: 'Preferences', href: '/settings', icon: Settings2 }];
 
-const DEPARTMENT_ICONS: Record<HqDepartmentKey, LucideIcon> = {
-  content: PenLine,
-  games: Gamepad2,
-  competitions: Trophy,
-  growth: TrendingUp,
-  partners: Handshake,
-};
-
 /** A department's top-level tool routes — sub-pages of another tool (e.g. /freecroco/staff) are left out. */
 function rootRoutes(hrefs: string[]): string[] {
   return hrefs.filter((href) => !hrefs.some((other) => other !== href && href.startsWith(`${other}/`)));
@@ -81,7 +64,8 @@ function departmentGroups(email: string | null | undefined, showRealData: boolea
   return HQ_DEPARTMENTS.map((d) => ({
     key: d.key,
     title: t(d.name),
-    icon: DEPARTMENT_ICONS[d.key] ?? LayoutDashboard,
+    icon: DEPARTMENT_LOOK[d.key]?.icon ?? LayoutDashboard,
+    tint: DEPARTMENT_LOOK[d.key]?.text ?? '',
     routes: d.tools.length > 0 ? rootRoutes(d.tools.map((t) => t.href)) : d.home ? [d.home] : [],
     children: [
       ...(d.home ? [{ title: t('Overview'), href: d.home, exact: false }] : []),
@@ -179,9 +163,8 @@ export function Sidebar({ variant = 'rail' }: { variant?: 'rail' | 'drawer' }) {
         })}
 
         {groups.length > 0 && (() => {
-          // Folded like "More": open while one of their pages is showing; the rail always shows the icons.
-          const deptActive = groups.some((g) => g.children.some((c) => isItemActive(pathname, c)) || g.routes.some((r) => matches(pathname, r)));
-          const deptOpen = openGroups['section:Departments'] ?? deptActive;
+          // Open unless someone folded it: the departments are the map of HQ.
+          const deptOpen = openGroups['section:Departments'] ?? true;
           return (
           <div className="space-y-0.5">
             <button
@@ -212,7 +195,7 @@ export function Sidebar({ variant = 'rail' }: { variant?: 'rail' | 'drawer' }) {
                       title={group.title}
                       className="flex h-full min-w-0 flex-1 items-center justify-center gap-3 px-3 text-sm font-medium navwide:justify-start"
                     >
-                      <group.icon className="size-4 shrink-0" aria-hidden />
+                      <group.icon className={cn("size-4 shrink-0", group.tint)} aria-hidden />
                       <span className="hidden min-w-0 flex-1 truncate navwide:block">{group.title}</span>
                     </Link>
                     <button

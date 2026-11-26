@@ -38,7 +38,8 @@ const game = (name: string, started: [number, number], finished: [number, number
   stats: { started: { now: started[0], before: started[1] }, finished: { now: finished[0], before: finished[1] }, played: null },
 });
 const games = (list: HarnessGame[]): HarnessGames => ({ generatedAt: '2026-11-27T10:00:00Z', games: list });
-const series = (n: number) => Array.from({ length: n }, (_, i) => ({ date: `d${i}`, newUsers: i < n - 8 ? 10 : 20, activePlayers: 0, matches: i < n - 8 ? 100 : 150 }));
+// Real calendar days, oldest first, ending 27 Nov (today in the tests).
+const series = (n: number) => Array.from({ length: n }, (_, i) => ({ date: new Date(Date.UTC(2026, 10, 27 - (n - 1 - i))).toISOString().slice(0, 10), newUsers: i < n - 8 ? 10 : 20, activePlayers: 0, matches: i < n - 8 ? 100 : 150 }));
 const analytics = { series: series(30), actives: { dau: 1200, wau: 6400, mau: 21000 } } as unknown as HqAnalytics;
 
 afterEach(() => {
@@ -64,18 +65,19 @@ it('shows the whole company on one page: agents, what needs a person, the produc
   expect(within(needs).getByRole('link', { name: /Open Games/ }).getAttribute('href')).toBe('/hq/games');
 
   const product = screen.getByRole('heading', { name: /^The product/ }).closest('section')!;
+  expect(product.textContent).toMatch(/last 7 whole days \(20 Nov to 26 Nov\)/);
   expect(product.textContent).toMatch(/Active today1,200/);
-  expect(product.textContent).toMatch(/New players140\+100% on the week before/);
-  expect(product.textContent).toMatch(/Games played1,050\+50% on the week before/);
+  expect(product.textContent).toMatch(/New players140▲ 100%/);
+  expect(product.textContent).toMatch(/Games played1,050▲ 50%/);
 
   const departments = screen.getByRole('heading', { name: /^Departments/ }).closest('section')!;
   const cards = within(departments).getAllByRole('article');
   expect(cards.map((c) => within(c).getByRole('heading').textContent)).toEqual(['Content', 'Games', 'Competitions', 'Growth', 'Partners']);
-  expect(cards[0].textContent).toMatch(/342 new questions went live today\./);
-  expect(cards[0].textContent).toMatch(/640 still missing across 19 categories\./);
-  expect(cards[0].textContent).toMatch(/Shortest daily game: Pistas, 12 days of content left\./);
+  expect(cards[0].textContent).toMatch(/Live today342new questions/);
+  expect(cards[0].textContent).toMatch(/Still missing640in 19 categories/);
+  expect(cards[0].textContent).toMatch(/Runway12 daysshortest: Pistas/);
   expect(within(cards[0]).getByRole('link', { name: 'Open Content' }).getAttribute('href')).toBe('/hq/content');
-  expect(cards[1].textContent).toMatch(/2 games are on\.1 worth a look this week\./);
+  expect(cards[1].textContent).toMatch(/Games on2of 2Worth a look1this week/);
   expect(within(cards[2]).getByText('Agents not set up yet')).toBeTruthy();
   expect(within(cards[3]).getByRole('link', { name: 'Users' }).getAttribute('href')).toBe('/users');
   expect(within(cards[3]).queryByRole('link', { name: 'Analytics (live)' })).toBeNull();
@@ -114,7 +116,7 @@ it('keeps the page up while parts are still loading or one of them failed', () =
 });
 
 it('compares two whole weeks for the pulse and gives nothing when there are too few days', () => {
-  expect(pulse({ series: series(30) })).toMatchObject({ newPlayers: { now: 140, before: 70 }, games: { now: 1050, before: 700 }, from: 'd22', to: 'd28' });
+  expect(pulse({ series: series(30) })).toMatchObject({ newPlayers: { now: 140, before: 70 }, games: { now: 1050, before: 700 }, from: '2026-11-20', to: '2026-11-26' });
   expect(pulse({ series: series(10) })).toBeNull();
   expect(pulse(undefined)).toBeNull();
 });

@@ -9,6 +9,7 @@ vi.mock('@/hooks', () => ({ useHarnessGames: () => ({ data: h.data, error: h.err
 vi.stubEnv('NEXT_PUBLIC_GAME_PREVIEW_URL', '');
 const { default: HqGamesPage } = await import('../games/page');
 const { change, finishRate, previewUrl, worthALook } = await import('../games/games');
+const { Delta } = await import('../hq-ui');
 
 const game = (key: string, over: Partial<HarnessGame> = {}): HarnessGame => ({
   key, name: key, group: 'daily', what: `What ${key} is.`, state: 'on', route: `/${key}`, preview: { kind: 'playground', game: key },
@@ -35,11 +36,11 @@ it('puts every game in its group with its state, its numbers and how to play it'
   const cards = within(daily).getAllByRole('article');
   // Biggest first, counting daily starts and games with friends together.
   expect(cards.map((c) => within(c).getByRole('heading').textContent)).toEqual(['Tenable', 'Minesweeper']);
-  expect(cards[1].textContent).toMatch(/3,101 started a day \(−13%\)/);
-  expect(cards[1].textContent).toMatch(/80% finished it/);
-  expect(cards[0].textContent).toMatch(/787 games with friends \(\+23%\)/);
+  expect(cards[1].textContent).toMatch(/3,101\s*started a day\s*▼ 13%/);
+  expect(cards[1].textContent).toMatch(/Finished the day\s*80%/);
+  expect(cards[0].textContent).toMatch(/With friends\s*787\s*▲ 23%/);
   const match = screen.getByRole('heading', { name: /^The match/ }).closest('section')!;
-  expect(within(match).getByText(/8,007/).closest('p')!.textContent).toMatch(/8,007 played \(−24%\)/);
+  expect(within(match).getByText(/8,007/).closest('p')!.textContent).toMatch(/8,007\s*played\s*▼ 24%/);
   expect(within(match).getByText('Beta')).toBeTruthy();
   expect(within(match).getByText('No preview yet')).toBeTruthy();
   expect(screen.getByText('Plays are not counted for this game yet.')).toBeTruthy();
@@ -87,4 +88,27 @@ it('reads the numbers honestly at the edges', () => {
   expect(finishRate(game('x', { stats: { started: { now: 0, before: 5 }, finished: { now: 0, before: 1 }, played: null } }))).toBeNull();
   expect(previewUrl({ preview: null })).toBeNull();
   expect(previewUrl({ preview: { kind: 'demo', slug: '' } })).toBe('https://staging.quizball.io/demos');
+});
+
+it('finds a game by name or by kind', () => {
+  h.data = hub([game('Minesweeper'), game('Tenable'), game('Ranked', { group: 'match', stats: { started: null, finished: null, played: { now: 5, before: 5 } } })]);
+  render(<HqGamesPage />);
+  const names = () => screen.getAllByRole('article').map((c) => within(c).getByRole('heading').textContent);
+  expect(names()).toHaveLength(3);
+  fireEvent.change(screen.getByPlaceholderText('Find a game'), { target: { value: 'mine' } });
+  expect(names()).toEqual(['Minesweeper']);
+  fireEvent.change(screen.getByPlaceholderText('Find a game'), { target: { value: 'zzz' } });
+  expect(screen.getByText('No game matches “zzz”.')).toBeTruthy();
+  fireEvent.change(screen.getByPlaceholderText('Find a game'), { target: { value: '' } });
+  fireEvent.click(screen.getByRole('button', { name: /^The match/ }));
+  expect(names()).toEqual(['Ranked']);
+});
+
+it('shows a change as a small up or down mark, and nothing when there is nothing to compare', () => {
+  const text = (now: number, before: number) => render(<Delta now={now} before={before} />).container.textContent;
+  expect(text(110, 100)).toBe('▲ 10%');
+  expect(text(87, 100)).toBe('▼ 13%');
+  expect(text(5, 0)).toBe('new');
+  expect(text(100, 100)).toBe('no change');
+  expect(text(0, 0)).toBe('');
 });

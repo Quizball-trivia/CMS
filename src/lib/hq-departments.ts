@@ -13,8 +13,12 @@ import {
   FileSearch,
   FolderKanban,
   Gamepad,
+  Gamepad2,
   Gavel,
   Globe2,
+  Handshake,
+  PenLine,
+  TrendingUp,
   Mail,
   Megaphone,
   PanelsTopLeft,
@@ -127,6 +131,15 @@ export const HQ_DEPARTMENTS: HqDepartmentInfo[] = [
     ],
   },
 ];
+
+/** Each department's icon and colour, the same in the sidebar and on the HQ home. */
+export const DEPARTMENT_LOOK: Record<HqDepartmentKey, { icon: LucideIcon; tint: string; text: string }> = {
+  content: { icon: PenLine, tint: 'bg-violet-50 text-violet-700', text: 'text-violet-700' },
+  games: { icon: Gamepad2, tint: 'bg-sky-50 text-sky-700', text: 'text-sky-700' },
+  competitions: { icon: Trophy, tint: 'bg-amber-50 text-amber-700', text: 'text-amber-700' },
+  growth: { icon: TrendingUp, tint: 'bg-emerald-50 text-emerald-700', text: 'text-emerald-700' },
+  partners: { icon: Handshake, tint: 'bg-rose-50 text-rose-700', text: 'text-rose-700' },
+};
 
 export const HQ_DEPARTMENT_KEYS = HQ_DEPARTMENTS.map((d) => d.key);
 
