@@ -187,7 +187,8 @@ export default function HqHomePage() {
               <div key={i.key} className="relative flex flex-wrap items-center gap-x-3 gap-y-1 py-3 pl-5 pr-4 text-sm">
                 <span className={cn('absolute inset-y-2 left-0 w-1 rounded-r', AREA_BAR[i.area])} aria-hidden />
                 <span className={cn('rounded px-1.5 py-0.5 text-[12px] font-medium', AREA_TONE[i.area])}>{i.area}</span>
-                <span className="min-w-0 flex-1 text-slate-800">{i.text}</span>
+                {/* On a phone the sentence takes the full row and the link sits under it. */}
+                <span className="min-w-0 flex-1 basis-full text-slate-800 sm:basis-0">{i.text}</span>
                 <Link href={i.href} className="inline-flex items-center gap-1 font-medium text-slate-900 underline-offset-2 hover:underline">
                   {i.action} <ArrowRight className="h-3.5 w-3.5" aria-hidden />
                 </Link>

@@ -176,17 +176,19 @@ export default function HqGamesPage() {
           </Section>
 
           <div className="sticky top-0 z-10 -mx-1 flex flex-wrap items-center gap-2 border-y border-slate-200 bg-slate-50/95 px-1 py-2 backdrop-blur">
-            <label className="relative">
+            <label className="relative w-full sm:w-auto">
               <span className="sr-only">Find a game</span>
               <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" aria-hidden />
               <input
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder="Find a game"
-                className="h-9 w-56 rounded-md border border-slate-200 bg-white pl-8 pr-3 text-sm text-slate-900 outline-none placeholder:text-slate-400 focus:border-slate-400"
+                className="h-9 w-full rounded-md border border-slate-200 bg-white pl-8 pr-3 text-sm text-slate-900 outline-none placeholder:text-slate-400 focus:border-slate-400 sm:w-56"
               />
             </label>
-            <div className="flex flex-wrap gap-1" role="group" aria-label="Kind of game">
+            {/* One row that scrolls sideways on a phone (by touch), so the bar stays short while it sticks to the top; from
+                tablet width up the buttons wrap instead, so a mouse reaches every one. */}
+            <div className="flex max-w-full gap-1 overflow-x-auto whitespace-nowrap sm:flex-wrap sm:overflow-visible" role="group" aria-label="Kind of game">
               {[{ key: 'all' as const, title: 'All' }, ...GROUPS].map((g) => {
                 const n = g.key === 'all' ? data.games.length : data.games.filter((x) => x.group === g.key).length;
                 if (n === 0) return null;
