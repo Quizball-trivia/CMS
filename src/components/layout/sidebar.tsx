@@ -65,6 +65,7 @@ const hqSections: NavSection[] = [
     title: '',
     items: [
       { title: 'HQ', href: '/hq', icon: LayoutDashboard, exact: true, hint: 'What needs you, who is working on what, what shipped' },
+      { title: 'Content', href: '/hq/content', icon: PenLine, hint: 'Content agents: Classic ranked pools, pipeline, accounts' },
       { title: 'Work', href: '/hq/board', icon: KanbanSquare, hint: 'Every task, by stage' },
       { title: 'Builds', href: '/hq/builds', icon: Hammer, hint: 'Features the Builder makes, request to PR' },
       { title: 'Team', href: '/hq/team', icon: Bot, hint: 'Agents and people', alsoActive: ['/hq/people'] },

@@ -56,8 +56,8 @@ it('shows admins the Company section and every department', () => {
   render(<Sidebar />);
   const hrefs = links();
   // HQ first; then the daily places; the rest under "More".
-  expect(hrefs.slice(0, 11)).toEqual([
-    '/hq', '/hq/board', '/hq/builds', '/hq/team', '/hq/analytics',
+  expect(hrefs.slice(0, 12)).toEqual([
+    '/hq', '/hq/content', '/hq/board', '/hq/builds', '/hq/team', '/hq/analytics',
     '/hq/director', '/hq/goals', '/hq/inbox', '/hq/schedules', '/hq/content-gaps', '/hq/activity',
   ]);
   for (const heading of ['More', 'Departments']) expect(within(nav()).getByText(heading)).toBeTruthy();
