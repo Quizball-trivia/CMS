@@ -117,6 +117,11 @@ function Question({ q, n, canSwap, onSwap, swapping }: { q: HarnessShowQuestion;
           <Both t={q.prompt} big />
         </p>
       )}
+      {q.instruction && (
+        <p className="text-sm">
+          <Both t={q.instruction} />
+        </p>
+      )}
       {q.image && (
         // eslint-disable-next-line @next/next/no-img-element -- question photos live on the game's own storage, any size
         <img src={q.image} alt="The photo shown with this question" className="max-h-48 rounded-md border border-slate-200" />

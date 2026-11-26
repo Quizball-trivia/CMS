@@ -239,6 +239,8 @@ export interface HarnessShowQuestion {
   answer: HarnessShowText | null;
   /** Put in order: the items in the right order. Career path: the clubs. Who am I: the clues. */
   lines: HarnessShowText[];
+  /** Put in order: the extra line players see under the question, when there is one. */
+  instruction?: HarnessShowText;
 }
 
 export interface HarnessShowPack {
