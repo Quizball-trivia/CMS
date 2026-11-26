@@ -1,6 +1,6 @@
 // Data layer for the HQ Content tab (`/admin/harness`), through the shared apiClient like hq-api.ts.
 import { apiClient } from '@/services';
-import type { HarnessShow, HarnessCreateEvent, HarnessCreateRequest, HarnessItemAction, HarnessOverview, HarnessPriority, HarnessSettings, HarnessUpdateSettingsRequest } from '@/types';
+import type { HarnessCreateEvent, HarnessCreateRequest, HarnessItemAction, HarnessOverview, HarnessPriority, HarnessSettings, HarnessUpdateSettingsRequest } from '@/types';
 
 const BASE = '/admin/harness';
 
@@ -50,15 +50,15 @@ export const harnessApi = {
   dismissAsk(id: string) {
     return apiClient.post<{ id: string; status: string }>(`${BASE}/asks/${encodeURIComponent(id)}/dismiss`, {});
   },
-  swapShowQuestion(id: string, index: number) {
-    return apiClient.post<HarnessShow>(`${BASE}/show/${encodeURIComponent(id)}/swap`, { index });
+  /** `seen`: the pack's updatedAt as it was read, so a pack that changed since is not changed or approved unread. */
+  swapShowQuestion(id: string, index: number, seen: string) {
+    return apiClient.post<{ id: string; status: string }>(`${BASE}/show/${encodeURIComponent(id)}/swap`, { index, seen });
   },
   newShowPack(id: string) {
-    return apiClient.post<HarnessShow>(`${BASE}/show/${encodeURIComponent(id)}/new`, {});
+    return apiClient.post<{ id: string; status: string }>(`${BASE}/show/${encodeURIComponent(id)}/new`, {});
   },
-  /** `seen`: the pack's updatedAt as it was read, so a pack that changed since is not approved unread. */
   approveShowPack(id: string, seen: string) {
-    return apiClient.post<HarnessShow>(`${BASE}/show/${encodeURIComponent(id)}/approve`, { seen });
+    return apiClient.post<{ id: string; status: string }>(`${BASE}/show/${encodeURIComponent(id)}/approve`, { seen });
   },
   itemAction(itemId: string, body: { action: HarnessItemAction; version: number; note?: string }) {
     return apiClient.post<{ id: string; stage: string }>(`${BASE}/items/${encodeURIComponent(itemId)}/action`, body);

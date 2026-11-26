@@ -5,7 +5,7 @@ import { Check, Loader2, RefreshCw, Repeat } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { useApproveShowPack, useNewShowPack, useSwapShowQuestion } from '@/hooks';
+import { useApproveShowPack, useNewShowPack, useShowPackChanging, useSwapShowQuestion } from '@/hooks';
 import { cn } from '@/lib/utils';
 import type { HarnessShow, HarnessShowPack, HarnessShowQuestion, HarnessShowText } from '@/types';
 import { EmptyState, errorMessage, Panel, Section } from '../hq-ui';
@@ -175,14 +175,14 @@ function Pack({ pack, show }: { pack: HarnessShowPack; show: HarnessShow }) {
   const setConfirm = (what: 'approve' | 'new' | null) => setAsked(what ? { what, seen } : null);
   const [swappingIndex, setSwappingIndex] = useState<number | null>(null);
   // One change at a time: a swap sends the whole pack back to the checker.
-  const changing = swap.isPending || fresh.isPending || approve.isPending;
+  const changing = useShowPackChanging();
   const ready = pack.status === 'ready' && !changing;
   const unsure = pack.counts.flagged + pack.counts.notChecked;
 
   const doSwap = (index: number) => {
     setSwappingIndex(index);
     swap.mutate(
-      { id: pack.id, index },
+      { id: pack.id, index, seen: pack.updatedAt },
       {
         onSuccess: () => toast.success('Swapped. The new question is being checked.'),
         onError: (e) => toast.error(errorMessage(e, 'Could not swap the question')),

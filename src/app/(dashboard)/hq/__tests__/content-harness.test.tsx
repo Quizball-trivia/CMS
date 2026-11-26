@@ -23,6 +23,7 @@ const h = vi.hoisted(() => ({
   swapShowMutate: vi.fn(),
   newShowMutate: vi.fn(),
   approveShowMutate: vi.fn(),
+  showChanging: false,
 }));
 vi.mock('next/navigation', () => ({ usePathname: () => '/hq/content', useRouter: () => ({ replace: vi.fn() }), useSearchParams: () => new URLSearchParams() }));
 vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
@@ -46,6 +47,7 @@ vi.mock('@/hooks', () => ({
   useSwapShowQuestion: () => ({ mutate: h.swapShowMutate, isPending: false }),
   useNewShowPack: () => ({ mutate: h.newShowMutate, isPending: false }),
   useApproveShowPack: () => ({ mutate: h.approveShowMutate, isPending: false }),
+  useShowPackChanging: () => h.showChanging,
 }));
 
 const { default: HqContentPage } = await import('../content/page');
@@ -350,7 +352,7 @@ it('shows a ready pack question by question and lets a person swap one and appro
   expect(within(second).getByText('The record was broken in 2025.')).toBeTruthy();
   expect(within(second).getByText('მცდარია')).toBeTruthy();
   fireEvent.click(within(second).getByRole('button', { name: 'Swap question 2' }));
-  expect(h.swapShowMutate).toHaveBeenCalledWith({ id: 'sp1', index: 1 }, expect.anything());
+  expect(h.swapShowMutate).toHaveBeenCalledWith({ id: 'sp1', index: 1, seen: '2026-11-26T10:00:00Z' }, expect.anything());
 
   fireEvent.click(screen.getByRole('button', { name: 'Approve and load for the show' }));
   expect(screen.getByText(/2 questions are flagged or not checked: read them first/)).toBeTruthy();
@@ -398,4 +400,21 @@ it('shows an approved pack as loaded, warns when another pack was loaded by hand
   fireEvent.click(screen.getByRole('button', { name: /New pack/ }));
   fireEvent.click(screen.getByRole('button', { name: 'Build a new pack' }));
   expect(h.newShowMutate).toHaveBeenCalledWith('sp1', expect.anything());
+});
+
+it('locks every show pack button while a change is on its way, and still opens when the backend has no show yet', () => {
+  h.showChanging = true;
+  h.data = withShow(showPack('ready', [showQ(0)]));
+  render(<HqContentPage />);
+  open('Monday show');
+  expect((screen.getByRole('button', { name: 'Approve and load for the show' }) as HTMLButtonElement).disabled).toBe(true);
+  expect((screen.getByRole('button', { name: /New pack/ }) as HTMLButtonElement).disabled).toBe(true);
+  expect(screen.queryByRole('button', { name: /Swap question/ })).toBeNull();
+  h.showChanging = false;
+  cleanup();
+  h.data = { ...overview(), show: undefined };
+  render(<HqContentPage />);
+  expect(screen.getByRole('heading', { name: /^Runway/ })).toBeTruthy();
+  open('Monday show');
+  expect(screen.getByText('The Monday show is not available yet.')).toBeTruthy();
 });

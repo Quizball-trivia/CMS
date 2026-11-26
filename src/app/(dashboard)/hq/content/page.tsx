@@ -238,7 +238,7 @@ export default function HqContentPage() {
           <div role="tablist" aria-label="Content sections" className="flex gap-1 overflow-x-auto border-b border-slate-200">
             {TABS.map((t) => {
               const badge =
-                t.key === 'runway' ? data.runway.filter((r) => r.daysLeft < 14).length : t.key === 'show' ? Number(data.show.pack?.status === 'ready') : t.key === 'plans' ? data.requests.filter((r) => r.status === 'open').length : 0;
+                t.key === 'runway' ? data.runway.filter((r) => r.daysLeft < 14).length : t.key === 'show' ? Number(data.show?.pack?.status === 'ready') : t.key === 'plans' ? data.requests.filter((r) => r.status === 'open').length : 0;
               return (
                 <button
                   key={t.key}
@@ -266,7 +266,8 @@ export default function HqContentPage() {
             <>
               <StatusLine data={data} />
               <Runway rows={data.runway} />
-              <ShowSummary show={data.show} paused={data.settings.paused} onOpen={() => setTab('show')} />
+              {/* `show` is missing only while the backend is a version behind this page. */}
+              {data.show && <ShowSummary show={data.show} paused={data.settings.paused} onOpen={() => setTab('show')} />}
               <Flow data={data} />
               {data.needsYou.length > 0 && <NeedsYou items={data.needsYou} total={stuckCount(data)} />}
               <JustLive items={data.recentLive} />
@@ -274,7 +275,7 @@ export default function HqContentPage() {
             </>
           )}
           {tab === 'runway' && <Runway rows={data.runway} expanded />}
-          {tab === 'show' && <Show show={data.show} paused={data.settings.paused} />}
+          {tab === 'show' && (data.show ? <Show show={data.show} paused={data.settings.paused} /> : <p className="text-sm text-slate-600">The Monday show is not available yet.</p>)}
           {tab === 'library' && <CategoryBoard categories={data.classic.categories} direction={data.direction} />}
           {tab === 'plans' && (
             <>

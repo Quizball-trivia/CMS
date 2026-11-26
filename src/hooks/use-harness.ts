@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useIsMutating, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { harnessApi } from '@/lib/harness-api';
 import { categoryKeys } from './use-categories';
 import type { HarnessCreateEvent, HarnessCreateRequest, HarnessItemAction, HarnessPriority, HarnessUpdateSettingsRequest } from '@/types';
@@ -32,9 +32,10 @@ export function useSetHarnessPolicy() {
 }
 
 /** Every steering action refreshes the tab, so what you changed shows at once. */
-function useHarnessMutation<V, R>(fn: (v: V) => Promise<R>, opts: { touchesCategories?: boolean } = {}) {
+function useHarnessMutation<V, R>(fn: (v: V) => Promise<R>, opts: { touchesCategories?: boolean; mutationKey?: readonly string[] } = {}) {
   const queryClient = useQueryClient();
   return useMutation({
+    mutationKey: opts.mutationKey,
     mutationFn: fn,
     // Returned, so the button stays busy until the fresh data is on screen: no second click on a stale card.
     onSettled: () =>
@@ -102,14 +103,23 @@ export function useDismissHarnessAsk() {
   return useHarnessMutation((id: string) => harnessApi.dismissAsk(id));
 }
 
+// Every change to the show pack shares one key, so the page knows one is in flight even after its buttons were
+// unmounted and mounted again (leaving the tab and coming back).
+const SHOW_CHANGE = { mutationKey: ['harness', 'show-change'] as const };
+
+/** A swap, rebuild or approval of the show pack is on its way (and the fresh data not yet on screen). */
+export function useShowPackChanging(): boolean {
+  return useIsMutating({ mutationKey: SHOW_CHANGE.mutationKey }) > 0;
+}
+
 export function useSwapShowQuestion() {
-  return useHarnessMutation((v: { id: string; index: number }) => harnessApi.swapShowQuestion(v.id, v.index));
+  return useHarnessMutation((v: { id: string; index: number; seen: string }) => harnessApi.swapShowQuestion(v.id, v.index, v.seen), SHOW_CHANGE);
 }
 
 export function useNewShowPack() {
-  return useHarnessMutation((id: string) => harnessApi.newShowPack(id));
+  return useHarnessMutation((id: string) => harnessApi.newShowPack(id), SHOW_CHANGE);
 }
 
 export function useApproveShowPack() {
-  return useHarnessMutation((v: { id: string; seen: string }) => harnessApi.approveShowPack(v.id, v.seen));
+  return useHarnessMutation((v: { id: string; seen: string }) => harnessApi.approveShowPack(v.id, v.seen), SHOW_CHANGE);
 }
