@@ -355,7 +355,18 @@ it('shows a ready pack question by question and lets a person swap one and appro
   fireEvent.click(screen.getByRole('button', { name: 'Approve and load for the show' }));
   expect(screen.getByText(/2 questions are flagged or not checked: read them first/)).toBeTruthy();
   fireEvent.click(screen.getByRole('button', { name: 'Approve and load' }));
-  expect(h.approveShowMutate).toHaveBeenCalledWith('sp1', expect.anything());
+  expect(h.approveShowMutate).toHaveBeenCalledWith({ id: 'sp1', seen: '2026-11-26T10:00:00Z' }, expect.anything());
+});
+
+it('closes the approval question when the pack changes underneath it', () => {
+  h.data = withShow(showPack('ready', [showQ(0)]));
+  const view = render(<HqContentPage />);
+  open('Monday show');
+  fireEvent.click(screen.getByRole('button', { name: 'Approve and load for the show' }));
+  expect(screen.getByRole('button', { name: 'Approve and load' })).toBeTruthy();
+  h.data = withShow({ ...showPack('ready', [showQ(0, { prompt: { ka: 'სხვა კითხვა' } })]), updatedAt: '2026-11-26T10:05:00Z' });
+  view.rerender(<HqContentPage />);
+  expect(screen.queryByRole('button', { name: 'Approve and load' })).toBeNull();
 });
 
 it('does not let anyone approve or swap while the checker is still working', () => {

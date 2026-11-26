@@ -111,5 +111,5 @@ export function useNewShowPack() {
 }
 
 export function useApproveShowPack() {
-  return useHarnessMutation((id: string) => harnessApi.approveShowPack(id));
+  return useHarnessMutation((v: { id: string; seen: string }) => harnessApi.approveShowPack(v.id, v.seen));
 }

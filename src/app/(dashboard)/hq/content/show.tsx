@@ -162,9 +162,16 @@ function Pack({ pack, show }: { pack: HarnessShowPack; show: HarnessShow }) {
   const swap = useSwapShowQuestion();
   const fresh = useNewShowPack();
   const approve = useApproveShowPack();
-  const [confirm, setConfirm] = useState<'approve' | 'new' | null>(null);
+  // The confirmation belongs to the pack as it was read: if the pack changes underneath (someone else swapped a
+  // question or asked for a new pack), the dialog closes instead of approving something nobody looked at.
+  const seen = `${pack.id}@${pack.updatedAt}`;
+  const [asked, setAsked] = useState<{ what: 'approve' | 'new'; seen: string } | null>(null);
+  const confirm = asked && asked.seen === seen ? asked.what : null;
+  const setConfirm = (what: 'approve' | 'new' | null) => setAsked(what ? { what, seen } : null);
   const [swappingIndex, setSwappingIndex] = useState<number | null>(null);
-  const ready = pack.status === 'ready';
+  // One change at a time: a swap sends the whole pack back to the checker.
+  const changing = swap.isPending || fresh.isPending || approve.isPending;
+  const ready = pack.status === 'ready' && !changing;
   const unsure = pack.counts.flagged + pack.counts.notChecked;
 
   const doSwap = (index: number) => {
@@ -181,7 +188,7 @@ function Pack({ pack, show }: { pack: HarnessShowPack; show: HarnessShow }) {
   const run = () => {
     const done = { onSettled: () => setConfirm(null) };
     if (confirm === 'approve')
-      approve.mutate(pack.id, { ...done, onSuccess: () => toast.success('Approved and loaded for the show.'), onError: (e) => toast.error(errorMessage(e, 'Could not approve the pack')) });
+      approve.mutate({ id: pack.id, seen: pack.updatedAt }, { ...done, onSuccess: () => toast.success('Approved and loaded for the show.'), onError: (e) => toast.error(errorMessage(e, 'Could not approve the pack')) });
     else fresh.mutate(pack.id, { ...done, onSuccess: () => toast.success('A new pack is being prepared.'), onError: (e) => toast.error(errorMessage(e, 'Could not start a new pack')) });
   };
   const busy = approve.isPending || fresh.isPending;
@@ -193,10 +200,10 @@ function Pack({ pack, show }: { pack: HarnessShowPack; show: HarnessShow }) {
           <Button onClick={() => setConfirm('approve')} disabled={!ready}>
             Approve and load for the show
           </Button>
-          <Button variant="outline" onClick={() => setConfirm('new')}>
+          <Button variant="outline" onClick={() => setConfirm('new')} disabled={changing}>
             <RefreshCw className="mr-1 h-4 w-4" /> New pack
           </Button>
-          {!ready && <span className="self-center text-[13px] text-slate-600">You can approve once every question has been checked.</span>}
+          {pack.status !== 'ready' && <span className="self-center text-[13px] text-slate-600">You can approve once every question has been checked.</span>}
         </div>
       )}
 
