@@ -11,6 +11,11 @@ export const harnessKeys = {
   overview: () => [...harnessKeys.all, 'overview'] as const,
 };
 
+/** The Games hub. Its play counts are recomputed every five minutes on the server, so it refreshes at that pace. */
+export function useHarnessGames() {
+  return useQuery({ queryKey: [...harnessKeys.all, 'games'] as const, queryFn: () => harnessApi.games(), refetchInterval: 300_000, staleTime: 60_000 });
+}
+
 export function useHarnessOverview() {
   return useQuery({ queryKey: harnessKeys.overview(), queryFn: () => harnessApi.overview(), refetchInterval: HARNESS_REFETCH_MS });
 }
