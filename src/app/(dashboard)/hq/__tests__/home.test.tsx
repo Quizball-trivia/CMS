@@ -2,12 +2,12 @@ import { cleanup, render, screen, within } from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
 import type { HarnessGame, HarnessGames, HarnessOverview, HqAnalytics } from '@/types';
 
-const h = vi.hoisted(() => ({ overview: undefined as unknown, games: undefined as unknown, analytics: undefined as unknown, overviewError: null as unknown }));
+const h = vi.hoisted(() => ({ overview: undefined as unknown, games: undefined as unknown, analytics: undefined as unknown, overviewError: null as unknown, gamesError: null as unknown }));
 vi.mock('@/providers', () => ({ useAuth: () => ({ user: { role: 'admin', email: 'a@quizball.io' } }) }));
 vi.mock('@/hooks/use-real-analytics-visible', () => ({ useRealAnalyticsVisible: () => false }));
 vi.mock('@/hooks', () => ({
   useHarnessOverview: () => ({ data: h.overview, error: h.overviewError }),
-  useHarnessGames: () => ({ data: h.games, error: null }),
+  useHarnessGames: () => ({ data: h.games, error: h.gamesError }),
   useHqAnalytics: () => ({ data: h.analytics, error: null }),
   useHqClock: () => new Date('2026-11-27T10:00:00Z'),
 }));
@@ -43,6 +43,7 @@ const analytics = { series: series(30), actives: { dau: 1200, wau: 6400, mau: 21
 afterEach(() => {
   cleanup();
   h.overviewError = null;
+  h.gamesError = null;
 });
 
 it('shows the whole company on one page: agents, what needs a person, the product, and every department', () => {
@@ -100,6 +101,9 @@ it('keeps the page up while parts are still loading or one of them failed', () =
   h.analytics = analytics;
   render(<HqHomePage />);
   expect(screen.getByText('Could not load what the agents are doing.')).toBeTruthy();
+  // No all-clear while a source is missing.
+  expect(screen.queryByText('Nothing needs you right now.')).toBeNull();
+  expect(screen.getByRole('status').textContent).toBe('Could not check the agents and content and the games, so this list may be missing something.');
   expect(screen.getAllByText('Loading its numbers…')).toHaveLength(2);
   expect(screen.getByText(/1,200/)).toBeTruthy();
 });
@@ -108,4 +112,17 @@ it('compares two whole weeks for the pulse and gives nothing when there are too 
   expect(pulse({ series: series(30) })).toMatchObject({ newPlayers: { now: 140, before: 70 }, games: { now: 1050, before: 700 }, from: 'd22', to: 'd28' });
   expect(pulse({ series: series(10) })).toBeNull();
   expect(pulse(undefined)).toBeNull();
+});
+
+it('does not call it all clear while the games are still being counted, and keeps what it already found', () => {
+  h.overview = overview();
+  h.games = undefined;
+  h.analytics = analytics;
+  render(<HqHomePage />);
+  expect(screen.getByRole('status').textContent).toBe('Still checking the games…');
+  expect(screen.getByText(/1 daily game runs out of content/)).toBeTruthy();
+  cleanup();
+  h.overview = overview({ runway: [] });
+  render(<HqHomePage />);
+  expect(screen.queryByText('Nothing needs you right now.')).toBeNull();
 });

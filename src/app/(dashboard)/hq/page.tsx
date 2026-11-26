@@ -111,6 +111,9 @@ export default function HqHomePage() {
   const seats = o ? o.accounts.filter((a) => !a.reservedForPeople && a.status === 'active') : [];
   const usable = seats.filter((a) => ['working', 'free'].includes(seatState(a, clock).kind)).length;
   const items = needsYou(o, games.data, clock);
+  // What the "Needs you" list could not look at yet.
+  const unchecked = [...(o ? [] : ['the agents and content']), ...(games.data ? [] : ['the games'])];
+  const failed = (!o && !!overview.error) || (!games.data && !!games.error);
   const p = pulse(analytics.data);
   const a = analytics.data;
 
@@ -140,8 +143,14 @@ export default function HqHomePage() {
       </Panel>
 
       <Section title="Needs you" count={items.length} countTone="attention" description="Agents run everything else by themselves. This is only what a person has to decide or fix.">
+        {/* An all-clear needs every source: a part that is loading or failed could be hiding something. */}
+        {unchecked.length > 0 && (
+          <p role="status" className={cn('mb-2 rounded-lg border px-4 py-2.5 text-sm', failed ? 'border-amber-200 bg-amber-50 text-amber-900' : 'border-slate-200 bg-slate-50 text-slate-700')}>
+            {failed ? `Could not check ${unchecked.join(' and ')}, so this list may be missing something.` : `Still checking ${unchecked.join(' and ')}…`}
+          </p>
+        )}
         {items.length === 0 ? (
-          <EmptyState>{o || games.data ? 'Nothing needs you right now.' : 'Loading…'}</EmptyState>
+          unchecked.length === 0 && <EmptyState>Nothing needs you right now.</EmptyState>
         ) : (
           <Panel className="divide-y divide-slate-100">
             {items.map((i) => (
