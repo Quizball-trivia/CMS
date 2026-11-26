@@ -140,16 +140,16 @@ function Meta({ category, difficulty, when }: { category: string | null; difficu
   );
 }
 
-export function NeedsYou({ items }: { items: HarnessNeedsYouItem[] }) {
+export function NeedsYou({ items, total }: { items: HarnessNeedsYouItem[]; total: number }) {
   const [lang, setLang] = useState('en');
   const [noteFor, setNoteFor] = useState<{ item: HarnessNeedsYouItem; action: 'send_back' } | null>(null);
   const { run, pending } = useItemDecision();
   return (
     <Section
       title="Needs you"
-      count={items.length}
+      count={Math.max(total, items.length)}
       countTone="attention"
-      description="Questions the agents could not settle after several tries. Approve, send back with a note, or reject."
+      description={`Questions the agents could not settle after several tries. Approve, send back with a note, or reject.${total > items.length ? ` Showing the newest ${items.length} of ${total}.` : ''}`}
       actions={items.length ? <LanguagePicker value={lang} onChange={setLang} /> : undefined}
     >
       {items.length === 0 ? (

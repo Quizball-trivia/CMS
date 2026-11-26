@@ -152,6 +152,9 @@ export interface HarnessOverview {
   today: { runs: number; costCents: number; failed: number; live: number };
   /** The team's direction note for every category ('' = none). */
   direction: string;
+  /** Every active category, for ordering questions (also ones with no ranked play yet). */
+  allCategories: Array<{ id: string; name: string }>;
+  /** The newest 30 stuck questions; the full count is the escalated stage count. */
   needsYou: HarnessNeedsYouItem[];
   recentLive: HarnessLiveItem[];
   requests: HarnessRequest[];

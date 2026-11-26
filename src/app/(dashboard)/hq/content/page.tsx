@@ -11,7 +11,7 @@ import { cn } from '@/lib/utils';
 import type { HarnessOverview, HarnessReleaseStatus } from '@/types';
 import { EmptyState, errorMessage, HQ_LABEL, HQ_PAGE, LoadErrorState, PageHeader, Panel, RefreshErrorBanner, Section } from '../hq-ui';
 import { EngineRoom } from './engine';
-import { flow, plainEvent } from './plain';
+import { flow, plainEvent, stuckCount } from './plain';
 import { JustLive, NeedsYou } from './questions';
 import { CategoryBoard, Orders } from './steering';
 
@@ -70,10 +70,11 @@ function Controls({ data }: { data: HarnessOverview }) {
 }
 
 function StatusLine({ data }: { data: HarnessOverview }) {
+  const stuck = stuckCount(data);
   const parts: Array<{ n: number; text: string; tone: string }> = [
     { n: data.today.live, text: 'new questions in ranked today', tone: 'text-emerald-700' },
     { n: data.classic.totalShortage, text: `still missing in ${data.classic.shortCategories} categories`, tone: data.classic.totalShortage ? 'text-amber-700' : 'text-emerald-700' },
-    { n: data.needsYou.length, text: data.needsYou.length === 1 ? 'question needs you' : 'questions need you', tone: data.needsYou.length ? 'text-red-700' : 'text-slate-700' },
+    { n: stuck, text: stuck === 1 ? 'question needs you' : 'questions need you', tone: stuck ? 'text-red-700' : 'text-slate-700' },
   ];
   return (
     <Panel className="flex flex-wrap items-center gap-x-6 gap-y-2 px-5 py-4">
@@ -160,11 +161,11 @@ export default function HqContentPage() {
 
           <StatusLine data={data} />
           <Flow data={data} />
-          {data.needsYou.length > 0 && <NeedsYou items={data.needsYou} />}
+          {data.needsYou.length > 0 && <NeedsYou items={data.needsYou} total={stuckCount(data)} />}
           <CategoryBoard categories={data.classic.categories} direction={data.direction} />
-          <Orders requests={data.requests} categories={data.classic.categories} />
+          <Orders requests={data.requests} categories={data.allCategories} />
           <JustLive items={data.recentLive} />
-          {data.needsYou.length === 0 && <NeedsYou items={data.needsYou} />}
+          {data.needsYou.length === 0 && <NeedsYou items={data.needsYou} total={0} />}
           <Activity data={data} />
 
           <section className="rounded-lg border border-slate-200">

@@ -42,6 +42,7 @@ function overview(over: Partial<HarnessOverview> = {}): HarnessOverview {
     settings: { paused: false, pausedReason: null, maxConcurrentRuns: 3, dailyRunLimit: 1500, updatedAt: null },
     today: { runs: 12, costCents: 340, failed: 1, live: 7 },
     direction: '',
+    allCategories: [{ id: 'c1', name: 'Manchester United' }, { id: 'c9', name: 'Inter Miami' }],
     classic: {
       viewCap: 100,
       shortCategories: 2,
@@ -57,6 +58,7 @@ function overview(over: Partial<HarnessOverview> = {}): HarnessOverview {
       { mode: 'classic', stage: 'validated', count: 56 },
       { mode: 'classic', stage: 'verified', count: 2 },
       { mode: 'classic', stage: 'localized', count: 1 },
+      { mode: 'classic', stage: 'escalated', count: 41 },
     ],
     jobs: [{ kind: 'make', status: 'running', count: 2 }],
     accounts: [
@@ -89,7 +91,8 @@ it('says in one line what happened today and what needs a person', () => {
   render(<HqContentPage />);
   expect(screen.getByText('Agents working')).toBeTruthy();
   expect(screen.getByText('new questions in ranked today').parentElement?.textContent).toContain('7');
-  expect(screen.getByText('question needs you')).toBeTruthy();
+  // every stuck question counts, not only the 30 listed
+  expect(screen.getByText('questions need you').parentElement?.textContent).toContain('41');
 });
 
 it('shows the five steps with what is in each', () => {
@@ -106,7 +109,7 @@ it('lists boosted categories first, by name, with how long until full', () => {
   const names = within(table).getAllByRole('row').slice(1).map((r) => within(r).getAllByRole('cell')[0].textContent);
   expect(names[0]).toContain('AC Milan');
   expect(names[1]).toContain('Manchester United');
-  expect(screen.getByText('About 52 days')).toBeTruthy(); // 103 short at 2 a day
+  expect(screen.getByText('About 52 days')).toBeTruthy(); // 103 not yet live at 2 a day
   expect(screen.getByText('more 90s')).toBeTruthy();
 });
 

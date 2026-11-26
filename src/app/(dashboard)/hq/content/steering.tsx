@@ -120,7 +120,9 @@ function DirectionDialog({ target, onClose }: { target: { categoryId: string | n
   );
 }
 
-export function OrderDialog({ open, onClose, categories, initialCategory }: { open: boolean; onClose: () => void; categories: HarnessCategoryHealth[]; initialCategory?: string }) {
+type CategoryOption = { id: string; name: string };
+
+export function OrderDialog({ open, onClose, categories, initialCategory }: { open: boolean; onClose: () => void; categories: CategoryOption[]; initialCategory?: string }) {
   const [categoryId, setCategoryId] = useState(initialCategory ?? '');
   const [difficulty, setDifficulty] = useState<'easy' | 'medium' | 'hard'>('medium');
   const [count, setCount] = useState(10);
@@ -128,7 +130,8 @@ export function OrderDialog({ open, onClose, categories, initialCategory }: { op
   const [deadline, setDeadline] = useState('');
   const create = useCreateHarnessRequest();
   const sorted = useMemo(() => [...categories].sort((a, b) => a.name.localeCompare(b.name)), [categories]);
-  const valid = categoryId && topic.trim().length >= 3 && count >= 1 && count <= 50;
+  // One batch is at most 20 questions; place several orders for more.
+  const valid = categoryId && topic.trim().length >= 3 && count >= 1 && count <= 20;
   const submit = () =>
     create.mutate(
       { categoryId, difficulty, count, topic: topic.trim(), deadline: deadline || null },
@@ -156,7 +159,7 @@ export function OrderDialog({ open, onClose, categories, initialCategory }: { op
               </SelectTrigger>
               <SelectContent>
                 {sorted.map((c) => (
-                  <SelectItem key={c.categoryId} value={c.categoryId}>
+                  <SelectItem key={c.id} value={c.id}>
                     {c.name}
                   </SelectItem>
                 ))}
@@ -183,7 +186,7 @@ export function OrderDialog({ open, onClose, categories, initialCategory }: { op
             </div>
             <div className="grid gap-1.5">
               <Label htmlFor="order-count">How many</Label>
-              <Input id="order-count" type="number" min={1} max={50} value={count} onChange={(e) => setCount(Number(e.target.value))} />
+              <Input id="order-count" type="number" min={1} max={20} value={count} onChange={(e) => setCount(Number(e.target.value))} />
             </div>
             <div className="grid gap-1.5">
               <Label htmlFor="order-deadline">Needed by (optional)</Label>
@@ -288,7 +291,7 @@ export function CategoryBoard({ categories, direction }: { categories: HarnessCa
   );
 }
 
-export function Orders({ requests, categories }: { requests: HarnessRequest[]; categories: HarnessCategoryHealth[] }) {
+export function Orders({ requests, categories }: { requests: HarnessRequest[]; categories: CategoryOption[] }) {
   const [open, setOpen] = useState(false);
   const cancel = useCancelHarnessRequest();
   return (

@@ -30,10 +30,12 @@ export function flow(o: HarnessOverview): Array<{ key: string; label: string; hi
 
 /** Roughly how long until a category is full, at the pace of the last 7 days. */
 export function fillEstimate(c: HarnessCategoryHealth): string {
-  if (c.shortage <= 0) return 'Full';
+  // Full means enough questions live; ones still being made don't count yet.
+  const missingLive = c.needed - c.pool;
+  if (missingLive <= 0) return 'Full';
   if (c.priority === 'hold') return 'On hold';
   if (c.liveLast7d <= 0) return c.inPipeline > 0 ? 'First ones on the way' : 'Not started';
-  const days = Math.ceil(c.shortage / (c.liveLast7d / 7));
+  const days = Math.ceil(missingLive / (c.liveLast7d / 7));
   return days <= 1 ? 'About a day' : days > 60 ? 'Over 2 months' : `About ${days} days`;
 }
 
@@ -55,6 +57,11 @@ const STEP: Record<string, string> = {
 };
 
 /** One activity line in plain words, or null for engine noise the team doesn't need. */
+/** Every stuck question, not just the ones listed. */
+export function stuckCount(o: HarnessOverview): number {
+  return o.stages.filter((s) => s.mode === 'classic' && s.stage === 'escalated').reduce((t, s) => t + s.count, 0);
+}
+
 export function plainEvent(e: HarnessEvent): { text: string; tone: 'neutral' | 'good' | 'attention' } | null {
   if (e.type === 'worker' || e.type === 'decision') return null;
   const about = [e.category, e.prompt ? `“${e.prompt}”` : null].filter(Boolean).join(': ');
