@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { ArrowRight, Loader2 } from 'lucide-react';
 import { useAuth } from '@/providers';
-import { useHarnessGames, useHarnessOverview, useHqAnalytics, useHqClock } from '@/hooks';
+import { useContentFixes, useHarnessGames, useHarnessOverview, useHqAnalytics, useHqClock } from '@/hooks';
 import { useRealAnalyticsVisible } from '@/hooks/use-real-analytics-visible';
 import { HQ_DEPARTMENTS, toolsForUser, withoutHiddenRealData, type HqDepartmentInfo } from '@/lib/hq-departments';
 import { cn } from '@/lib/utils';
@@ -57,7 +57,7 @@ function headline(key: string, o: HarnessOverview | undefined, g: HarnessGames |
   return [];
 }
 
-function Department({ d, o, g, email, showRealData }: { d: HqDepartmentInfo; o: HarnessOverview | undefined; g: HarnessGames | undefined; email: string | null | undefined; showRealData: boolean }) {
+function Department({ d, o, g, failed, email, showRealData }: { d: HqDepartmentInfo; o: HarnessOverview | undefined; g: HarnessGames | undefined; failed: boolean; email: string | null | undefined; showRealData: boolean }) {
   const lines = headline(d.key, o, g);
   const tools = withoutHiddenRealData(toolsForUser(d, email), showRealData);
   return (
@@ -73,7 +73,9 @@ function Department({ d, o, g, email, showRealData }: { d: HqDepartmentInfo; o: 
         )}
       </div>
       <p className="text-[13px] text-slate-600">{d.mission}</p>
-      {lines === null ? (
+      {lines === null && failed ? (
+        <p className="text-[13px] text-amber-800">Could not load its numbers. Trying again.</p>
+      ) : lines === null ? (
         <p className="flex items-center gap-2 text-[13px] text-slate-500">
           <Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading its numbers…
         </p>
@@ -110,10 +112,16 @@ export default function HqHomePage() {
   const now = o ? agentsNow(o, clock) : null;
   const seats = o ? o.accounts.filter((a) => !a.reservedForPeople && a.status === 'active') : [];
   const usable = seats.filter((a) => ['working', 'free'].includes(seatState(a, clock).kind)).length;
-  const items = needsYou(o, games.data, clock);
-  // What the "Needs you" list could not look at yet.
-  const unchecked = [...(o ? [] : ['the agents and content']), ...(games.data ? [] : ['the games'])];
-  const failed = (!o && !!overview.error) || (!games.data && !!games.error);
+  const fixes = useContentFixes({ status: 'held', limit: 50 });
+  const items = needsYou(o, games.data, clock, fixes.data?.length);
+  // What the "Needs you" list could not look at, or could not refresh: the all-clear needs every source, up to date.
+  const sources = [
+    { name: 'the agents and content', q: overview },
+    { name: 'the games', q: games },
+    { name: 'the held content fixes', q: fixes },
+  ];
+  const unchecked = sources.filter((x) => !x.q.data || x.q.error).map((x) => x.name);
+  const failed = sources.some((x) => !!x.q.error);
   const p = pulse(analytics.data);
   const a = analytics.data;
 
@@ -195,7 +203,7 @@ export default function HqHomePage() {
       <Section title="Departments" description="Each department has its agents, its numbers and its tools in one place.">
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
           {HQ_DEPARTMENTS.map((d) => (
-            <Department key={d.key} d={d} o={o} g={games.data} email={user?.email} showRealData={showRealData} />
+            <Department key={d.key} d={d} o={o} g={games.data} failed={d.key === 'content' ? !!overview.error : d.key === 'games' ? !!games.error : false} email={user?.email} showRealData={showRealData} />
           ))}
         </div>
       </Section>

@@ -2,7 +2,7 @@ import { cleanup, render, screen, within } from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
 import type { HarnessGame, HarnessGames, HarnessOverview, HqAnalytics } from '@/types';
 
-const h = vi.hoisted(() => ({ overview: undefined as unknown, games: undefined as unknown, analytics: undefined as unknown, overviewError: null as unknown, gamesError: null as unknown }));
+const h = vi.hoisted(() => ({ overview: undefined as unknown, games: undefined as unknown, analytics: undefined as unknown, overviewError: null as unknown, gamesError: null as unknown, fixes: [] as unknown, fixesError: null as unknown }));
 vi.mock('@/providers', () => ({ useAuth: () => ({ user: { role: 'admin', email: 'a@quizball.io' } }) }));
 vi.mock('@/hooks/use-real-analytics-visible', () => ({ useRealAnalyticsVisible: () => false }));
 vi.mock('@/hooks', () => ({
@@ -10,6 +10,7 @@ vi.mock('@/hooks', () => ({
   useHarnessGames: () => ({ data: h.games, error: h.gamesError }),
   useHqAnalytics: () => ({ data: h.analytics, error: null }),
   useHqClock: () => new Date('2026-11-27T10:00:00Z'),
+  useContentFixes: () => ({ data: h.fixes, error: h.fixesError }),
 }));
 
 const { default: HqHomePage } = await import('../page');
@@ -44,6 +45,8 @@ afterEach(() => {
   cleanup();
   h.overviewError = null;
   h.gamesError = null;
+  h.fixes = [];
+  h.fixesError = null;
 });
 
 it('shows the whole company on one page: agents, what needs a person, the product, and every department', () => {
@@ -104,7 +107,9 @@ it('keeps the page up while parts are still loading or one of them failed', () =
   // No all-clear while a source is missing.
   expect(screen.queryByText('Nothing needs you right now.')).toBeNull();
   expect(screen.getByRole('status').textContent).toBe('Could not check the agents and content and the games, so this list may be missing something.');
-  expect(screen.getAllByText('Loading its numbers…')).toHaveLength(2);
+  // Content failed, Games is still loading: each card says which.
+  expect(screen.getByText('Could not load its numbers. Trying again.')).toBeTruthy();
+  expect(screen.getAllByText('Loading its numbers…')).toHaveLength(1);
   expect(screen.getByText(/1,200/)).toBeTruthy();
 });
 
@@ -125,4 +130,20 @@ it('does not call it all clear while the games are still being counted, and keep
   h.overview = overview({ runway: [] });
   render(<HqHomePage />);
   expect(screen.queryByText('Nothing needs you right now.')).toBeNull();
+});
+
+it('counts Ask HQ answers and held content fixes as things that need a person, and never gives the all-clear on stale data', () => {
+  const o = overview({ runway: [], asks: [{ id: 'a', message: 'm', askedBy: null, status: 'answered', reply: '', actions: [], createdAt: '' }] as never });
+  expect(needsYou(o, undefined, Date.parse('2026-11-27T10:00:00Z'), 3).map((i) => [i.key, i.text])).toEqual([
+    ['asks', '1 answer from Ask HQ is waiting for you to apply or dismiss.'],
+    ['fixes', '3 content fixes are held for a decision.'],
+  ]);
+  // Everything loaded and empty, but the last refresh of one source failed: no all-clear.
+  h.overview = overview({ runway: [] });
+  h.games = games([game('Fine', [1000, 1000], [800, 800])]);
+  h.analytics = analytics;
+  h.fixesError = new Error('refresh failed');
+  render(<HqHomePage />);
+  expect(screen.queryByText('Nothing needs you right now.')).toBeNull();
+  expect(screen.getByRole('status').textContent).toBe('Could not check the held content fixes, so this list may be missing something.');
 });
