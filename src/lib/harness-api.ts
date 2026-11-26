@@ -1,6 +1,6 @@
 // Data layer for the HQ Content tab (`/admin/harness`), through the shared apiClient like hq-api.ts.
 import { apiClient } from '@/services';
-import type { HarnessIdeaKind, HarnessMarket, HarnessGameChange, HarnessGames, HarnessReport, HarnessReports, HarnessCreateEvent, HarnessCreateRequest, HarnessItemAction, HarnessOverview, HarnessPriority, HarnessSettings, HarnessUpdateSettingsRequest } from '@/types';
+import type { HarnessIdeaKind, HarnessMarket, HarnessGameChange, HarnessGameChanges, HarnessGames, HarnessReport, HarnessReports, HarnessCreateEvent, HarnessCreateRequest, HarnessItemAction, HarnessOverview, HarnessPriority, HarnessSettings, HarnessUpdateSettingsRequest } from '@/types';
 
 const BASE = '/admin/harness';
 
@@ -8,8 +8,8 @@ export const harnessApi = {
   games(): Promise<HarnessGames> {
     return apiClient.get<HarnessGames>(`${BASE}/games`);
   },
-  gameChanges(): Promise<{ items: HarnessGameChange[] }> {
-    return apiClient.get<{ items: HarnessGameChange[] }>(`${BASE}/games/changes`);
+  gameChanges(): Promise<HarnessGameChanges> {
+    return apiClient.get<HarnessGameChanges>(`${BASE}/games/changes`);
   },
   createGameChange(body: { gameKey: string; title: string; request: string }) {
     return apiClient.post<HarnessGameChange>(`${BASE}/games/changes`, body);
@@ -28,6 +28,16 @@ export const harnessApi = {
   },
   archiveReport(id: string) {
     return apiClient.post<{ id: string; status: 'archived' }>(`${BASE}/reports/${encodeURIComponent(id)}/archive`, {});
+  },
+  buildGameChange(id: string) {
+    return apiClient.post<HarnessGameChange>(`${BASE}/games/changes/${encodeURIComponent(id)}/build`, {});
+  },
+  /** `seen`: the commit of each built part as the page showed it. */
+  mergeGameChange(id: string, seen: Partial<Record<'web' | 'backend', string>>) {
+    return apiClient.post<HarnessGameChange>(`${BASE}/games/changes/${encodeURIComponent(id)}/merge`, { seen });
+  },
+  discardGameChange(id: string) {
+    return apiClient.post<HarnessGameChange>(`${BASE}/games/changes/${encodeURIComponent(id)}/discard`, {});
   },
   overview(): Promise<HarnessOverview> {
     return apiClient.get<HarnessOverview>(`${BASE}/overview`);
