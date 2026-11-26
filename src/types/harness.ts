@@ -100,6 +100,11 @@ export interface HarnessProposal {
   /** Published questions in the category. */
   live: number;
   working: number;
+  /** Ranked needs at least one of each besides the multiple choice ones. */
+  putInOrder: number;
+  clueChain: number;
+  /** False in MCQ-only seasons, when ranked doesn't need the special types. */
+  specialsRequired: boolean;
   createdAt: string | null;
 }
 

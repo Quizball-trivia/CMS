@@ -60,7 +60,7 @@ function overview(over: Partial<HarnessOverview> = {}): HarnessOverview {
     direction: '',
     allCategories: [{ id: 'c1', name: 'Manchester United' }, { id: 'c9', name: 'Real Madrid' }],
     contentEvents: [{ id: 'e1', title: 'El Clásico', happensOn: '2026-12-14', notes: '', categories: ['Real Madrid', 'Barcelona'], perCategory: 10, difficulty: 'mixed', status: 'open', createdBy: 'Tato', live: 5, working: 7, dropped: 0 }],
-    proposals: [{ id: 'p1', name: 'Inter Miami', why: 'the Messi era', target: 30, status: 'filling', proposedBy: 'Tato', inGame: false, live: 31, working: 0, createdAt: null }],
+    proposals: [{ id: 'p1', name: 'Inter Miami', why: 'the Messi era', target: 30, status: 'filling', proposedBy: 'Tato', inGame: false, live: 31, working: 0, putInOrder: 1, clueChain: 1, specialsRequired: true, createdAt: null }],
     asks: [
       {
         id: 'a1', message: 'focus on Spanish clubs', askedBy: 'Tato', status: 'answered', reply: 'Boosting Real Madrid and ordering El Clásico questions.',
@@ -252,4 +252,12 @@ it('adds an event for the categories picked', () => {
     { title: 'El Clásico', happensOn: '2026-12-14', notes: '', categoryIds: ['c9'], perCategory: 10, difficulty: 'mixed' },
     expect.anything()
   );
+});
+
+it('keeps a new category from going live until ranked can use it', () => {
+  const base = overview();
+  h.data = overview({ proposals: [{ ...base.proposals[0], clueChain: 0 }] });
+  render(<HqContentPage />);
+  expect(screen.getByText('Before it can go live, add a clue-chain question under Questions.')).toBeTruthy();
+  expect((screen.getByRole('button', { name: /go live/i }) as HTMLButtonElement).disabled).toBe(true);
 });

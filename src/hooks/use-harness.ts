@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { harnessApi } from '@/lib/harness-api';
+import { categoryKeys } from './use-categories';
 import type { HarnessCreateEvent, HarnessCreateRequest, HarnessItemAction, HarnessPriority, HarnessUpdateSettingsRequest } from '@/types';
 
 // The Content tab polls: agents work in the background.
@@ -31,9 +32,18 @@ export function useSetHarnessPolicy() {
 }
 
 /** Every steering action refreshes the tab, so what you changed shows at once. */
-function useHarnessMutation<V, R>(fn: (v: V) => Promise<R>) {
+function useHarnessMutation<V, R>(fn: (v: V) => Promise<R>, opts: { touchesCategories?: boolean } = {}) {
   const queryClient = useQueryClient();
-  return useMutation({ mutationFn: fn, onSettled: () => queryClient.invalidateQueries({ queryKey: harnessKeys.all }) });
+  return useMutation({
+    mutationFn: fn,
+    // Returned, so the button stays busy until the fresh data is on screen: no second click on a stale card.
+    onSettled: () =>
+      Promise.all([
+        queryClient.invalidateQueries({ queryKey: harnessKeys.all }),
+        // Creating or launching a category changes the Categories page too.
+        opts.touchesCategories ? queryClient.invalidateQueries({ queryKey: categoryKeys.all }) : Promise.resolve(),
+      ]),
+  });
 }
 
 export function useSetHarnessSteering() {
@@ -69,11 +79,11 @@ export function useCancelHarnessEvent() {
 }
 
 export function useCreateHarnessProposal() {
-  return useHarnessMutation((body: { name: string; why?: string; target?: number }) => harnessApi.createProposal(body));
+  return useHarnessMutation((body: { name: string; why?: string; target?: number }) => harnessApi.createProposal(body), { touchesCategories: true });
 }
 
 export function useHarnessProposalGoLive() {
-  return useHarnessMutation((id: string) => harnessApi.proposalGoLive(id));
+  return useHarnessMutation((id: string) => harnessApi.proposalGoLive(id), { touchesCategories: true });
 }
 
 export function useCancelHarnessProposal() {

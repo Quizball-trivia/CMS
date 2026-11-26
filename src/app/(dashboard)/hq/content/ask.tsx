@@ -130,8 +130,13 @@ export function AskHq({ asks, paused }: { asks: HarnessAsk[]; paused: boolean })
   const shown = showOld ? asks : fresh;
   const send = () => {
     const m = message.trim();
-    if (m.length < 2) return;
-    create.mutate(m, { onSuccess: () => setMessage(''), onError: (e) => toast.error(errorMessage(e, 'Could not send')) });
+    // One message at a time: the keyboard shortcut must not resend while one is on its way.
+    if (m.length < 2 || create.isPending) return;
+    create.mutate(m, {
+      // Clear only what was sent: a draft typed meanwhile stays.
+      onSuccess: () => setMessage((cur) => (cur.trim() === m ? '' : cur)),
+      onError: (e) => toast.error(errorMessage(e, 'Could not send')),
+    });
   };
 
   return (

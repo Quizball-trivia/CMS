@@ -283,6 +283,10 @@ export function NewCategories({ proposals }: { proposals: HarnessProposal[] }) {
         ) : (
           proposals.map((p) => {
             const full = p.live >= p.target;
+            // Ranked only picks a category that also has one put-in-order and one clue-chain question.
+            const missing = p.specialsRequired
+              ? ([p.putInOrder < 1 && 'a put-in-order question', p.clueChain < 1 && 'a clue-chain question'].filter(Boolean) as string[])
+              : [];
             return (
               <div key={p.id} className={cn('flex flex-wrap items-center gap-x-4 gap-y-1 px-4 py-2.5 text-sm', p.status === 'cancelled' && 'opacity-50')}>
                 <div className="min-w-0 flex-1">
@@ -291,6 +295,9 @@ export function NewCategories({ proposals }: { proposals: HarnessProposal[] }) {
                     {p.why || 'No direction given'}
                     {p.proposedBy && <> · by {p.proposedBy}</>}
                   </div>
+                  {p.status === 'filling' && missing.length > 0 && (
+                    <div className="text-[12px] text-amber-700">Before it can go live, add {missing.join(' and ')} under Questions.</div>
+                  )}
                 </div>
                 <Progress live={p.live} working={p.working} target={p.target} />
                 {p.status === 'filling' && (
@@ -298,8 +305,8 @@ export function NewCategories({ proposals }: { proposals: HarnessProposal[] }) {
                     <Button
                       size="sm"
                       variant={full ? 'default' : 'outline'}
-                      disabled={goLive.isPending || p.live === 0}
-                      title={full ? 'Put it in the game' : `Only ${p.live} of ${p.target} ready: players would see repeats`}
+                      disabled={goLive.isPending || p.live === 0 || missing.length > 0}
+                      title={missing.length ? `Needs ${missing.join(' and ')} first` : full ? 'Put it in the game' : `Only ${p.live} of ${p.target} ready: players would see repeats`}
                       onClick={() =>
                         goLive.mutate(p.id, { onSuccess: () => toast.success(`${p.name} is live in the game`), onError: (e) => toast.error(errorMessage(e, 'Could not put it live')) })
                       }
