@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useContentFixes, useContentGaps, useContentGapsSummary, useUpdateContentFix, useUpdateContentGap } from '@/hooks';
 import { cn } from '@/lib/utils';
 import { gameLabel } from '@/lib/audience-labels';
-import { formatRelative } from '@/lib/hq-board';
+import { formatRelative } from '@/lib/hq-time';
 import type { ContentFix, ContentFixHumanTarget, ContentFixStatus, ContentGap, ContentGapHumanTarget, ContentGapStatus, ContentGapVerdict } from '@/types';
 import { EmptyState, HQ_LABEL, HQ_PAGE, LoadErrorState, PageHeader, Panel, Section, Stat } from '../hq-ui';
 

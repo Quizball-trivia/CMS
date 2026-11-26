@@ -5,7 +5,7 @@ import { Area, AreaChart, Bar, BarChart, Cell, Line, LineChart, Pie, PieChart, R
 import { ChevronRight, Loader2, Plug } from 'lucide-react';
 import { useHqAnalytics, useHqPosthog } from '@/hooks';
 import { cn } from '@/lib/utils';
-import { formatTbilisi } from '@/lib/hq-board';
+import { formatTbilisi } from '@/lib/hq-time';
 import {
   countryFlag,
   countryName,
@@ -14,7 +14,7 @@ import {
   latestD7,
   retentionPct,
   topModesWithOther,
-} from '@/lib/hq-standup';
+} from '@/lib/hq-analytics';
 import type { HqAnalytics, HqPosthog } from '@/types';
 import { HQ_LABEL, HQ_PAGE, LoadErrorState, PageHeader, Panel, RefreshErrorBanner, Section } from '../hq-ui';
 

@@ -7,24 +7,14 @@ const h = vi.hoisted(() => ({
   realData: false,
   email: undefined as string | undefined,
   pathname: '/freecroco',
-  overview: undefined as unknown,
-  overviewEnabled: [] as boolean[],
 }));
 vi.mock('next/navigation', () => ({ usePathname: () => h.pathname }));
 vi.mock('@/hooks/use-real-analytics-visible', () => ({ useRealAnalyticsVisible: () => h.realData }));
 vi.mock('@/providers', () => ({ useAuth: () => ({ user: { role: h.role, email: h.email } }) }));
-vi.mock('@/hooks', () => ({
-  useHqOverview: (opts: { enabled?: boolean } = {}) => {
-    h.overviewEnabled.push(opts.enabled ?? true);
-    return { data: opts.enabled === false ? undefined : h.overview };
-  },
-}));
 
 beforeEach(() => {
   h.realData = false;
   h.email = undefined;
-  h.overview = undefined;
-  h.overviewEnabled = [];
 });
 afterEach(cleanup);
 
@@ -43,33 +33,40 @@ it('shows partner staff the Partners department with Freecroco only — no HQ, S
   for (const href of ['/freecroco/staff', '/freecroco/calendar', '/freecroco/ranked-points', '/freecroco/deliveries']) {
     expect(hrefs.has(href)).toBe(false);
   }
-  expect(hrefs.has('/hq/departments/partners')).toBe(false);
-  expect(within(nav()).queryByText('Company')).toBeNull();
+  expect(within(nav()).queryByText('Home')).toBeNull();
   expect(within(nav()).queryByText('Content')).toBeNull();
-  // Partner staff can't read HQ, so its live signals are never requested.
-  expect(h.overviewEnabled.every((enabled) => enabled === false)).toBe(true);
 });
 
-it('shows admins the Company section and every department', () => {
+it('shows admins Home and Analytics, then one group per department, and nothing of the old HQ', () => {
   h.role = 'admin';
   h.pathname = '/hq';
   render(<Sidebar />);
   const hrefs = links();
-  // HQ first; then the daily places; the rest under "More".
-  expect(hrefs.slice(0, 12)).toEqual([
-    '/hq', '/hq/content', '/hq/board', '/hq/builds', '/hq/team', '/hq/analytics',
-    '/hq/director', '/hq/goals', '/hq/inbox', '/hq/schedules', '/hq/content-gaps', '/hq/activity',
-  ]);
-  for (const heading of ['More', 'Departments']) expect(within(nav()).getByText(heading)).toBeTruthy();
-  expect(within(nav()).getByText('HQ')).toBeTruthy();
-  expect(within(nav()).getByText('Romero')).toBeTruthy();
-  expect(hrefs.indexOf('/settings')).toBeGreaterThan(hrefs.indexOf('/hq/departments/partners'));
-  for (const key of ['leadership', 'growth', 'content', 'competitions', 'engineering', 'partners']) {
-    expect(hrefs).toContain(`/hq/departments/${key}`);
-  }
-  expect(within(nav()).getByText('Work')).toBeTruthy();
-  expect(within(nav()).getByText('Schedules')).toBeTruthy();
-  expect(within(nav()).queryByText('Board')).toBeNull();
+  expect(hrefs.slice(0, 2)).toEqual(['/hq', '/hq/analytics']);
+  expect(within(nav()).getByText('Departments')).toBeTruthy();
+  for (const name of ['Content', 'Games', 'Competitions', 'Growth', 'Partners']) expect(within(nav()).getByText(name)).toBeTruthy();
+  // A department with its own HQ page opens on it; one without opens on its first tool.
+  expect(within(nav()).getByRole('link', { name: 'Content' }).getAttribute('href')).toBe('/hq/content');
+  expect(within(nav()).getByRole('link', { name: 'Games' }).getAttribute('href')).toBe('/hq/games');
+  expect(within(nav()).getByRole('link', { name: 'Competitions' }).getAttribute('href')).toBe('/weekend-league');
+  for (const gone of ['Work', 'Builds', 'Team', 'Romero', 'Goals', 'Messages', 'Schedules', 'Activity', 'More', 'Leadership', 'Engineering']) expect(within(nav()).queryByText(gone)).toBeNull();
+  expect(hrefs.some((href) => /^\/hq\/(board|builds|team|director|goals|inbox|schedules|activity|departments)/.test(href ?? ''))).toBe(false);
+  expect(hrefs).toContain('/settings');
+});
+
+it('lists a department\'s own HQ page first, then its tools', () => {
+  h.role = 'admin';
+  h.pathname = '/hq/games';
+  render(<Sidebar />);
+  const hrefs = links();
+  const at = (href: string) => hrefs.indexOf(href);
+  expect(at('/bot-tuning')).toBeGreaterThan(-1);
+  expect(hrefs.filter((x) => x === '/hq/games').length).toBeGreaterThan(0);
+  expect(new Set(hrefs).has('/daily-challenges')).toBe(true);
+  cleanup();
+  h.pathname = '/hq/content-gaps';
+  render(<Sidebar />);
+  expect(new Set(links()).has('/questions')).toBe(true);
 });
 
 it("expands the department that owns the current tool page and lists its tools", () => {
@@ -78,9 +75,10 @@ it("expands the department that owns the current tool page and lists its tools",
   render(<Sidebar />);
   const hrefs = new Set(links());
   for (const href of ['/questions', '/categories', '/quiz-pages', '/agents']) expect(hrefs.has(href)).toBe(true);
-  expect(hrefs.has('/weekend-league')).toBe(false); // Competitions stays collapsed
+  // Competitions stays collapsed: only its header shows (which opens its first tool).
+  expect(hrefs.has('/weekend-league/content')).toBe(false);
   fireEvent.click(screen.getByRole('button', { name: 'Expand Competitions' }));
-  expect(new Set(links()).has('/weekend-league')).toBe(true);
+  expect(new Set(links()).has('/weekend-league/content')).toBe(true);
 });
 
 it('keeps the Freecroco Staff page for admins', () => {
@@ -88,23 +86,6 @@ it('keeps the Freecroco Staff page for admins', () => {
   h.pathname = '/freecroco/staff';
   render(<Sidebar />);
   expect(new Set(links()).has('/freecroco/staff')).toBe(true);
-});
-
-it('badges Messages with unread messages only, and flags busy departments', () => {
-  h.role = 'admin';
-  h.pathname = '/hq';
-  h.overview = {
-    countsByStatus: { needs_approval: 2 },
-    needsApproval: [],
-    inboxUnread: 3,
-    departments: [
-      { key: 'growth', counts: { needsApproval: 1 }, working: [{ member: { id: 'a' }, task: { id: 't' } }] },
-    ],
-  };
-  render(<Sidebar />);
-  expect(within(nav()).getByRole('link', { name: 'Messages (3)' })).toBeTruthy();
-  expect(within(nav()).getByTitle('1 waiting for approval')).toBeTruthy();
-  expect(within(nav()).getAllByLabelText('working').length).toBeGreaterThan(0);
 });
 
 it('keeps the real-data pages under Growth behind the Preferences toggle, and Preferences reachable', () => {

@@ -1,6 +1,6 @@
-// QuizBall HQ departments: a fixed list shared with the backend
-// (hq.members.department CHECK constraint). Each department groups the
-// people + agents that own an area and the existing CMS tools for it.
+// QuizBall's departments. Each one has its own space in HQ (where its agents
+// work and its numbers are) and the CMS tools that belong to it. The sidebar
+// shows one group per department; the HQ home shows one row per department.
 
 import {
   Activity,
@@ -10,6 +10,7 @@ import {
   ChartColumn,
   Egg,
   FileQuestion,
+  FileSearch,
   FolderKanban,
   Gamepad,
   Gavel,
@@ -51,16 +52,47 @@ export interface HqDepartmentInfo {
   name: string;
   emoji: string;
   mission: string;
+  /** The department's own page in HQ, where its agents and numbers live. None yet for departments still to be built. */
+  home?: string;
   tools: HqDepartmentTool[];
 }
 
 export const HQ_DEPARTMENTS: HqDepartmentInfo[] = [
   {
-    key: 'leadership',
-    name: 'Leadership',
-    emoji: '🧭',
-    mission: 'Sets direction, makes the calls, and keeps everyone pointed at the same goals.',
-    tools: [],
+    key: 'content',
+    name: 'Content',
+    emoji: '✍️',
+    mission: 'Keeps every game supplied with questions, puzzles and show packs that are right, fresh and well translated.',
+    home: '/hq/content',
+    tools: [
+      { title: 'Content gaps', href: '/hq/content-gaps', icon: FileSearch, description: 'Answers players typed that the game could not judge.' },
+      { title: 'Questions', href: '/questions', icon: FileQuestion, description: 'The question bank: write, edit, review.' },
+      { title: 'Categories', href: '/categories', icon: FolderKanban, description: 'Topics, and what is featured on the home screen.' },
+      { title: 'Quiz pages', href: '/quiz-pages', icon: PanelsTopLeft, description: 'Landing pages for themed quizzes.' },
+      { title: 'Question pipeline', href: '/agents', icon: Bot, description: 'AI question generation, review queue and spend.' },
+    ],
+  },
+  {
+    key: 'games',
+    name: 'Games',
+    emoji: '🎮',
+    mission: 'Makes every game better all the time: how it plays, how hard it is, and what gets built next.',
+    home: '/hq/games',
+    tools: [
+      { title: 'Bot tuning', href: '/bot-tuning', icon: SlidersHorizontal, description: 'How hard the bots play, per mode and level.' },
+      { title: 'Daily challenges', href: '/daily-challenges', icon: CalendarDays, description: 'The daily challenge calendar.' },
+      { title: 'Auction cards', href: '/auction', icon: Gavel, description: 'Player cards for the auction game.' },
+    ],
+  },
+  {
+    key: 'competitions',
+    name: 'Competitions',
+    emoji: '🏆',
+    mission: 'Runs the live events and leagues that give players a reason to come back at a set time.',
+    tools: [
+      { title: 'Weekend League', href: '/weekend-league', icon: Trophy, description: 'Schedule and results of the weekend league.', exact: true },
+      { title: 'WL content', href: '/weekend-league/content', icon: Upload, description: 'Question sets for upcoming league weekends.' },
+    ],
   },
   {
     key: 'growth',
@@ -77,39 +109,6 @@ export const HQ_DEPARTMENTS: HqDepartmentInfo[] = [
       { title: 'Retention', href: '/retention', icon: Mail, description: 'Win-back emails and returning players.' },
       { title: 'Users', href: '/users', icon: Users, description: 'Look up and manage player accounts.' },
       { title: 'Announcements', href: '/announcements', icon: Megaphone, description: 'In-app news and banners for players.' },
-    ],
-  },
-  {
-    key: 'content',
-    name: 'Content',
-    emoji: '✍️',
-    mission: 'Writes, checks and organises every question and quiz players see.',
-    tools: [
-      { title: 'Questions', href: '/questions', icon: FileQuestion, description: 'The question bank: write, edit, review.' },
-      { title: 'Categories', href: '/categories', icon: FolderKanban, description: 'Topics, and what is featured on the home screen.' },
-      { title: 'Quiz pages', href: '/quiz-pages', icon: PanelsTopLeft, description: 'Landing pages for themed quizzes.' },
-      { title: 'Question pipeline', href: '/agents', icon: Bot, description: 'AI question generation, review queue and spend.' },
-    ],
-  },
-  {
-    key: 'competitions',
-    name: 'Competitions',
-    emoji: '🏆',
-    mission: 'Runs the leagues, daily challenges and events that give players a reason to compete.',
-    tools: [
-      { title: 'Weekend League', href: '/weekend-league', icon: Trophy, description: 'Schedule and results of the weekend league.', exact: true },
-      { title: 'WL content', href: '/weekend-league/content', icon: Upload, description: 'Question sets for upcoming league weekends.' },
-      { title: 'Daily challenges', href: '/daily-challenges', icon: CalendarDays, description: 'The daily challenge calendar.' },
-      { title: 'Auction cards', href: '/auction', icon: Gavel, description: 'Player cards for the auction game.' },
-    ],
-  },
-  {
-    key: 'engineering',
-    name: 'Engineering',
-    emoji: '🛠️',
-    mission: 'Keeps the game fast, stable and bug-free, and tunes how the bots play.',
-    tools: [
-      { title: 'Bot tuning', href: '/bot-tuning', icon: SlidersHorizontal, description: 'How hard the bots play, per mode and level.' },
     ],
   },
   {
@@ -141,40 +140,10 @@ export function canSeeTool(tool: Pick<HqDepartmentTool, 'allowedEmails'>, email:
   return !tool.allowedEmails || (!!email && tool.allowedEmails.includes(email));
 }
 
-/** A department's tools this account may see (sidebar + department page). */
+/** A department's tools this account may see. */
 export function toolsForUser(dept: Pick<HqDepartmentInfo, 'tools'>, email: string | null | undefined): HqDepartmentTool[] {
   return dept.tools.filter((t) => canSeeTool(t, email));
 }
 
 /** Icon for the Partners group header in the collapsed sidebar rail. */
 export const PARTNERS_ICON = Egg;
-
-export function departmentInfo(key: string | null | undefined): HqDepartmentInfo | undefined {
-  return HQ_DEPARTMENTS.find((d) => d.key === key);
-}
-
-export function departmentHref(key: HqDepartmentKey): string {
-  return `/hq/departments/${key}`;
-}
-
-function matchesRoute(pathname: string, route: string): boolean {
-  return pathname === route || pathname.startsWith(`${route}/`);
-}
-
-/**
- * Which department owns the page at `pathname` (longest tool-route match).
- * HQ's own pages and unknown pages belong to none.
- */
-export function departmentForPath(pathname: string): HqDepartmentInfo | null {
-  const path = pathname.length > 1 ? pathname.replace(/\/+$/, '') : pathname;
-  if (matchesRoute(path, '/hq')) return null;
-  let best: { dept: HqDepartmentInfo; len: number } | null = null;
-  for (const dept of HQ_DEPARTMENTS) {
-    for (const tool of dept.tools) {
-      if (matchesRoute(path, tool.href) && (!best || tool.href.length > best.len)) {
-        best = { dept, len: tool.href.length };
-      }
-    }
-  }
-  return best?.dept ?? null;
-}

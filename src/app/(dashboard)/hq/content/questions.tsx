@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
 import { useHarnessItemAction } from '@/hooks';
-import { formatRelative } from '@/lib/hq-board';
+import { formatRelative } from '@/lib/hq-time';
 import { cn } from '@/lib/utils';
 import type { HarnessItemAction, HarnessLiveItem, HarnessNeedsYouItem, HarnessQuestion } from '@/types';
 import { EmptyState, errorMessage, Panel, Section } from '../hq-ui';

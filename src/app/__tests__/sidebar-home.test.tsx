@@ -5,7 +5,6 @@ import { Sidebar } from '@/components/layout/sidebar';
 const h = vi.hoisted(() => ({ role: undefined as string | undefined }));
 vi.mock('next/navigation', () => ({ usePathname: () => '/stats' }));
 vi.mock('@/providers', () => ({ useAuth: () => ({ user: { role: h.role } }) }));
-vi.mock('@/hooks', () => ({ useHqOverview: () => ({ data: undefined }) }));
 
 afterEach(cleanup);
 

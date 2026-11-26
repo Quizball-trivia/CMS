@@ -1,7 +1,7 @@
 'use client';
 
 import { cn } from '@/lib/utils';
-import { formatRelative } from '@/lib/hq-board';
+import { formatRelative } from '@/lib/hq-time';
 import type { HarnessAccount, HarnessOverview } from '@/types';
 import { EmptyState, Panel, Section } from '../hq-ui';
 
