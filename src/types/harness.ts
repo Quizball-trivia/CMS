@@ -222,11 +222,54 @@ export interface HarnessRunwayRow {
   limitedBy: 'content' | 'calendar' | 'both';
 }
 
+export type HarnessShowText = { ka: string; en?: string };
+export type HarnessShowCheck = 'unchecked' | 'ok' | 'flagged' | 'skipped';
+
+export interface HarnessShowQuestion {
+  /** Position in the whole pack (what Swap takes). */
+  index: number;
+  kind: 'true_false' | 'mcq' | 'put_in_order' | 'career_path' | 'who_am_i';
+  check: HarnessShowCheck;
+  /** Why the checker flagged it, or why it could not be checked. */
+  note: string;
+  prompt: HarnessShowText | null;
+  image: string | null;
+  options: Array<{ text: HarnessShowText; correct: boolean }>;
+  /** What the hosts announce; null for put in order (the lines are the answer). */
+  answer: HarnessShowText | null;
+  /** Put in order: the items in the right order. Career path: the clubs. Who am I: the clues. */
+  lines: HarnessShowText[];
+  /** Put in order: the extra line players see under the question, when there is one. */
+  instruction?: HarnessShowText;
+}
+
+export interface HarnessShowPack {
+  id: string;
+  /** checking: agents are verifying · flagged: flagged questions are being swapped · ready: waiting for a person · approved: loaded */
+  status: 'checking' | 'flagged' | 'ready' | 'approved';
+  approvedBy: string | null;
+  updatedAt: string;
+  counts: { total: number; ok: number; flagged: number; notChecked: number; checking: number };
+  rounds: Array<{ kind: string; title: string; cut: { keep_percent?: number; keep_count?: number } | null; questions: HarnessShowQuestion[] }>;
+}
+
+/** The next ორშაბათობა show night and the pack prepared for it. */
+export interface HarnessShow {
+  eventDate: string;
+  episode: number;
+  showAt: string;
+  /** A pack is stored for the show (approved here, or loaded by hand). */
+  loaded: boolean;
+  loadedIsThisPack: boolean;
+  pack: HarnessShowPack | null;
+}
+
 export interface HarnessOverview {
   settings: HarnessSettings;
   today: { runs: number; costCents: number; failed: number; live: number };
   /** Days of content left per daily game, shortest first. */
   runway: HarnessRunwayRow[];
+  show: HarnessShow;
   /** The team's direction note for every category ('' = none). */
   direction: string;
   /** Every active category, for ordering questions (also ones with no ranked play yet). */

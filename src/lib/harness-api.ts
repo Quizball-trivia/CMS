@@ -50,6 +50,16 @@ export const harnessApi = {
   dismissAsk(id: string) {
     return apiClient.post<{ id: string; status: string }>(`${BASE}/asks/${encodeURIComponent(id)}/dismiss`, {});
   },
+  /** `seen`: the pack's updatedAt as it was read, so a pack that changed since is not changed or approved unread. */
+  swapShowQuestion(id: string, index: number, seen: string) {
+    return apiClient.post<{ id: string; status: string }>(`${BASE}/show/${encodeURIComponent(id)}/swap`, { index, seen });
+  },
+  newShowPack(id: string) {
+    return apiClient.post<{ id: string; status: string }>(`${BASE}/show/${encodeURIComponent(id)}/new`, {});
+  },
+  approveShowPack(id: string, seen: string) {
+    return apiClient.post<{ id: string; status: string }>(`${BASE}/show/${encodeURIComponent(id)}/approve`, { seen });
+  },
   itemAction(itemId: string, body: { action: HarnessItemAction; version: number; note?: string }) {
     return apiClient.post<{ id: string; stage: string }>(`${BASE}/items/${encodeURIComponent(itemId)}/action`, body);
   },

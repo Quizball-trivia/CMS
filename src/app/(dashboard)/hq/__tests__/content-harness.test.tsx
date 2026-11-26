@@ -1,6 +1,6 @@
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-import type { HarnessOverview } from '@/types';
+import type { HarnessOverview, HarnessShowPack, HarnessShowQuestion } from '@/types';
 
 const h = vi.hoisted(() => ({
   data: undefined as unknown,
@@ -20,6 +20,10 @@ const h = vi.hoisted(() => ({
   askMutate: vi.fn(),
   applyAskMutate: vi.fn(),
   dismissAskMutate: vi.fn(),
+  swapShowMutate: vi.fn(),
+  newShowMutate: vi.fn(),
+  approveShowMutate: vi.fn(),
+  showChanging: false,
 }));
 vi.mock('next/navigation', () => ({ usePathname: () => '/hq/content', useRouter: () => ({ replace: vi.fn() }), useSearchParams: () => new URLSearchParams() }));
 vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
@@ -40,6 +44,10 @@ vi.mock('@/hooks', () => ({
   useCreateHarnessAsk: () => ({ mutate: h.askMutate, isPending: false }),
   useApplyHarnessAsk: () => ({ mutate: h.applyAskMutate, isPending: false }),
   useDismissHarnessAsk: () => ({ mutate: h.dismissAskMutate, isPending: false }),
+  useSwapShowQuestion: () => ({ mutate: h.swapShowMutate, isPending: false }),
+  useNewShowPack: () => ({ mutate: h.newShowMutate, isPending: false }),
+  useApproveShowPack: () => ({ mutate: h.approveShowMutate, isPending: false }),
+  useShowPackChanging: () => h.showChanging,
 }));
 
 const { default: HqContentPage } = await import('../content/page');
@@ -58,6 +66,7 @@ function overview(over: Partial<HarnessOverview> = {}): HarnessOverview {
     settings: { paused: false, pausedReason: null, maxConcurrentRuns: 3, dailyRunLimit: 1500, updatedAt: null },
     today: { runs: 12, costCents: 340, failed: 1, live: 7 },
     direction: '',
+    show: { eventDate: '2027-01-04', episode: 307, showAt: '2027-01-04T18:00:00.000Z', loaded: false, loadedIsThisPack: false, pack: null },
     runway: [
       { key: 'dato-falso', label: 'Dato Falso', storedThrough: '2026-12-05', calendarEnds: '2026-12-05', endsOn: '2026-12-05', daysLeft: 9, limitedBy: 'both' },
       { key: 'buscaminas', label: 'Minesweeper', storedThrough: '2027-02-22', calendarEnds: null, endsOn: '2027-02-22', daysLeft: 88, limitedBy: 'content' },
@@ -306,4 +315,106 @@ it('shows every agent as paused while the pause switch is on', () => {
   open('Agents');
   expect(screen.queryByText('Working')).toBeNull();
   expect(screen.getByText('Paused')).toBeTruthy();
+});
+
+const showQ = (index: number, over: Partial<HarnessShowQuestion> = {}): HarnessShowQuestion => ({
+  index, kind: 'true_false', check: 'ok', note: '', prompt: { ka: `კითხვა ${index}`, en: `Statement ${index}` }, image: null, options: [], answer: { ka: 'მცდარია', en: 'False' }, lines: [], ...over,
+});
+const showPack = (status: HarnessShowPack['status'], questions: HarnessShowQuestion[]): HarnessShowPack => ({
+  id: 'sp1', status, approvedBy: status === 'approved' ? 'Tato' : null, updatedAt: '2026-11-26T10:00:00Z',
+  counts: { total: questions.length, ok: questions.filter((x) => x.check === 'ok').length, flagged: questions.filter((x) => x.check === 'flagged').length, notChecked: questions.filter((x) => x.check === 'skipped').length, checking: questions.filter((x) => x.check === 'unchecked').length },
+  rounds: [{ kind: 'true_false', title: 'თამაში 1 · მართალია თუ მცდარი', cut: { keep_percent: 50 }, questions }],
+});
+const withShow = (pack: HarnessShowPack | null, over: Partial<HarnessOverview['show']> = {}) =>
+  overview({ show: { eventDate: '2027-01-04', episode: 307, showAt: '2027-01-04T18:00:00.000Z', loaded: false, loadedIsThisPack: false, pack, ...over } });
+
+it('says on Today that the show pack is being prepared, and that paused agents prepare none', () => {
+  h.data = withShow(null);
+  render(<HqContentPage />);
+  const card = screen.getByRole('heading', { name: /^Monday show/ }).closest('section')!;
+  expect(within(card).getByText(/episode 307 · Monday, 4 January 2027/)).toBeTruthy();
+  expect(within(card).getByText(/The agents are preparing one/)).toBeTruthy();
+  cleanup();
+  h.data = { ...withShow(null), settings: { paused: true, pausedReason: null, maxConcurrentRuns: 3, dailyRunLimit: 1500, updatedAt: null } };
+  render(<HqContentPage />);
+  expect(screen.getByText(/The agents are paused, so none is being prepared/)).toBeTruthy();
+});
+
+it('shows a ready pack question by question and lets a person swap one and approve', () => {
+  h.data = withShow(showPack('ready', [showQ(0), showQ(1, { check: 'flagged', note: 'The record was broken in 2025.' }), showQ(2, { check: 'skipped', note: 'The checker could not run.' })]));
+  render(<HqContentPage />);
+  expect(screen.getByRole('tab', { name: /Monday show\s*1/ })).toBeTruthy();
+  open('Monday show');
+  expect(screen.getByRole('status').textContent).toMatch(/Ready for you: 3 questions, 1 checked, 1 flagged, 1 not checked/);
+  expect(screen.getByText(/After this round the top 50% go through/)).toBeTruthy();
+  const second = screen.getByRole('article', { name: 'Question 2' });
+  expect(within(second).getByText('Flagged')).toBeTruthy();
+  expect(within(second).getByText('The record was broken in 2025.')).toBeTruthy();
+  expect(within(second).getByText('მცდარია')).toBeTruthy();
+  fireEvent.click(within(second).getByRole('button', { name: 'Swap question 2' }));
+  expect(h.swapShowMutate).toHaveBeenCalledWith({ id: 'sp1', index: 1, seen: '2026-11-26T10:00:00Z' }, expect.anything());
+
+  fireEvent.click(screen.getByRole('button', { name: 'Approve and load for the show' }));
+  expect(screen.getByText(/2 questions are flagged or not checked: read them first/)).toBeTruthy();
+  fireEvent.click(screen.getByRole('button', { name: 'Approve and load' }));
+  expect(h.approveShowMutate).toHaveBeenCalledWith({ id: 'sp1', seen: '2026-11-26T10:00:00Z' }, expect.anything());
+});
+
+it('closes the approval question when the pack changes underneath it', () => {
+  h.data = withShow(showPack('ready', [showQ(0)]));
+  const view = render(<HqContentPage />);
+  open('Monday show');
+  fireEvent.click(screen.getByRole('button', { name: 'Approve and load for the show' }));
+  expect(screen.getByRole('button', { name: 'Approve and load' })).toBeTruthy();
+  h.data = withShow({ ...showPack('ready', [showQ(0, { prompt: { ka: 'სხვა კითხვა' } })]), updatedAt: '2026-11-26T10:05:00Z' });
+  view.rerender(<HqContentPage />);
+  expect(screen.queryByRole('button', { name: 'Approve and load' })).toBeNull();
+});
+
+it('does not let anyone approve or swap while the checker is still working', () => {
+  h.data = withShow(showPack('checking', [showQ(0), showQ(1, { check: 'unchecked' })]));
+  render(<HqContentPage />);
+  open('Monday show');
+  expect(screen.getByRole('status').textContent).toMatch(/The checker is verifying 1 of 2 questions/);
+  expect((screen.getByRole('button', { name: 'Approve and load for the show' }) as HTMLButtonElement).disabled).toBe(true);
+  expect(screen.queryByRole('button', { name: /Swap question/ })).toBeNull();
+  expect(within(screen.getByRole('article', { name: 'Question 2' })).getByText('Being checked')).toBeTruthy();
+});
+
+it('shows an approved pack as loaded, warns when another pack was loaded by hand, and can ask for a new pack before approval', () => {
+  h.data = withShow(showPack('approved', [showQ(0)]), { loaded: true, loadedIsThisPack: true });
+  render(<HqContentPage />);
+  open('Monday show');
+  expect(screen.getByRole('status').textContent).toMatch(/Approved by Tato and loaded for the show/);
+  expect(screen.queryByRole('button', { name: 'Approve and load for the show' })).toBeNull();
+  expect(screen.queryByRole('button', { name: /New pack/ })).toBeNull();
+  cleanup();
+  h.data = withShow(showPack('approved', [showQ(0)]), { loaded: true, loadedIsThisPack: false });
+  render(<HqContentPage />);
+  open('Monday show');
+  expect(screen.getByRole('status').textContent).toMatch(/a different one/);
+  cleanup();
+  h.data = withShow(showPack('ready', [showQ(0)]));
+  render(<HqContentPage />);
+  open('Monday show');
+  fireEvent.click(screen.getByRole('button', { name: /New pack/ }));
+  fireEvent.click(screen.getByRole('button', { name: 'Build a new pack' }));
+  expect(h.newShowMutate).toHaveBeenCalledWith('sp1', expect.anything());
+});
+
+it('locks every show pack button while a change is on its way, and still opens when the backend has no show yet', () => {
+  h.showChanging = true;
+  h.data = withShow(showPack('ready', [showQ(0)]));
+  render(<HqContentPage />);
+  open('Monday show');
+  expect((screen.getByRole('button', { name: 'Approve and load for the show' }) as HTMLButtonElement).disabled).toBe(true);
+  expect((screen.getByRole('button', { name: /New pack/ }) as HTMLButtonElement).disabled).toBe(true);
+  expect(screen.queryByRole('button', { name: /Swap question/ })).toBeNull();
+  h.showChanging = false;
+  cleanup();
+  h.data = { ...overview(), show: undefined };
+  render(<HqContentPage />);
+  expect(screen.getByRole('heading', { name: /^Runway/ })).toBeTruthy();
+  open('Monday show');
+  expect(screen.getByText('The Monday show is not available yet.')).toBeTruthy();
 });

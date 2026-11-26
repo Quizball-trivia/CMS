@@ -16,6 +16,7 @@ import { EngineRoom } from './engine';
 import { flow, plainEvent, stuckCount } from './plain';
 import { JustLive, NeedsYou } from './questions';
 import { Runway } from './runway';
+import { Show, ShowSummary } from './show';
 import { Events, NewCategories } from './plans';
 import { CategoryBoard, Orders } from './steering';
 
@@ -179,6 +180,7 @@ function Team({ data }: { data: HarnessOverview }) {
 const TABS = [
   { key: 'today', label: 'Today' },
   { key: 'runway', label: 'Runway' },
+  { key: 'show', label: 'Monday show' },
   { key: 'library', label: 'Library' },
   { key: 'plans', label: 'In progress' },
   { key: 'agents', label: 'Agents' },
@@ -236,7 +238,7 @@ export default function HqContentPage() {
           <div role="tablist" aria-label="Content sections" className="flex gap-1 overflow-x-auto border-b border-slate-200">
             {TABS.map((t) => {
               const badge =
-                t.key === 'runway' ? data.runway.filter((r) => r.daysLeft < 14).length : t.key === 'plans' ? data.requests.filter((r) => r.status === 'open').length : 0;
+                t.key === 'runway' ? data.runway.filter((r) => r.daysLeft < 14).length : t.key === 'show' ? Number(data.show?.pack?.status === 'ready') : t.key === 'plans' ? data.requests.filter((r) => r.status === 'open').length : 0;
               return (
                 <button
                   key={t.key}
@@ -251,7 +253,7 @@ export default function HqContentPage() {
                 >
                   {t.label}
                   {badge > 0 && (
-                    <span className={cn('ml-1.5 rounded-full px-1.5 py-0.5 text-[11px] font-semibold', t.key === 'runway' ? 'bg-red-50 text-red-700' : 'bg-slate-100 text-slate-700')}>
+                    <span className={cn('ml-1.5 rounded-full px-1.5 py-0.5 text-[11px] font-semibold', t.key === 'runway' ? 'bg-red-50 text-red-700' : t.key === 'show' ? 'bg-amber-100 text-amber-800' : 'bg-slate-100 text-slate-700')}>
                       {badge}
                     </span>
                   )}
@@ -264,6 +266,8 @@ export default function HqContentPage() {
             <>
               <StatusLine data={data} />
               <Runway rows={data.runway} />
+              {/* `show` is missing only while the backend is a version behind this page. */}
+              {data.show && <ShowSummary show={data.show} paused={data.settings.paused} onOpen={() => setTab('show')} />}
               <Flow data={data} />
               {data.needsYou.length > 0 && <NeedsYou items={data.needsYou} total={stuckCount(data)} />}
               <JustLive items={data.recentLive} />
@@ -271,6 +275,7 @@ export default function HqContentPage() {
             </>
           )}
           {tab === 'runway' && <Runway rows={data.runway} expanded />}
+          {tab === 'show' && (data.show ? <Show show={data.show} paused={data.settings.paused} /> : <p className="text-sm text-slate-600">The Monday show is not available yet.</p>)}
           {tab === 'library' && <CategoryBoard categories={data.classic.categories} direction={data.direction} />}
           {tab === 'plans' && (
             <>
