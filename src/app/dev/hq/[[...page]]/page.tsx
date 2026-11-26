@@ -1,10 +1,10 @@
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { notFound } from 'next/navigation';
-import { HqPreview, type HqSnapshot } from './preview';
+import { HqPreview, type HqSnapshot } from '../preview';
 
 // Local-only preview of the HQ pages on a saved copy of real data, with no login and no backend:
-//   /dev/hq?page=home|content|games|analytics|content-gaps   (content takes &tab=…)
+//   /dev/hq, /dev/hq/content (takes ?tab=…), /dev/hq/games, /dev/hq/analytics, /dev/hq/content-gaps
 // HQ data lives only on production and this repo is public, so the snapshot is a gitignored file, never committed:
 // .local/hq-snapshot.json = { takenAt, overview, games, analytics } holding the responses of
 // GET /admin/harness/overview, /admin/harness/games and /admin/hq/analytics?days=30.
