@@ -12,7 +12,7 @@ const game = (key: string, over: Partial<HarnessGame> = {}): HarnessGame => ({
   key, name: key, group: 'daily', what: `What ${key} is.`, state: 'on', route: `/${key}`, preview: { kind: 'playground', game: key },
   stats: { started: { now: 1000, before: 1000 }, finished: { now: 700, before: 700 }, played: null }, ...over,
 });
-const hub = (games: HarnessGame[]): HarnessGames => ({ generatedAt: '2026-11-27T10:00:00Z', games });
+const hub = (games: HarnessGame[]): HarnessGames => ({ generatedAt: '2026-11-27T10:00:00Z', weeks: { before: ['2026-11-13', '2026-11-19'], now: ['2026-11-20', '2026-11-26'] }, games });
 
 afterEach(() => {
   cleanup();
@@ -40,6 +40,7 @@ it('puts every game in its group with its state, its numbers and how to play it'
   expect(within(match).getByText('Beta')).toBeTruthy();
   expect(within(match).getByText('No preview yet')).toBeTruthy();
   expect(screen.getByText('Plays are not counted for this game yet.')).toBeTruthy();
+  expect(screen.getByText(/Numbers are for 20 Nov to 26 Nov, compared with 13 Nov to 19 Nov\./)).toBeTruthy();
   expect((within(cards[1]).getByRole('link', { name: /Open the real game/ }) as HTMLAnchorElement).href).toBe('https://staging.quizball.io/Minesweeper');
 });
 

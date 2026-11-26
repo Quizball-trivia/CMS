@@ -340,5 +340,7 @@ export interface HarnessGame {
 
 export interface HarnessGames {
   generatedAt: string;
+  /** The two weeks compared, as Georgian days [first, last]; the last 7 whole days end yesterday. */
+  weeks?: { before: [string, string]; now: [string, string] };
   games: HarnessGame[];
 }

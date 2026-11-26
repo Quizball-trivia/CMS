@@ -12,8 +12,8 @@ import { change, finishRate, GROUPS, PREVIEW_SITE, previewUrl, size, worthALook 
 
 // The Games hub: every game the product has, on one page. Play any of them
 // right here (the staging site's previews: real game screens on sample data,
-// no login and no opponent needed), and see how each is doing: plays in the
-// last 7 days against the 7 before, and for daily games how many of the
+// no login and no opponent needed), and see how each is doing: the last 7
+// whole days against the 7 before, and for daily games how many of the
 // players who start a day finish it.
 
 const STATE: Record<HarnessGameState, { label: string; tone: string }> = {
@@ -23,6 +23,8 @@ const STATE: Record<HarnessGameState, { label: string; tone: string }> = {
   off: { label: 'Switched off', tone: 'bg-slate-100 text-slate-600' },
   retired: { label: 'Retired', tone: 'bg-slate-100 text-slate-600' },
 };
+/** "20 Nov" from a YYYY-MM-DD day. */
+const day = (d: string) => new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' }).format(new Date(`${d}T00:00:00Z`));
 const CHANGE_TONE = { up: 'text-emerald-700', down: 'text-red-700', flat: 'text-slate-500' } as const;
 
 function Count({ c, label }: { c: HarnessCounted; label: string }) {
@@ -47,7 +49,7 @@ function Numbers({ game }: { game: HarnessGame }) {
           <b className={cn('tabular-nums', rate < 40 ? 'text-red-700' : 'text-slate-950')}>{rate}%</b> finished it
         </span>
       )}
-      {played && <Count c={played} label={started ? 'games with friends' : 'played'} />}
+      {played && <Count c={played} label={started ? 'games with friends' : game.key === 'orshabatoba' ? 'players took part' : 'played'} />}
     </p>
   );
 }
@@ -124,7 +126,7 @@ export default function HqGamesPage() {
       <PageHeader
         eyebrow="HQ"
         title="Games"
-        description="Every game we have. Play any of them here, and see how each is doing: plays in the last 7 days against the 7 before."
+        description="Every game we have. Play any of them here, and see how each is doing: the last 7 whole days against the 7 before."
       />
 
       {error && !data ? (
@@ -173,7 +175,8 @@ export default function HqGamesPage() {
           })}
 
           <p className="text-[13px] text-slate-600">
-            Previews run on the staging site ({PREVIEW_SITE.replace(/^https?:\/\//, '')}). A daily game counts players who started a day; the other numbers count games played.
+            {data.weeks ? `Numbers are for ${day(data.weeks.now[0])} to ${day(data.weeks.now[1])}, compared with ${day(data.weeks.before[0])} to ${day(data.weeks.before[1])}. ` : ''}
+            Only real players count. A daily game counts players who started a day; the other numbers count games played. Previews run on the staging site ({PREVIEW_SITE.replace(/^https?:\/\//, '')}).
           </p>
         </>
       )}
