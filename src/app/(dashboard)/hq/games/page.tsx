@@ -30,7 +30,7 @@ function Count({ c, label }: { c: HarnessCounted; label: string }) {
   return (
     <span className="whitespace-nowrap">
       <b className="tabular-nums text-slate-950">{c.now.toLocaleString()}</b> {label}
-      {ch && <span className={cn('ml-1 tabular-nums', CHANGE_TONE[ch.tone])}>({ch.text})</span>}
+      {ch && <> <span className={cn('tabular-nums', CHANGE_TONE[ch.tone])}>({ch.text})</span></>}
     </span>
   );
 }
