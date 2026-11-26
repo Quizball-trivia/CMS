@@ -211,9 +211,22 @@ export interface HarnessPolicy {
   updatedAt: string | null;
 }
 
+export interface HarnessRunwayRow {
+  key: string;
+  label: string;
+  storedThrough: string | null;
+  /** Last day the game's code allows; null = open-ended. */
+  calendarEnds: string | null;
+  endsOn: string | null;
+  daysLeft: number;
+  limitedBy: 'content' | 'calendar' | 'both';
+}
+
 export interface HarnessOverview {
   settings: HarnessSettings;
   today: { runs: number; costCents: number; failed: number; live: number };
+  /** Days of content left per daily game, shortest first. */
+  runway: HarnessRunwayRow[];
   /** The team's direction note for every category ('' = none). */
   direction: string;
   /** Every active category, for ordering questions (also ones with no ranked play yet). */

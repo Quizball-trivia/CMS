@@ -58,6 +58,10 @@ function overview(over: Partial<HarnessOverview> = {}): HarnessOverview {
     settings: { paused: false, pausedReason: null, maxConcurrentRuns: 3, dailyRunLimit: 1500, updatedAt: null },
     today: { runs: 12, costCents: 340, failed: 1, live: 7 },
     direction: '',
+    runway: [
+      { key: 'dato-falso', label: 'Dato Falso', storedThrough: '2026-12-05', calendarEnds: '2026-12-05', endsOn: '2026-12-05', daysLeft: 9, limitedBy: 'both' },
+      { key: 'buscaminas', label: 'Minesweeper', storedThrough: '2027-02-22', calendarEnds: null, endsOn: '2027-02-22', daysLeft: 88, limitedBy: 'content' },
+    ],
     allCategories: [{ id: 'c1', name: 'Manchester United' }, { id: 'c9', name: 'Real Madrid' }],
     contentEvents: [{ id: 'e1', title: 'El Clásico', happensOn: '2026-12-14', notes: '', categories: ['Real Madrid', 'Barcelona'], perCategory: 10, difficulty: 'mixed', status: 'open', createdBy: 'Tato', live: 5, working: 7, dropped: 0 }],
     proposals: [{ id: 'p1', name: 'Inter Miami', why: 'the Messi era', target: 30, status: 'filling', proposedBy: 'Tato', inGame: false, live: 31, working: 0, putInOrder: 1, clueChain: 1, specialsRequired: true, createdAt: null }],
@@ -260,4 +264,15 @@ it('keeps a new category from going live until ranked can use it', () => {
   render(<HqContentPage />);
   expect(screen.getByText('Before it can go live, add a clue-chain question under Questions.')).toBeTruthy();
   expect((screen.getByRole('button', { name: /go live/i }) as HTMLButtonElement).disabled).toBe(true);
+});
+
+it('shows the games running out of content first, and the rest on request', () => {
+  render(<HqContentPage />);
+  const runway = screen.getByText('Runway').closest('section')!;
+  expect(within(runway).getByText('Dato Falso')).toBeTruthy();
+  expect(within(runway).getByText('Running out')).toBeTruthy();
+  expect(within(runway).getByText(/Needs more days and its fixed end date lifted/)).toBeTruthy();
+  expect(within(runway).queryByText('Minesweeper')).toBeNull();
+  fireEvent.click(within(runway).getByRole('button', { name: 'Show all 2' }));
+  expect(within(runway).getByText('Minesweeper')).toBeTruthy();
 });

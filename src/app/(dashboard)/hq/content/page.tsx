@@ -14,6 +14,7 @@ import { AskHq } from './ask';
 import { EngineRoom } from './engine';
 import { flow, plainEvent, stuckCount } from './plain';
 import { JustLive, NeedsYou } from './questions';
+import { Runway } from './runway';
 import { Events, NewCategories } from './plans';
 import { CategoryBoard, Orders } from './steering';
 
@@ -163,6 +164,7 @@ export default function HqContentPage() {
 
           <StatusLine data={data} />
           <AskHq asks={data.asks} paused={data.settings.paused} />
+          <Runway rows={data.runway} />
           <Flow data={data} />
           {data.needsYou.length > 0 && <NeedsYou items={data.needsYou} total={stuckCount(data)} />}
           <CategoryBoard categories={data.classic.categories} direction={data.direction} />
