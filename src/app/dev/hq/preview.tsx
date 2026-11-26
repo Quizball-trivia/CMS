@@ -3,6 +3,8 @@
 import { Suspense, useEffect, useState, useSyncExternalStore } from 'react';
 import { usePathname } from 'next/navigation';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import HqDepartmentPage from '@/app/(dashboard)/hq/[department]/page';
+import HqAgentsPage from '@/app/(dashboard)/hq/agents/page';
 import HqAnalyticsPage from '@/app/(dashboard)/hq/analytics/page';
 import HqContentGapsPage from '@/app/(dashboard)/hq/content-gaps/page';
 import HqContentPage from '@/app/(dashboard)/hq/content/page';
@@ -66,7 +68,7 @@ function scheduleUninstall(): void {
 }
 
 /** HQ pages the preview can show, by the path they have in the real dashboard. */
-const PREVIEW_PATH = /^\/hq(?:\/(content-gaps|content|games|analytics))?\/?(\?.*)?$/;
+const PREVIEW_PATH = /^\/hq(?:\/(content-gaps|content|games|analytics|agents|competitions|marketing|partners|investors))?\/?(\?.*)?$/;
 
 /**
  * Every link out of a preview page is a full page load: an HQ page opens as its preview (/hq/games → /dev/hq/games),
@@ -81,7 +83,18 @@ function leaveByFullLoad(event: React.MouseEvent): void {
   window.location.assign(hq ? `/dev/hq${hq[1] ? `/${hq[1]}` : ''}${hq[2] ?? ''}` : href);
 }
 
-const PAGES = { home: HqHomePage, content: HqContentPage, games: HqGamesPage, analytics: HqAnalyticsPage, 'content-gaps': HqContentGapsPage } as const;
+const PAGES = {
+  home: HqHomePage,
+  content: HqContentPage,
+  games: HqGamesPage,
+  analytics: HqAnalyticsPage,
+  'content-gaps': HqContentGapsPage,
+  agents: HqAgentsPage,
+  competitions: HqDepartmentPage,
+  marketing: HqDepartmentPage,
+  partners: HqDepartmentPage,
+  investors: HqDepartmentPage,
+} as const;
 const ADMIN = { id: 'preview', email: 'preview@quizball.io', role: 'admin', nickname: 'Preview' };
 
 function Frame() {
@@ -93,7 +106,7 @@ function Frame() {
       <Sidebar />
       <div className="flex min-w-0 flex-1 flex-col">
         <Header />
-        <main className="flex-1 p-4 md:p-6">
+        <main className="flex-1 p-4 md:p-6 lg:p-8">
           <div className="mx-auto max-w-[1800px] space-y-6">
             <Page />
           </div>

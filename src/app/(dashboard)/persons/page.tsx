@@ -11,7 +11,6 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table';
 import { usePersons } from '@/hooks/use-admin-persons';
-import { RealDataGate } from '@/components/analytics/real-data-gate';
 
 const PAGE_SIZE = 50;
 
@@ -106,5 +105,5 @@ function PersonsInner() {
 }
 
 export default function PersonsPage() {
-  return <RealDataGate><PersonsInner /></RealDataGate>;
+  return <PersonsInner />;
 }

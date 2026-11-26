@@ -17,6 +17,13 @@
   --color-foreground: var(--foreground);
   --font-sans: var(--font-inter);
   --font-mono: var(--font-geist-mono);
+  --font-display: var(--font-display-face), var(--font-inter), sans-serif;
+  --color-ink: #0a0d12;
+  --color-ink-2: #11161d;
+  --color-ink-3: #1a212b;
+  --color-brand: #46c21a;
+  --color-brand-soft: #e9f9e2;
+  --color-brand-deep: #23780a;
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -134,11 +141,78 @@
   }
 }
 
+/* HQ look: one dark "ink" surface (sidebar, page heroes) with the logo's green, on a quiet light canvas. */
+@layer components {
+  /* The hero at the top of every HQ page: ink, a faint pitch grid, and a glow in the page's colour (--glow). */
+  .hq-hero {
+    position: relative;
+    isolation: isolate;
+    overflow: hidden;
+    border-radius: 1.25rem;
+    color: #fff;
+    background:
+      radial-gradient(60rem 22rem at 100% -10%, color-mix(in oklab, var(--glow, #46c21a) 34%, transparent), transparent 62%),
+      radial-gradient(40rem 18rem at -10% 120%, color-mix(in oklab, var(--glow, #46c21a) 14%, transparent), transparent 60%),
+      linear-gradient(180deg, #0d1218, #0a0d12);
+  }
+  .hq-hero::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    background-image:
+      linear-gradient(to right, rgb(255 255 255 / 0.045) 1px, transparent 1px),
+      linear-gradient(to bottom, rgb(255 255 255 / 0.045) 1px, transparent 1px);
+    background-size: 44px 44px;
+    mask-image: radial-gradient(80% 120% at 85% 0%, #000 0%, transparent 75%);
+  }
+  .hq-card {
+    border-radius: 0.875rem;
+    border: 1px solid rgb(15 23 42 / 0.08);
+    background: #fff;
+    box-shadow: 0 1px 2px rgb(15 23 42 / 0.04), 0 8px 24px -16px rgb(15 23 42 / 0.12);
+  }
+  a.hq-card, .hq-card-link {
+    transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+  }
+  a.hq-card:hover, .hq-card-link:hover {
+    transform: translateY(-1px);
+    border-color: rgb(15 23 42 / 0.16);
+    box-shadow: 0 2px 4px rgb(15 23 42 / 0.05), 0 16px 32px -18px rgb(15 23 42 / 0.22);
+  }
+  .hq-live-dot {
+    position: relative;
+    display: inline-block;
+    height: 0.5rem;
+    width: 0.5rem;
+    border-radius: 9999px;
+    background: var(--color-brand);
+  }
+  .hq-live-dot::after {
+    content: '';
+    position: absolute;
+    inset: -4px;
+    border-radius: 9999px;
+    border: 2px solid var(--color-brand);
+    opacity: 0;
+    animation: hq-ping 1.8s ease-out infinite;
+  }
+  @keyframes hq-ping {
+    0% { transform: scale(0.5); opacity: 0.7; }
+    100% { transform: scale(1.4); opacity: 0; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .hq-live-dot::after { animation: none; }
+    a.hq-card, .hq-card-link { transition: none; }
+    a.hq-card:hover, .hq-card-link:hover { transform: none; }
+  }
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;
   }
   body {
-    @apply bg-[#f8f9fb] text-foreground antialiased;
+    @apply bg-[#f4f5f7] text-foreground antialiased;
   }
 }

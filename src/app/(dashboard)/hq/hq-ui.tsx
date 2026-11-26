@@ -1,42 +1,88 @@
 'use client';
 
+import type React from 'react';
 import { type ReactNode } from 'react';
 import { cn } from '@/lib/utils';
 
 // ── Layout primitives ──
-// One look for every HQ page: a ruled header, small uppercase section labels,
-// flat bordered panels. Pages compose these instead of styling their own.
+// One look for every HQ page: an ink hero in the page's colour, display-face
+// headings, soft white cards. Pages compose these instead of styling their own.
 
 /** Page width and rhythm shared by every HQ page. */
-export const HQ_PAGE = 'mx-auto w-full max-w-7xl space-y-8 pb-16';
+export const HQ_PAGE = 'mx-auto w-full max-w-7xl space-y-9 pb-16';
 
 /** Labels (section titles, table heads, eyebrows): small, uppercase, tracked. */
 export const HQ_LABEL = 'text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-600';
+
+/**
+ * The top of every HQ page: an ink band with a glow in the page's colour. `aside` sits on the right (a status tile,
+ * the page's switches); `children` go under the title (a row of numbers).
+ */
+export function Hero({
+  eyebrow,
+  title,
+  description,
+  glow,
+  icon,
+  aside,
+  children,
+}: {
+  eyebrow?: ReactNode;
+  title: ReactNode;
+  description?: ReactNode;
+  /** The glow colour (a department's). Brand green when absent. */
+  glow?: string;
+  icon?: ReactNode;
+  aside?: ReactNode;
+  children?: ReactNode;
+}) {
+  return (
+    <header className="hq-hero" style={glow ? ({ '--glow': glow } as React.CSSProperties) : undefined}>
+      <div className="flex flex-wrap items-end justify-between gap-x-8 gap-y-5 px-5 py-6 sm:px-8 sm:py-7">
+        {/* A floor on the width so the aside wraps below the title on a phone instead of squeezing it. */}
+        <div className="min-w-[14rem] flex-1">
+          {eyebrow && <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-white/50">{eyebrow}</p>}
+          <h1 className="mt-1.5 flex items-center gap-3 font-display text-[28px] font-semibold leading-tight tracking-tight sm:text-[34px]">
+            {icon}
+            {title}
+          </h1>
+          {description && <p className="mt-2 max-w-2xl text-sm leading-relaxed text-white/70">{description}</p>}
+        </div>
+        {aside && <div className="flex flex-wrap items-center gap-2">{aside}</div>}
+      </div>
+      {children && <div className="border-t border-white/10 px-5 py-4 sm:px-8">{children}</div>}
+    </header>
+  );
+}
+
+/** A number in a hero's bottom row. */
+export function HeroStat({ label, value, note, tone }: { label: ReactNode; value: ReactNode; note?: ReactNode; tone?: 'attention' | 'good' }) {
+  return (
+    <div className="min-w-0">
+      <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/50">{label}</div>
+      <div className={cn('mt-0.5 font-display text-2xl font-semibold tabular-nums tracking-tight', tone === 'attention' ? 'text-amber-300' : tone === 'good' ? 'text-brand' : 'text-white')}>{value}</div>
+      {note && <div className="truncate text-[12px] text-white/60">{note}</div>}
+    </div>
+  );
+}
+
+/** Classes for a control (button, link) that sits on a hero. */
+export const ON_HERO = 'inline-flex h-9 items-center gap-1.5 rounded-lg border border-white/15 bg-white/10 px-3 text-[13px] font-medium text-white transition hover:bg-white/20';
 
 export function PageHeader({
   title,
   description,
   eyebrow,
   actions,
+  glow,
 }: {
   title: ReactNode;
   description?: ReactNode;
   eyebrow?: ReactNode;
-  /** Ignored: the ruled header has no icon tile. Kept so callers needn't change. */
-  icon?: ReactNode;
   actions?: ReactNode;
+  glow?: string;
 }) {
-  return (
-    <header className="flex flex-wrap items-end gap-x-6 gap-y-3 border-b border-slate-200 pb-5">
-      {/* A floor on the width so the actions wrap below the title on a phone instead of squeezing it. */}
-      <div className="min-w-[12rem] flex-1">
-        {eyebrow && <div className={cn(HQ_LABEL, 'mb-1')}>{eyebrow}</div>}
-        <h1 className="text-2xl font-semibold tracking-tight text-slate-950">{title}</h1>
-        {description && <p className="mt-1 max-w-3xl text-sm text-slate-600">{description}</p>}
-      </div>
-      {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
-    </header>
-  );
+  return <Hero eyebrow={eyebrow} title={title} description={description} glow={glow} aside={actions} />;
 }
 
 /** A titled block of a page. `description` is one line of context under the label. */
@@ -61,7 +107,7 @@ export function Section({
     <section className={cn('space-y-3', className)}>
       <div className="flex flex-wrap items-end justify-between gap-x-4 gap-y-1">
         <div className="min-w-0">
-          <h2 className="flex items-center gap-2 text-[15px] font-semibold tracking-tight text-slate-950">
+          <h2 className="flex items-center gap-2 font-display text-lg font-semibold text-slate-950">
             {title}
             {count !== undefined && <CountPill n={count} tone={countTone} />}
           </h2>
@@ -74,10 +120,10 @@ export function Section({
   );
 }
 
-/** Flat bordered surface. */
+/** The white card every block of content sits on. */
 export function Panel({ children, className, as: As = 'div', 'aria-label': label }: { children: ReactNode; className?: string; as?: 'div' | 'article' | 'section'; 'aria-label'?: string }) {
   return (
-    <As className={cn('rounded-lg border border-slate-200 bg-white', className)} aria-label={label}>
+    <As className={cn('hq-card', className)} aria-label={label}>
       {children}
     </As>
   );
@@ -87,7 +133,7 @@ export function CountPill({ n, tone = 'neutral' }: { n: number; tone?: 'neutral'
   return (
     <span
       className={cn(
-        'inline-flex h-5 min-w-5 items-center justify-center rounded px-1.5 text-[11px] font-semibold tabular-nums tracking-normal',
+        'inline-flex h-5 min-w-5 items-center justify-center rounded-full px-1.5 font-sans text-[11px] font-semibold tabular-nums tracking-normal',
         tone === 'attention' && n > 0 ? 'bg-amber-500 text-white' : 'bg-slate-100 text-slate-600'
       )}
     >
@@ -159,7 +205,7 @@ export function Stat({
       <div className={HQ_LABEL}>{label}</div>
       <div
         className={cn(
-          'mt-1 text-2xl font-semibold tabular-nums tracking-tight',
+          'mt-1 font-display text-[26px] font-semibold tabular-nums tracking-tight',
           tone === 'attention' ? 'text-amber-600' : tone === 'good' ? 'text-emerald-600' : 'text-slate-950'
         )}
       >
@@ -197,7 +243,7 @@ export function RefreshErrorBanner({ className }: { className?: string }) {
 }
 
 export function EmptyState({ children, className }: { children: ReactNode; className?: string }) {
-  return <p className={cn('rounded-lg border border-dashed border-slate-200 px-4 py-5 text-center text-sm text-slate-500', className)}>{children}</p>;
+  return <p className={cn('rounded-xl border border-dashed border-slate-300 bg-white/60 px-4 py-6 text-center text-sm text-slate-500', className)}>{children}</p>;
 }
 
 export function errorMessage(error: unknown, fallback: string): string {

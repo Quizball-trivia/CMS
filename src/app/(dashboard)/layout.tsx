@@ -44,14 +44,14 @@ export default function DashboardLayout({
   }
 
   return (
-    <div className="min-h-screen flex flex-col bg-[#f8fafc] dark:bg-[#020617] selection:bg-primary/30 selection:text-primary">
+    <div className="min-h-screen flex flex-col bg-[#f4f5f7] selection:bg-brand/25">
       <EnvironmentBanner />
 
       <div className="flex flex-1 min-h-0">
         <Sidebar />
         <div className="flex-1 flex flex-col min-w-0 transition-all duration-300 ease-in-out">
           <Header />
-          <main className="flex-1 p-4 md:p-6 overflow-y-auto">
+          <main className="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8">
             <div className="max-w-[1800px] mx-auto space-y-6">
               {children}
             </div>

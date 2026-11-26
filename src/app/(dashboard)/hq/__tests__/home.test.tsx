@@ -4,7 +4,6 @@ import type { HarnessGame, HarnessGames, HarnessOverview, HqAnalytics } from '@/
 
 const h = vi.hoisted(() => ({ overview: undefined as unknown, games: undefined as unknown, analytics: undefined as unknown, overviewError: null as unknown, gamesError: null as unknown, fixes: [] as unknown, fixesError: null as unknown }));
 vi.mock('@/providers', () => ({ useAuth: () => ({ user: { role: 'admin', email: 'a@quizball.io' } }) }));
-vi.mock('@/hooks/use-real-analytics-visible', () => ({ useRealAnalyticsVisible: () => false }));
 vi.mock('@/hooks', () => ({
   useHarnessOverview: () => ({ data: h.overview, error: h.overviewError }),
   useHarnessGames: () => ({ data: h.games, error: h.gamesError }),
@@ -57,7 +56,7 @@ it('shows the whole company on one page: agents, what needs a person, the produc
   render(<HqHomePage />);
   expect(screen.getByText('Agents working')).toBeTruthy();
   expect(screen.getByText('3 running now on 2 subscriptions, 40 jobs next in line.')).toBeTruthy();
-  expect(screen.getByRole('link', { name: '2 of 3 subscriptions available' }).getAttribute('href')).toBe('/hq/content?tab=agents');
+  expect(screen.getByRole('link', { name: '2 of 3 subscriptions available' }).getAttribute('href')).toBe('/hq/agents');
 
   const needs = screen.getByRole('heading', { name: /^Needs you/ }).closest('section')!;
   expect(within(needs).getByText(/1 daily game runs out of content within two weeks: Pistas \(12 days\)\./)).toBeTruthy();
@@ -71,16 +70,30 @@ it('shows the whole company on one page: agents, what needs a person, the produc
   expect(product.textContent).toMatch(/Games played1,050▲ 50%/);
 
   const departments = screen.getByRole('heading', { name: /^Departments/ }).closest('section')!;
-  const cards = within(departments).getAllByRole('article');
-  expect(cards.map((c) => within(c).getByRole('heading').textContent)).toEqual(['Content', 'Games', 'Competitions', 'Growth', 'Partners']);
+  const cards = within(departments).getAllByRole('link');
+  expect(cards.map((c) => within(c).getByRole('heading').textContent)).toEqual(['Content', 'Games', 'Competitions', 'Marketing', 'Partners', 'Investors']);
+  expect(cards.map((c) => c.getAttribute('href'))).toEqual(['/hq/content', '/hq/games', '/hq/competitions', '/hq/marketing', '/hq/partners', '/hq/investors']);
   expect(cards[0].textContent).toMatch(/Live today342new questions/);
   expect(cards[0].textContent).toMatch(/Still missing640in 19 categories/);
   expect(cards[0].textContent).toMatch(/Runway12 daysshortest: Pistas/);
-  expect(within(cards[0]).getByRole('link', { name: 'Open Content' }).getAttribute('href')).toBe('/hq/content');
+  expect(cards[0].getAttribute('aria-label')).toBe('Open Content');
   expect(cards[1].textContent).toMatch(/Games on2of 2Worth a look1this week/);
-  expect(within(cards[2]).getByText('Agents not set up yet')).toBeTruthy();
-  expect(within(cards[3]).getByRole('link', { name: 'Users' }).getAttribute('href')).toBe('/users');
-  expect(within(cards[3]).queryByRole('link', { name: 'Analytics (live)' })).toBeNull();
+  // A department with no agents yet says so, and how many of its suggested ones could start today.
+  expect(cards[3].textContent).toMatch(/No agents yet · 6 suggested/);
+  expect(cards[3].textContent).toMatch(/2 of its suggested agents can start with what HQ already has\./);
+});
+
+it('counts a department\'s running agents from the harness, and stops suggesting an agent once it runs', () => {
+  const agent = (slug: string, name: string) => ({ slug, name, team: 't', description: '', provider: 'claude', model: 'claude-opus-5-5', effort: null, primaryAccount: 'a', fallbackAccounts: [], status: 'active', runsToday: 0, costCentsToday: 0, lastRunAt: null }) as HarnessOverview['agents'][number];
+  h.overview = overview({ agents: [agent('question-maker', 'Question Maker'), agent('game-planner', 'Game Planner'), agent('growth-analyst', 'Growth Analyst')] });
+  h.games = games([]);
+  h.analytics = analytics;
+  render(<HqHomePage />);
+  const cards = within(screen.getByRole('heading', { name: /^Departments/ }).closest('section')!).getAllByRole('link');
+  expect(cards[0].textContent).toMatch(/1 agent running · 3 suggested/);
+  expect(cards[1].textContent).toMatch(/1 agent running · 4 suggested/);
+  expect(cards[3].textContent).toMatch(/1 agent running · 5 suggested/);
+  expect(cards[5].textContent).toMatch(/No agents yet · 5 suggested/);
 });
 
 it('lists what needs a person in order of urgency, and says so when nothing does', () => {

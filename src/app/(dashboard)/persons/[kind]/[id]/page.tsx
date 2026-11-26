@@ -6,7 +6,6 @@ import { ArrowLeft, CircleDot } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { usePersonActivity } from '@/hooks/use-admin-persons';
-import { RealDataGate } from '@/components/analytics/real-data-gate';
 
 const TYPE_LABELS: Record<string, string> = {
   account_created: 'Account created',
@@ -97,5 +96,5 @@ function PersonDetailInner({ kind, id }: { kind: 'registered' | 'guest'; id: str
 export default function PersonDetailPage({ params }: { params: Promise<{ kind: string; id: string }> }) {
   const { kind, id } = use(params);
   const safeKind = kind === 'guest' ? 'guest' : 'registered';
-  return <RealDataGate><PersonDetailInner kind={safeKind} id={id} /></RealDataGate>;
+  return <PersonDetailInner kind={safeKind} id={id} />;
 }

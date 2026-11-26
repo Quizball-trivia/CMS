@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Inter, Geist_Mono } from "next/font/google";
+import { Inter, Geist_Mono, Outfit } from "next/font/google";
 import Script from "next/script";
 import { Providers } from "@/providers";
 import { WORKSPACE } from "@/lib/workspace";
@@ -9,6 +9,12 @@ import "./globals.css";
 
 const inter = Inter({
   variable: "--font-inter",
+  subsets: ["latin"],
+});
+
+// Headings and big numbers in HQ.
+const display = Outfit({
+  variable: "--font-display-face",
   subsets: ["latin"],
 });
 
@@ -33,7 +39,7 @@ export default function RootLayout({
   return (
     <html lang={WORKSPACE === "table-derby" ? TD_LANG : "en"}>
       <body
-        className={`${inter.variable} ${geistMono.variable} antialiased`}
+        className={`${inter.variable} ${geistMono.variable} ${display.variable} antialiased`}
       >
         {/* Before hydration, so the router never sees a one-time link token in the URL (src/lib/td/link-fragment.ts). */}
         {WORKSPACE === "table-derby" && (
