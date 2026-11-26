@@ -131,7 +131,7 @@ export function OrderDialog({ open, onClose, categories, initialCategory }: { op
   const create = useCreateHarnessRequest();
   const sorted = useMemo(() => [...categories].sort((a, b) => a.name.localeCompare(b.name)), [categories]);
   // One batch is at most 20 questions; place several orders for more.
-  const valid = categoryId && topic.trim().length >= 3 && count >= 1 && count <= 20;
+  const valid = categoryId && topic.trim().length >= 3 && Number.isInteger(count) && count >= 1 && count <= 20;
   const submit = () =>
     create.mutate(
       { categoryId, difficulty, count, topic: topic.trim(), deadline: deadline || null },

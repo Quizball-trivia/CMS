@@ -98,9 +98,9 @@ it('says in one line what happened today and what needs a person', () => {
 it('shows the five steps with what is in each', () => {
   render(<HqContentPage />);
   const checking = screen.getByText('2. Checking').parentElement!;
-  expect(checking.textContent).toContain('56');
+  expect(within(checking).getByText('56', { exact: true })).toBeTruthy();
   const translating = screen.getByText('3. Translating').parentElement!;
-  expect(translating.textContent).toContain('3'); // verified + localized
+  expect(within(translating).getByText('3', { exact: true })).toBeTruthy(); // verified + localized
 });
 
 it('lists boosted categories first, by name, with how long until full', () => {

@@ -189,7 +189,12 @@ export function NeedsYou({ items, total }: { items: HarnessNeedsYouItem[]; total
         action={noteFor?.action ?? null}
         pending={pending}
         onClose={() => setNoteFor(null)}
-        onSubmit={(note) => noteFor && run(noteFor.item, 'send_back', note, () => setNoteFor(null))}
+        onSubmit={(note) => {
+          if (!noteFor) return;
+          const id = noteFor.item.id;
+          // Close only this dialog: another one may be open by the time the call returns.
+          run(noteFor.item, 'send_back', note, () => setNoteFor((cur) => (cur?.item.id === id ? null : cur)));
+        }}
       />
     </Section>
   );
@@ -239,7 +244,12 @@ export function JustLive({ items }: { items: HarnessLiveItem[] }) {
         action={flagging ? 'flag' : null}
         pending={pending}
         onClose={() => setFlagging(null)}
-        onSubmit={(note) => flagging && run(flagging, 'flag', note, () => setFlagging(null))}
+        onSubmit={(note) => {
+          if (!flagging) return;
+          const id = flagging.id;
+          // Close only this dialog: another one may be open by the time the call returns.
+          run(flagging, 'flag', note, () => setFlagging((cur) => (cur?.id === id ? null : cur)));
+        }}
       />
     </Section>
   );
