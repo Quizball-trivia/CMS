@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { harnessApi } from '@/lib/harness-api';
-import type { HarnessCreateRequest, HarnessItemAction, HarnessPriority, HarnessUpdateSettingsRequest } from '@/types';
+import type { HarnessCreateEvent, HarnessCreateRequest, HarnessItemAction, HarnessPriority, HarnessUpdateSettingsRequest } from '@/types';
 
 // The Content tab polls: agents work in the background.
 export const HARNESS_REFETCH_MS = 10_000;
@@ -58,4 +58,36 @@ export function useHarnessItemAction() {
   return useHarnessMutation((v: { itemId: string; action: HarnessItemAction; version: number; note?: string }) =>
     harnessApi.itemAction(v.itemId, { action: v.action, version: v.version, note: v.note })
   );
+}
+
+export function useCreateHarnessEvent() {
+  return useHarnessMutation((body: HarnessCreateEvent) => harnessApi.createEvent(body));
+}
+
+export function useCancelHarnessEvent() {
+  return useHarnessMutation((id: string) => harnessApi.cancelEvent(id));
+}
+
+export function useCreateHarnessProposal() {
+  return useHarnessMutation((body: { name: string; why?: string; target?: number }) => harnessApi.createProposal(body));
+}
+
+export function useHarnessProposalGoLive() {
+  return useHarnessMutation((id: string) => harnessApi.proposalGoLive(id));
+}
+
+export function useCancelHarnessProposal() {
+  return useHarnessMutation((id: string) => harnessApi.cancelProposal(id));
+}
+
+export function useCreateHarnessAsk() {
+  return useHarnessMutation((message: string) => harnessApi.createAsk(message));
+}
+
+export function useApplyHarnessAsk() {
+  return useHarnessMutation((v: { id: string; indexes: number[] }) => harnessApi.applyAsk(v.id, v.indexes));
+}
+
+export function useDismissHarnessAsk() {
+  return useHarnessMutation((id: string) => harnessApi.dismissAsk(id));
 }

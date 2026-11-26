@@ -12,6 +12,14 @@ const h = vi.hoisted(() => ({
   requestMutate: vi.fn(),
   cancelMutate: vi.fn(),
   itemMutate: vi.fn(),
+  eventMutate: vi.fn(),
+  cancelEventMutate: vi.fn(),
+  proposalMutate: vi.fn(),
+  goLiveMutate: vi.fn(),
+  cancelProposalMutate: vi.fn(),
+  askMutate: vi.fn(),
+  applyAskMutate: vi.fn(),
+  dismissAskMutate: vi.fn(),
 }));
 vi.mock('next/navigation', () => ({ usePathname: () => '/hq/content', useRouter: () => ({ replace: vi.fn() }), useSearchParams: () => new URLSearchParams() }));
 vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
@@ -24,6 +32,14 @@ vi.mock('@/hooks', () => ({
   useCreateHarnessRequest: () => ({ mutate: h.requestMutate, isPending: false }),
   useCancelHarnessRequest: () => ({ mutate: h.cancelMutate, isPending: false }),
   useHarnessItemAction: () => ({ mutate: h.itemMutate, isPending: false }),
+  useCreateHarnessEvent: () => ({ mutate: h.eventMutate, isPending: false }),
+  useCancelHarnessEvent: () => ({ mutate: h.cancelEventMutate, isPending: false }),
+  useCreateHarnessProposal: () => ({ mutate: h.proposalMutate, isPending: false }),
+  useHarnessProposalGoLive: () => ({ mutate: h.goLiveMutate, isPending: false }),
+  useCancelHarnessProposal: () => ({ mutate: h.cancelProposalMutate, isPending: false }),
+  useCreateHarnessAsk: () => ({ mutate: h.askMutate, isPending: false }),
+  useApplyHarnessAsk: () => ({ mutate: h.applyAskMutate, isPending: false }),
+  useDismissHarnessAsk: () => ({ mutate: h.dismissAskMutate, isPending: false }),
 }));
 
 const { default: HqContentPage } = await import('../content/page');
@@ -42,7 +58,20 @@ function overview(over: Partial<HarnessOverview> = {}): HarnessOverview {
     settings: { paused: false, pausedReason: null, maxConcurrentRuns: 3, dailyRunLimit: 1500, updatedAt: null },
     today: { runs: 12, costCents: 340, failed: 1, live: 7 },
     direction: '',
-    allCategories: [{ id: 'c1', name: 'Manchester United' }, { id: 'c9', name: 'Inter Miami' }],
+    allCategories: [{ id: 'c1', name: 'Manchester United' }, { id: 'c9', name: 'Real Madrid' }],
+    contentEvents: [{ id: 'e1', title: 'El Clásico', happensOn: '2026-12-14', notes: '', categories: ['Real Madrid', 'Barcelona'], perCategory: 10, difficulty: 'mixed', status: 'open', createdBy: 'Tato', live: 5, working: 7, dropped: 0 }],
+    proposals: [{ id: 'p1', name: 'Inter Miami', why: 'the Messi era', target: 30, status: 'filling', proposedBy: 'Tato', inGame: false, live: 31, working: 0, createdAt: null }],
+    asks: [
+      {
+        id: 'a1', message: 'focus on Spanish clubs', askedBy: 'Tato', status: 'answered', reply: 'Boosting Real Madrid and ordering El Clásico questions.',
+        actions: [
+          { valid: true, summary: 'Boost: Real Madrid', action: {} },
+          { valid: true, summary: 'Order 10 medium questions for Real Madrid: El Clásico history', action: {} },
+          { valid: false, summary: 'An action that could not be read', action: {} },
+        ],
+        applied: [], error: null, appliedBy: null, createdAt: new Date().toISOString(),
+      },
+    ],
     classic: {
       viewCap: 100,
       shortCategories: 2,
@@ -83,7 +112,7 @@ function overview(over: Partial<HarnessOverview> = {}): HarnessOverview {
 beforeEach(() => {
   h.data = overview();
   h.error = null;
-  for (const f of [h.settingsMutate, h.policyMutate, h.steeringMutate, h.directionMutate, h.requestMutate, h.cancelMutate, h.itemMutate]) f.mockReset();
+  for (const f of Object.values(h)) if (typeof f === 'function' && 'mockReset' in f) (f as ReturnType<typeof vi.fn>).mockReset();
 });
 afterEach(cleanup);
 
@@ -148,7 +177,8 @@ it('shows orders with their progress and can cancel an open one', () => {
   render(<HqContentPage />);
   expect(screen.getByText('Champions League finals')).toBeTruthy();
   expect(screen.getByText(/needed by 2026-12-10/)).toBeTruthy();
-  fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+  const orders = screen.getByText('Champions League finals').closest('section')!;
+  fireEvent.click(within(orders).getByRole('button', { name: 'Cancel' }));
   expect(h.cancelMutate).toHaveBeenCalledWith('b1', expect.anything());
 });
 
@@ -185,4 +215,41 @@ it('keeps the data but warns when a refresh fails', () => {
   render(<HqContentPage />);
   expect(screen.getByText('Manchester United', { selector: 'div' })).toBeTruthy();
   expect(screen.getByText(/couldn.t refresh/i)).toBeTruthy();
+});
+
+it('lets the team apply only the Assistant proposals they tick', () => {
+  render(<HqContentPage />);
+  expect(screen.getByText('Boosting Real Madrid and ordering El Clásico questions.')).toBeTruthy();
+  fireEvent.click(screen.getByLabelText('Order 10 medium questions for Real Madrid: El Clásico history'));
+  fireEvent.click(screen.getByRole('button', { name: /apply 1 selected/i }));
+  expect(h.applyAskMutate).toHaveBeenCalledWith({ id: 'a1', indexes: [0] }, expect.anything());
+});
+
+it('sends a message to the Assistant', () => {
+  render(<HqContentPage />);
+  fireEvent.change(screen.getByLabelText('Ask HQ'), { target: { value: 'more Georgian league questions' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Send' }));
+  expect(h.askMutate).toHaveBeenCalledWith('more Georgian league questions', expect.anything());
+});
+
+it('shows events with their progress and new categories ready to go live', () => {
+  render(<HqContentPage />);
+  expect(screen.getByText('El Clásico')).toBeTruthy();
+  expect(screen.getByText('Real Madrid, Barcelona · 10 each · by Tato')).toBeTruthy();
+  fireEvent.click(screen.getByRole('button', { name: /go live/i }));
+  expect(h.goLiveMutate).toHaveBeenCalledWith('p1', expect.anything());
+});
+
+it('adds an event for the categories picked', () => {
+  render(<HqContentPage />);
+  fireEvent.click(screen.getByRole('button', { name: /add event/i }));
+  fireEvent.change(screen.getByLabelText('Event'), { target: { value: 'El Clásico' } });
+  fireEvent.change(screen.getByLabelText('Date'), { target: { value: '2026-12-14' } });
+  fireEvent.change(screen.getByLabelText(/^Categories/), { target: { value: 'real' } });
+  fireEvent.click(screen.getByRole('button', { name: '+ Real Madrid' }));
+  fireEvent.click(screen.getAllByRole('button', { name: 'Add event' }).at(-1)!);
+  expect(h.eventMutate).toHaveBeenCalledWith(
+    { title: 'El Clásico', happensOn: '2026-12-14', notes: '', categoryIds: ['c9'], perCategory: 10, difficulty: 'mixed' },
+    expect.anything()
+  );
 });

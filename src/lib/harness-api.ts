@@ -1,6 +1,6 @@
 // Data layer for the HQ Content tab (`/admin/harness`), through the shared apiClient like hq-api.ts.
 import { apiClient } from '@/services';
-import type { HarnessCreateRequest, HarnessItemAction, HarnessOverview, HarnessPriority, HarnessSettings, HarnessUpdateSettingsRequest } from '@/types';
+import type { HarnessCreateEvent, HarnessCreateRequest, HarnessItemAction, HarnessOverview, HarnessPriority, HarnessSettings, HarnessUpdateSettingsRequest } from '@/types';
 
 const BASE = '/admin/harness';
 
@@ -25,6 +25,30 @@ export const harnessApi = {
   },
   cancelRequest(id: string) {
     return apiClient.post<{ id: string; status: string }>(`${BASE}/requests/${encodeURIComponent(id)}/cancel`, {});
+  },
+  createEvent(body: HarnessCreateEvent) {
+    return apiClient.post<{ id: string }>(`${BASE}/events`, body);
+  },
+  cancelEvent(id: string) {
+    return apiClient.post<{ id: string; status: string }>(`${BASE}/events/${encodeURIComponent(id)}/cancel`, {});
+  },
+  createProposal(body: { name: string; why?: string; target?: number }) {
+    return apiClient.post<{ id: string; categoryId: string; slug: string }>(`${BASE}/proposals`, body);
+  },
+  proposalGoLive(id: string) {
+    return apiClient.post<{ id: string; status: string }>(`${BASE}/proposals/${encodeURIComponent(id)}/go-live`, {});
+  },
+  cancelProposal(id: string) {
+    return apiClient.post<{ id: string; status: string }>(`${BASE}/proposals/${encodeURIComponent(id)}/cancel`, {});
+  },
+  createAsk(message: string) {
+    return apiClient.post<{ id: string }>(`${BASE}/asks`, { message });
+  },
+  applyAsk(id: string, indexes: number[]) {
+    return apiClient.post<{ id: string; results: Array<{ index: number; ok: boolean; error?: string }> }>(`${BASE}/asks/${encodeURIComponent(id)}/apply`, { indexes });
+  },
+  dismissAsk(id: string) {
+    return apiClient.post<{ id: string; status: string }>(`${BASE}/asks/${encodeURIComponent(id)}/dismiss`, {});
   },
   itemAction(itemId: string, body: { action: HarnessItemAction; version: number; note?: string }) {
     return apiClient.post<{ id: string; stage: string }>(`${BASE}/items/${encodeURIComponent(itemId)}/action`, body);

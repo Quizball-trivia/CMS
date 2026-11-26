@@ -73,6 +73,65 @@ export interface HarnessRequest {
   createdAt: string | null;
 }
 
+export interface HarnessContentEvent {
+  id: string;
+  title: string;
+  happensOn: string;
+  notes: string;
+  categories: string[];
+  perCategory: number;
+  difficulty: 'easy' | 'medium' | 'hard' | 'mixed';
+  status: 'open' | 'cancelled';
+  createdBy: string | null;
+  live: number;
+  working: number;
+  dropped: number;
+}
+
+export interface HarnessProposal {
+  id: string;
+  name: string;
+  why: string;
+  target: number;
+  status: 'filling' | 'live' | 'cancelled';
+  proposedBy: string | null;
+  /** The category is visible in the game. */
+  inGame: boolean;
+  /** Published questions in the category. */
+  live: number;
+  working: number;
+  createdAt: string | null;
+}
+
+export interface HarnessAskAction {
+  valid: boolean;
+  /** One line in plain words, e.g. "Boost: Real Madrid". */
+  summary: string;
+  action: unknown;
+}
+
+export interface HarnessAsk {
+  id: string;
+  message: string;
+  askedBy: string | null;
+  status: 'thinking' | 'answered' | 'failed' | 'applied' | 'dismissed';
+  reply: string | null;
+  actions: HarnessAskAction[];
+  applied: Array<{ index: number; ok: boolean; error?: string }>;
+  error: string | null;
+  appliedBy: string | null;
+  createdAt: string | null;
+}
+
+export interface HarnessCreateEvent {
+  title: string;
+  happensOn: string;
+  notes?: string;
+  categoryIds: string[];
+  perCategory: number;
+  difficulty: 'easy' | 'medium' | 'hard' | 'mixed';
+}
+
 export type HarnessItemAction = 'flag' | 'approve' | 'reject' | 'send_back';
 
 export interface HarnessCreateRequest {
@@ -154,6 +213,9 @@ export interface HarnessOverview {
   direction: string;
   /** Every active category, for ordering questions (also ones with no ranked play yet). */
   allCategories: Array<{ id: string; name: string }>;
+  contentEvents: HarnessContentEvent[];
+  proposals: HarnessProposal[];
+  asks: HarnessAsk[];
   /** The newest 30 stuck questions; the full count is the escalated stage count. */
   needsYou: HarnessNeedsYouItem[];
   recentLive: HarnessLiveItem[];
