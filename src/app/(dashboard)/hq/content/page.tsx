@@ -244,8 +244,6 @@ export default function HqContentPage() {
             </div>
           )}
 
-          <AskHq asks={data.asks} paused={data.settings.paused} />
-
           <div role="tablist" aria-label="Content sections" className="flex gap-1 overflow-x-auto border-b border-slate-200">
             {TABS.map((t) => {
               const badge =
@@ -275,6 +273,8 @@ export default function HqContentPage() {
 
           {tab === 'today' && (
             <>
+              {/* Steering in plain words lives with the day's picture; the other tabs start straight at their own content. */}
+              <AskHq asks={data.asks} paused={data.settings.paused} />
               <StatusLine data={data} />
               <Runway rows={data.runway} />
               {/* `show` is missing only while the backend is a version behind this page. */}

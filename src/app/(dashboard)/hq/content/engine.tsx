@@ -74,7 +74,7 @@ export function EngineRoom({ data }: { data: HarnessOverview }) {
           )}
         </Panel>
       </Section>
-          <Section title="Agents" count={data.agents.length} description="Makers run on Claude, checkers on Codex, so no agent checks its own family's work.">
+          <Section title="Agents" count={data.agents.length} description="Each agent's AI model and the subscriptions it uses, in order. Checkers start on Codex; a checker never runs on the model that wrote what it checks.">
             <Panel className="overflow-x-auto">
               <table className="w-full min-w-[720px] text-sm">
                 <thead className="border-b border-slate-200">
