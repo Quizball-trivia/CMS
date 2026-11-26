@@ -1,6 +1,6 @@
 // Data layer for the HQ Content tab (`/admin/harness`), through the shared apiClient like hq-api.ts.
 import { apiClient } from '@/services';
-import type { HarnessCreateEvent, HarnessCreateRequest, HarnessItemAction, HarnessOverview, HarnessPriority, HarnessSettings, HarnessUpdateSettingsRequest } from '@/types';
+import type { HarnessShow, HarnessCreateEvent, HarnessCreateRequest, HarnessItemAction, HarnessOverview, HarnessPriority, HarnessSettings, HarnessUpdateSettingsRequest } from '@/types';
 
 const BASE = '/admin/harness';
 
@@ -49,6 +49,15 @@ export const harnessApi = {
   },
   dismissAsk(id: string) {
     return apiClient.post<{ id: string; status: string }>(`${BASE}/asks/${encodeURIComponent(id)}/dismiss`, {});
+  },
+  swapShowQuestion(id: string, index: number) {
+    return apiClient.post<HarnessShow>(`${BASE}/show/${encodeURIComponent(id)}/swap`, { index });
+  },
+  newShowPack(id: string) {
+    return apiClient.post<HarnessShow>(`${BASE}/show/${encodeURIComponent(id)}/new`, {});
+  },
+  approveShowPack(id: string) {
+    return apiClient.post<HarnessShow>(`${BASE}/show/${encodeURIComponent(id)}/approve`, {});
   },
   itemAction(itemId: string, body: { action: HarnessItemAction; version: number; note?: string }) {
     return apiClient.post<{ id: string; stage: string }>(`${BASE}/items/${encodeURIComponent(itemId)}/action`, body);

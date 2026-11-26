@@ -101,3 +101,15 @@ export function useApplyHarnessAsk() {
 export function useDismissHarnessAsk() {
   return useHarnessMutation((id: string) => harnessApi.dismissAsk(id));
 }
+
+export function useSwapShowQuestion() {
+  return useHarnessMutation((v: { id: string; index: number }) => harnessApi.swapShowQuestion(v.id, v.index));
+}
+
+export function useNewShowPack() {
+  return useHarnessMutation((id: string) => harnessApi.newShowPack(id));
+}
+
+export function useApproveShowPack() {
+  return useHarnessMutation((id: string) => harnessApi.approveShowPack(id));
+}
