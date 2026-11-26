@@ -460,6 +460,12 @@ it('says why the agents are quiet: every subscription used up, the daily limit, 
   cleanup();
   h.data = { ...overview(), accounts: [seat('Ultra')], queue: { running: 0, ready: 0, waiting: 0, nextAt: null, dailyLimitReached: false } };
   render(<HqContentPage />);
+  // Questions are still missing: the queue is only empty between two planning rounds.
+  expect(screen.getByText('Between rounds')).toBeTruthy();
+  cleanup();
+  const full = overview();
+  h.data = { ...full, classic: { ...full.classic, totalShortage: 0, shortCategories: 0 }, accounts: [seat('Ultra')], queue: { running: 0, ready: 0, waiting: 0, nextAt: null, dailyLimitReached: false } };
+  render(<HqContentPage />);
   expect(screen.getByText('Nothing to do right now')).toBeTruthy();
 });
 

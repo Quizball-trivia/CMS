@@ -1,14 +1,14 @@
 'use client';
 
 import { useState } from 'react';
-import { ExternalLink, Loader2, Play } from 'lucide-react';
+import { ExternalLink, Loader2, Play, Search } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useHarnessGames } from '@/hooks';
 import { cn } from '@/lib/utils';
-import type { HarnessCounted, HarnessGame, HarnessGameState } from '@/types';
-import { EmptyState, HQ_PAGE, LoadErrorState, PageHeader, Panel, RefreshErrorBanner, Section } from '../hq-ui';
-import { change, finishRate, GROUPS, PREVIEW_SITE, previewUrl, size, worthALook } from './games';
+import type { HarnessGame, HarnessGameGroup, HarnessGameState } from '@/types';
+import { Delta, EmptyState, HQ_PAGE, LoadErrorState, Meter, PageHeader, Panel, RefreshErrorBanner, Section } from '../hq-ui';
+import { finishRate, GROUPS, PREVIEW_SITE, previewUrl, size, worthALook } from './games';
 
 // The Games hub: every game the product has, on one page. Play any of them
 // right here (the staging site's previews: real game screens on sample data,
@@ -25,52 +25,62 @@ const STATE: Record<HarnessGameState, { label: string; tone: string }> = {
 };
 /** "20 Nov" from a YYYY-MM-DD day. */
 const day = (d: string) => new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' }).format(new Date(`${d}T00:00:00Z`));
-const CHANGE_TONE = { up: 'text-emerald-700', down: 'text-red-700', flat: 'text-slate-500' } as const;
-
-function Count({ c, label }: { c: HarnessCounted; label: string }) {
-  const ch = change(c);
-  return (
-    <span className="whitespace-nowrap">
-      <b className="tabular-nums text-slate-950">{c.now.toLocaleString()}</b> {label}
-      {ch && <> <span className={cn('tabular-nums', CHANGE_TONE[ch.tone])}>({ch.text})</span></>}
-    </span>
-  );
-}
-
-function Numbers({ game }: { game: HarnessGame }) {
+/** The number a card leads with: daily starts when the game has a daily, otherwise what was played. */
+function Lead({ game }: { game: HarnessGame }) {
   const { started, played } = game.stats;
-  const rate = finishRate(game);
-  if (!started && !played) return <p className="text-[13px] text-slate-500">Plays are not counted for this game yet.</p>;
+  const main = started ?? played;
+  if (!main) return <p className="text-[13px] text-slate-500">Plays are not counted for this game yet.</p>;
+  const label = started ? 'started a day' : game.key === 'orshabatoba' ? 'players took part' : 'played';
   return (
-    <p className="flex flex-wrap gap-x-4 gap-y-1 text-[13px] text-slate-600">
-      {started && <Count c={started} label="started a day" />}
-      {rate !== null && (
-        <span className="whitespace-nowrap">
-          <b className={cn('tabular-nums', rate < 40 ? 'text-red-700' : 'text-slate-950')}>{rate}%</b> finished it
-        </span>
-      )}
-      {played && <Count c={played} label={started ? 'games with friends' : game.key === 'orshabatoba' ? 'players took part' : 'played'} />}
+    <p className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+      <b className="text-2xl font-semibold tabular-nums tracking-tight text-slate-950">{main.now.toLocaleString()}</b>
+      <span className="text-[13px] text-slate-600">{label}</span>
+      <Delta now={main.now} before={main.before} />
     </p>
   );
 }
 
 function GameCard({ game, onPlay }: { game: HarnessGame; onPlay: () => void }) {
   const st = STATE[game.state];
+  const rate = finishRate(game);
+  const friends = game.stats.started ? game.stats.played : null;
   return (
-    <Panel as="article" className="flex flex-col gap-2 p-4">
+    <Panel as="article" className="flex flex-col gap-3 p-4 transition hover:border-slate-300 hover:shadow-sm">
       <div className="flex items-start justify-between gap-2">
-        <h3 className="font-medium text-slate-900">{game.name}</h3>
+        <h3 className="font-semibold tracking-tight text-slate-950">{game.name}</h3>
         <span className={cn('shrink-0 rounded px-1.5 py-0.5 text-[12px] font-medium', st.tone)}>{st.label}</span>
       </div>
-      <p className="text-[13px] text-slate-600">{game.what}</p>
-      <Numbers game={game} />
+      <p className="line-clamp-2 min-h-[2.4rem] text-[13px] leading-snug text-slate-600">{game.what}</p>
+      <Lead game={game} />
+      {(rate !== null || friends) && (
+        <div className="space-y-2 rounded-lg bg-slate-50 px-3 py-2 text-[13px] text-slate-700">
+          {rate !== null && (
+            <div>
+              <div className="flex items-baseline justify-between">
+                <span>Finished the day</span>
+                <b className={cn('tabular-nums', rate < 40 ? 'text-red-700' : 'text-slate-950')}>{rate}%</b>
+              </div>
+              <Meter pct={rate} tone={rate < 40 ? 'bad' : rate < 60 ? 'attention' : 'good'} className="mt-1" />
+            </div>
+          )}
+          {friends && (
+            <div className="flex items-baseline justify-between gap-2">
+              <span>With friends</span>
+              <span className="flex items-baseline gap-2">
+                <b className="tabular-nums text-slate-950">{friends.now.toLocaleString()}</b>
+                <Delta now={friends.now} before={friends.before} />
+              </span>
+            </div>
+          )}
+        </div>
+      )}
       <div className="mt-auto flex flex-wrap items-center gap-2 pt-1">
         {game.preview ? (
           <Button size="sm" onClick={onPlay} aria-label={`Play ${game.name}`}>
             <Play className="mr-1 h-3.5 w-3.5" /> Play
           </Button>
         ) : (
-          <span className="text-[12px] text-slate-500">No preview yet</span>
+          <span className="rounded bg-slate-100 px-1.5 py-1 text-[12px] text-slate-600">No preview yet</span>
         )}
         {game.route && (
           <a className="inline-flex items-center gap-1 text-[13px] font-medium text-slate-700 underline-offset-2 hover:underline" href={`${PREVIEW_SITE}${game.route}`} target="_blank" rel="noreferrer">
@@ -119,6 +129,10 @@ function PlayDialog({ game, onClose }: { game: HarnessGame | null; onClose: () =
 export default function HqGamesPage() {
   const { data, error, isLoading, refetch } = useHarnessGames();
   const [playing, setPlaying] = useState<HarnessGame | null>(null);
+  const [query, setQuery] = useState('');
+  const [group, setGroup] = useState<HarnessGameGroup | 'all'>('all');
+  const wanted = query.trim().toLowerCase();
+  const shown = (g: HarnessGame) => (group === 'all' || g.group === group) && (!wanted || g.name.toLowerCase().includes(wanted) || g.what.toLowerCase().includes(wanted));
   const flags = data ? worthALook(data.games) : [];
 
   return (
@@ -143,25 +157,58 @@ export default function HqGamesPage() {
             {flags.length === 0 ? (
               <EmptyState>Nothing stands out this week.</EmptyState>
             ) : (
-              <Panel className="divide-y divide-slate-100">
+              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
                 {flags.map((f) => (
-                  <div key={f.game.key} className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 px-4 py-2.5 text-sm">
-                    <span>
-                      <b className="font-medium text-slate-900">{f.game.name}</b> <span className="text-slate-700">{f.reason}</span>
+                  <div key={f.game.key} className="flex items-start justify-between gap-3 rounded-lg border border-amber-200 bg-amber-50/60 px-4 py-3 text-sm">
+                    <span className="min-w-0">
+                      <b className="block font-semibold text-slate-950">{f.game.name}</b>
+                      <span className="text-slate-700">{f.reason}</span>
                     </span>
                     {f.game.preview && (
-                      <Button size="sm" variant="outline" onClick={() => setPlaying(f.game)} aria-label={`Play ${f.game.name} from the list`}>
+                      <Button size="sm" variant="outline" className="shrink-0 bg-white" onClick={() => setPlaying(f.game)} aria-label={`Play ${f.game.name} from the list`}>
                         <Play className="mr-1 h-3.5 w-3.5" /> Play
                       </Button>
                     )}
                   </div>
                 ))}
-              </Panel>
+              </div>
             )}
           </Section>
 
+          <div className="sticky top-0 z-10 -mx-1 flex flex-wrap items-center gap-2 border-y border-slate-200 bg-slate-50/95 px-1 py-2 backdrop-blur">
+            <label className="relative">
+              <span className="sr-only">Find a game</span>
+              <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" aria-hidden />
+              <input
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Find a game"
+                className="h-9 w-56 rounded-md border border-slate-200 bg-white pl-8 pr-3 text-sm text-slate-900 outline-none placeholder:text-slate-400 focus:border-slate-400"
+              />
+            </label>
+            <div className="flex flex-wrap gap-1" role="group" aria-label="Kind of game">
+              {[{ key: 'all' as const, title: 'All' }, ...GROUPS].map((g) => {
+                const n = g.key === 'all' ? data.games.length : data.games.filter((x) => x.group === g.key).length;
+                if (n === 0) return null;
+                return (
+                  <button
+                    key={g.key}
+                    type="button"
+                    aria-pressed={group === g.key}
+                    onClick={() => setGroup(g.key)}
+                    className={cn('rounded-md px-2.5 py-1.5 text-[13px] font-medium transition', group === g.key ? 'bg-slate-950 text-white' : 'text-slate-600 hover:bg-white hover:text-slate-950')}
+                  >
+                    {g.title} <span className={cn('tabular-nums', group === g.key ? 'text-slate-300' : 'text-slate-400')}>{n}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {data.games.filter(shown).length === 0 && <EmptyState>No game matches “{query}”.</EmptyState>}
+
           {GROUPS.map((group) => {
-            const games = data.games.filter((g) => g.group === group.key).sort((a, b) => size(b) - size(a));
+            const games = data.games.filter((g) => g.group === group.key && shown(g)).sort((a, b) => size(b) - size(a));
             if (games.length === 0) return null;
             return (
               <Section key={group.key} title={group.title} count={games.length} description={group.description}>

@@ -155,5 +155,8 @@ export function agentsNow(o: HarnessOverview, now: number = Date.now()): AgentsN
   }
   if (q.ready > 0) return { tone: 'working', headline: 'Agents working', detail: `${jobs(q.ready)} about to start.` };
   if (q.waiting > 0) return { tone: 'idle', headline: 'Agents resting', detail: `${jobs(q.waiting)} scheduled${q.nextAt ? `, the next ${georgianTime(q.nextAt)}` : ''}.` };
-  return { tone: 'idle', headline: 'Nothing to do right now', detail: 'Every pool is being looked after; new work starts when something runs short.' };
+  // The planner works in rounds: between two of them the queue is empty even though questions are still missing.
+  const missing = o.classic?.totalShortage ?? 0;
+  if (missing > 0) return { tone: 'idle', headline: 'Between rounds', detail: `${missing.toLocaleString()} questions are still missing; the planner starts the next batch within minutes.` };
+  return { tone: 'idle', headline: 'Nothing to do right now', detail: 'Every ranked category is full; new questions start when one runs short. Daily games are on the Runway.' };
 }

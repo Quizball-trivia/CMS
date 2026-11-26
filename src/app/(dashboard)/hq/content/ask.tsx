@@ -126,7 +126,7 @@ export function AskHq({ asks, paused }: { asks: HarnessAsk[]; paused: boolean })
     const t = setInterval(() => setNow(Date.now()), 60_000);
     return () => clearInterval(t);
   }, []);
-  const fresh = asks.filter((a) => a.status === 'answered' || a.status === 'thinking' || (a.createdAt && now - Date.parse(a.createdAt) < 86_400_000));
+  const fresh = asks.filter((a) => a.status === 'answered' || a.status === 'thinking' || (a.createdAt && now - Date.parse(a.createdAt) < 3_600_000));
   const shown = showOld ? asks : fresh;
   const send = () => {
     const m = message.trim();

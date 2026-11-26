@@ -9,6 +9,10 @@ import { EmptyState, Panel, Section } from '../hq-ui';
 // A game stops at its last stored day or at the fixed end in its code,
 // whichever comes first, so both are shown.
 
+/** "9 Dec" from a YYYY-MM-DD day (with the year when it is not this one's neighbour). */
+const shortDay = (d: string) =>
+  new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' }).format(new Date(`${d}T00:00:00Z`));
+
 const URGENT = 14;
 const SOON = 30;
 
@@ -60,7 +64,7 @@ export function Runway({ rows, expanded = false }: { rows: HarnessRunwayRow[]; e
                   <div className={cn('h-full', t.bar)} style={{ width: `${Math.min(100, (r.daysLeft / 90) * 100)}%` }} />
                 </div>
                 <div className="w-full text-[12px] text-slate-600 sm:w-auto sm:min-w-[260px]">
-                  {r.endsOn ? <>Last day {r.endsOn} · </> : null}
+                  {r.endsOn ? <>Last day {shortDay(r.endsOn)} · </> : null}
                   {needs(r)}
                 </div>
                 <span className={cn('rounded px-1.5 py-0.5 text-[12px] font-medium', t.chip)}>{t.label}</span>
