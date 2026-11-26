@@ -159,6 +159,10 @@ export interface HarnessAccount {
   blockedUntil: string | null;
   windows: Record<string, { status: string; utilization: number | null; resets_at: string | null }>;
   lastError: string | null;
+  /** Runs this seat takes at once, how many it is running now, and how many it ran today. */
+  maxParallel?: number;
+  running?: number;
+  runsToday?: number;
 }
 
 export interface HarnessAgent {
@@ -175,6 +179,9 @@ export interface HarnessAgent {
   runsToday: number;
   costCentsToday: number;
   lastRunAt: string | null;
+  /** A second AI the agent overflows to when its own seats are busy or used up. */
+  altProvider?: 'claude' | 'codex' | null;
+  altModel?: string | null;
 }
 
 export interface HarnessRun {
@@ -250,6 +257,8 @@ export interface HarnessShowPack {
   approvedBy: string | null;
   updatedAt: string;
   counts: { total: number; ok: number; flagged: number; notChecked: number; checking: number };
+  /** Questions taken out of this pack, newest first. */
+  removed?: Array<{ kind: string | null; by: 'checker' | 'person'; note: string; text: HarnessShowText; at: string | null }>;
   rounds: Array<{ kind: string; title: string; cut: { keep_percent?: number; keep_count?: number } | null; questions: HarnessShowQuestion[] }>;
 }
 
@@ -285,6 +294,8 @@ export interface HarnessOverview {
   stages: Array<{ mode: string; stage: string; count: number }>;
   jobs: Array<{ kind: string; status: string; count: number }>;
   accounts: HarnessAccount[];
+  /** The queue right now: runs in flight, jobs ready to start, jobs waiting for a later time. */
+  queue?: { running: number; ready: number; waiting: number; nextAt: string | null; dailyLimitReached: boolean };
   agents: HarnessAgent[];
   runs: HarnessRun[];
   events: HarnessEvent[];

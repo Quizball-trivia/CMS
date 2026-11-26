@@ -48,6 +48,7 @@ vi.mock('@/hooks', () => ({
   useNewShowPack: () => ({ mutate: h.newShowMutate, isPending: false }),
   useApproveShowPack: () => ({ mutate: h.approveShowMutate, isPending: false }),
   useShowPackChanging: () => h.showChanging,
+  useHqClock: () => new Date('2026-11-26T18:00:00Z'),
 }));
 
 const { default: HqContentPage } = await import('../content/page');
@@ -417,4 +418,90 @@ it('locks every show pack button while a change is on its way, and still opens w
   expect(screen.getByRole('heading', { name: /^Runway/ })).toBeTruthy();
   open('Monday show');
   expect(screen.getByText('The Monday show is not available yet.')).toBeTruthy();
+});
+
+const seat = (id: string, over: Partial<HarnessOverview['accounts'][number]> = {}): HarnessOverview['accounts'][number] => ({
+  id, provider: 'claude', label: id, secretRef: 'X', status: 'active', reservedForPeople: false, softPct: 90, state: 'ok', blockedUntil: null, windows: {}, lastError: null, maxParallel: 2, running: 0, runsToday: 0, ...over,
+});
+
+it('shows each subscription: working, free, or used up and until when', () => {
+  h.data = {
+    ...overview(),
+    queue: { running: 2, ready: 5, waiting: 0, nextAt: null, dailyLimitReached: false },
+    accounts: [
+      seat('Ultra', { running: 2, maxParallel: 3, runsToday: 40, windows: { five_hour: { status: 'allowed', utilization: 0.42, resets_at: '2026-11-26T20:00:00Z' } } }),
+      seat('Premium 1', { state: 'limit', blockedUntil: '2026-11-26T20:00:00Z' }),
+      seat('Premium 2'),
+      seat('Codex', { provider: 'codex', state: 'auth', blockedUntil: '2026-11-26T18:20:00Z' }),
+    ],
+  };
+  render(<HqContentPage />);
+  expect(screen.getByText('Agents working')).toBeTruthy();
+  expect(screen.getByText('2 running now on 1 subscription, 5 jobs next in line.')).toBeTruthy();
+  open('Agents');
+  const subs = screen.getByRole('heading', { name: /^Subscriptions/ }).closest('section')!;
+  expect(within(subs).getByText('Working: 2 of 3 at once')).toBeTruthy();
+  expect(within(subs).getByText('Used up until Fri 00:00')).toBeTruthy();
+  expect(within(subs).getByText('Free')).toBeTruthy();
+  expect(within(subs).getByText('Needs a new login')).toBeTruthy();
+  expect(within(subs).getByText(/42% used · resets Fri 00:00/)).toBeTruthy();
+});
+
+it('says why the agents are quiet: every subscription used up, the daily limit, or nothing to do', () => {
+  const used = [seat('Ultra', { state: 'limit', blockedUntil: '2026-11-27T02:00:00Z' }), seat('Premium 1', { state: 'limit', blockedUntil: '2026-11-26T20:00:00Z' })];
+  h.data = { ...overview(), accounts: used, queue: { running: 0, ready: 12, waiting: 0, nextAt: null, dailyLimitReached: false } };
+  render(<HqContentPage />);
+  expect(screen.getByText('Agents waiting')).toBeTruthy();
+  expect(screen.getByText('Every subscription is used up. The first one is back Fri 00:00. 12 jobs waiting.')).toBeTruthy();
+  cleanup();
+  h.data = { ...overview(), accounts: [seat('Ultra')], queue: { running: 0, ready: 12, waiting: 0, nextAt: null, dailyLimitReached: true } };
+  render(<HqContentPage />);
+  expect(screen.getByText('Agents stopped for today')).toBeTruthy();
+  cleanup();
+  h.data = { ...overview(), accounts: [seat('Ultra')], queue: { running: 0, ready: 0, waiting: 0, nextAt: null, dailyLimitReached: false } };
+  render(<HqContentPage />);
+  expect(screen.getByText('Nothing to do right now')).toBeTruthy();
+});
+
+it('lists what was taken out of the show pack and why', () => {
+  h.data = withShow({ ...showPack('ready', [showQ(0)]), removed: [{ kind: 'true_false', by: 'checker', note: 'The record was broken in 2026.', text: { ka: 'ძველი კითხვა', en: 'Old statement' }, at: null }] });
+  render(<HqContentPage />);
+  open('Monday show');
+  expect(screen.getByText('Taken out of this pack (1)')).toBeTruthy();
+  expect(screen.getByText('ძველი კითხვა')).toBeTruthy();
+  expect(screen.getByText('The record was broken in 2026.')).toBeTruthy();
+});
+
+it('keeps the status honest in the awkward cases: put-off jobs, logins, a limit reached mid-run, a seat that ran out while running', () => {
+  const used = [seat('Ultra', { state: 'limit', blockedUntil: '2026-11-27T02:00:00Z' })];
+  h.data = { ...overview(), accounts: used, queue: { running: 0, ready: 0, waiting: 9, nextAt: '2026-11-27T02:00:00Z', dailyLimitReached: false } };
+  render(<HqContentPage />);
+  expect(screen.getByText('Every subscription is used up. The first one is back Fri 06:00. 9 jobs waiting.')).toBeTruthy();
+  cleanup();
+  h.data = { ...overview(), accounts: [seat('Codex', { state: 'auth', blockedUntil: '2026-11-26T18:20:00Z' })], queue: { running: 0, ready: 4, waiting: 0, nextAt: null, dailyLimitReached: false } };
+  render(<HqContentPage />);
+  expect(screen.getByText('Agents cannot work')).toBeTruthy();
+  expect(screen.getByText('Every subscription needs a new login on the worker. 4 jobs waiting.')).toBeTruthy();
+  cleanup();
+  h.data = { ...overview(), accounts: [seat('Ultra', { running: 2 })], queue: { running: 2, ready: 3, waiting: 0, nextAt: null, dailyLimitReached: true } };
+  render(<HqContentPage />);
+  expect(screen.getByText('Agents finishing for today')).toBeTruthy();
+  cleanup();
+  h.data = { ...overview(), accounts: [seat('Ultra', { running: 1, state: 'limit', blockedUntil: '2026-11-27T02:00:00Z' }), seat('Premium 1')], queue: { running: 1, ready: 0, waiting: 0, nextAt: null, dailyLimitReached: false } };
+  render(<HqContentPage />);
+  expect(screen.getByText('1 running now on 1 subscription.')).toBeTruthy();
+  open('Agents');
+  expect(screen.getByText(/1 still finishing/)).toBeTruthy();
+});
+
+it('never calls a seat with a rejected login free, and says so when no subscription is switched on', () => {
+  h.data = { ...overview(), accounts: [seat('Codex', { provider: 'codex', state: 'auth', blockedUntil: null })], queue: { running: 0, ready: 4, waiting: 0, nextAt: null, dailyLimitReached: false } };
+  render(<HqContentPage />);
+  expect(screen.getByText('Agents cannot work')).toBeTruthy();
+  open('Agents');
+  expect(screen.getByText('Needs a new login')).toBeTruthy();
+  cleanup();
+  h.data = { ...overview(), accounts: [seat('Old', { status: 'disabled' })], queue: { running: 0, ready: 4, waiting: 0, nextAt: null, dailyLimitReached: false } };
+  render(<HqContentPage />);
+  expect(screen.getByText('No subscription is switched on for the agents. 4 jobs waiting.')).toBeTruthy();
 });

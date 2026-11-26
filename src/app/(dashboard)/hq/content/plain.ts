@@ -74,3 +74,86 @@ export function plainEvent(e: HarnessEvent): { text: string; tone: 'neutral' | '
   if (e.type === 'editor' || e.type === 'request') return { text: about ? `${e.message} — ${about}` : e.message, tone: 'neutral' };
   return { text: about ? `${e.message} — ${about}` : e.message, tone: e.level === 'info' ? 'neutral' : 'attention' };
 }
+
+// ── subscriptions (seats) and why agents are quiet ─────────────────────────
+
+/** "Mon 00:00" in Georgian time, where the team is. */
+export function georgianTime(iso: string): string {
+  return new Intl.DateTimeFormat('en-GB', { weekday: 'short', hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Asia/Tbilisi' }).format(new Date(iso)).replace(',', '');
+}
+
+const WINDOW_LABEL: Record<string, string> = { five_hour: '5-hour allowance', seven_day: 'Weekly allowance', seven_day_opus: 'Weekly Opus allowance', seven_day_sonnet: 'Weekly Sonnet allowance' };
+export const windowLabel = (key: string) => WINDOW_LABEL[key] ?? key.replace(/_/g, ' ');
+
+type Seat = HarnessOverview['accounts'][number];
+export type SeatState = { kind: 'off' | 'login' | 'used-up' | 'working' | 'free'; label: string; until: string | null };
+
+/** When a used-up seat comes back: the latest of its block and of every allowance that is spent. */
+function usedUpUntil(a: Seat, now: number): string | null | undefined {
+  const times: number[] = [];
+  let spent = false;
+  if (a.blockedUntil && Date.parse(a.blockedUntil) > now) {
+    spent = true;
+    times.push(Date.parse(a.blockedUntil));
+  }
+  for (const w of Object.values(a.windows ?? {})) {
+    if (w.resets_at && Date.parse(w.resets_at) <= now) continue;
+    if (w.status === 'rejected' || (typeof w.utilization === 'number' && w.utilization * 100 >= a.softPct)) {
+      spent = true;
+      if (w.resets_at) times.push(Date.parse(w.resets_at));
+    }
+  }
+  if (!spent) return undefined;
+  return times.length ? new Date(Math.max(...times)).toISOString() : null;
+}
+
+/** One subscription in plain words: off, needs a login, used up (until when), working, or free. */
+export function seatState(a: Seat, now: number = Date.now()): SeatState {
+  if (a.reservedForPeople || a.status !== 'active') return { kind: 'off', label: 'Not used by agents', until: null };
+  // A rejected login stays a login problem until a run succeeds on the seat again, whether or not its retry pause is over.
+  if (a.state === 'auth') return { kind: 'login', label: 'Needs a new login', until: null };
+  const until = usedUpUntil(a, now);
+  if (until !== undefined) return { kind: 'used-up', label: until ? `Used up until ${georgianTime(until)}` : 'Used up for now', until };
+  const running = a.running ?? 0;
+  if (running > 0) return { kind: 'working', label: `Working: ${running} of ${a.maxParallel ?? running} at once`, until: null };
+  return { kind: 'free', label: 'Free', until: null };
+}
+
+export type AgentsNow = { tone: 'working' | 'paused' | 'waiting' | 'idle'; headline: string; detail: string };
+
+/** One honest line on what the agents are doing right now, and if they are quiet, why. */
+export function agentsNow(o: HarnessOverview, now: number = Date.now()): AgentsNow {
+  if (o.settings.paused) return { tone: 'paused', headline: 'Agents paused', detail: 'Nothing new starts until someone switches them on.' };
+  const q = o.queue;
+  if (!q) return { tone: 'working', headline: 'Agents working', detail: '' };
+  const active = o.accounts.filter((a) => !a.reservedForPeople && a.status === 'active');
+  const seats = active.map((a) => seatState(a, now));
+  const jobs = (n: number) => `${n} job${n === 1 ? '' : 's'}`;
+  // Counted from the runs themselves: a seat that just ran out can still be finishing one.
+  const on = active.filter((a) => (a.running ?? 0) > 0).length;
+  const runningText = `${q.running} running now on ${on} subscription${on === 1 ? '' : 's'}`;
+  if (q.dailyLimitReached) {
+    const when = "Today's run limit is reached. New work starts again at midnight, or when the limit is raised in the Engine room.";
+    return q.running > 0
+      ? { tone: 'waiting', headline: 'Agents finishing for today', detail: `${runningText}; nothing new starts. ${when}` }
+      : { tone: 'waiting', headline: 'Agents stopped for today', detail: when };
+  }
+  if (q.running > 0) return { tone: 'working', headline: 'Agents working', detail: `${runningText}${q.ready ? `, ${jobs(q.ready)} next in line` : ''}.` };
+  // Jobs put off because no seat was usable count too: they are waiting for a seat, not resting.
+  const pending = q.ready + q.waiting;
+  const usable = seats.filter((s) => s.kind === 'working' || s.kind === 'free').length;
+  if (pending > 0 && seats.length === 0) return { tone: 'waiting', headline: 'Agents cannot work', detail: `No subscription is switched on for the agents. ${jobs(pending)} waiting.` };
+  if (pending > 0 && usable === 0) {
+    const logins = seats.filter((s) => s.kind === 'login').length;
+    if (logins === seats.length) return { tone: 'waiting', headline: 'Agents cannot work', detail: `Every subscription needs a new login on the worker. ${jobs(pending)} waiting.` };
+    const back = seats.map((s) => s.until).filter((t): t is string => !!t).sort()[0];
+    return {
+      tone: 'waiting',
+      headline: 'Agents waiting',
+      detail: `Every subscription is used up${logins ? ` or needs a new login (${logins})` : ''}${back ? `. The first one is back ${georgianTime(back)}` : ''}. ${jobs(pending)} waiting.`,
+    };
+  }
+  if (q.ready > 0) return { tone: 'working', headline: 'Agents working', detail: `${jobs(q.ready)} about to start.` };
+  if (q.waiting > 0) return { tone: 'idle', headline: 'Agents resting', detail: `${jobs(q.waiting)} scheduled${q.nextAt ? `, the next ${georgianTime(q.nextAt)}` : ''}.` };
+  return { tone: 'idle', headline: 'Nothing to do right now', detail: 'Every pool is being looked after; new work starts when something runs short.' };
+}
