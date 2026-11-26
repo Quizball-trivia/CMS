@@ -158,5 +158,5 @@ export function agentsNow(o: HarnessOverview, now: number = Date.now()): AgentsN
   // The planner works in rounds: between two of them the queue is empty even though questions are still missing.
   const missing = o.classic?.totalShortage ?? 0;
   if (missing > 0) return { tone: 'idle', headline: 'Between rounds', detail: `${missing.toLocaleString()} questions are still missing; the planner starts the next batch within minutes.` };
-  return { tone: 'idle', headline: 'Nothing to do right now', detail: 'Every pool is full; new work starts when something runs short.' };
+  return { tone: 'idle', headline: 'Nothing to do right now', detail: 'Every ranked category is full; new questions start when one runs short. Daily games are on the Runway.' };
 }
