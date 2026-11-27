@@ -5,6 +5,7 @@ import { ExternalLink, Loader2, MessageSquarePlus, Play, Search } from 'lucide-r
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useHarnessGameChanges, useHarnessGames } from '@/hooks';
+import { DEPARTMENT_LOOK } from '@/lib/hq-departments';
 import { cn } from '@/lib/utils';
 import type { HarnessGame, HarnessGameGroup, HarnessGameState } from '@/types';
 import { Delta, EmptyState, HQ_PAGE, LoadErrorState, Meter, PageHeader, Panel, RefreshErrorBanner, Section } from '../hq-ui';
@@ -150,7 +151,8 @@ export default function HqGamesPage() {
   return (
     <div className={HQ_PAGE}>
       <PageHeader
-        eyebrow="HQ"
+        eyebrow="Department · led by Nika E."
+        glow={DEPARTMENT_LOOK.games.hex}
         title="Games"
         description="Every game we have. Play any of them here, and see how each is doing: the last 7 whole days against the 7 before."
       />

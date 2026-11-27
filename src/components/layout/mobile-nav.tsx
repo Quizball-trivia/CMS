@@ -14,13 +14,13 @@ export function MobileNav() {
     <Sheet open={open} onOpenChange={setOpen}>
       {/* A real trigger, so closing the drawer returns focus to this button. */}
       <SheetTrigger asChild>
-        <Button variant="ghost" size="icon" className="h-11 w-11 md:hidden" aria-label="Open menu">
+        <Button variant="ghost" size="icon" className="h-11 w-11 text-white hover:bg-white/10 hover:text-white md:hidden" aria-label="Open menu">
           <Menu className="h-5 w-5" />
         </Button>
       </SheetTrigger>
       <SheetContent
         side="left"
-        className="w-72 gap-0 p-0 sm:max-w-72"
+        className="w-72 gap-0 border-0 bg-ink p-0 sm:max-w-72 [&>button]:text-white"
         // Close once a link is followed.
         onClickCapture={(e) => {
           if ((e.target as HTMLElement).closest('a')) setOpen(false);

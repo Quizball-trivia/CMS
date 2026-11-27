@@ -1,7 +1,7 @@
 // Types for what is left of the old HQ: the product analytics, and the departments the sidebar groups the CMS by.
 
 /** The departments of the company; the sidebar has one group per department. */
-export type HqDepartmentKey = 'content' | 'games' | 'competitions' | 'growth' | 'partners';
+export type HqDepartmentKey = 'content' | 'games' | 'competitions' | 'marketing' | 'partners' | 'investors';
 
 export interface HqAnalytics {
   generatedAt: string;

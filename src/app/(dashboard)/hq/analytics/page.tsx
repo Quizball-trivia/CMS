@@ -69,7 +69,7 @@ export default function AnalyticsPage() {
               ))}
             </div>
             <div className="flex items-center gap-2" title="Sets the window for new players, the charts, countries, game modes and the website numbers. Active today, 7 days and 30 days, registered players and retention do not change.">
-            <span id="trend-period-label" className={HQ_LABEL}>
+            <span id="trend-period-label" className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/60">
               Trend period
             </span>
             <div className="inline-flex rounded-md border border-slate-200 bg-white p-0.5" role="group" aria-labelledby="trend-period-label">

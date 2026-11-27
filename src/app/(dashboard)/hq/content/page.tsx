@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useHarnessOverview, useSetHarnessPolicy, useUpdateHarnessSettings, useHqClock } from '@/hooks';
 import { formatRelative } from '@/lib/hq-time';
+import { DEPARTMENT_LOOK } from '@/lib/hq-departments';
 import { cn } from '@/lib/utils';
 import type { HarnessOverview, HarnessReleaseStatus } from '@/types';
 import { EmptyState, errorMessage, HQ_LABEL, HQ_PAGE, LoadErrorState, PageHeader, Panel, RefreshErrorBanner, Section } from '../hq-ui';
@@ -43,7 +44,7 @@ function Controls({ data }: { data: HarnessOverview }) {
     );
   return (
     <>
-      <div className="flex items-center gap-2 text-sm text-slate-600">
+      <div className="flex items-center gap-2 text-sm text-white/70">
         <span>New questions go</span>
         <Select
           value={releaseStatus(data)}
@@ -58,7 +59,7 @@ function Controls({ data }: { data: HarnessOverview }) {
           }
           disabled={setPolicy.isPending}
         >
-          <SelectTrigger id="harness-release-status" className="h-9 w-[200px]" aria-label="Where new questions go">
+          <SelectTrigger id="harness-release-status" className="h-9 w-[200px] border-white/15 bg-white/10 text-white" aria-label="Where new questions go">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -67,7 +68,7 @@ function Controls({ data }: { data: HarnessOverview }) {
           </SelectContent>
         </Select>
       </div>
-      <Button onClick={toggle} disabled={update.isPending} variant={paused ? 'default' : 'outline'}>
+      <Button onClick={toggle} disabled={update.isPending} className={paused ? 'bg-brand text-ink hover:bg-brand/90' : 'border border-white/15 bg-white/10 text-white hover:bg-white/20'}>
         {update.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : paused ? <Play className="mr-2 h-4 w-4" /> : <Pause className="mr-2 h-4 w-4" />}
         {paused ? 'Switch agents on' : 'Pause agents'}
       </Button>
@@ -222,7 +223,8 @@ export default function HqContentPage() {
   return (
     <div className={HQ_PAGE}>
       <PageHeader
-        eyebrow="HQ"
+        eyebrow="Department · led by Tato"
+        glow={DEPARTMENT_LOOK.content.hex}
         title="Content"
         description="Agents keep the game's content full, checked and translated. You steer: what goes first, what it should be about, and what isn't good enough."
         actions={data ? <Controls data={data} /> : undefined}

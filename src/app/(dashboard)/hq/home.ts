@@ -22,7 +22,7 @@ export function needsYou(o: HarnessOverview | undefined, games: HarnessGames | u
   if (o) {
     const logins = o.accounts.filter((a) => seatState(a, now).kind === 'login');
     if (logins.length) {
-      out.push({ key: 'logins', area: 'Agents', text: `${plural(logins.length, 'subscription needs', 'subscriptions need')} a new login (${logins.map((a) => a.label).join(', ')}). Agents cannot use ${logins.length === 1 ? 'it' : 'them'} until then.`, href: '/hq/content?tab=agents', action: 'See subscriptions' });
+      out.push({ key: 'logins', area: 'Agents', text: `${plural(logins.length, 'subscription needs', 'subscriptions need')} a new login (${logins.map((a) => a.label).join(', ')}). Agents cannot use ${logins.length === 1 ? 'it' : 'them'} until then.`, href: '/hq/agents', action: 'See subscriptions' });
     }
     if (o.show?.pack?.status === 'ready') {
       out.push({ key: 'show', area: 'Content', text: `The Monday show pack for ${o.show.eventDate} is ready to read and approve.`, href: '/hq/content?tab=show', action: 'Review the pack' });

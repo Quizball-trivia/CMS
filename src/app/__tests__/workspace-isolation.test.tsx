@@ -9,7 +9,7 @@ const h = vi.hoisted(() => ({
 }));
 
 vi.mock('@/providers', () => ({ Providers: h.Providers, useAuth: h.useAuth }));
-vi.mock('next/font/google', () => ({ Inter: () => ({ variable: 'inter' }), Geist_Mono: () => ({ variable: 'mono' }) }));
+vi.mock('next/font/google', () => ({ Inter: () => ({ variable: 'inter' }), Geist_Mono: () => ({ variable: 'mono' }), Outfit: () => ({ variable: 'display' }) }));
 vi.mock('next/navigation', () => ({
   notFound: () => {
     throw new Error('NEXT_NOT_FOUND');

@@ -10,7 +10,6 @@ import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
 } from 'recharts';
 import { useAudience } from '@/hooks/use-admin-analytics';
-import { RealDataGate } from '@/components/analytics/real-data-gate';
 import type { Audience, AudiencePeriod, KeyedCount } from '@/types/admin-audience';
 import { countryLabel, gameLabel } from '@/lib/audience-labels';
 
@@ -339,5 +338,5 @@ function AudienceInner() {
 }
 
 export default function AudiencePage() {
-  return <RealDataGate><AudienceInner /></RealDataGate>;
+  return <AudienceInner />;
 }

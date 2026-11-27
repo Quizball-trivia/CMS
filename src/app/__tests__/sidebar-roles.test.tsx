@@ -4,17 +4,16 @@ import { Sidebar } from '@/components/layout/sidebar';
 
 const h = vi.hoisted(() => ({
   role: undefined as string | undefined,
-  realData: false,
   email: undefined as string | undefined,
   pathname: '/freecroco',
+  logout: vi.fn(),
 }));
 vi.mock('next/navigation', () => ({ usePathname: () => h.pathname }));
-vi.mock('@/hooks/use-real-analytics-visible', () => ({ useRealAnalyticsVisible: () => h.realData }));
-vi.mock('@/providers', () => ({ useAuth: () => ({ user: { role: h.role, email: h.email } }) }));
+vi.mock('@/providers', () => ({ useAuth: () => ({ user: { role: h.role, email: h.email }, logout: h.logout }) }));
 
 beforeEach(() => {
-  h.realData = false;
   h.email = undefined;
+  h.logout.mockClear();
 });
 afterEach(cleanup);
 
@@ -37,21 +36,29 @@ it('shows partner staff the Partners department with Freecroco only — no HQ, S
   expect(within(nav()).queryByText('Content')).toBeNull();
 });
 
-it('shows admins Home and Analytics, then one group per department, and nothing of the old HQ', () => {
+it('shows admins Home, Analytics and Agents, then one group per department, and nothing of the old HQ', () => {
   h.role = 'admin';
   h.pathname = '/hq';
   render(<Sidebar />);
   const hrefs = links();
-  expect(hrefs.slice(0, 2)).toEqual(['/hq', '/hq/analytics']);
+  expect(hrefs.slice(0, 3)).toEqual(['/hq', '/hq/analytics', '/hq/agents']);
   expect(within(nav()).getByText('Departments')).toBeTruthy();
-  for (const name of ['Content', 'Games', 'Competitions', 'Growth', 'Partners']) expect(within(nav()).getByText(name)).toBeTruthy();
-  // A department with its own HQ page opens on it; one without opens on its first tool.
-  expect(within(nav()).getByRole('link', { name: 'Content' }).getAttribute('href')).toBe('/hq/content');
-  expect(within(nav()).getByRole('link', { name: 'Games' }).getAttribute('href')).toBe('/hq/games');
-  expect(within(nav()).getByRole('link', { name: 'Competitions' }).getAttribute('href')).toBe('/weekend-league');
-  for (const gone of ['Work', 'Builds', 'Team', 'Romero', 'Goals', 'Messages', 'Schedules', 'Activity', 'More', 'Leadership', 'Engineering']) expect(within(nav()).queryByText(gone)).toBeNull();
+  // Every department opens on its own HQ page.
+  for (const [name, href] of [['Content', '/hq/content'], ['Games', '/hq/games'], ['Competitions', '/hq/competitions'], ['Marketing', '/hq/marketing'], ['Partners', '/hq/partners'], ['Investors', '/hq/investors']]) {
+    expect(within(nav()).getByRole('link', { name }).getAttribute('href')).toBe(href);
+  }
+  for (const gone of ['Work', 'Builds', 'Team', 'Romero', 'Goals', 'Messages', 'Schedules', 'Activity', 'More', 'Leadership', 'Engineering', 'Growth', 'Preferences']) expect(within(nav()).queryByText(gone)).toBeNull();
   expect(hrefs.some((href) => /^\/hq\/(board|builds|team|director|goals|inbox|schedules|activity|departments)/.test(href ?? ''))).toBe(false);
-  expect(hrefs).toContain('/settings');
+  expect(hrefs).not.toContain('/settings');
+  expect(hrefs).not.toContain('/analytics');
+});
+
+it('signs out from the foot of the sidebar', () => {
+  h.role = 'admin';
+  h.pathname = '/hq';
+  render(<Sidebar />);
+  fireEvent.click(screen.getByRole('button', { name: 'Log out' }));
+  expect(h.logout).toHaveBeenCalledTimes(1);
 });
 
 it('lists a department\'s own HQ page first, then its tools', () => {
@@ -88,26 +95,21 @@ it('keeps the Freecroco Staff page for admins', () => {
   expect(new Set(links()).has('/freecroco/staff')).toBe(true);
 });
 
-it('keeps the real-data pages under Growth behind the Preferences toggle, and Preferences reachable', () => {
+it('opens the pages about players under Analytics, Player activity only for the allowed account', () => {
   h.role = 'admin';
-  h.pathname = '/stats';
+  h.pathname = '/hq';
   render(<Sidebar />);
-  expect(links()).toContain('/settings');
-  expect(links()).not.toContain('/analytics');
-  expect(links()).not.toContain('/persons');
+  expect(links()).not.toContain('/audience');
   cleanup();
-  h.realData = true;
+  h.pathname = '/hq/analytics';
   render(<Sidebar />);
-  expect(links()).toEqual(expect.arrayContaining(['/stats', '/analytics', '/persons']));
-});
-
-it('shows Player activity under Growth only for the allowed account', () => {
-  h.role = 'admin';
-  h.pathname = '/stats';
-  render(<Sidebar />);
+  expect(links()).toEqual(expect.arrayContaining(['/audience', '/persons']));
+  // Twice each: as a row in the wide sidebar and as an icon in the narrow rail, where the rows are hidden.
+  expect(links().filter((href) => href === '/audience')).toHaveLength(2);
   expect(links()).not.toContain('/activity');
   cleanup();
+  h.pathname = '/persons/registered/1';
   h.email = 'bighead@quizball.com';
   render(<Sidebar />);
-  expect(links()).toContain('/activity');
+  expect(links()).toEqual(expect.arrayContaining(['/audience', '/persons', '/activity']));
 });
