@@ -64,7 +64,7 @@ function Department({ d, o, g, failed }: { d: HqDepartmentInfo; o: HarnessOvervi
           <p className="text-[12px] text-slate-500">
             {team.running.length > 0 ? (
               <span className="inline-flex items-center gap-1.5 font-medium text-slate-700">
-                <span className="hq-live-dot" aria-hidden /> {team.running.length} {team.running.length === 1 ? 'agent' : 'agents'} running
+                {o?.settings.paused ? <span className="h-2 w-2 rounded-full bg-amber-400" aria-hidden /> : <span className="hq-live-dot" aria-hidden />} {team.running.length} {team.running.length === 1 ? 'agent' : 'agents'} {o?.settings.paused ? 'paused' : 'running'}
               </span>
             ) : o ? (
               'No agents yet'
@@ -172,7 +172,7 @@ export default function HqHomePage() {
       >
         {o && (
           <div className="grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-4">
-            <HeroStat label="Agents" value={activeAgents} note="switched on" />
+            <HeroStat label="Agents" value={activeAgents} note={o.settings.paused ? 'all paused' : 'switched on'} />
             <HeroStat label="Runs today" value={o.today.runs.toLocaleString()} note={o.today.failed ? `${o.today.failed} failed` : 'none failed'} />
             <HeroStat label="Working now" value={o.queue?.running ?? 0} note={o.queue?.ready ? `${o.queue.ready} next in line` : 'nothing queued'} tone={o.queue?.running ? 'good' : undefined} />
             <HeroStat label="New questions live" value={o.today.live.toLocaleString()} note="today" />

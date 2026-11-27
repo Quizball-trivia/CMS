@@ -85,12 +85,41 @@ it('lists every agent in the company by department, with the subscriptions they 
   for (const name of ['Content', 'Competitions', 'Marketing', 'Partners', 'Investors']) expect(screen.getByRole('region', { name: `${name} agents` })).toBeTruthy();
 });
 
-it('still lists the suggested agents when the running ones cannot be loaded', () => {
+it('says so when the agents cannot be loaded, instead of calling running agents suggestions', () => {
   h.overview = undefined;
   h.error = new Error('down');
   render(<AgentsPage />);
-  expect(screen.getByRole('alert').textContent).toMatch(/down|Could not load the agents/);
-  expect(screen.getByRole('article', { name: 'Growth Analyst' })).toBeTruthy();
+  expect(screen.getByRole('alert').textContent).toMatch(/down/);
+  expect(screen.queryByRole('article', { name: 'Growth Analyst' })).toBeNull();
+  cleanup();
+  h.pathname = '/hq/marketing';
+  render(<DepartmentPage />);
+  expect(screen.getByRole('alert').textContent).toMatch(/down/);
+  expect(screen.queryByText('No agent works for this department yet. The ones below are where it could start.')).toBeNull();
+  expect(screen.queryByRole('article', { name: 'Growth Analyst' })).toBeNull();
+});
+
+it('shows every agent as paused while the pause switch is on', () => {
+  h.pathname = '/hq/investors';
+  h.overview = { ...overview([agent('investor-scout', 'Investor Scout')]), settings: { paused: true, pausedReason: 'x', maxConcurrentRuns: 5, dailyRunLimit: 100000, updatedAt: null } };
+  render(<DepartmentPage />);
+  const card = screen.getByRole('article', { name: 'Investor Scout' });
+  expect(within(card).getByText('Paused')).toBeTruthy();
+  expect(within(card).queryByText('Running')).toBeNull();
+  cleanup();
+  render(<AgentsPage />);
+  expect(within(screen.getByRole('region', { name: 'Investors agents' })).getByText('1 paused · 4 suggested')).toBeTruthy();
+});
+
+it('puts a running agent in the department it was suggested for', async () => {
+  const { departmentOfAgent, agentsOf } = await import('@/lib/hq-agents');
+  expect(departmentOfAgent('game-scout')).toBe('games');
+  expect(departmentOfAgent('partner-reporter')).toBe('partners');
+  expect(departmentOfAgent('pitch-coach')).toBe('investors');
+  expect(departmentOfAgent('game-planner')).toBe('games');
+  expect(departmentOfAgent('question-maker')).toBe('content');
+  expect(agentsOf('partners', [{ slug: 'partner-reporter' } as never]).running).toHaveLength(1);
+  expect(agentsOf('content', [{ slug: 'partner-reporter' } as never]).running).toHaveLength(0);
 });
 
 it('names the AI an agent runs on without the version', () => {

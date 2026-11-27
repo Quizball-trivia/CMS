@@ -8,7 +8,7 @@ import { useAuth } from '@/providers';
 import { agentsOf, readyToStart } from '@/lib/hq-agents';
 import { DEPARTMENT_LOOK, departmentByKey, toolsForUser } from '@/lib/hq-departments';
 import { AgentRoster } from '../agents-ui';
-import { Hero, HeroStat, HQ_PAGE, Section } from '../hq-ui';
+import { Hero, HeroStat, HQ_PAGE, LoadErrorState, RefreshErrorBanner, Section } from '../hq-ui';
 
 // A department's page: what it is for, the agents working for it, the agents
 // it could have, and its tools. Content and Games have fuller pages of their
@@ -36,14 +36,22 @@ export default function DepartmentPage() {
         glow={look.hex}
       >
         <div className="grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-4">
-          <HeroStat label="Agents at work" value={overview.data ? team.running.length : '…'} tone={team.running.length ? 'good' : undefined} />
-          <HeroStat label="Suggested" value={team.suggested.length} note="agents it could have" />
-          <HeroStat label="Can start now" value={readyToStart(team.suggested).length} note="need nothing from us" />
+          <HeroStat label="Agents at work" value={overview.data ? team.running.length : '…'} note={overview.data?.settings.paused && team.running.length ? 'paused' : undefined} tone={team.running.length && !overview.data?.settings.paused ? 'good' : undefined} />
+          <HeroStat label="Suggested" value={overview.data ? team.suggested.length : '…'} note="agents it could have" />
+          <HeroStat label="Can start now" value={overview.data ? readyToStart(team.suggested).length : '…'} note="need nothing from us" />
           <HeroStat label="Tools" value={tools.length} note={tools.length ? 'pages in the CMS' : 'none yet'} />
         </div>
       </Hero>
 
-      <AgentRoster department={d.key} agents={overview.data?.agents} loading={overview.isLoading} />
+      {overview.error && !overview.data ? (
+        // Without the list of running agents nobody can say which ones are still only suggestions.
+        <LoadErrorState error={overview.error} fallback="Could not load this department's agents" onRetry={() => void overview.refetch()} />
+      ) : (
+        <>
+          {overview.error && <RefreshErrorBanner />}
+          <AgentRoster department={d.key} agents={overview.data?.agents} loading={!overview.data} allPaused={overview.data?.settings.paused} />
+        </>
+      )}
 
       {tools.length > 0 && (
         <Section title="Tools" description="The pages people use for this department today.">

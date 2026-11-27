@@ -104,6 +104,8 @@ it('opens the pages about players under Analytics, Player activity only for the 
   h.pathname = '/hq/analytics';
   render(<Sidebar />);
   expect(links()).toEqual(expect.arrayContaining(['/audience', '/persons']));
+  // Twice each: as a row in the wide sidebar and as an icon in the narrow rail, where the rows are hidden.
+  expect(links().filter((href) => href === '/audience')).toHaveLength(2);
   expect(links()).not.toContain('/activity');
   cleanup();
   h.pathname = '/persons/registered/1';

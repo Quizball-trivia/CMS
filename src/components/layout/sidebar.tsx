@@ -125,11 +125,19 @@ export function Sidebar({ variant = 'rail' }: { variant?: 'rail' | 'drawer' }) {
               <div key={item.href}>
                 <NavLink item={item} active={item.href === '/hq/analytics' ? inAnalytics && matches(pathname, '/hq/analytics') : isItemActive(pathname, item)} />
                 {item.href === '/hq/analytics' && inAnalytics && analyticsTools.length > 0 && (
-                  <div className="mt-0.5 hidden space-y-0.5 pb-1 pl-5 navwide:block">
-                    {analyticsTools.map((sub) => (
-                      <SubLink key={sub.href} item={sub} active={isItemActive(pathname, sub)} />
-                    ))}
-                  </div>
+                  <>
+                    <div className="mt-0.5 hidden space-y-0.5 pb-1 pl-5 navwide:block">
+                      {analyticsTools.map((sub) => (
+                        <SubLink key={sub.href} item={sub} active={isItemActive(pathname, sub)} />
+                      ))}
+                    </div>
+                    {/* Collapsed rail (< lg): the same pages as icons. */}
+                    <div className="space-y-1 pb-2 pt-1 navwide:hidden">
+                      {analyticsTools.map((sub) => (
+                        <RailLink key={sub.href} item={sub} active={isItemActive(pathname, sub)} />
+                      ))}
+                    </div>
+                  </>
                 )}
               </div>
             ))}
@@ -175,21 +183,9 @@ export function Sidebar({ variant = 'rail' }: { variant?: 'rail' | 'drawer' }) {
                   {/* Collapsed rail (< lg): the active group's pages as icons. */}
                   {containsActive && group.children.length > 1 && (
                     <div className="space-y-1 pb-2 pt-1 navwide:hidden">
-                      {group.children.map((item) => {
-                        const active = isItemActive(pathname, item);
-                        const Icon = item.icon ?? LayoutDashboard;
-                        return (
-                          <Link
-                            key={item.href}
-                            href={item.href}
-                            title={item.title}
-                            aria-label={item.title}
-                            className={cn('mx-auto grid size-9 place-items-center rounded-lg transition', active ? 'bg-white/15 text-white' : 'text-slate-500 hover:bg-white/5 hover:text-white')}
-                          >
-                            <Icon className="size-4" />
-                          </Link>
-                        );
-                      })}
+                      {group.children.map((item) => (
+                        <RailLink key={item.href} item={item} active={isItemActive(pathname, item)} />
+                      ))}
                     </div>
                   )}
                 </div>
@@ -200,7 +196,7 @@ export function Sidebar({ variant = 'rail' }: { variant?: 'rail' | 'drawer' }) {
       </nav>
 
       {/* Who is signed in, and the way out. */}
-      <div className="flex shrink-0 items-center justify-center gap-3 border-t border-white/10 px-3 py-3 navwide:justify-start navwide:px-4">
+      <div className="flex shrink-0 flex-col items-center justify-center gap-2 border-t border-white/10 px-3 py-3 navwide:flex-row navwide:justify-start navwide:gap-3 navwide:px-4">
         <span className="grid size-8 shrink-0 place-items-center rounded-full bg-brand/15 text-xs font-bold text-brand" aria-hidden>
           {initial}
         </span>
@@ -213,12 +209,27 @@ export function Sidebar({ variant = 'rail' }: { variant?: 'rail' | 'drawer' }) {
           onClick={() => logout()}
           title={t('Log out')}
           aria-label={t('Log out')}
-          className="hidden size-8 shrink-0 place-items-center rounded-md text-slate-500 transition hover:bg-white/10 hover:text-white navwide:grid"
+          className="grid size-11 shrink-0 place-items-center rounded-md text-slate-500 transition hover:bg-white/10 hover:text-white md:size-8"
         >
           <LogOut className="size-4" />
         </button>
       </div>
     </aside>
+  );
+}
+
+/** A page as an icon, for the collapsed rail. */
+function RailLink({ item, active }: { item: NavItem; active: boolean }) {
+  const Icon = item.icon ?? LayoutDashboard;
+  return (
+    <Link
+      href={item.href}
+      title={item.title}
+      aria-label={item.title}
+      className={cn('mx-auto grid size-9 place-items-center rounded-lg transition', active ? 'bg-white/15 text-white' : 'text-slate-500 hover:bg-white/5 hover:text-white')}
+    >
+      <Icon className="size-4" />
+    </Link>
   );
 }
 

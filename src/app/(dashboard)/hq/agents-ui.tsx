@@ -21,9 +21,10 @@ export function modelName(model: string): string {
   return model.startsWith('gpt') ? 'GPT' : model;
 }
 
-export function RunningAgent({ a, now }: { a: HarnessAgent; now: number }) {
+/** `allPaused`: the pause switch for every agent is on, whatever this agent's own switch says. */
+export function RunningAgent({ a, now, allPaused = false }: { a: HarnessAgent; now: number; allPaused?: boolean }) {
   const look = DEPARTMENT_LOOK[agentDepartment(a)];
-  const paused = a.status !== 'active';
+  const paused = allPaused || a.status !== 'active';
   return (
     <article className="hq-card flex flex-col gap-2 p-4" aria-label={a.name}>
       <div className="flex items-start gap-3">
@@ -92,16 +93,20 @@ function Line({ label, text, tone }: { label: string; text: string; tone?: 'atte
 }
 
 /** A department's agents: the ones at work, then the ones suggested. */
-export function AgentRoster({ department, agents, loading }: { department: HqDepartmentKey; agents: HarnessAgent[] | undefined; loading?: boolean }) {
+export function AgentRoster({ department, agents, loading, allPaused = false }: { department: HqDepartmentKey; agents: HarnessAgent[] | undefined; loading?: boolean; allPaused?: boolean }) {
   const now = useHqClock().getTime();
   const team = agentsOf(department, agents);
   return (
     <>
-      <Section title="Agents at work" count={team.running.length} description="Running now. Their names, what they run on and today's work come live from HQ.">
+      <Section
+        title="Agents at work"
+        count={team.running.length}
+        description={allPaused ? 'Every agent is paused right now. Nothing new starts until someone switches them on in Content.' : "Their names, what they run on and today's work come live from HQ."}
+      >
         {team.running.length > 0 ? (
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
             {team.running.map((a) => (
-              <RunningAgent key={a.slug} a={a} now={now} />
+              <RunningAgent key={a.slug} a={a} now={now} allPaused={allPaused} />
             ))}
           </div>
         ) : (

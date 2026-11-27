@@ -20,15 +20,9 @@ export interface SuggestedAgent {
   person: string;
 }
 
-/** Which department a running agent works for. Agents not listed work for Content. */
+/** Running agents that were never a suggestion, by department. Agents listed nowhere work for Content. */
 const DEPARTMENT_OF: Record<string, HqDepartmentKey> = {
   'game-planner': 'games',
-  'game-builder': 'games',
-  'growth-analyst': 'marketing',
-  'investor-scout': 'investors',
-  'investor-update-writer': 'investors',
-  'partner-scout': 'partners',
-  'show-reporter': 'competitions',
 };
 
 export const SUGGESTED_AGENTS: SuggestedAgent[] = [
@@ -201,7 +195,7 @@ export const SUGGESTED_AGENTS: SuggestedAgent[] = [
     slug: 'partner-scout',
     name: 'Partner Scout',
     department: 'partners',
-    does: 'Finds companies like Freecroco (betting brands, sports media, clubs) and says why QuizBall fits each.',
+    does: 'Finds companies that could run QuizBall for their own audience, the way Freecroco does, and says why it fits each.',
     gives: 'A list of who to call next, with a reason and a contact route for each.',
     person: 'Chooses who to approach. A person makes the contact.',
   },
@@ -268,8 +262,9 @@ export const SUGGESTED_AGENTS: SuggestedAgent[] = [
   },
 ];
 
+/** The department an agent works for: where it was suggested, else where it is listed, else Content. */
 export function departmentOfAgent(slug: string): HqDepartmentKey {
-  return DEPARTMENT_OF[slug] ?? 'content';
+  return SUGGESTED_AGENTS.find((s) => s.slug === slug)?.department ?? DEPARTMENT_OF[slug] ?? 'content';
 }
 
 /** A department's running agents (from the harness) and the ones still only suggested. */

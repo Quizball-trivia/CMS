@@ -26,10 +26,10 @@ export default function AgentsPage() {
     <div className={HQ_PAGE}>
       <Hero eyebrow="The whole company" title="Agents" description="Everyone who works here that is not a person: what each agent does, which ones are running, and which ones we could add next.">
         <div className="grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-4">
-          <HeroStat label="At work" value={data ? running.filter((a) => a.status === 'active').length : '…'} note={status?.headline} tone="good" />
+          <HeroStat label="At work" value={data ? (data.settings.paused ? 0 : running.filter((a) => a.status === 'active').length) : '…'} note={status?.headline} tone={data && !data.settings.paused ? 'good' : undefined} />
           <HeroStat label="Runs today" value={data ? data.today.runs.toLocaleString() : '…'} note={data?.today.failed ? `${data.today.failed} failed` : undefined} />
-          <HeroStat label="Suggested" value={suggested.length} note="across all departments" />
-          <HeroStat label="Can start now" value={readyToStart(suggested).length} note="need nothing from us" />
+          <HeroStat label="Suggested" value={data ? suggested.length : '…'} note="across all departments" />
+          <HeroStat label="Can start now" value={data ? readyToStart(suggested).length : '…'} note="need nothing from us" />
         </div>
       </Hero>
 
@@ -46,7 +46,8 @@ export default function AgentsPage() {
         </>
       )}
 
-      {HQ_DEPARTMENTS.map((d) => {
+      {/* Which agents are still only suggestions is known once the running ones are. */}
+      {data && HQ_DEPARTMENTS.map((d) => {
         const team = agentsOf(d.key, data?.agents);
         const look = DEPARTMENT_LOOK[d.key];
         const Icon = look.icon;
@@ -59,8 +60,7 @@ export default function AgentsPage() {
               </span>
               <h2 className="font-display text-lg font-semibold tracking-tight text-slate-950">{d.name}</h2>
               <p className="text-sm text-slate-500">
-                {data ? `${team.running.length} at work · ` : ''}
-                {team.suggested.length} suggested
+                {team.running.length} {data.settings.paused ? 'paused' : 'at work'} · {team.suggested.length} suggested
               </p>
               <Link href={d.home} className="ml-auto text-sm font-medium text-slate-700 underline-offset-2 hover:underline">
                 Open {d.name}
@@ -69,7 +69,7 @@ export default function AgentsPage() {
             {team.running.length > 0 && (
               <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
                 {team.running.map((a) => (
-                  <RunningAgent key={a.slug} a={a} now={now} />
+                  <RunningAgent key={a.slug} a={a} now={now} allPaused={data?.settings.paused} />
                 ))}
               </div>
             )}
