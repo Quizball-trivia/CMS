@@ -82,7 +82,7 @@ it('shows the whole company on one page: agents, what needs a person, the produc
   expect(cards[1].textContent).toMatch(/Games on2of 2Worth a look1this week/);
   // A department with no agents yet says so, and how many of its suggested ones could start today.
   expect(cards[3].textContent).toMatch(/No agents yet · 6 suggested/);
-  expect(cards[3].textContent).toMatch(/2 of its suggested agents can start with what HQ already has\./);
+  expect(cards[3].textContent).toMatch(/1 of its suggested agents can start with what HQ already has\./);
 });
 
 it('counts a department\'s running agents from the harness, and stops suggesting an agent once it runs', () => {

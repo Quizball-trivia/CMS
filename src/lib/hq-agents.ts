@@ -179,6 +179,7 @@ export const SUGGESTED_AGENTS: SuggestedAgent[] = [
     department: 'marketing',
     does: 'Reads what players write in feedback, reviews and comments, and groups it into what they ask for most.',
     gives: 'A weekly list of the top complaints and wishes, with real quotes.',
+    needs: 'More to read. Today players can leave feedback in one game only (about 60 ratings and 4 comments a month). It needs feedback in every game, or access to store reviews and social comments.',
     person: 'Nothing day to day. Requests about a game go to Games as suggestions.',
   },
 

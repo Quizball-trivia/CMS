@@ -240,7 +240,9 @@ export function CompanyProfile() {
           onChange={(e) => setDraft(e.target.value)}
           rows={8}
           maxLength={4000}
-          className="w-full resize-y rounded-xl border border-slate-200 bg-slate-50/60 px-3.5 py-3 text-[14px] leading-relaxed text-slate-900 outline-none transition focus:border-slate-400 focus:bg-white"
+          // Not while it is being saved: what is typed then would be lost when the saved text comes back.
+          disabled={save.isPending}
+          className="w-full resize-y rounded-xl border border-slate-200 bg-slate-50/60 px-3.5 py-3 text-[14px] leading-relaxed text-slate-900 outline-none transition focus:border-slate-400 focus:bg-white disabled:opacity-60"
         />
         <div className="flex flex-wrap items-center gap-3">
           <button
