@@ -125,6 +125,14 @@ it('puts a running agent in the department it was suggested for', async () => {
   expect(agentsOf('content', [{ slug: 'partner-reporter' } as never]).running).toHaveLength(0);
 });
 
+it('does not call any agent a suggestion before the running ones are known', () => {
+  h.pathname = '/hq/marketing';
+  h.overview = undefined;
+  render(<DepartmentPage />);
+  expect(screen.getByText('Checking which agents are running…')).toBeTruthy();
+  expect(screen.queryByRole('heading', { name: /Suggested agents/ })).toBeNull();
+});
+
 it('names the AI an agent runs on without the version', () => {
   expect(modelName('claude-opus-5-5')).toBe('Claude Opus');
   expect(modelName('claude-sonnet-5-5')).toBe('Claude Sonnet');

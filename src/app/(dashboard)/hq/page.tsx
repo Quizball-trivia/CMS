@@ -77,7 +77,7 @@ function Department({ d, o, g, failed }: { d: HqDepartmentInfo; o: HarnessOvervi
             ) : (
               ' '
             )}
-            {team.suggested.length > 0 && <span> · {team.suggested.length} suggested</span>}
+            {o && team.suggested.length > 0 && <span> · {team.suggested.length} suggested</span>}
           </p>
         </div>
         <ArrowRight className="size-4 shrink-0 text-slate-300 transition group-hover:translate-x-0.5 group-hover:text-slate-900" aria-hidden />
@@ -100,6 +100,7 @@ function Department({ d, o, g, failed }: { d: HqDepartmentInfo; o: HarnessOvervi
           ))}
         </dl>
       ) : (
+        o &&
         team.suggested.length > 0 && (
           <p className="mt-auto rounded-xl bg-slate-50 px-3 py-2.5 text-[13px] text-slate-700">
             {ready > 0 ? (
@@ -180,7 +181,7 @@ export default function HqHomePage() {
           <div className="grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-4">
             <HeroStat label="Agents" value={o.agents.length} note={o.settings.paused ? 'all paused' : work.paused ? `${work.on} switched on, ${work.paused} paused` : 'switched on'} />
             <HeroStat label="Runs today" value={o.today.runs.toLocaleString()} note={o.today.failed ? `${o.today.failed} failed` : 'none failed'} />
-            <HeroStat label="Working now" value={o.queue?.running ?? 0} note={o.queue?.ready ? `${o.queue.ready} next in line` : 'nothing queued'} tone={o.queue?.running ? 'good' : undefined} />
+            <HeroStat label="Working now" value={o.queue?.running ?? 0} note={o.queue?.ready ? `${o.queue.ready} next in line` : o.queue?.waiting ? `${o.queue.waiting} scheduled for later` : 'nothing queued'} tone={o.queue?.running ? 'good' : undefined} />
             <HeroStat label="New questions live" value={o.today.live.toLocaleString()} note="today" />
           </div>
         )}

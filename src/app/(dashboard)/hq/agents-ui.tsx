@@ -2,7 +2,7 @@
 
 import { Check, CircleDashed, Sparkles } from 'lucide-react';
 import { useHqClock } from '@/hooks';
-import { agentsOf, departmentOfAgent, type SuggestedAgent } from '@/lib/hq-agents';
+import { agentsOf, atWork, departmentOfAgent, type SuggestedAgent } from '@/lib/hq-agents';
 import { DEPARTMENT_LOOK } from '@/lib/hq-departments';
 import { formatRelative } from '@/lib/hq-time';
 import { cn } from '@/lib/utils';
@@ -100,7 +100,7 @@ export function AgentRoster({ department, agents, loading, allPaused = false }: 
     <>
       <Section
         title="Agents at work"
-        count={team.running.length}
+        count={atWork(team.running, allPaused).on}
         description={allPaused ? 'Every agent is paused right now. Nothing new starts until someone switches them on in Content.' : "Their names, what they run on and today's work come live from HQ."}
       >
         {team.running.length > 0 ? (
@@ -113,7 +113,8 @@ export function AgentRoster({ department, agents, loading, allPaused = false }: 
           <EmptyState>{loading ? 'Checking which agents are running…' : 'No agent works for this department yet. The ones below are where it could start.'}</EmptyState>
         )}
       </Section>
-      {team.suggested.length > 0 && (
+      {/* Which agents are still only suggestions is known once the running ones are. */}
+      {agents && team.suggested.length > 0 && (
         <Section
           title={
             <>

@@ -126,6 +126,8 @@ it('keeps the page up while parts are still loading or one of them failed', () =
   // Content failed, Games is still loading: each card says which.
   expect(screen.getByText('Could not load its numbers. Trying again.')).toBeTruthy();
   expect(screen.getAllByText('Loading its numbers…')).toHaveLength(1);
+  // Nothing is called a suggestion while the list of running agents is unknown.
+  expect(screen.queryByText(/suggested/)).toBeNull();
   expect(screen.getByText(/1,200/)).toBeTruthy();
 });
 
