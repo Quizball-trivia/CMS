@@ -48,6 +48,10 @@ vi.mock('@/hooks', () => ({
   useNewShowPack: () => ({ mutate: h.newShowMutate, isPending: false }),
   useApproveShowPack: () => ({ mutate: h.approveShowMutate, isPending: false }),
   useShowPackChanging: () => h.showChanging,
+  useCreateHarnessIdea: () => ({ mutate: vi.fn(), isPending: false }),
+  useScoutHarnessIdeas: () => ({ mutate: vi.fn(), isPending: false }),
+  useAcceptHarnessIdea: () => ({ mutate: vi.fn(), isPending: false }),
+  useRefuseHarnessIdea: () => ({ mutate: vi.fn(), isPending: false }),
   useHqClock: () => new Date('2026-11-26T18:00:00Z'),
 }));
 

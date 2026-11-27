@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
-import { useAcceptHarnessIdea, useCreateHarnessIdea, useRefuseHarnessIdea, useScoutHarnessIdeas } from '@/hooks';
+import { useAcceptHarnessIdea, useRefuseHarnessIdea, useScoutHarnessIdeas } from '@/hooks';
 import { formatRelative } from '@/lib/hq-time';
 import { cn } from '@/lib/utils';
 import type { HarnessIdea, HarnessIdeaKind, HarnessMarket } from '@/types';
@@ -174,17 +174,29 @@ function IdeaCard({ idea, paused }: { idea: HarnessIdea; paused: boolean }) {
   );
 }
 
-function OwnIdea({ market, paused }: { market: HarnessMarket; paused: boolean }) {
-  const [text, setText] = useState('');
-  const [where, setWhere] = useState<HarnessMarket>(market);
-  const [kind, setKind] = useState<HarnessIdeaKind>('category');
-  // Picking another market on the page moves the form with it (until the person picks one here).
-  const [seen, setSeen] = useState(market);
-  if (market !== seen) {
-    setSeen(market);
-    setWhere(market);
-  }
-  const create = useCreateHarnessIdea();
+/** An idea being written. Kept by the page, so it survives a look at another tab. `where` null = the market being worked on. */
+export interface IdeaDraft {
+  text: string;
+  kind: HarnessIdeaKind;
+  where: HarnessMarket | null;
+}
+export const EMPTY_IDEA: IdeaDraft = { text: '', kind: 'category', where: null };
+
+/** Writing and sending an idea. The page owns both, so neither is lost (or done twice) by a look at another tab. */
+export interface IdeaComposer {
+  draft: IdeaDraft;
+  onDraft: (next: IdeaDraft) => void;
+  sending: boolean;
+  onSend: (body: { text: string; market: HarnessMarket; kind: HarnessIdeaKind }) => void;
+}
+
+function OwnIdea({ market, paused, composer }: { market: HarnessMarket; paused: boolean; composer: IdeaComposer }) {
+  const { draft, onDraft, sending, onSend } = composer;
+  const { text, kind } = draft;
+  const where = draft.where ?? market;
+  const setText = (v: string) => onDraft({ ...draft, text: v });
+  const setWhere = (v: HarnessMarket) => onDraft({ ...draft, where: v });
+  const setKind = (v: HarnessIdeaKind) => onDraft({ ...draft, kind: v });
   const ready = [...text.trim()].length >= 10;
   return (
     <Panel className="space-y-3 p-4">
@@ -196,7 +208,7 @@ function OwnIdea({ market, paused }: { market: HarnessMarket; paused: boolean })
           maxLength={2000}
           value={text}
           onChange={(e) => setText(e.target.value)}
-          disabled={create.isPending}
+          disabled={sending}
           placeholder="e.g. A Dinamo Tbilisi category: the 1981 Cup Winners' Cup, the Soviet titles, today's squad"
         />
       </div>
@@ -232,22 +244,8 @@ function OwnIdea({ market, paused }: { market: HarnessMarket; paused: boolean })
           </Select>
         </div>
       </div>
-      <Button
-        disabled={!ready || create.isPending}
-        onClick={() =>
-          create.mutate(
-            { text: text.trim(), market: where, kind },
-            {
-              onSuccess: () => {
-                setText('');
-                toast.success('Sent: the HQ Assistant comes back with a plan');
-              },
-              onError: (e) => toast.error(errorMessage(e, 'Could not send the idea')),
-            }
-          )
-        }
-      >
-        {create.isPending ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Send className="mr-1.5 h-4 w-4" />}
+      <Button disabled={!ready || sending} onClick={() => onSend({ text: text.trim(), market: where, kind })}>
+        {sending ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Send className="mr-1.5 h-4 w-4" />}
         Send to the agents
       </Button>
       <p className="text-[13px] text-slate-600">
@@ -257,7 +255,19 @@ function OwnIdea({ market, paused }: { market: HarnessMarket; paused: boolean })
   );
 }
 
-export function Ideas({ ideas, scope, scouting, paused }: { ideas: HarnessIdea[] | undefined; scope: MarketScope; scouting: { market: HarnessMarket } | null | undefined; paused: boolean }) {
+export function Ideas({
+  ideas,
+  scope,
+  scouting,
+  paused,
+  composer,
+}: {
+  ideas: HarnessIdea[] | undefined;
+  scope: MarketScope;
+  scouting: { market: HarnessMarket } | null | undefined;
+  paused: boolean;
+  composer: IdeaComposer;
+}) {
   const scout = useScoutHarnessIdeas();
   const all = (ideas ?? []).filter((i) => inScope(scope, i.market));
   const fromAgents = all.filter((i) => i.source === 'agent' && i.status === 'open');
@@ -305,7 +315,7 @@ export function Ideas({ ideas, scope, scouting, paused }: { ideas: HarnessIdea[]
         </Section>
 
         <Section title="Your own idea" description="Say it in your own words. The HQ Assistant turns it into a plan you can accept.">
-          <OwnIdea market={scope.market} paused={paused} />
+          <OwnIdea market={scope.market} paused={paused} composer={composer} />
           {mine.map((i) => (
             <IdeaCard key={i.id} idea={i} paused={paused} />
           ))}

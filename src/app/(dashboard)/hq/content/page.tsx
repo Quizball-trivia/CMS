@@ -6,7 +6,7 @@ import { Loader2, Pause, Play } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { useHarnessOverview, useSetHarnessPolicy, useUpdateHarnessSettings, useHqClock } from '@/hooks';
+import { useCreateHarnessIdea, useHarnessOverview, useSetHarnessPolicy, useUpdateHarnessSettings, useHqClock } from '@/hooks';
 import { formatRelative } from '@/lib/hq-time';
 import { DEPARTMENT_LOOK } from '@/lib/hq-departments';
 import { cn } from '@/lib/utils';
@@ -14,7 +14,7 @@ import type { HarnessMarket, HarnessOverview, HarnessReleaseStatus } from '@/typ
 import { EmptyState, errorMessage, HQ_LABEL, HQ_PAGE, LoadErrorState, PageHeader, Panel, RefreshErrorBanner, Section } from '../hq-ui';
 import { AskHq } from './ask';
 import { EngineRoom } from './engine';
-import { Ideas, IdeasSummary, waitingByMarket, waitingIdeas } from './ideas';
+import { EMPTY_IDEA, Ideas, IdeasSummary, waitingByMarket, waitingIdeas, type IdeaComposer, type IdeaDraft } from './ideas';
 import { inScope, isMarket, MarketNote, marketName, MarketSwitcher, type MarketScope } from './markets';
 import { agentsNow, flow, plainEvent, stuckCount } from './plain';
 import { JustLive, NeedsYou } from './questions';
@@ -207,6 +207,8 @@ const isTab = (v: string | null): v is TabKey => TABS.some((t) => t.key === v);
 /** On Today, when a market is picked: what HQ has for it, and the way to add more. */
 function MarketToday({ data, market, onIdeas, onLibrary }: { data: HarnessOverview; market: HarnessMarket; onIdeas: () => void; onLibrary: () => void }) {
   const only: MarketScope = { market, withEveryone: false };
+  // Every category made for the market counts, also one nobody played lately; only the played ones have a shortage.
+  const made = data.allCategories.filter((c) => inScope(only, c.market)).length;
   const cats = data.classic.categories.filter((c) => inScope(only, c.market));
   const short = cats.reduce((n, c) => n + c.shortage, 0);
   const events = data.contentEvents.filter((e) => e.status === 'open' && inScope(only, e.market)).length;
@@ -214,7 +216,7 @@ function MarketToday({ data, market, onIdeas, onLibrary }: { data: HarnessOvervi
   const ideas = waitingIdeas(data.ideas, only).length;
   const emptiest = [...cats].filter((c) => c.shortage > 0).sort((a, b) => b.shortage - a.shortage).slice(0, 4);
   const stats: Array<[number, string]> = [
-    [cats.length, cats.length === 1 ? 'category of its own' : 'categories of its own'],
+    [made, made === 1 ? 'category of its own' : 'categories of its own'],
     [short, 'questions short in them'],
     [filling, filling === 1 ? 'new category being filled' : 'new categories being filled'],
     [events, events === 1 ? 'event coming' : 'events coming'],
@@ -240,7 +242,7 @@ function MarketToday({ data, market, onIdeas, onLibrary }: { data: HarnessOvervi
           </span>
         ))}
       </div>
-      {cats.length === 0 ? (
+      {made === 0 ? (
         <p className="text-sm text-amber-800">Nothing is made for {marketName(market)} yet. Its players see the same categories as everyone else.</p>
       ) : (
         emptiest.length > 0 && (
@@ -270,6 +272,23 @@ export default function HqContentPage() {
   const marketFromUrl = params.get('market');
   const market: HarnessMarket = isMarket(marketFromUrl) ? marketFromUrl : 'all';
   const [withEveryone, setWithEveryone] = useState(false);
+  // Kept here, not in the Ideas tab: an idea half written survives a look at the Library.
+  // Sending lives here too: the page knows one is on its way (no second send), and clears the draft when it lands.
+  const [ideaDraft, setIdeaDraft] = useState<IdeaDraft>(EMPTY_IDEA);
+  const createIdea = useCreateHarnessIdea();
+  const composer: IdeaComposer = {
+    draft: ideaDraft,
+    onDraft: setIdeaDraft,
+    sending: createIdea.isPending,
+    onSend: (body) =>
+      createIdea.mutate(body, {
+        onSuccess: () => {
+          setIdeaDraft(EMPTY_IDEA);
+          toast.success('Sent: the HQ Assistant comes back with a plan');
+        },
+        onError: (e) => toast.error(errorMessage(e, 'Could not send the idea')),
+      }),
+  };
   const scope: MarketScope = { market, withEveryone };
   const address = (t: TabKey, m: HarnessMarket) => {
     const q = new URLSearchParams();
@@ -368,19 +387,26 @@ export default function HqContentPage() {
           {tab === 'library' && (
             <>
               <MarketNote market={market} />
-              <CategoryBoard categories={data.classic.categories.filter((c) => inScope(scope, c.market))} direction={data.direction} market={market} onSuggest={() => setTab('ideas')} />
+              <CategoryBoard
+                categories={data.classic.categories.filter((c) => inScope(scope, c.market))}
+                direction={data.direction}
+                market={market}
+                hasCategories={data.allCategories.some((c) => inScope(scope, c.market))}
+                onSuggest={() => setTab('ideas')}
+              />
             </>
           )}
           {tab === 'ideas' && (
             <>
               <MarketNote market={market} />
-              <Ideas ideas={data.ideas} scope={scope} scouting={data.scouting} paused={data.settings.paused} />
+              <Ideas ideas={data.ideas} scope={scope} scouting={data.scouting} paused={data.settings.paused} composer={composer} />
             </>
           )}
           {tab === 'plans' && (
             <>
               <MarketNote market={market} />
-              <Orders requests={data.requests.filter((r) => inScope(scope, r.market))} categories={data.allCategories} />
+              {/* The same scope for what can be ordered as for what is listed: an order never lands out of sight. */}
+              <Orders requests={data.requests.filter((r) => inScope(scope, r.market))} categories={data.allCategories.filter((c) => inScope(scope, c.market))} market={market} />
               <Events events={data.contentEvents.filter((e) => inScope(scope, e.market))} categories={data.allCategories} market={market} />
               <NewCategories proposals={data.proposals.filter((p) => inScope(scope, p.market))} market={market} />
             </>

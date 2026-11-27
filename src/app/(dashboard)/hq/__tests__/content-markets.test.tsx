@@ -7,6 +7,7 @@ import type { HarnessIdea, HarnessOverview } from '@/types';
 const h = vi.hoisted(() => ({
   data: undefined as unknown,
   query: '',
+  sending: false,
   replace: vi.fn(),
   steeringMutate: vi.fn(),
   eventMutate: vi.fn(),
@@ -40,7 +41,7 @@ vi.mock('@/hooks', () => ({
   useNewShowPack: () => idle(),
   useApproveShowPack: () => idle(),
   useShowPackChanging: () => false,
-  useCreateHarnessIdea: () => idle(h.ideaMutate),
+  useCreateHarnessIdea: () => ({ mutate: h.ideaMutate, isPending: h.sending }),
   useScoutHarnessIdeas: () => idle(h.scoutMutate),
   useAcceptHarnessIdea: () => idle(h.acceptMutate),
   useRefuseHarnessIdea: () => idle(h.refuseMutate),
@@ -96,6 +97,7 @@ const open = (name: string) => fireEvent.click(screen.getByRole('tab', { name: n
 beforeEach(() => {
   h.data = overview();
   h.query = '';
+  h.sending = false;
   for (const f of Object.values(h)) if (typeof f === 'function') (f as ReturnType<typeof vi.fn>).mockReset();
 });
 afterEach(cleanup);
@@ -236,6 +238,62 @@ it('sends a person\'s own idea for the market being worked on, and shows it whil
   expect(h.ideaMutate.mock.calls[0]![0]).toEqual({ text: 'A week of Copa del Rey classics', market: 'es', kind: 'category' });
   expect(screen.getByText("Tato's idea")).toBeTruthy();
   expect(screen.getByText('The HQ Assistant is preparing a plan…')).toBeTruthy();
+});
+
+it('keeps an idea half written when the person looks at another tab', () => {
+  h.query = 'tab=ideas&market=es';
+  render(<HqContentPage />);
+  fireEvent.change(screen.getByLabelText('What do you want to launch?'), { target: { value: 'A week of Copa del Rey classics' } });
+  open('Library');
+  expect(screen.queryByLabelText('What do you want to launch?')).toBeNull();
+  open('Ideas');
+  expect((screen.getByLabelText('What do you want to launch?') as HTMLTextAreaElement).value).toBe('A week of Copa del Rey classics');
+});
+
+it('sends an idea once: the page keeps the send, and clears the draft only when it has landed', () => {
+  h.query = 'tab=ideas';
+  const { rerender } = render(<HqContentPage />);
+  fireEvent.change(screen.getByLabelText('What do you want to launch?'), { target: { value: 'A week of Copa del Rey classics' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Send to the agents' }));
+  // Still on its way: after a look at another tab the button stays busy and the words stay.
+  h.sending = true;
+  rerender(<HqContentPage />);
+  open('Library');
+  open('Ideas');
+  expect((screen.getByRole('button', { name: 'Send to the agents' }) as HTMLButtonElement).disabled).toBe(true);
+  expect((screen.getByLabelText('What do you want to launch?') as HTMLTextAreaElement).value).toBe('A week of Copa del Rey classics');
+  // It landed while the person was elsewhere: the draft is cleared all the same.
+  open('Library');
+  h.sending = false;
+  (h.ideaMutate.mock.calls[0]![1] as { onSuccess: () => void }).onSuccess();
+  rerender(<HqContentPage />);
+  open('Ideas');
+  expect((screen.getByLabelText('What do you want to launch?') as HTMLTextAreaElement).value).toBe('');
+});
+
+it('counts every category made for a market, also one nobody played lately', () => {
+  h.data = overview({ allCategories: [{ id: 'c1', name: 'Real Madrid', market: 'es' }, { id: 'c8', name: 'Copa del Rey', market: 'es' }, { id: 'c7', name: 'Galatasaray', market: 'tr' }] });
+  h.query = 'market=es';
+  render(<HqContentPage />);
+  expect(screen.getByRole('heading', { name: 'Spain' }).closest('div')!.parentElement!.textContent).toContain('2 categories of its own');
+  cleanup();
+  // Turkey has a category, but nobody played it: the Library does not claim Turkey has nothing.
+  h.query = 'tab=library&market=tr';
+  render(<HqContentPage />);
+  expect(screen.queryByText(/Nothing is made for Turkey yet/)).toBeNull();
+  expect(screen.getByText('No ranked play in the last 30 days in the categories made for Turkey.')).toBeTruthy();
+});
+
+it('offers only the market\'s categories for an order, and no order where there is none', () => {
+  h.data = overview({ allCategories: [{ id: 'c1', name: 'Real Madrid', market: 'es' }, { id: 'c2', name: 'World Cup', market: 'all' }] });
+  h.query = 'tab=plans&market=ge';
+  render(<HqContentPage />);
+  expect((screen.getByRole('button', { name: /Order questions/ }) as HTMLButtonElement).disabled).toBe(true);
+  expect(screen.getByText(/No category is made for Georgia yet, so there is nothing to order/)).toBeTruthy();
+  cleanup();
+  h.query = 'tab=plans&market=es';
+  render(<HqContentPage />);
+  expect((screen.getByRole('button', { name: /Order questions/ }) as HTMLButtonElement).disabled).toBe(false);
 });
 
 it('asks the scout for the market being worked on, once at a time', () => {

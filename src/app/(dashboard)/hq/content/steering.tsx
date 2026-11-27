@@ -240,7 +240,7 @@ export function OrderDialog({ open, onClose, categories, initialCategory }: { op
 const TH = 'px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-500';
 const TD = 'px-4 py-2.5 align-middle';
 
-export function CategoryBoard({ categories, direction, market = 'all', onSuggest }: { categories: HarnessCategoryHealth[]; direction: string; market?: HarnessMarket; onSuggest?: () => void }) {
+export function CategoryBoard({ categories, direction, market = 'all', hasCategories = false, onSuggest }: { categories: HarnessCategoryHealth[]; direction: string; market?: HarnessMarket; hasCategories?: boolean; onSuggest?: () => void }) {
   const [showAll, setShowAll] = useState(false);
   const [editing, setEditing] = useState<{ categoryId: string | null; name: string; text: string } | null>(null);
   const rows = useMemo(() => {
@@ -269,6 +269,8 @@ export function CategoryBoard({ categories, direction, market = 'all', onSuggest
           <EmptyState className="px-4 py-3">
             {market === 'all' ? (
               'No ranked play in the last 30 days.'
+            ) : hasCategories ? (
+              `No ranked play in the last 30 days in the categories made for ${marketName(market)}.`
             ) : (
               <>
                 Nothing is made for {marketName(market)} yet.{' '}
@@ -337,7 +339,7 @@ export function CategoryBoard({ categories, direction, market = 'all', onSuggest
   );
 }
 
-export function Orders({ requests, categories }: { requests: HarnessRequest[]; categories: CategoryOption[] }) {
+export function Orders({ requests, categories, market = 'all' }: { requests: HarnessRequest[]; categories: CategoryOption[]; market?: HarnessMarket }) {
   const [open, setOpen] = useState(false);
   const cancel = useCancelHarnessRequest();
   return (
@@ -346,14 +348,20 @@ export function Orders({ requests, categories }: { requests: HarnessRequest[]; c
       count={requests.filter((r) => r.status === 'open').length}
       description="Questions the team asked for on a specific topic. Orders with a deadline go before everything else."
       actions={
-        <Button size="sm" onClick={() => setOpen(true)}>
+        <Button size="sm" onClick={() => setOpen(true)} disabled={categories.length === 0} title={categories.length === 0 ? `No category is made for ${marketName(market)} yet` : undefined}>
           <Plus className="mr-1.5 h-4 w-4" /> Order questions
         </Button>
       }
     >
       <Panel className="divide-y divide-slate-100">
         {requests.length === 0 ? (
-          <EmptyState className="px-4 py-3">No orders yet. Use “Order questions” for a match, an anniversary or a theme.</EmptyState>
+          <EmptyState className="px-4 py-3">
+            {market === 'all'
+              ? 'No orders yet. Use “Order questions” for a match, an anniversary or a theme.'
+              : categories.length === 0
+                ? `No category is made for ${marketName(market)} yet, so there is nothing to order questions for. Suggest one under New categories.`
+                : `No orders for ${marketName(market)} yet.`}
+          </EmptyState>
         ) : (
           requests.map((r) => (
             <div key={r.id} className="flex flex-wrap items-center gap-x-4 gap-y-1 px-4 py-2.5 text-sm">
