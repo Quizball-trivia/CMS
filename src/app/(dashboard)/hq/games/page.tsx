@@ -9,6 +9,7 @@ import { DEPARTMENT_LOOK } from '@/lib/hq-departments';
 import { cn } from '@/lib/utils';
 import type { HarnessGame, HarnessGameGroup, HarnessGameState } from '@/types';
 import { Delta, EmptyState, HQ_PAGE, LoadErrorState, Meter, PageHeader, Panel, RefreshErrorBanner, Section } from '../hq-ui';
+import { Reports } from '../reports';
 import { AskForChange, Changes, isOpenChange } from './changes';
 import { finishRate, GROUPS, PREVIEW_SITE, previewUrl, size, worthALook } from './games';
 
@@ -156,6 +157,9 @@ export default function HqGamesPage() {
         title="Games"
         description="Every game we have. Play any of them here, and see how each is doing: the last 7 whole days against the 7 before."
       />
+
+      {/* What the Game Scout proposes. To take one up, press "Ask for a change" on that game. */}
+      <Reports department="games" />
 
       {error && !data ? (
         <LoadErrorState error={error} fallback="Could not load the games" onRetry={() => void refetch()} />
