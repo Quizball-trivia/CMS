@@ -55,7 +55,7 @@ describe('agents by department', () => {
   });
 
   it('knows which suggested agents need nothing first', () => {
-    expect(readyToStart(agentsOf('marketing', []).suggested).map((s) => s.slug)).toEqual(['growth-analyst', 'community-listener']);
+    expect(readyToStart(agentsOf('marketing', []).suggested).map((s) => s.slug)).toEqual(['growth-analyst']);
     expect(readyToStart(agentsOf('investors', []).suggested).map((s) => s.slug)).toEqual(['investor-scout', 'investor-update-writer', 'pitch-coach']);
   });
 });

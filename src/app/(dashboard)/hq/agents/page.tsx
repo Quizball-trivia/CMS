@@ -9,6 +9,7 @@ import { cn } from '@/lib/utils';
 import { RunningAgent, SuggestedAgentCard } from '../agents-ui';
 import { agentsNow } from '../content/plain';
 import { Seats } from '../content/seats';
+import { CompanyProfile } from '../reports';
 import { Hero, HeroStat, HQ_PAGE, LoadErrorState, RefreshErrorBanner } from '../hq-ui';
 
 // Every agent in the company on one page: the subscriptions they run on, then
@@ -84,6 +85,8 @@ export default function AgentsPage() {
           </section>
         );
       })}
+
+      <CompanyProfile />
     </div>
   );
 }

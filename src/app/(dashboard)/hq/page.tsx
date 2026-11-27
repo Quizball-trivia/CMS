@@ -2,7 +2,8 @@
 
 import Link from 'next/link';
 import { ArrowRight, Loader2 } from 'lucide-react';
-import { useContentFixes, useHarnessGames, useHarnessOverview, useHqAnalytics, useHqClock } from '@/hooks';
+import { useContentFixes, useHarnessGames, useHarnessOverview, useHarnessReports, useHqAnalytics, useHqClock } from '@/hooks';
+import { formatRelative } from '@/lib/hq-time';
 import { agentsOf, atWork, readyToStart } from '@/lib/hq-agents';
 import { DEPARTMENT_LOOK, HQ_DEPARTMENTS, type HqDepartmentInfo } from '@/lib/hq-departments';
 import { cn } from '@/lib/utils';
@@ -127,6 +128,8 @@ export default function HqHomePage() {
   const seats = o ? o.accounts.filter((a) => !a.reservedForPeople && a.status === 'active') : [];
   const usable = seats.filter((a) => ['working', 'free'].includes(seatState(a, clock).kind)).length;
   const fixes = useContentFixes({ status: 'held', limit: 50 });
+  // The newest things the desk agents finished, whichever department they are for.
+  const fresh = (useHarnessReports().data?.items ?? []).filter((r) => r.status === 'ready').slice(0, 4);
   const items = needsYou(o, games.data, clock, fixes.data?.length);
   // What the "Needs you" list could not look at, or could not refresh: the all-clear needs every source, up to date.
   const sources = [
@@ -215,6 +218,27 @@ export default function HqHomePage() {
           </Panel>
         )}
       </Section>
+
+      {fresh.length > 0 && (
+        <Section title="Fresh from the agents" description="The newest reports the agents finished. Open one to read it in its department.">
+          <div className="grid gap-3 sm:grid-cols-2">
+            {fresh.map((r) => {
+              const dept = HQ_DEPARTMENTS.find((x) => x.key === r.department);
+              const look = DEPARTMENT_LOOK[r.department];
+              return (
+                <Link key={r.id} href={dept?.home ?? '/hq/agents'} className="hq-card group flex flex-col gap-1.5 p-4" aria-label={`Read: ${r.title}`}>
+                  <span className="flex flex-wrap items-center gap-2 text-[12px] text-slate-500">
+                    <span className={cn('rounded-full px-2 py-0.5 font-medium', look.tint)}>{dept?.name ?? r.department}</span>
+                    {r.agentName} · {formatRelative(r.createdAt, clock)}
+                  </span>
+                  <span className="font-display text-[16px] font-semibold leading-snug text-slate-950">{r.title}</span>
+                  {r.body && <span className="line-clamp-2 text-[13px] leading-relaxed text-slate-600">{r.body.summary}</span>}
+                </Link>
+              );
+            })}
+          </div>
+        </Section>
+      )}
 
       <Section
         title="The product"
