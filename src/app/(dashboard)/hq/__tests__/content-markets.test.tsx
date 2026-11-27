@@ -129,7 +129,20 @@ it('offers every market, and picking one goes into the address', () => {
   fireEvent.click(within(group).getByRole('button', { name: /^Spain/ }));
   expect(h.replace).toHaveBeenCalledWith('/hq/content?market=es');
   // With no market picked, everything shows and nothing claims to be local.
-  expect(screen.queryByText(/Players everywhere still see it/)).toBeNull();
+  expect(screen.queryByText(/about three times as\s+often/)).toBeNull();
+});
+
+it('can make a category only for its market, and never offers that for all markets', () => {
+  h.query = 'tab=library';
+  render(<HqContentPage />);
+  const row = screen.getByText('Real Madrid').closest('tr') as HTMLElement;
+  const only = within(row).getByLabelText('Only in Spain') as HTMLInputElement;
+  expect(only.checked).toBe(false);
+  fireEvent.click(only);
+  expect(h.steeringMutate).toHaveBeenCalledWith({ categoryId: 'c1', marketOnly: true }, expect.anything());
+  // World Cup is for all markets: there is no market to keep it to.
+  const everyone = screen.getByText('World Cup').closest('tr') as HTMLElement;
+  expect(within(everyone).queryByRole('checkbox')).toBeNull();
 });
 
 it('keeps the market when the tab changes', () => {
@@ -146,7 +159,7 @@ it('shows only what is made for the market, says the truth about it, and can add
   expect(screen.getByText('Real Madrid')).toBeTruthy();
   expect(screen.queryByText('Liverpool')).toBeNull();
   expect(screen.queryByText('World Cup')).toBeNull();
-  expect(screen.getByText(/Players everywhere still see it/)).toBeTruthy();
+  expect(screen.getByText(/about three times as\s+often/)).toBeTruthy();
   fireEvent.click(screen.getByLabelText('Also show what is for everyone'));
   expect(screen.getByText('World Cup')).toBeTruthy();
   expect(screen.getByText('Old backend row')).toBeTruthy();
@@ -193,8 +206,8 @@ it('narrows orders and events too, and a new event is marked for the market', ()
 it('moves a category to another market from the Library', () => {
   h.query = 'tab=library';
   render(<HqContentPage />);
-  expect(screen.getByLabelText('Market for Real Madrid').textContent).toContain('Spain');
-  expect(screen.getByLabelText('Market for World Cup').textContent).toContain('Everyone');
+  expect(screen.getByLabelText('Home market for Real Madrid').textContent).toContain('Spain');
+  expect(screen.getByLabelText('Home market for World Cup').textContent).toContain('Everyone');
 });
 
 it('lists the ideas that wait, with what accepting does, and accepts one', () => {
@@ -270,15 +283,15 @@ it('lets a category nobody has played yet be moved to a market', () => {
   // Real Madrid is on the board with its numbers; the other two have none and are listed below it.
   expect(screen.getByText('Not played in ranked lately').parentElement!.textContent).toContain('2');
   fireEvent.click(screen.getByRole('button', { name: 'Show all 2' }));
-  expect(screen.getByLabelText('Market for Kvara').textContent).toContain('Everyone');
-  expect(screen.getByLabelText('Market for Copa del Rey').textContent).toContain('Spain');
+  expect(screen.getByLabelText('Home market for Kvara').textContent).toContain('Everyone');
+  expect(screen.getByLabelText('Home market for Copa del Rey').textContent).toContain('Spain');
   cleanup();
   // Under a market, only that market's.
   h.query = 'tab=library&market=es';
   render(<HqContentPage />);
   fireEvent.click(screen.getByRole('button', { name: 'Show it' }));
-  expect(screen.getByLabelText('Market for Copa del Rey')).toBeTruthy();
-  expect(screen.queryByLabelText('Market for Kvara')).toBeNull();
+  expect(screen.getByLabelText('Home market for Copa del Rey')).toBeTruthy();
+  expect(screen.queryByLabelText('Home market for Kvara')).toBeNull();
 });
 
 it('keeps an idea half written when the person looks at another tab', () => {

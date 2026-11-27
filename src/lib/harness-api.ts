@@ -38,7 +38,7 @@ export const harnessApi = {
   setPolicy(key: string, value: unknown): Promise<{ key: string; value: unknown }> {
     return apiClient.put(`${BASE}/policies/${encodeURIComponent(key)}`, { value });
   },
-  setSteering(categoryId: string, body: { priority?: HarnessPriority; direction?: string; market?: HarnessMarket }) {
+  setSteering(categoryId: string, body: { priority?: HarnessPriority; direction?: string; market?: HarnessMarket; marketOnly?: boolean }) {
     return apiClient.put<{ categoryId: string; priority: HarnessPriority; direction: string }>(`${BASE}/steering/${encodeURIComponent(categoryId)}`, body);
   },
   setDirection(direction: string) {
