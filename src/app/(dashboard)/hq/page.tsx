@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { ArrowRight, Loader2 } from 'lucide-react';
 import { useContentFixes, useHarnessGames, useHarnessOverview, useHqAnalytics, useHqClock } from '@/hooks';
-import { agentsOf, readyToStart } from '@/lib/hq-agents';
+import { agentsOf, atWork, readyToStart } from '@/lib/hq-agents';
 import { DEPARTMENT_LOOK, HQ_DEPARTMENTS, type HqDepartmentInfo } from '@/lib/hq-departments';
 import { cn } from '@/lib/utils';
 import type { HarnessGames, HarnessOverview } from '@/types';
@@ -52,6 +52,7 @@ function Department({ d, o, g, failed }: { d: HqDepartmentInfo; o: HarnessOvervi
   const Icon = look.icon;
   const team = agentsOf(d.key, o?.agents);
   const ready = readyToStart(team.suggested).length;
+  const work = atWork(team.running, o?.settings.paused);
   return (
     <Link href={d.home} className="hq-card group relative flex flex-col gap-3 overflow-hidden p-5" aria-label={`Open ${d.name}`}>
       <span className="absolute inset-x-0 top-0 h-1" style={{ background: look.hex }} aria-hidden />
@@ -62,9 +63,14 @@ function Department({ d, o, g, failed }: { d: HqDepartmentInfo; o: HarnessOvervi
         <div className="min-w-0 flex-1">
           <h3 className="font-display text-lg font-semibold leading-tight tracking-tight text-slate-950">{d.name}</h3>
           <p className="text-[12px] text-slate-500">
-            {team.running.length > 0 ? (
+            {work.on > 0 ? (
               <span className="inline-flex items-center gap-1.5 font-medium text-slate-700">
-                {o?.settings.paused ? <span className="h-2 w-2 rounded-full bg-amber-400" aria-hidden /> : <span className="hq-live-dot" aria-hidden />} {team.running.length} {team.running.length === 1 ? 'agent' : 'agents'} {o?.settings.paused ? 'paused' : 'running'}
+                <span className="hq-live-dot" aria-hidden /> {work.on} {work.on === 1 ? 'agent' : 'agents'} running
+                {work.paused > 0 && `, ${work.paused} paused`}
+              </span>
+            ) : work.paused > 0 ? (
+              <span className="inline-flex items-center gap-1.5 font-medium text-slate-700">
+                <span className="h-2 w-2 rounded-full bg-amber-400" aria-hidden /> {work.paused} {work.paused === 1 ? 'agent' : 'agents'} paused
               </span>
             ) : o ? (
               'No agents yet'
@@ -134,7 +140,7 @@ export default function HqHomePage() {
   const today = new Intl.DateTimeFormat('en-GB', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'Asia/Tbilisi' }).format(new Date(clock));
   // Whole days only for the trend lines: today is not over.
   const series = a?.series.slice(0, -1) ?? [];
-  const activeAgents = o ? o.agents.filter((x) => x.status === 'active').length : 0;
+  const work = o ? atWork(o.agents, o.settings.paused) : { on: 0, paused: 0 };
 
   return (
     <div className={HQ_PAGE}>
@@ -172,7 +178,7 @@ export default function HqHomePage() {
       >
         {o && (
           <div className="grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-4">
-            <HeroStat label="Agents" value={activeAgents} note={o.settings.paused ? 'all paused' : 'switched on'} />
+            <HeroStat label="Agents" value={o.agents.length} note={o.settings.paused ? 'all paused' : work.paused ? `${work.on} switched on, ${work.paused} paused` : 'switched on'} />
             <HeroStat label="Runs today" value={o.today.runs.toLocaleString()} note={o.today.failed ? `${o.today.failed} failed` : 'none failed'} />
             <HeroStat label="Working now" value={o.queue?.running ?? 0} note={o.queue?.ready ? `${o.queue.ready} next in line` : 'nothing queued'} tone={o.queue?.running ? 'good' : undefined} />
             <HeroStat label="New questions live" value={o.today.live.toLocaleString()} note="today" />

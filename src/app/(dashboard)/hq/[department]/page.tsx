@@ -5,7 +5,7 @@ import { notFound, usePathname } from 'next/navigation';
 import { ArrowUpRight } from 'lucide-react';
 import { useHarnessOverview } from '@/hooks';
 import { useAuth } from '@/providers';
-import { agentsOf, readyToStart } from '@/lib/hq-agents';
+import { agentsOf, atWork, readyToStart } from '@/lib/hq-agents';
 import { DEPARTMENT_LOOK, departmentByKey, toolsForUser } from '@/lib/hq-departments';
 import { AgentRoster } from '../agents-ui';
 import { Hero, HeroStat, HQ_PAGE, LoadErrorState, RefreshErrorBanner, Section } from '../hq-ui';
@@ -25,6 +25,7 @@ export default function DepartmentPage() {
   const Icon = look.icon;
   const team = agentsOf(d.key, overview.data?.agents);
   const tools = toolsForUser(d, user?.email);
+  const work = atWork(team.running, overview.data?.settings.paused);
 
   return (
     <div className={HQ_PAGE}>
@@ -36,7 +37,7 @@ export default function DepartmentPage() {
         glow={look.hex}
       >
         <div className="grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-4">
-          <HeroStat label="Agents at work" value={overview.data ? team.running.length : '…'} note={overview.data?.settings.paused && team.running.length ? 'paused' : undefined} tone={team.running.length && !overview.data?.settings.paused ? 'good' : undefined} />
+          <HeroStat label="Agents at work" value={overview.data ? work.on : '…'} note={work.paused ? `${work.paused} paused` : undefined} tone={work.on ? 'good' : undefined} />
           <HeroStat label="Suggested" value={overview.data ? team.suggested.length : '…'} note="agents it could have" />
           <HeroStat label="Can start now" value={overview.data ? readyToStart(team.suggested).length : '…'} note="need nothing from us" />
           <HeroStat label="Tools" value={tools.length} note={tools.length ? 'pages in the CMS' : 'none yet'} />

@@ -85,14 +85,15 @@ it('shows the whole company on one page: agents, what needs a person, the produc
 
 it('counts a department\'s running agents from the harness, and stops suggesting an agent once it runs', () => {
   const agent = (slug: string, name: string) => ({ slug, name, team: 't', description: '', provider: 'claude', model: 'claude-opus-5-5', effort: null, primaryAccount: 'a', fallbackAccounts: [], status: 'active', runsToday: 0, costCentsToday: 0, lastRunAt: null }) as HarnessOverview['agents'][number];
-  h.overview = overview({ agents: [agent('question-maker', 'Question Maker'), agent('game-planner', 'Game Planner'), agent('growth-analyst', 'Growth Analyst')] });
+  h.overview = overview({ agents: [agent('question-maker', 'Question Maker'), { ...agent('fact-checker', 'Fact Checker'), status: 'paused' }, agent('game-planner', 'Game Planner'), { ...agent('growth-analyst', 'Growth Analyst'), status: 'paused' }] });
   h.games = games([]);
   h.analytics = analytics;
   render(<HqHomePage />);
   const cards = within(screen.getByRole('heading', { name: /^Departments/ }).closest('section')!).getAllByRole('link');
-  expect(cards[0].textContent).toMatch(/1 agent running · 3 suggested/);
+  // An agent whose own switch is off is listed but not counted as running.
+  expect(cards[0].textContent).toMatch(/1 agent running, 1 paused · 3 suggested/);
   expect(cards[1].textContent).toMatch(/1 agent running · 4 suggested/);
-  expect(cards[3].textContent).toMatch(/1 agent running · 5 suggested/);
+  expect(cards[3].textContent).toMatch(/1 agent paused · 5 suggested/);
   expect(cards[5].textContent).toMatch(/No agents yet · 5 suggested/);
 });
 

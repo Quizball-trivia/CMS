@@ -79,7 +79,10 @@ it('lists every agent in the company by department, with the subscriptions they 
   expect(screen.getByRole('heading', { level: 1 }).textContent).toBe('Agents');
   expect(screen.getByText('Claude Ultra')).toBeTruthy();
   const games = screen.getByRole('region', { name: 'Games agents' });
-  expect(within(games).getByText('1 at work · 4 suggested')).toBeTruthy();
+  // Its own switch is off: listed, but not counted as working.
+  expect(within(games).getByText('1 paused · 4 suggested')).toBeTruthy();
+  expect(within(screen.getByRole('region', { name: 'Content agents' })).getByText('1 at work · 3 suggested')).toBeTruthy();
+  expect(within(screen.getByRole('region', { name: 'Investors agents' })).getByText('0 at work · 5 suggested')).toBeTruthy();
   expect(within(within(games).getByRole('article', { name: 'Game Planner' })).getByText('Paused')).toBeTruthy();
   expect(within(games).getByRole('link', { name: 'Open Games' }).getAttribute('href')).toBe('/hq/games');
   for (const name of ['Content', 'Competitions', 'Marketing', 'Partners', 'Investors']) expect(screen.getByRole('region', { name: `${name} agents` })).toBeTruthy();

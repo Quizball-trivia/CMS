@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { Loader2 } from 'lucide-react';
 import { useHarnessOverview, useHqClock } from '@/hooks';
-import { agentsOf, readyToStart, SUGGESTED_AGENTS } from '@/lib/hq-agents';
+import { agentsOf, atWork, readyToStart, SUGGESTED_AGENTS } from '@/lib/hq-agents';
 import { DEPARTMENT_LOOK, HQ_DEPARTMENTS } from '@/lib/hq-departments';
 import { cn } from '@/lib/utils';
 import { RunningAgent, SuggestedAgentCard } from '../agents-ui';
@@ -26,7 +26,7 @@ export default function AgentsPage() {
     <div className={HQ_PAGE}>
       <Hero eyebrow="The whole company" title="Agents" description="Everyone who works here that is not a person: what each agent does, which ones are running, and which ones we could add next.">
         <div className="grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-4">
-          <HeroStat label="At work" value={data ? (data.settings.paused ? 0 : running.filter((a) => a.status === 'active').length) : '…'} note={status?.headline} tone={data && !data.settings.paused ? 'good' : undefined} />
+          <HeroStat label="At work" value={data ? atWork(running, data.settings.paused).on : '…'} note={status?.headline} tone={data && !data.settings.paused ? 'good' : undefined} />
           <HeroStat label="Runs today" value={data ? data.today.runs.toLocaleString() : '…'} note={data?.today.failed ? `${data.today.failed} failed` : undefined} />
           <HeroStat label="Suggested" value={data ? suggested.length : '…'} note="across all departments" />
           <HeroStat label="Can start now" value={data ? readyToStart(suggested).length : '…'} note="need nothing from us" />
@@ -51,6 +51,7 @@ export default function AgentsPage() {
         const team = agentsOf(d.key, data?.agents);
         const look = DEPARTMENT_LOOK[d.key];
         const Icon = look.icon;
+        const work = atWork(team.running, data.settings.paused);
         if (team.running.length + team.suggested.length === 0) return null;
         return (
           <section key={d.key} className="space-y-3" aria-label={`${d.name} agents`}>
@@ -60,7 +61,7 @@ export default function AgentsPage() {
               </span>
               <h2 className="font-display text-lg font-semibold tracking-tight text-slate-950">{d.name}</h2>
               <p className="text-sm text-slate-500">
-                {team.running.length} {data.settings.paused ? 'paused' : 'at work'} · {team.suggested.length} suggested
+                {[work.on || !work.paused ? `${work.on} at work` : null, work.paused ? `${work.paused} paused` : null, `${team.suggested.length} suggested`].filter(Boolean).join(' · ')}
               </p>
               <Link href={d.home} className="ml-auto text-sm font-medium text-slate-700 underline-offset-2 hover:underline">
                 Open {d.name}

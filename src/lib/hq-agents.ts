@@ -278,3 +278,9 @@ export function agentsOf(department: HqDepartmentKey, running: HarnessAgent[] | 
 export function readyToStart(list: SuggestedAgent[]): SuggestedAgent[] {
   return list.filter((s) => !s.needs);
 }
+
+/** Of a department's agents, how many are working and how many are paused (their own switch, or the switch for all). */
+export function atWork(running: HarnessAgent[], allPaused: boolean | undefined): { on: number; paused: number } {
+  const on = allPaused ? 0 : running.filter((a) => a.status === 'active').length;
+  return { on, paused: running.length - on };
+}
