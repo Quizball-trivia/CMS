@@ -317,3 +317,31 @@ it('tells a failed build from a failed plan, and offers to build again', () => {
   fireEvent.click(within(card).getByRole('button', { name: 'Build change 1' }));
   expect(h.buildMutate).toHaveBeenCalledWith('c1', expect.anything());
 });
+
+it('closes an open approval when the change is rebuilt under it, and offers only approval once a part is merged', () => {
+  h.data = hub([game('tenable')]);
+  h.connected = true;
+  const built = (web: string, merged = false): HarnessGameChange =>
+    aChange(1, {
+      status: 'ready', plan,
+      builds: [
+        { repo: 'web', part: 'website', state: 'ready', runUrl: null, headSha: web, prNumber: 900, prUrl: 'https://github.com/o/web/pull/900', previewUrl: null, error: null, merged: false },
+        { repo: 'backend', part: 'server', state: 'ready', runUrl: null, headSha: SHA_S, prNumber: 41, prUrl: 'https://github.com/o/api/pull/41', previewUrl: null, error: null, merged },
+      ],
+    });
+  h.changes = [built(SHA_W)];
+  const view = render(<HqGamesPage />);
+  fireEvent.click(screen.getByRole('button', { name: 'Approve and merge' }));
+  expect(screen.getByRole('button', { name: /Yes, merge it/ })).toBeTruthy();
+  // Someone rebuilds it: the website now has another commit.
+  h.changes = [built('c'.repeat(40))];
+  view.rerender(<HqGamesPage />);
+  expect(screen.queryByRole('button', { name: /Yes, merge it/ })).toBeNull();
+  expect(h.mergeMutate).not.toHaveBeenCalled();
+  // The server part merged, the website did not: finish by approving, no rebuild, no drop.
+  h.changes = [built(SHA_W, true)];
+  view.rerender(<HqGamesPage />);
+  expect(screen.getByRole('button', { name: 'Approve and merge' })).toBeTruthy();
+  expect(screen.queryByRole('button', { name: 'Build change 1 again' })).toBeNull();
+  expect(screen.queryByRole('button', { name: 'Drop change 1' })).toBeNull();
+});

@@ -194,8 +194,18 @@ function Change({ c }: { c: HarnessGameChange }) {
   const merge = useMergeGameChange();
   const discard = useDiscardGameChange();
   const connected = useGameBuildingConnected();
-  const [approving, setApproving] = useState(false);
   const builds = c.builds ?? [];
+  // The commits on screen when "Approve" was pressed. The approval is for those: if the change is rebuilt while the
+  // question is open, it closes by itself rather than approving code nobody looked at.
+  const [approved, setApproved] = useState<Partial<Record<'web' | 'backend', string>> | null>(null);
+  const heads: Partial<Record<'web' | 'backend', string>> = {};
+  for (const b of builds) if (b.headSha) heads[b.repo] = b.headSha;
+  const sameHeads = (a: typeof heads) => JSON.stringify(Object.entries(a).sort()) === JSON.stringify(Object.entries(heads).sort());
+  // Stale (rebuilt, merged or dropped under the question): forget it during this render, the way React allows.
+  if (approved && (c.status !== 'ready' || !sameHeads(approved))) setApproved(null);
+  const approving = c.status === 'ready' && !!approved && sameHeads(approved);
+  const setApproving = (on: boolean) => setApproved(on ? heads : null);
+  const partMerged = builds.some((b) => b.merged);
   // A failure with a plan still on the card is a build that failed; without one, the planner failed.
   const buildFailed = c.status === 'failed' && !!c.plan;
   const canBuild = !!c.plan && (c.status === 'planned' || buildFailed) && connected === true;
@@ -205,10 +215,9 @@ function Change({ c }: { c: HarnessGameChange }) {
       onError: (e) => toast.error(errorMessage(e, 'Could not start the build')),
     });
   const approve = () => {
-    const seen: Partial<Record<'web' | 'backend', string>> = {};
-    for (const b of builds) if (b.headSha) seen[b.repo] = b.headSha;
+    if (!approved) return;
     merge.mutate(
-      { id: c.id, seen },
+      { id: c.id, seen: approved },
       { onSuccess: () => { setApproving(false); toast.success(`Change ${c.number} is merged into staging.`); }, onError: (e) => { setApproving(false); toast.error(errorMessage(e, 'Could not merge it')); } }
     );
   };
@@ -331,12 +340,15 @@ function Change({ c }: { c: HarnessGameChange }) {
                 <Button size="sm" onClick={() => setApproving(true)} disabled={busy || connected !== true}>
                   Approve and merge
                 </Button>
-                <Button size="sm" variant="outline" onClick={startBuild} disabled={busy || connected !== true} aria-label={`Build change ${c.number} again`}>
-                  {build.isPending ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : <Hammer className="mr-1 h-3.5 w-3.5" />} Build it again
-                </Button>
+                {/* Once a part is merged there is no going back: only approving again, to finish the rest. */}
+                {!partMerged && (
+                  <Button size="sm" variant="outline" onClick={startBuild} disabled={busy || connected !== true} aria-label={`Build change ${c.number} again`}>
+                    {build.isPending ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : <Hammer className="mr-1 h-3.5 w-3.5" />} Build it again
+                  </Button>
+                )}
               </>
             ))}
-          {!approving && (
+          {!approving && !partMerged && (
             <Button size="sm" variant="ghost" onClick={drop} disabled={busy} aria-label={`Drop change ${c.number}`}>
               {discard.isPending ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : <X className="mr-1 h-3.5 w-3.5" />} {c.status === 'building' ? 'Stop and drop it' : 'Drop it'}
             </Button>
