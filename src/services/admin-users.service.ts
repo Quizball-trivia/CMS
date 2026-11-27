@@ -35,6 +35,8 @@ export interface AdminUserTotal {
   registered: number;
   guestsPlayed: number;
   converters: number;
+  /** Table Derby players ever registered (counts only), included in total. Absent on older backends. */
+  tableDerby?: number;
   total: number;
 }
 
