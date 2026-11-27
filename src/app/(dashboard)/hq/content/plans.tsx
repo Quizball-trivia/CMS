@@ -11,7 +11,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea';
 import { useCancelHarnessEvent, useCancelHarnessProposal, useCreateHarnessEvent, useCreateHarnessProposal, useHarnessProposalGoLive } from '@/hooks';
 import { cn } from '@/lib/utils';
-import type { HarnessContentEvent, HarnessProposal } from '@/types';
+import type { HarnessMarket, HarnessContentEvent, HarnessProposal } from '@/types';
+import { MarketChip, marketName } from './markets';
 import { EmptyState, errorMessage, Panel, Section } from '../hq-ui';
 
 // Planning ahead: events (questions ready before a match or anniversary) and
@@ -38,7 +39,7 @@ function Progress({ live, working, target }: { live: number; working: number; ta
   );
 }
 
-function EventDialog({ onClose, categories }: { onClose: () => void; categories: CategoryOption[] }) {
+function EventDialog({ onClose, categories, market }: { onClose: () => void; categories: CategoryOption[]; market: HarnessMarket }) {
   const [title, setTitle] = useState('');
   const [happensOn, setHappensOn] = useState('');
   const [notes, setNotes] = useState('');
@@ -55,7 +56,7 @@ function EventDialog({ onClose, categories }: { onClose: () => void; categories:
   const valid = title.trim().length >= 3 && /^\d{4}-\d{2}-\d{2}$/.test(happensOn) && picked.length > 0 && Number.isInteger(perCategory) && perCategory >= 1 && perCategory <= 20;
   const submit = () =>
     create.mutate(
-      { title: title.trim(), happensOn, notes: notes.trim(), categoryIds: picked, perCategory, difficulty },
+      { title: title.trim(), happensOn, notes: notes.trim(), categoryIds: picked, perCategory, difficulty, market },
       {
         onSuccess: () => {
           toast.success('Event added: its questions are made first');
@@ -69,7 +70,10 @@ function EventDialog({ onClose, categories }: { onClose: () => void; categories:
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Add an event</DialogTitle>
-          <DialogDescription>A match, a final, an anniversary. The agents make questions about it ahead of the date, ready the day before.</DialogDescription>
+          <DialogDescription>
+            A match, a final, an anniversary. The agents make questions about it ahead of the date, ready the day before.
+            {market !== 'all' && <> This one is marked as made for {marketName(market)}.</>}
+          </DialogDescription>
         </DialogHeader>
         <div className="grid gap-3">
           <div className="grid gap-1.5">
@@ -157,7 +161,7 @@ function EventDialog({ onClose, categories }: { onClose: () => void; categories:
   );
 }
 
-export function Events({ events, categories }: { events: HarnessContentEvent[]; categories: CategoryOption[] }) {
+export function Events({ events, categories, market = 'all' }: { events: HarnessContentEvent[]; categories: CategoryOption[]; market?: HarnessMarket }) {
   const [open, setOpen] = useState(false);
   const cancel = useCancelHarnessEvent();
   return (
@@ -173,13 +177,16 @@ export function Events({ events, categories }: { events: HarnessContentEvent[]; 
     >
       <Panel className="divide-y divide-slate-100">
         {events.length === 0 ? (
-          <EmptyState className="px-4 py-3">No events planned. Add one for the next big match.</EmptyState>
+          <EmptyState className="px-4 py-3">{market === 'all' ? 'No events planned. Add one for the next big match.' : `No events for ${marketName(market)} yet. Add one for its next big match.`}</EmptyState>
         ) : (
           events.map((e) => (
             <div key={e.id} className={cn('flex flex-wrap items-center gap-x-4 gap-y-1 px-4 py-2.5 text-sm', e.status === 'cancelled' && 'opacity-50')}>
               <div className="w-24 shrink-0 font-semibold tabular-nums text-slate-900">{e.happensOn}</div>
               <div className="min-w-0 flex-1">
-                <div className="font-medium text-slate-900">{e.title}</div>
+                <div className="flex flex-wrap items-center gap-2 font-medium text-slate-900">
+                  {e.title}
+                  {e.market && e.market !== 'all' && <MarketChip market={e.market} />}
+                </div>
                 <div className="text-[12px] text-slate-600">
                   {e.categories.join(', ')} · {e.perCategory} each{e.createdBy && <> · by {e.createdBy}</>}
                 </div>
@@ -202,12 +209,12 @@ export function Events({ events, categories }: { events: HarnessContentEvent[]; 
           ))
         )}
       </Panel>
-      {open && <EventDialog onClose={() => setOpen(false)} categories={categories} />}
+      {open && <EventDialog onClose={() => setOpen(false)} categories={categories} market={market} />}
     </Section>
   );
 }
 
-function ProposalDialog({ onClose }: { onClose: () => void }) {
+function ProposalDialog({ onClose, market }: { onClose: () => void; market: HarnessMarket }) {
   const [name, setName] = useState('');
   const [why, setWhy] = useState('');
   const [target, setTarget] = useState(30);
@@ -218,7 +225,10 @@ function ProposalDialog({ onClose }: { onClose: () => void }) {
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Suggest a new category</DialogTitle>
-          <DialogDescription>It is created hidden from players. The agents fill it with a starter set; you put it live when it looks good.</DialogDescription>
+          <DialogDescription>
+            It is created hidden from players. The agents fill it with a starter set; you put it live when it looks good.
+            {market !== 'all' && <> This one is marked as made for {marketName(market)}.</>}
+          </DialogDescription>
         </DialogHeader>
         <div className="grid gap-3">
           <div className="grid gap-1.5">
@@ -242,7 +252,7 @@ function ProposalDialog({ onClose }: { onClose: () => void }) {
             disabled={!valid || create.isPending}
             onClick={() =>
               create.mutate(
-                { name: name.trim(), why: why.trim(), target },
+                { name: name.trim(), why: why.trim(), target, market },
                 {
                   onSuccess: () => {
                     toast.success('Category created (hidden): the agents are filling it');
@@ -262,7 +272,7 @@ function ProposalDialog({ onClose }: { onClose: () => void }) {
   );
 }
 
-export function NewCategories({ proposals }: { proposals: HarnessProposal[] }) {
+export function NewCategories({ proposals, market = 'all' }: { proposals: HarnessProposal[]; market?: HarnessMarket }) {
   const [open, setOpen] = useState(false);
   const goLive = useHarnessProposalGoLive();
   const cancel = useCancelHarnessProposal();
@@ -279,7 +289,7 @@ export function NewCategories({ proposals }: { proposals: HarnessProposal[] }) {
     >
       <Panel className="divide-y divide-slate-100">
         {proposals.length === 0 ? (
-          <EmptyState className="px-4 py-3">No new categories yet.</EmptyState>
+          <EmptyState className="px-4 py-3">{market === 'all' ? 'No new categories yet.' : `No new categories for ${marketName(market)} yet. Suggest the first one.`}</EmptyState>
         ) : (
           proposals.map((p) => {
             const full = p.live >= p.target;
@@ -290,7 +300,10 @@ export function NewCategories({ proposals }: { proposals: HarnessProposal[] }) {
             return (
               <div key={p.id} className={cn('flex flex-wrap items-center gap-x-4 gap-y-1 px-4 py-2.5 text-sm', p.status === 'cancelled' && 'opacity-50')}>
                 <div className="min-w-0 flex-1">
-                  <div className="font-medium text-slate-900">{p.name}</div>
+                  <div className="flex flex-wrap items-center gap-2 font-medium text-slate-900">
+                    {p.name}
+                    {p.market && p.market !== 'all' && <MarketChip market={p.market} />}
+                  </div>
                   <div className="truncate text-[12px] text-slate-600" title={p.why}>
                     {p.why || 'No direction given'}
                     {p.proposedBy && <> · by {p.proposedBy}</>}
@@ -331,7 +344,7 @@ export function NewCategories({ proposals }: { proposals: HarnessProposal[] }) {
           })
         )}
       </Panel>
-      {open && <ProposalDialog onClose={() => setOpen(false)} />}
+      {open && <ProposalDialog onClose={() => setOpen(false)} market={market} />}
     </Section>
   );
 }

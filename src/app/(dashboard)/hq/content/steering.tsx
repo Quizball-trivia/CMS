@@ -11,8 +11,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea';
 import { useCancelHarnessRequest, useCreateHarnessRequest, useSetHarnessDirection, useSetHarnessSteering } from '@/hooks';
 import { cn } from '@/lib/utils';
-import type { HarnessCategoryHealth, HarnessPriority, HarnessRequest } from '@/types';
+import type { HarnessCategoryHealth, HarnessMarket, HarnessPriority, HarnessRequest } from '@/types';
 import { EmptyState, errorMessage, Panel, Section } from '../hq-ui';
+import { MarketChip, marketName, MARKETS } from './markets';
 import { fillEstimate } from './plain';
 
 // How the team steers the agents: which categories go first, what each one
@@ -58,6 +59,34 @@ function PriorityToggle({ c }: { c: HarnessCategoryHealth }) {
         </button>
       ))}
     </div>
+  );
+}
+
+/** Who a category is made for. Changing it only moves it between the market views: players everywhere still see it. */
+function MarketPicker({ c }: { c: HarnessCategoryHealth }) {
+  const steer = useSetHarnessSteering();
+  return (
+    <Select
+      value={c.market ?? 'all'}
+      disabled={steer.isPending}
+      onValueChange={(v) =>
+        steer.mutate(
+          { categoryId: c.categoryId, market: v as HarnessMarket },
+          { onSuccess: () => toast.success(`${c.name}: ${v === 'all' ? 'for everyone' : `made for ${marketName(v as HarnessMarket)}`}`), onError: (e) => toast.error(errorMessage(e, 'Could not change the market')) }
+        )
+      }
+    >
+      <SelectTrigger className="h-7 w-[124px] text-[12px]" aria-label={`Market for ${c.name}`}>
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent>
+        {MARKETS.map((m) => (
+          <SelectItem key={m.key} value={m.key}>
+            {m.short}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
   );
 }
 
@@ -120,7 +149,7 @@ function DirectionDialog({ target, onClose }: { target: { categoryId: string | n
   );
 }
 
-type CategoryOption = { id: string; name: string };
+type CategoryOption = { id: string; name: string; market?: HarnessMarket };
 
 export function OrderDialog({ open, onClose, categories, initialCategory }: { open: boolean; onClose: () => void; categories: CategoryOption[]; initialCategory?: string }) {
   const [categoryId, setCategoryId] = useState(initialCategory ?? '');
@@ -211,7 +240,7 @@ export function OrderDialog({ open, onClose, categories, initialCategory }: { op
 const TH = 'px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-500';
 const TD = 'px-4 py-2.5 align-middle';
 
-export function CategoryBoard({ categories, direction }: { categories: HarnessCategoryHealth[]; direction: string }) {
+export function CategoryBoard({ categories, direction, market = 'all', onSuggest }: { categories: HarnessCategoryHealth[]; direction: string; market?: HarnessMarket; onSuggest?: () => void }) {
   const [showAll, setShowAll] = useState(false);
   const [editing, setEditing] = useState<{ categoryId: string | null; name: string; text: string } | null>(null);
   const rows = useMemo(() => {
@@ -222,7 +251,7 @@ export function CategoryBoard({ categories, direction }: { categories: HarnessCa
   const shown = showAll ? rows : rows.filter((c, i) => i < 12 || c.priority !== 'normal' || c.direction);
   return (
     <Section
-      title="Categories"
+      title={market === 'all' ? 'Categories' : `Categories made for ${marketName(market)}`}
       description="How full each ranked category is, and how you steer it. Boost puts a category first; Hold stops new questions for it."
       actions={
         <Button size="sm" variant="outline" onClick={() => setEditing({ categoryId: null, name: 'every category', text: direction })}>
@@ -237,12 +266,26 @@ export function CategoryBoard({ categories, direction }: { categories: HarnessCa
       )}
       <Panel className="overflow-x-auto">
         {rows.length === 0 ? (
-          <EmptyState className="px-4 py-3">No ranked play in the last 30 days.</EmptyState>
+          <EmptyState className="px-4 py-3">
+            {market === 'all' ? (
+              'No ranked play in the last 30 days.'
+            ) : (
+              <>
+                Nothing is made for {marketName(market)} yet.{' '}
+                {onSuggest && (
+                  <button type="button" className="font-medium text-slate-900 underline underline-offset-2" onClick={onSuggest}>
+                    Suggest its first category
+                  </button>
+                )}
+              </>
+            )}
+          </EmptyState>
         ) : (
-          <table className="w-full min-w-[760px] text-sm">
+          <table className="w-full min-w-[880px] text-sm">
             <thead className="border-b border-slate-200">
               <tr>
                 <th className={TH}>Category</th>
+                <th className={TH}>Made for</th>
                 <th className={TH}>Questions</th>
                 <th className={cn(TH, 'text-right')}>Short</th>
                 <th className={TH}>Full in</th>
@@ -256,6 +299,9 @@ export function CategoryBoard({ categories, direction }: { categories: HarnessCa
                   <td className={TD}>
                     <div className="font-medium text-slate-900">{c.name}</div>
                     <div className="text-[12px] text-slate-500">{c.views30d.toLocaleString()} ranked showings / 30 days</div>
+                  </td>
+                  <td className={TD}>
+                    <MarketPicker c={c} />
                   </td>
                   <td className={TD}>
                     <FillBar c={c} />
@@ -312,7 +358,10 @@ export function Orders({ requests, categories }: { requests: HarnessRequest[]; c
           requests.map((r) => (
             <div key={r.id} className="flex flex-wrap items-center gap-x-4 gap-y-1 px-4 py-2.5 text-sm">
               <div className="min-w-0 flex-1">
-                <div className="font-medium text-slate-900">{r.topic}</div>
+                <div className="flex flex-wrap items-center gap-2 font-medium text-slate-900">
+                  {r.topic}
+                  {r.market && r.market !== 'all' && <MarketChip market={r.market} />}
+                </div>
                 <div className="text-[12px] text-slate-600">
                   {r.category ?? 'No category'} · {r.count} {r.difficulty}
                   {r.deadline && <> · needed by {r.deadline}</>}
