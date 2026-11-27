@@ -2,7 +2,7 @@ import { cleanup, render, screen, within } from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
 import type { HarnessGame, HarnessGames, HarnessOverview, HqAnalytics } from '@/types';
 
-const h = vi.hoisted(() => ({ overview: undefined as unknown, games: undefined as unknown, analytics: undefined as unknown, overviewError: null as unknown, gamesError: null as unknown, fixes: [] as unknown, fixesError: null as unknown }));
+const h = vi.hoisted(() => ({ overview: undefined as unknown, games: undefined as unknown, analytics: undefined as unknown, overviewError: null as unknown, gamesError: null as unknown, fixes: [] as unknown, fixesError: null as unknown, reports: undefined as unknown }));
 vi.mock('@/providers', () => ({ useAuth: () => ({ user: { role: 'admin', email: 'a@quizball.io' } }) }));
 vi.mock('@/hooks', () => ({
   useHarnessOverview: () => ({ data: h.overview, error: h.overviewError }),
@@ -10,6 +10,7 @@ vi.mock('@/hooks', () => ({
   useHqAnalytics: () => ({ data: h.analytics, error: null }),
   useHqClock: () => new Date('2026-11-27T10:00:00Z'),
   useContentFixes: () => ({ data: h.fixes, error: h.fixesError }),
+  useHarnessReports: () => ({ data: h.reports, error: null }),
 }));
 
 const { default: HqHomePage } = await import('../page');
@@ -47,6 +48,7 @@ afterEach(() => {
   h.gamesError = null;
   h.fixes = [];
   h.fixesError = null;
+  h.reports = undefined;
 });
 
 it('shows the whole company on one page: agents, what needs a person, the product, and every department', () => {
@@ -164,4 +166,23 @@ it('counts Ask HQ answers and held content fixes as things that need a person, a
   render(<HqHomePage />);
   expect(screen.queryByText('Nothing needs you right now.')).toBeNull();
   expect(screen.getByRole('status').textContent).toBe('Could not check the held content fixes, so this list may be missing something.');
+});
+
+it('shows the newest finished reports from the agents, each opening in its department', () => {
+  const report = (n: number, over: Record<string, unknown> = {}) => ({ id: `r${n}`, number: n, agent: 'growth-analyst', agentName: 'Growth Analyst', department: 'marketing', title: `Growth read ${n}`, status: 'ready', body: { summary: `Summary ${n}.`, sections: [], leads: [], questions: [] }, requestedBy: 'schedule', error: null, createdAt: '2026-11-27T08:00:00Z', updatedAt: '2026-11-27T08:05:00Z', ...over });
+  h.overview = overview();
+  h.games = games([]);
+  h.analytics = analytics;
+  h.reports = { items: [report(5, { status: 'writing', body: null }), report(4, { department: 'investors', agentName: 'Investor Scout', title: 'Investors worth approaching' }), report(3), report(2, { status: 'failed', body: null })], agents: [], profile: '' };
+  render(<HqHomePage />);
+  const fresh = screen.getByRole('heading', { name: 'Fresh from the agents' }).closest('section')!;
+  const links = within(fresh).getAllByRole('link');
+  // Only finished ones: not the one being written, not the failed one.
+  expect(links.map((a) => a.getAttribute('aria-label'))).toEqual(['Read: Investors worth approaching', 'Read: Growth read 3']);
+  expect(links.map((a) => a.getAttribute('href'))).toEqual(['/hq/investors', '/hq/marketing']);
+  expect(links[0].textContent).toMatch(/Investors.*Investor Scout · 2h ago/);
+  cleanup();
+  h.reports = { items: [], agents: [], profile: '' };
+  render(<HqHomePage />);
+  expect(screen.queryByRole('heading', { name: 'Fresh from the agents' })).toBeNull();
 });

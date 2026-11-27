@@ -377,3 +377,40 @@ export interface HarnessGameChange {
   createdAt: string;
   updatedAt: string;
 }
+
+// ── Reports by the desk agents ─────────────────────────────────────────────
+
+export interface HarnessReportBody {
+  summary: string;
+  sections: Array<{ heading: string; points: string[] }>;
+  /** People or companies to approach (the scouts). `source` is the page the agent opened. */
+  leads: Array<{ name: string; kind: string; where: string; why: string; source: string; reach: string }>;
+  /** What the agent needs from a person to do better next time. */
+  questions: string[];
+}
+
+export interface HarnessReport {
+  id: string;
+  /** A short number people can say ("report 4"). */
+  number: number;
+  /** The agent's slug and its name. */
+  agent: string;
+  agentName: string;
+  department: import('./hq').HqDepartmentKey;
+  title: string;
+  status: 'writing' | 'ready' | 'failed' | 'archived';
+  body: HarnessReportBody | null;
+  /** A person's name, or 'schedule' when it was due by itself. */
+  requestedBy: string | null;
+  error: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface HarnessReports {
+  items: HarnessReport[];
+  /** The agents that write reports, and how often each is due by itself. */
+  agents: Array<{ slug: string; department: import('./hq').HqDepartmentKey; every: 'week' | 'month' | null }>;
+  /** What the agents are told about the company. */
+  profile: string;
+}

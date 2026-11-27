@@ -1,14 +1,19 @@
-import { cleanup, render, screen, within } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
 import type { HarnessOverview } from '@/types';
 
-const h = vi.hoisted(() => ({ pathname: '/hq/marketing', overview: undefined as unknown, error: null as unknown, notFound: vi.fn(() => { throw new Error('NOT_FOUND'); }) }));
+const h = vi.hoisted(() => ({ pathname: '/hq/marketing', overview: undefined as unknown, error: null as unknown, reports: undefined as unknown, reportsError: null as unknown, create: vi.fn(), archive: vi.fn(), setPolicy: vi.fn(), notFound: vi.fn(() => { throw new Error('NOT_FOUND'); }) }));
 vi.mock('next/navigation', () => ({ usePathname: () => h.pathname, notFound: h.notFound }));
 vi.mock('@/providers', () => ({ useAuth: () => ({ user: { role: 'admin', email: 'a@quizball.io' } }) }));
 vi.mock('@/hooks', () => ({
   useHarnessOverview: () => ({ data: h.overview, error: h.error, isLoading: !h.overview && !h.error, refetch: vi.fn() }),
   useHqClock: () => new Date('2026-11-27T10:00:00Z'),
+  useHarnessReports: () => ({ data: h.reports, error: h.reportsError, isLoading: !h.reports && !h.reportsError, refetch: vi.fn() }),
+  useCreateReport: () => ({ mutate: h.create, isPending: false }),
+  useArchiveReport: () => ({ mutate: h.archive, isPending: false }),
+  useSetHarnessPolicy: () => ({ mutate: h.setPolicy, isPending: false }),
 }));
+vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
 const { default: DepartmentPage } = await import('../[department]/page');
 const { default: AgentsPage } = await import('../agents/page');
@@ -30,6 +35,11 @@ const overview = (agents: HarnessOverview['agents']): HarnessOverview =>
 afterEach(() => {
   cleanup();
   h.error = null;
+  h.reports = undefined;
+  h.reportsError = null;
+  h.create.mockClear();
+  h.archive.mockClear();
+  h.setPolicy.mockClear();
   h.notFound.mockClear();
 });
 
@@ -138,4 +148,120 @@ it('names the AI an agent runs on without the version', () => {
   expect(modelName('claude-sonnet-5-5')).toBe('Claude Sonnet');
   expect(modelName('gpt-6.1-sol')).toBe('GPT');
   expect(modelName('other')).toBe('other');
+});
+
+// ── Reports ──
+
+const WRITERS = [
+  { slug: 'growth-analyst', department: 'marketing', every: 'week' },
+  { slug: 'investor-update-writer', department: 'investors', every: 'month' },
+  { slug: 'investor-scout', department: 'investors', every: 'month' },
+];
+const report = (n: number, over: Record<string, unknown> = {}) => ({
+  id: `r${n}`, number: n, agent: 'investor-scout', agentName: 'Investor Scout', department: 'investors', title: `Report ${n}`, status: 'ready',
+  body: { summary: `Summary ${n}.`, sections: [{ heading: 'How I searched', points: ['Portfolio pages of funds that backed quiz apps.'] }], leads: [], questions: [] },
+  requestedBy: 'schedule', error: null, createdAt: '2026-11-27T08:00:00Z', updatedAt: '2026-11-27T08:05:00Z', ...over,
+});
+
+it('shows a department the reports its agents wrote, and opens one to read', () => {
+  h.pathname = '/hq/investors';
+  h.overview = overview([]);
+  h.reports = {
+    agents: WRITERS, profile: 'QuizBall is a football trivia game.',
+    items: [
+      report(7, {
+        title: 'Investors worth approaching',
+        body: {
+          summary: 'Twelve investors who backed games like ours.',
+          sections: [{ heading: 'How I searched', points: ['Portfolio pages.'] }],
+          leads: [
+            { name: 'Real Fund', kind: 'fund', where: 'London', why: 'Backed a quiz app at seed.', source: 'https://www.realfund.example/portfolio', reach: 'Apply on their site.' },
+            { name: 'Sneaky', kind: 'angel', where: '', why: 'x', source: 'javascript:alert(1)', reach: '' },
+          ],
+          questions: ['What stage is the company at?'],
+        },
+      }),
+      report(6, { agent: 'growth-analyst', agentName: 'Growth Analyst', department: 'marketing', title: 'Growth read' }),
+    ],
+  };
+  render(<DepartmentPage />);
+  const section = screen.getByRole('heading', { name: /From the agents/ }).closest('section')!;
+  // Only this department's reports, and a button for each of its writers.
+  expect(within(section).getAllByRole('article').map((a) => a.getAttribute('aria-label'))).toEqual(['Investors worth approaching']);
+  expect(within(section).getByRole('button', { name: 'New investor update draft' })).toBeTruthy();
+  expect(within(section).getByRole('button', { name: 'New investor list' })).toBeTruthy();
+  expect(within(section).queryByRole('button', { name: 'New growth read' })).toBeNull();
+  const card = within(section).getByRole('article', { name: 'Investors worth approaching' });
+  expect(card.textContent).toMatch(/Report 7 · Investor Scout · 2h ago/);
+  expect(within(card).getByText('Twelve investors who backed games like ours.')).toBeTruthy();
+  expect(within(card).queryByText('Real Fund')).toBeNull();
+  fireEvent.click(within(card).getByRole('button', { name: /Read it/ }));
+  expect(within(card).getByText('Real Fund')).toBeTruthy();
+  const link = within(card).getByRole('link', { name: /realfund\.example/ });
+  expect(link.getAttribute('href')).toBe('https://www.realfund.example/portfolio');
+  expect(link.getAttribute('rel')).toContain('noopener');
+  // A source that is not a web page is never made a link.
+  expect(within(card).getAllByRole('link')).toHaveLength(1);
+  expect(within(card).getByText('What stage is the company at?')).toBeTruthy();
+  expect(within(card).getByText(/check each one before you write to them/)).toBeTruthy();
+});
+
+it('asks an agent for a new report, not twice while it is writing, and puts a report away', () => {
+  h.pathname = '/hq/investors';
+  h.overview = overview([]);
+  h.reports = { agents: WRITERS, profile: '', items: [report(9, { status: 'writing', body: null }), report(8, { agent: 'investor-update-writer', agentName: 'Investor Update Writer', status: 'failed', body: null, error: 'no subscription was free' })] };
+  render(<DepartmentPage />);
+  expect((screen.getByRole('button', { name: 'New investor list' }) as HTMLButtonElement).disabled).toBe(true);
+  expect(screen.getByText(/Investor Scout is working on it/)).toBeTruthy();
+  fireEvent.click(screen.getByRole('button', { name: 'New investor update draft' }));
+  expect(h.create.mock.calls[0][0]).toBe('investor-update-writer');
+  const failed = screen.getByRole('article', { name: 'Report 8' });
+  expect(failed.textContent).toMatch(/It could not be finished: no subscription was free/);
+  fireEvent.click(within(failed).getByRole('button', { name: /Put away/ }));
+  expect(h.archive.mock.calls[0][0]).toBe('r8');
+  // A report still being written cannot be put away.
+  expect(within(screen.getByRole('article', { name: 'Report 9' })).queryByRole('button', { name: /Put away/ })).toBeNull();
+});
+
+it('shows no reports block for a department whose agents write none, and says when reports cannot be loaded', () => {
+  h.pathname = '/hq/competitions';
+  h.overview = overview([]);
+  h.reports = { agents: WRITERS, profile: '', items: [] };
+  render(<DepartmentPage />);
+  expect(screen.queryByRole('heading', { name: /From the agents/ })).toBeNull();
+  cleanup();
+  h.pathname = '/hq/marketing';
+  render(<DepartmentPage />);
+  expect(screen.getByText('Nothing written yet. The first reports arrive by themselves, or ask for one above.')).toBeTruthy();
+  cleanup();
+  h.reports = undefined;
+  h.reportsError = new Error('reports down');
+  render(<DepartmentPage />);
+  expect(screen.getByText('reports down')).toBeTruthy();
+});
+
+it('lets an owner correct what the agents are told about the company', () => {
+  h.overview = overview([]);
+  h.reports = { agents: WRITERS, profile: 'QuizBall is a football trivia game on the web.', items: [] };
+  render(<AgentsPage />);
+  const box = screen.getByLabelText('About the company') as HTMLTextAreaElement;
+  expect(box.value).toBe('QuizBall is a football trivia game on the web.');
+  const save = screen.getByRole('button', { name: 'Save' }) as HTMLButtonElement;
+  expect(save.disabled).toBe(true);
+  fireEvent.change(box, { target: { value: 'short' } });
+  expect(save.disabled).toBe(true);
+  expect(screen.getByText('Too short to save')).toBeTruthy();
+  fireEvent.change(box, { target: { value: '  QuizBall is a football trivia game. We are at pre-seed.  ' } });
+  expect(save.disabled).toBe(false);
+  fireEvent.click(save);
+  expect(h.setPolicy.mock.calls[0][0]).toEqual({ key: 'company.profile', value: 'QuizBall is a football trivia game. We are at pre-seed.' });
+  fireEvent.click(screen.getByRole('button', { name: 'Undo changes' }));
+  expect(box.value).toBe('QuizBall is a football trivia game on the web.');
+});
+
+it('only ever links to a real web page', async () => {
+  const { safeLink } = await import('../reports');
+  expect(safeLink('https://fund.example/portfolio')).toBe('https://fund.example/portfolio');
+  expect(safeLink('http://fund.example')).toBe('http://fund.example/');
+  for (const bad of ['javascript:alert(1)', 'data:text/html,x', 'their website', '', 'ftp://x.example']) expect(safeLink(bad)).toBeNull();
 });

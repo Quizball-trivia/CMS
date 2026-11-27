@@ -151,3 +151,20 @@ export function useReplanGameChange() {
 export function useCancelGameChange() {
   return useHarnessMutation((id: string) => harnessApi.cancelGameChange(id));
 }
+
+/** What the desk agents wrote. Refreshes quickly while one is being written. */
+export function useHarnessReports() {
+  return useQuery({
+    queryKey: [...harnessKeys.all, 'reports'] as const,
+    queryFn: () => harnessApi.reports(),
+    refetchInterval: (q) => (q.state.data?.items.some((r) => r.status === 'writing') ? HARNESS_REFETCH_MS : 60_000),
+  });
+}
+
+export function useCreateReport() {
+  return useHarnessMutation((agent: string) => harnessApi.createReport(agent));
+}
+
+export function useArchiveReport() {
+  return useHarnessMutation((id: string) => harnessApi.archiveReport(id));
+}

@@ -8,6 +8,7 @@ import { useAuth } from '@/providers';
 import { agentsOf, atWork, readyToStart } from '@/lib/hq-agents';
 import { DEPARTMENT_LOOK, departmentByKey, toolsForUser } from '@/lib/hq-departments';
 import { AgentRoster } from '../agents-ui';
+import { Reports } from '../reports';
 import { Hero, HeroStat, HQ_PAGE, LoadErrorState, RefreshErrorBanner, Section } from '../hq-ui';
 
 // A department's page: what it is for, the agents working for it, the agents
@@ -43,6 +44,8 @@ export default function DepartmentPage() {
           <HeroStat label="Tools" value={tools.length} note={tools.length ? 'pages in the CMS' : 'none yet'} />
         </div>
       </Hero>
+
+      <Reports department={d.key} />
 
       {overview.error && !overview.data ? (
         // Without the list of running agents nobody can say which ones are still only suggestions.
