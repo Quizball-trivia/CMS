@@ -53,8 +53,8 @@ function useHarnessMutation<V, R>(fn: (v: V) => Promise<R>, opts: { touchesCateg
 }
 
 export function useSetHarnessSteering() {
-  return useHarnessMutation((v: { categoryId: string; priority?: HarnessPriority; direction?: string; market?: HarnessMarket }) =>
-    harnessApi.setSteering(v.categoryId, { priority: v.priority, direction: v.direction, market: v.market })
+  return useHarnessMutation((v: { categoryId: string; priority?: HarnessPriority; direction?: string; market?: HarnessMarket; marketOnly?: boolean }) =>
+    harnessApi.setSteering(v.categoryId, { priority: v.priority, direction: v.direction, market: v.market, marketOnly: v.marketOnly })
   );
 }
 

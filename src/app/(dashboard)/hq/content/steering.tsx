@@ -62,31 +62,55 @@ function PriorityToggle({ c }: { c: HarnessCategoryHealth }) {
   );
 }
 
-/** Who a category is made for. Changing it only moves it between the market views: players everywhere still see it. */
-function MarketPicker({ c }: { c: { categoryId: string; name: string; market?: HarnessMarket } }) {
+/**
+ * Who a category is for, as the game uses it. A home market: everyone can still play it, and players there are offered
+ * it more often. "Only": nobody outside the market is offered it.
+ */
+function MarketPicker({ c }: { c: { categoryId: string; name: string; market?: HarnessMarket; marketOnly?: boolean } }) {
   const steer = useSetHarnessSteering();
+  const market = c.market ?? 'all';
+  const onError = (e: unknown) => toast.error(errorMessage(e, 'Could not change the market'));
   return (
-    <Select
-      value={c.market ?? 'all'}
-      disabled={steer.isPending}
-      onValueChange={(v) =>
-        steer.mutate(
-          { categoryId: c.categoryId, market: v as HarnessMarket },
-          { onSuccess: () => toast.success(`${c.name}: ${v === 'all' ? 'for everyone' : `made for ${marketName(v as HarnessMarket)}`}`), onError: (e) => toast.error(errorMessage(e, 'Could not change the market')) }
-        )
-      }
-    >
-      <SelectTrigger className="h-7 w-[124px] text-[12px]" aria-label={`Market for ${c.name}`}>
-        <SelectValue />
-      </SelectTrigger>
-      <SelectContent>
-        {MARKETS.map((m) => (
-          <SelectItem key={m.key} value={m.key}>
-            {m.short}
-          </SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
+    <div className="flex flex-col gap-1">
+      <Select
+        value={market}
+        disabled={steer.isPending}
+        onValueChange={(v) =>
+          steer.mutate(
+            { categoryId: c.categoryId, market: v as HarnessMarket },
+            { onSuccess: () => toast.success(`${c.name}: ${v === 'all' ? 'for all markets' : `home market ${marketName(v as HarnessMarket)}`}`), onError }
+          )
+        }
+      >
+        <SelectTrigger className="h-7 w-[124px] text-[12px]" aria-label={`Home market for ${c.name}`}>
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {MARKETS.map((m) => (
+            <SelectItem key={m.key} value={m.key}>
+              {m.short}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      {market !== 'all' && (
+        <label className="inline-flex items-center gap-1.5 text-[12px] text-slate-600" title={`Players outside ${marketName(market)} are never offered this category`}>
+          <input
+            type="checkbox"
+            checked={c.marketOnly ?? false}
+            disabled={steer.isPending}
+            onChange={(e) => {
+              const only = e.target.checked;
+              steer.mutate(
+                { categoryId: c.categoryId, marketOnly: only },
+                { onSuccess: () => toast.success(`${c.name}: ${only ? `only in ${marketName(market)}` : `open to everyone, home market ${marketName(market)}`}`), onError }
+              );
+            }}
+          />
+          Only in {marketName(market)}
+        </label>
+      )}
+    </div>
   );
 }
 
@@ -149,7 +173,7 @@ function DirectionDialog({ target, onClose }: { target: { categoryId: string | n
   );
 }
 
-type CategoryOption = { id: string; name: string; market?: HarnessMarket };
+type CategoryOption = { id: string; name: string; market?: HarnessMarket; marketOnly?: boolean };
 
 export function OrderDialog({ open, onClose, categories, initialCategory }: { open: boolean; onClose: () => void; categories: CategoryOption[]; initialCategory?: string }) {
   const [categoryId, setCategoryId] = useState(initialCategory ?? '');
@@ -358,7 +382,7 @@ export function QuietCategories({ categories, market = 'all' }: { categories: Ca
           {sorted.map((c) => (
             <div key={c.id} className="flex items-center justify-between gap-3 px-4 py-2 text-sm">
               <span className="min-w-0 truncate font-medium text-slate-900">{c.name}</span>
-              <MarketPicker c={{ categoryId: c.id, name: c.name, market: c.market }} />
+              <MarketPicker c={{ categoryId: c.id, name: c.name, market: c.market, marketOnly: c.marketOnly }} />
             </div>
           ))}
         </Panel>

@@ -4,10 +4,12 @@ import { Globe2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { HarnessMarket } from '@/types';
 
-// Markets: who a piece of content is made for. The whole Content page can be
-// narrowed to one market ("Working on"). This steers the work in HQ only: the
-// game does not filter by country yet, so players everywhere still see
-// everything. The page says so wherever a market is picked.
+// Markets: who a piece of content is for. These are the game's own markets: a
+// player's market comes from their country. Everything is for all markets
+// unless it names one. A category with a home market can be played by
+// everyone, and players in that market are offered it more often; a category
+// marked "only" is offered to nobody outside its market. The whole Content page
+// can be narrowed to one market ("Working on").
 
 export const MARKETS: Array<{ key: HarnessMarket; name: string; short: string }> = [
   { key: 'all', name: 'All markets', short: 'Everyone' },
@@ -96,12 +98,13 @@ export function MarketSwitcher({ scope, onChange, counts }: { scope: MarketScope
   );
 }
 
-/** The truth about markets, shown whenever one is picked. */
+/** What a market means in the game, shown whenever one is picked. */
 export function MarketNote({ market }: { market: HarnessMarket }) {
   if (market === 'all') return null;
   return (
     <p className="text-[13px] text-slate-600">
-      You are looking at what is made for <b className="text-slate-900">{marketName(market)}</b>. Players everywhere still see it: the game cannot show content to one country only yet.
+      You are looking at what is made for <b className="text-slate-900">{marketName(market)}</b>. Players in {marketName(market)} are offered these categories about three times as
+      often as other players. A category ticked &ldquo;Only in {marketName(market)}&rdquo; is offered to nobody else. Events and ideas are marked for a market in HQ only.
     </p>
   );
 }

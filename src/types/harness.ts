@@ -29,6 +29,8 @@ export interface HarnessCategoryHealth {
   liveLast7d: number;
   /** The market it is made for; 'all' (or absent, from an older backend) = for everyone. */
   market?: HarnessMarket;
+  /** true = only players in the home market are offered it. */
+  marketOnly?: boolean;
 }
 
 /** A market content can be made for. 'all' = for everyone. The game does not filter by country yet. */
@@ -323,7 +325,7 @@ export interface HarnessOverview {
   /** The team's direction note for every category ('' = none). */
   direction: string;
   /** Every active category, for ordering questions (also ones with no ranked play yet). */
-  allCategories: Array<{ id: string; name: string; market?: HarnessMarket }>;
+  allCategories: Array<{ id: string; name: string; market?: HarnessMarket; marketOnly?: boolean }>;
   /** Absent only while the backend is a version behind this page. */
   markets?: Array<{ key: Exclude<HarnessMarket, 'all'>; name: string }>;
   ideas?: HarnessIdea[];
