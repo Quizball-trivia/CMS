@@ -48,6 +48,10 @@ vi.mock('@/hooks', () => ({
   useNewShowPack: () => ({ mutate: h.newShowMutate, isPending: false }),
   useApproveShowPack: () => ({ mutate: h.approveShowMutate, isPending: false }),
   useShowPackChanging: () => h.showChanging,
+  useCreateHarnessIdea: () => ({ mutate: vi.fn(), isPending: false }),
+  useScoutHarnessIdeas: () => ({ mutate: vi.fn(), isPending: false }),
+  useAcceptHarnessIdea: () => ({ mutate: vi.fn(), isPending: false }),
+  useRefuseHarnessIdea: () => ({ mutate: vi.fn(), isPending: false }),
   useHqClock: () => new Date('2026-11-26T18:00:00Z'),
 }));
 
@@ -276,7 +280,7 @@ it('adds an event for the categories picked', () => {
   fireEvent.click(screen.getByRole('button', { name: '+ Real Madrid' }));
   fireEvent.click(screen.getAllByRole('button', { name: 'Add event' }).at(-1)!);
   expect(h.eventMutate).toHaveBeenCalledWith(
-    { title: 'El Clásico', happensOn: '2026-12-14', notes: '', categoryIds: ['c9'], perCategory: 10, difficulty: 'mixed' },
+    { title: 'El Clásico', happensOn: '2026-12-14', notes: '', categoryIds: ['c9'], perCategory: 10, difficulty: 'mixed', market: 'all' },
     expect.anything()
   );
 });

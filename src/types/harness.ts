@@ -27,7 +27,12 @@ export interface HarnessCategoryHealth {
   direction: string;
   /** Questions this category got from the agents in the last 7 days: the fill rate. */
   liveLast7d: number;
+  /** The market it is made for; 'all' (or absent, from an older backend) = for everyone. */
+  market?: HarnessMarket;
 }
+
+/** A market content can be made for. 'all' = for everyone. The game does not filter by country yet. */
+export type HarnessMarket = 'all' | 'ge' | 'tr' | 'ar' | 'uk' | 'es';
 
 export type HarnessPriority = 'boost' | 'normal' | 'hold';
 
@@ -67,6 +72,8 @@ export interface HarnessRequest {
   deadline: string | null;
   requestedBy: string | null;
   status: 'open' | 'done' | 'cancelled';
+  /** The market of the order's category. */
+  market?: HarnessMarket;
   live: number;
   working: number;
   dropped: number;
@@ -82,6 +89,7 @@ export interface HarnessContentEvent {
   perCategory: number;
   difficulty: 'easy' | 'medium' | 'hard' | 'mixed';
   status: 'open' | 'cancelled';
+  market?: HarnessMarket;
   createdBy: string | null;
   live: number;
   working: number;
@@ -94,6 +102,7 @@ export interface HarnessProposal {
   why: string;
   target: number;
   status: 'filling' | 'live' | 'cancelled';
+  market?: HarnessMarket;
   proposedBy: string | null;
   /** The category is visible in the game. */
   inGame: boolean;
@@ -128,7 +137,39 @@ export interface HarnessAsk {
   createdAt: string | null;
 }
 
+export type HarnessIdeaKind = 'category' | 'event' | 'questions' | 'other';
+
+/** One thing worth doing in the content: from the Market Scout, or written by a person and planned by the HQ Assistant. */
+export interface HarnessIdea {
+  id: string;
+  number: number;
+  source: 'person' | 'agent';
+  agent: string | null;
+  agentName: string | null;
+  createdBy: string | null;
+  market: HarnessMarket;
+  kind: HarnessIdeaKind;
+  title: string;
+  /** A person's own words, or the agent's reason. */
+  detail: string;
+  /** A page behind a date or a fact in an agent's idea. */
+  sourceUrl: string | null;
+  /** planning: the HQ Assistant is working out a person's idea · open: waiting for a person */
+  status: 'planning' | 'open' | 'accepted' | 'refused' | 'failed';
+  /** How a person's idea would be done, in plain words. */
+  plan: string | null;
+  /** What accepting does. */
+  actions: HarnessAskAction[];
+  applied: Array<{ index: number; ok: boolean; error?: string }>;
+  decidedBy: string | null;
+  refuseReason: string | null;
+  error: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface HarnessCreateEvent {
+  market?: HarnessMarket;
   title: string;
   happensOn: string;
   notes?: string;
@@ -282,7 +323,12 @@ export interface HarnessOverview {
   /** The team's direction note for every category ('' = none). */
   direction: string;
   /** Every active category, for ordering questions (also ones with no ranked play yet). */
-  allCategories: Array<{ id: string; name: string }>;
+  allCategories: Array<{ id: string; name: string; market?: HarnessMarket }>;
+  /** Absent only while the backend is a version behind this page. */
+  markets?: Array<{ key: Exclude<HarnessMarket, 'all'>; name: string }>;
+  ideas?: HarnessIdea[];
+  /** Set while the Market Scout is looking for ideas. */
+  scouting?: { market: HarnessMarket } | null;
   contentEvents: HarnessContentEvent[];
   proposals: HarnessProposal[];
   asks: HarnessAsk[];

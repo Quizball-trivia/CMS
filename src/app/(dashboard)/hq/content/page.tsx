@@ -6,21 +6,23 @@ import { Loader2, Pause, Play } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { useHarnessOverview, useSetHarnessPolicy, useUpdateHarnessSettings, useHqClock } from '@/hooks';
+import { useCreateHarnessIdea, useHarnessOverview, useSetHarnessPolicy, useUpdateHarnessSettings, useHqClock } from '@/hooks';
 import { formatRelative } from '@/lib/hq-time';
 import { DEPARTMENT_LOOK } from '@/lib/hq-departments';
 import { cn } from '@/lib/utils';
-import type { HarnessOverview, HarnessReleaseStatus } from '@/types';
+import type { HarnessMarket, HarnessOverview, HarnessReleaseStatus } from '@/types';
 import { EmptyState, errorMessage, HQ_LABEL, HQ_PAGE, LoadErrorState, PageHeader, Panel, RefreshErrorBanner, Section } from '../hq-ui';
 import { AskHq } from './ask';
 import { EngineRoom } from './engine';
+import { EMPTY_IDEA, Ideas, IdeasSummary, waitingByMarket, waitingIdeas, type IdeaComposer, type IdeaDraft } from './ideas';
+import { inScope, isMarket, MarketNote, marketName, MarketSwitcher, type MarketScope } from './markets';
 import { agentsNow, flow, plainEvent, stuckCount } from './plain';
 import { JustLive, NeedsYou } from './questions';
 import { Runway } from './runway';
 import { Seats } from './seats';
 import { Show, ShowSummary } from './show';
 import { Events, NewCategories } from './plans';
-import { CategoryBoard, Orders } from './steering';
+import { CategoryBoard, Orders, QuietCategories } from './steering';
 
 // HQ → Content, for the content team: what the agents are doing in plain
 // words, what needs a person, and the controls that steer the agents
@@ -194,12 +196,65 @@ const TABS = [
   { key: 'runway', label: 'Runway' },
   { key: 'show', label: 'Monday show' },
   { key: 'library', label: 'Library' },
+  { key: 'ideas', label: 'Ideas' },
   { key: 'plans', label: 'In progress' },
   { key: 'agents', label: 'Agents' },
   { key: 'engine', label: 'Engine room' },
 ] as const;
 type TabKey = (typeof TABS)[number]['key'];
 const isTab = (v: string | null): v is TabKey => TABS.some((t) => t.key === v);
+
+/** On Today, when a market is picked: what HQ has for it, and the way to add more. */
+function MarketToday({ data, market, onIdeas, onLibrary }: { data: HarnessOverview; market: HarnessMarket; onIdeas: () => void; onLibrary: () => void }) {
+  const only: MarketScope = { market, withEveryone: false };
+  // Every category made for the market counts, also one nobody played lately; only the played ones have a shortage.
+  const made = data.allCategories.filter((c) => inScope(only, c.market)).length;
+  const cats = data.classic.categories.filter((c) => inScope(only, c.market));
+  const short = cats.reduce((n, c) => n + c.shortage, 0);
+  const events = data.contentEvents.filter((e) => e.status === 'open' && inScope(only, e.market)).length;
+  const filling = data.proposals.filter((p) => p.status === 'filling' && inScope(only, p.market)).length;
+  const ideas = waitingIdeas(data.ideas, only).length;
+  const emptiest = [...cats].filter((c) => c.shortage > 0).sort((a, b) => b.shortage - a.shortage).slice(0, 4);
+  const stats: Array<[number, string]> = [
+    [made, made === 1 ? 'category of its own' : 'categories of its own'],
+    [short, 'questions short in them'],
+    [filling, filling === 1 ? 'new category being filled' : 'new categories being filled'],
+    [events, events === 1 ? 'event coming' : 'events coming'],
+    [ideas, ideas === 1 ? 'idea waiting' : 'ideas waiting'],
+  ];
+  return (
+    <Panel className="space-y-3 border-orange-200 px-5 py-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h2 className="font-display text-lg font-semibold text-slate-950">{marketName(market)}</h2>
+        <div className="flex gap-2">
+          <Button size="sm" variant="outline" onClick={onLibrary}>
+            Its categories
+          </Button>
+          <Button size="sm" onClick={onIdeas}>
+            Launch something for {marketName(market)}
+          </Button>
+        </div>
+      </div>
+      <div className="flex flex-wrap gap-x-6 gap-y-1">
+        {stats.map(([n, text]) => (
+          <span key={text} className="text-[15px] text-slate-700">
+            <b className="text-xl tabular-nums text-slate-950">{n.toLocaleString()}</b> {text}
+          </span>
+        ))}
+      </div>
+      {made === 0 ? (
+        <p className="text-sm text-amber-800">Nothing is made for {marketName(market)} yet. Its players see the same categories as everyone else.</p>
+      ) : (
+        emptiest.length > 0 && (
+          <p className="text-sm text-slate-700">
+            Emptiest: {emptiest.map((c) => `${c.name} (${c.pool} of ${c.needed})`).join(' · ')}
+          </p>
+        )
+      )}
+      <MarketNote market={market} />
+    </Panel>
+  );
+}
 
 export default function HqContentPage() {
   const { data, error, isLoading, refetch } = useHarnessOverview();
@@ -214,10 +269,42 @@ export default function HqContentPage() {
     setSeenUrl(fromUrl);
     setTabState(isTab(fromUrl) ? fromUrl : 'today');
   }
-  // The tab is in the address, so a link opens the same view.
+  const marketFromUrl = params.get('market');
+  const market: HarnessMarket = isMarket(marketFromUrl) ? marketFromUrl : 'all';
+  const [withEveryone, setWithEveryone] = useState(false);
+  // Kept here, not in the Ideas tab: an idea half written survives a look at the Library.
+  // Sending lives here too: the page knows one is on its way (no second send), and clears the draft when it lands.
+  const [ideaDraft, setIdeaDraft] = useState<IdeaDraft>(EMPTY_IDEA);
+  const createIdea = useCreateHarnessIdea();
+  const composer: IdeaComposer = {
+    draft: ideaDraft,
+    onDraft: setIdeaDraft,
+    sending: createIdea.isPending,
+    onSend: (body) =>
+      createIdea.mutate(body, {
+        onSuccess: () => {
+          setIdeaDraft(EMPTY_IDEA);
+          toast.success('Sent: the HQ Assistant comes back with a plan');
+        },
+        onError: (e) => toast.error(errorMessage(e, 'Could not send the idea')),
+      }),
+  };
+  const scope: MarketScope = { market, withEveryone };
+  const address = (t: TabKey, m: HarnessMarket) => {
+    const q = new URLSearchParams();
+    if (t !== 'today') q.set('tab', t);
+    if (m !== 'all') q.set('market', m);
+    const text = q.toString();
+    return text ? `${pathname}?${text}` : pathname;
+  };
+  // The tab and the market are in the address, so a link opens the same view.
   const setTab = (next: TabKey) => {
     setTabState(next);
-    router.replace(next === 'today' ? pathname : `${pathname}?tab=${next}`);
+    router.replace(address(next, market));
+  };
+  const setScope = (next: MarketScope) => {
+    setWithEveryone(next.withEveryone);
+    if (next.market !== market) router.replace(address(tab, next.market));
   };
 
   return (
@@ -246,10 +333,12 @@ export default function HqContentPage() {
             </div>
           )}
 
+          <MarketSwitcher scope={scope} onChange={setScope} counts={waitingByMarket(data.ideas)} />
+
           <div role="tablist" aria-label="Content sections" className="flex gap-1 overflow-x-auto border-b border-slate-200">
             {TABS.map((t) => {
               const badge =
-                t.key === 'runway' ? data.runway.filter((r) => r.daysLeft < 14).length : t.key === 'show' ? Number(data.show?.pack?.status === 'ready') : t.key === 'plans' ? data.requests.filter((r) => r.status === 'open').length : 0;
+                t.key === 'runway' ? data.runway.filter((r) => r.daysLeft < 14).length : t.key === 'show' ? Number(data.show?.pack?.status === 'ready') : t.key === 'plans' ? data.requests.filter((r) => r.status === 'open' && inScope(scope, r.market)).length : t.key === 'ideas' ? waitingIdeas(data.ideas, scope).length : 0;
               return (
                 <button
                   key={t.key}
@@ -264,7 +353,7 @@ export default function HqContentPage() {
                 >
                   {t.label}
                   {badge > 0 && (
-                    <span className={cn('ml-1.5 rounded-full px-1.5 py-0.5 text-[11px] font-semibold', t.key === 'runway' ? 'bg-red-50 text-red-700' : t.key === 'show' ? 'bg-amber-100 text-amber-800' : 'bg-slate-100 text-slate-700')}>
+                    <span className={cn('ml-1.5 rounded-full px-1.5 py-0.5 text-[11px] font-semibold', t.key === 'runway' ? 'bg-red-50 text-red-700' : t.key === 'show' || t.key === 'ideas' ? 'bg-amber-100 text-amber-800' : 'bg-slate-100 text-slate-700')}>
                       {badge}
                     </span>
                   )}
@@ -281,7 +370,9 @@ export default function HqContentPage() {
 
           {tab === 'today' && (
             <>
+              {market !== 'all' && <MarketToday data={data} market={market} onIdeas={() => setTab('ideas')} onLibrary={() => setTab('library')} />}
               <StatusLine data={data} />
+              <IdeasSummary ideas={data.ideas} scope={scope} onOpen={() => setTab('ideas')} />
               <Runway rows={data.runway} />
               {/* `show` is missing only while the backend is a version behind this page. */}
               {data.show && <ShowSummary show={data.show} paused={data.settings.paused} onOpen={() => setTab('show')} />}
@@ -293,12 +384,32 @@ export default function HqContentPage() {
           )}
           {tab === 'runway' && <Runway rows={data.runway} expanded />}
           {tab === 'show' && (data.show ? <Show show={data.show} paused={data.settings.paused} /> : <p className="text-sm text-slate-600">The Monday show is not available yet.</p>)}
-          {tab === 'library' && <CategoryBoard categories={data.classic.categories} direction={data.direction} />}
+          {tab === 'library' && (
+            <>
+              <MarketNote market={market} />
+              <CategoryBoard
+                categories={data.classic.categories.filter((c) => inScope(scope, c.market))}
+                direction={data.direction}
+                market={market}
+                hasCategories={data.allCategories.some((c) => inScope(scope, c.market))}
+                onSuggest={() => setTab('ideas')}
+              />
+              <QuietCategories categories={data.allCategories.filter((c) => inScope(scope, c.market) && !data.classic.categories.some((h) => h.categoryId === c.id))} market={market} />
+            </>
+          )}
+          {tab === 'ideas' && (
+            <>
+              <MarketNote market={market} />
+              <Ideas ideas={data.ideas} scope={scope} scouting={data.scouting} paused={data.settings.paused} composer={composer} />
+            </>
+          )}
           {tab === 'plans' && (
             <>
-              <Orders requests={data.requests} categories={data.allCategories} />
-              <Events events={data.contentEvents} categories={data.allCategories} />
-              <NewCategories proposals={data.proposals} />
+              <MarketNote market={market} />
+              {/* The same scope for what can be ordered as for what is listed: an order never lands out of sight. */}
+              <Orders requests={data.requests.filter((r) => inScope(scope, r.market))} categories={data.allCategories.filter((c) => inScope(scope, c.market))} market={market} />
+              <Events events={data.contentEvents.filter((e) => inScope(scope, e.market))} categories={data.allCategories} market={market} />
+              <NewCategories proposals={data.proposals.filter((p) => inScope(scope, p.market))} market={market} />
             </>
           )}
           {tab === 'agents' && (

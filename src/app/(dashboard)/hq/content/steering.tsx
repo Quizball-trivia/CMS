@@ -11,8 +11,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea';
 import { useCancelHarnessRequest, useCreateHarnessRequest, useSetHarnessDirection, useSetHarnessSteering } from '@/hooks';
 import { cn } from '@/lib/utils';
-import type { HarnessCategoryHealth, HarnessPriority, HarnessRequest } from '@/types';
+import type { HarnessCategoryHealth, HarnessMarket, HarnessPriority, HarnessRequest } from '@/types';
 import { EmptyState, errorMessage, Panel, Section } from '../hq-ui';
+import { MarketChip, marketName, MARKETS } from './markets';
 import { fillEstimate } from './plain';
 
 // How the team steers the agents: which categories go first, what each one
@@ -58,6 +59,34 @@ function PriorityToggle({ c }: { c: HarnessCategoryHealth }) {
         </button>
       ))}
     </div>
+  );
+}
+
+/** Who a category is made for. Changing it only moves it between the market views: players everywhere still see it. */
+function MarketPicker({ c }: { c: { categoryId: string; name: string; market?: HarnessMarket } }) {
+  const steer = useSetHarnessSteering();
+  return (
+    <Select
+      value={c.market ?? 'all'}
+      disabled={steer.isPending}
+      onValueChange={(v) =>
+        steer.mutate(
+          { categoryId: c.categoryId, market: v as HarnessMarket },
+          { onSuccess: () => toast.success(`${c.name}: ${v === 'all' ? 'for everyone' : `made for ${marketName(v as HarnessMarket)}`}`), onError: (e) => toast.error(errorMessage(e, 'Could not change the market')) }
+        )
+      }
+    >
+      <SelectTrigger className="h-7 w-[124px] text-[12px]" aria-label={`Market for ${c.name}`}>
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent>
+        {MARKETS.map((m) => (
+          <SelectItem key={m.key} value={m.key}>
+            {m.short}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
   );
 }
 
@@ -120,7 +149,7 @@ function DirectionDialog({ target, onClose }: { target: { categoryId: string | n
   );
 }
 
-type CategoryOption = { id: string; name: string };
+type CategoryOption = { id: string; name: string; market?: HarnessMarket };
 
 export function OrderDialog({ open, onClose, categories, initialCategory }: { open: boolean; onClose: () => void; categories: CategoryOption[]; initialCategory?: string }) {
   const [categoryId, setCategoryId] = useState(initialCategory ?? '');
@@ -211,7 +240,7 @@ export function OrderDialog({ open, onClose, categories, initialCategory }: { op
 const TH = 'px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-500';
 const TD = 'px-4 py-2.5 align-middle';
 
-export function CategoryBoard({ categories, direction }: { categories: HarnessCategoryHealth[]; direction: string }) {
+export function CategoryBoard({ categories, direction, market = 'all', hasCategories = false, onSuggest }: { categories: HarnessCategoryHealth[]; direction: string; market?: HarnessMarket; hasCategories?: boolean; onSuggest?: () => void }) {
   const [showAll, setShowAll] = useState(false);
   const [editing, setEditing] = useState<{ categoryId: string | null; name: string; text: string } | null>(null);
   const rows = useMemo(() => {
@@ -222,7 +251,7 @@ export function CategoryBoard({ categories, direction }: { categories: HarnessCa
   const shown = showAll ? rows : rows.filter((c, i) => i < 12 || c.priority !== 'normal' || c.direction);
   return (
     <Section
-      title="Categories"
+      title={market === 'all' ? 'Categories' : `Categories made for ${marketName(market)}`}
       description="How full each ranked category is, and how you steer it. Boost puts a category first; Hold stops new questions for it."
       actions={
         <Button size="sm" variant="outline" onClick={() => setEditing({ categoryId: null, name: 'every category', text: direction })}>
@@ -237,12 +266,28 @@ export function CategoryBoard({ categories, direction }: { categories: HarnessCa
       )}
       <Panel className="overflow-x-auto">
         {rows.length === 0 ? (
-          <EmptyState className="px-4 py-3">No ranked play in the last 30 days.</EmptyState>
+          <EmptyState className="px-4 py-3">
+            {market === 'all' ? (
+              'No ranked play in the last 30 days.'
+            ) : hasCategories ? (
+              `No ranked play in the last 30 days in the categories made for ${marketName(market)}.`
+            ) : (
+              <>
+                Nothing is made for {marketName(market)} yet.{' '}
+                {onSuggest && (
+                  <button type="button" className="font-medium text-slate-900 underline underline-offset-2" onClick={onSuggest}>
+                    Suggest its first category
+                  </button>
+                )}
+              </>
+            )}
+          </EmptyState>
         ) : (
-          <table className="w-full min-w-[760px] text-sm">
+          <table className="w-full min-w-[880px] text-sm">
             <thead className="border-b border-slate-200">
               <tr>
                 <th className={TH}>Category</th>
+                <th className={TH}>Made for</th>
                 <th className={TH}>Questions</th>
                 <th className={cn(TH, 'text-right')}>Short</th>
                 <th className={TH}>Full in</th>
@@ -256,6 +301,9 @@ export function CategoryBoard({ categories, direction }: { categories: HarnessCa
                   <td className={TD}>
                     <div className="font-medium text-slate-900">{c.name}</div>
                     <div className="text-[12px] text-slate-500">{c.views30d.toLocaleString()} ranked showings / 30 days</div>
+                  </td>
+                  <td className={TD}>
+                    <MarketPicker c={c} />
                   </td>
                   <td className={TD}>
                     <FillBar c={c} />
@@ -291,7 +339,38 @@ export function CategoryBoard({ categories, direction }: { categories: HarnessCa
   );
 }
 
-export function Orders({ requests, categories }: { requests: HarnessRequest[]; categories: CategoryOption[] }) {
+/**
+ * The categories the board above cannot show: nobody played them in ranked lately, so they have no numbers.
+ * They still belong to a market, and a new one must be movable before its first match.
+ */
+export function QuietCategories({ categories, market = 'all' }: { categories: CategoryOption[]; market?: HarnessMarket }) {
+  const [open, setOpen] = useState(false);
+  if (categories.length === 0) return null;
+  const sorted = [...categories].sort((a, b) => a.name.localeCompare(b.name));
+  return (
+    <Section
+      title={market === 'all' ? 'Not played in ranked lately' : `Not played in ranked lately, made for ${marketName(market)}`}
+      count={categories.length}
+      description="No ranked matches in the last 30 days, so there are no numbers to steer by. You can still say who each one is made for."
+    >
+      {open ? (
+        <Panel className="divide-y divide-slate-100">
+          {sorted.map((c) => (
+            <div key={c.id} className="flex items-center justify-between gap-3 px-4 py-2 text-sm">
+              <span className="min-w-0 truncate font-medium text-slate-900">{c.name}</span>
+              <MarketPicker c={{ categoryId: c.id, name: c.name, market: c.market }} />
+            </div>
+          ))}
+        </Panel>
+      ) : null}
+      <button type="button" className="text-sm font-medium text-slate-700 underline-offset-2 hover:underline" onClick={() => setOpen((v) => !v)}>
+        {open ? 'Hide them' : `Show ${categories.length === 1 ? 'it' : `all ${categories.length}`}`}
+      </button>
+    </Section>
+  );
+}
+
+export function Orders({ requests, categories, market = 'all' }: { requests: HarnessRequest[]; categories: CategoryOption[]; market?: HarnessMarket }) {
   const [open, setOpen] = useState(false);
   const cancel = useCancelHarnessRequest();
   return (
@@ -300,19 +379,28 @@ export function Orders({ requests, categories }: { requests: HarnessRequest[]; c
       count={requests.filter((r) => r.status === 'open').length}
       description="Questions the team asked for on a specific topic. Orders with a deadline go before everything else."
       actions={
-        <Button size="sm" onClick={() => setOpen(true)}>
+        <Button size="sm" onClick={() => setOpen(true)} disabled={categories.length === 0} title={categories.length === 0 ? `No category is made for ${marketName(market)} yet` : undefined}>
           <Plus className="mr-1.5 h-4 w-4" /> Order questions
         </Button>
       }
     >
       <Panel className="divide-y divide-slate-100">
         {requests.length === 0 ? (
-          <EmptyState className="px-4 py-3">No orders yet. Use “Order questions” for a match, an anniversary or a theme.</EmptyState>
+          <EmptyState className="px-4 py-3">
+            {market === 'all'
+              ? 'No orders yet. Use “Order questions” for a match, an anniversary or a theme.'
+              : categories.length === 0
+                ? `No category is made for ${marketName(market)} yet, so there is nothing to order questions for. Suggest one under New categories.`
+                : `No orders for ${marketName(market)} yet.`}
+          </EmptyState>
         ) : (
           requests.map((r) => (
             <div key={r.id} className="flex flex-wrap items-center gap-x-4 gap-y-1 px-4 py-2.5 text-sm">
               <div className="min-w-0 flex-1">
-                <div className="font-medium text-slate-900">{r.topic}</div>
+                <div className="flex flex-wrap items-center gap-2 font-medium text-slate-900">
+                  {r.topic}
+                  {r.market && r.market !== 'all' && <MarketChip market={r.market} />}
+                </div>
                 <div className="text-[12px] text-slate-600">
                   {r.category ?? 'No category'} · {r.count} {r.difficulty}
                   {r.deadline && <> · needed by {r.deadline}</>}

@@ -1,7 +1,7 @@
 import { useIsMutating, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { harnessApi } from '@/lib/harness-api';
 import { categoryKeys } from './use-categories';
-import type { HarnessCreateEvent, HarnessCreateRequest, HarnessItemAction, HarnessPriority, HarnessUpdateSettingsRequest } from '@/types';
+import type { HarnessCreateEvent, HarnessCreateRequest, HarnessIdeaKind, HarnessItemAction, HarnessMarket, HarnessPriority, HarnessUpdateSettingsRequest } from '@/types';
 
 // The Content tab polls: agents work in the background.
 export const HARNESS_REFETCH_MS = 10_000;
@@ -53,8 +53,8 @@ function useHarnessMutation<V, R>(fn: (v: V) => Promise<R>, opts: { touchesCateg
 }
 
 export function useSetHarnessSteering() {
-  return useHarnessMutation((v: { categoryId: string; priority?: HarnessPriority; direction?: string }) =>
-    harnessApi.setSteering(v.categoryId, { priority: v.priority, direction: v.direction })
+  return useHarnessMutation((v: { categoryId: string; priority?: HarnessPriority; direction?: string; market?: HarnessMarket }) =>
+    harnessApi.setSteering(v.categoryId, { priority: v.priority, direction: v.direction, market: v.market })
   );
 }
 
@@ -85,7 +85,7 @@ export function useCancelHarnessEvent() {
 }
 
 export function useCreateHarnessProposal() {
-  return useHarnessMutation((body: { name: string; why?: string; target?: number }) => harnessApi.createProposal(body), { touchesCategories: true });
+  return useHarnessMutation((body: { name: string; why?: string; target?: number; market?: HarnessMarket }) => harnessApi.createProposal(body), { touchesCategories: true });
 }
 
 export function useHarnessProposalGoLive() {
@@ -94,6 +94,23 @@ export function useHarnessProposalGoLive() {
 
 export function useCancelHarnessProposal() {
   return useHarnessMutation((id: string) => harnessApi.cancelProposal(id));
+}
+
+export function useCreateHarnessIdea() {
+  return useHarnessMutation((body: { text: string; market: HarnessMarket; kind: HarnessIdeaKind }) => harnessApi.createIdea(body));
+}
+
+export function useScoutHarnessIdeas() {
+  return useHarnessMutation((market: HarnessMarket) => harnessApi.scoutIdeas(market));
+}
+
+/** Accepting may start a new category, so the category lists are refreshed too. */
+export function useAcceptHarnessIdea() {
+  return useHarnessMutation((id: string) => harnessApi.acceptIdea(id), { touchesCategories: true });
+}
+
+export function useRefuseHarnessIdea() {
+  return useHarnessMutation((v: { id: string; reason: string }) => harnessApi.refuseIdea(v.id, v.reason));
 }
 
 export function useCreateHarnessAsk() {

@@ -1,6 +1,6 @@
 // Data layer for the HQ Content tab (`/admin/harness`), through the shared apiClient like hq-api.ts.
 import { apiClient } from '@/services';
-import type { HarnessGameChange, HarnessGames, HarnessReport, HarnessReports, HarnessCreateEvent, HarnessCreateRequest, HarnessItemAction, HarnessOverview, HarnessPriority, HarnessSettings, HarnessUpdateSettingsRequest } from '@/types';
+import type { HarnessIdeaKind, HarnessMarket, HarnessGameChange, HarnessGames, HarnessReport, HarnessReports, HarnessCreateEvent, HarnessCreateRequest, HarnessItemAction, HarnessOverview, HarnessPriority, HarnessSettings, HarnessUpdateSettingsRequest } from '@/types';
 
 const BASE = '/admin/harness';
 
@@ -38,7 +38,7 @@ export const harnessApi = {
   setPolicy(key: string, value: unknown): Promise<{ key: string; value: unknown }> {
     return apiClient.put(`${BASE}/policies/${encodeURIComponent(key)}`, { value });
   },
-  setSteering(categoryId: string, body: { priority?: HarnessPriority; direction?: string }) {
+  setSteering(categoryId: string, body: { priority?: HarnessPriority; direction?: string; market?: HarnessMarket }) {
     return apiClient.put<{ categoryId: string; priority: HarnessPriority; direction: string }>(`${BASE}/steering/${encodeURIComponent(categoryId)}`, body);
   },
   setDirection(direction: string) {
@@ -56,7 +56,7 @@ export const harnessApi = {
   cancelEvent(id: string) {
     return apiClient.post<{ id: string; status: string }>(`${BASE}/events/${encodeURIComponent(id)}/cancel`, {});
   },
-  createProposal(body: { name: string; why?: string; target?: number }) {
+  createProposal(body: { name: string; why?: string; target?: number; market?: HarnessMarket }) {
     return apiClient.post<{ id: string; categoryId: string; slug: string }>(`${BASE}/proposals`, body);
   },
   proposalGoLive(id: string) {
@@ -64,6 +64,19 @@ export const harnessApi = {
   },
   cancelProposal(id: string) {
     return apiClient.post<{ id: string; status: string }>(`${BASE}/proposals/${encodeURIComponent(id)}/cancel`, {});
+  },
+  createIdea(body: { text: string; market: HarnessMarket; kind: HarnessIdeaKind }) {
+    return apiClient.post<{ id: string; number: number; status: 'planning' }>(`${BASE}/ideas`, body);
+  },
+  /** Asks the Market Scout for ideas now, for one market or for all. */
+  scoutIdeas(market: HarnessMarket) {
+    return apiClient.post<{ started: true; market: HarnessMarket }>(`${BASE}/ideas/scout`, { market });
+  },
+  acceptIdea(id: string) {
+    return apiClient.post<{ id: string; status: 'accepted'; results: Array<{ index: number; ok: boolean; error?: string }> }>(`${BASE}/ideas/${encodeURIComponent(id)}/accept`, {});
+  },
+  refuseIdea(id: string, reason: string) {
+    return apiClient.post<{ id: string; status: 'refused' }>(`${BASE}/ideas/${encodeURIComponent(id)}/refuse`, { reason });
   },
   createAsk(message: string) {
     return apiClient.post<{ id: string }>(`${BASE}/asks`, { message });
