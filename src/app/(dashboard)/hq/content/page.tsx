@@ -22,7 +22,7 @@ import { Runway } from './runway';
 import { Seats } from './seats';
 import { Show, ShowSummary } from './show';
 import { Events, NewCategories } from './plans';
-import { CategoryBoard, Orders } from './steering';
+import { CategoryBoard, Orders, QuietCategories } from './steering';
 
 // HQ → Content, for the content team: what the agents are doing in plain
 // words, what needs a person, and the controls that steer the agents
@@ -394,6 +394,7 @@ export default function HqContentPage() {
                 hasCategories={data.allCategories.some((c) => inScope(scope, c.market))}
                 onSuggest={() => setTab('ideas')}
               />
+              <QuietCategories categories={data.allCategories.filter((c) => inScope(scope, c.market) && !data.classic.categories.some((h) => h.categoryId === c.id))} market={market} />
             </>
           )}
           {tab === 'ideas' && (

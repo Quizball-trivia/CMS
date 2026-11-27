@@ -63,7 +63,7 @@ function PriorityToggle({ c }: { c: HarnessCategoryHealth }) {
 }
 
 /** Who a category is made for. Changing it only moves it between the market views: players everywhere still see it. */
-function MarketPicker({ c }: { c: HarnessCategoryHealth }) {
+function MarketPicker({ c }: { c: { categoryId: string; name: string; market?: HarnessMarket } }) {
   const steer = useSetHarnessSteering();
   return (
     <Select
@@ -335,6 +335,37 @@ export function CategoryBoard({ categories, direction, market = 'all', hasCatego
         </button>
       ) : null}
       <DirectionDialog key={editing ? `${editing.categoryId}` : 'closed'} target={editing} onClose={() => setEditing(null)} />
+    </Section>
+  );
+}
+
+/**
+ * The categories the board above cannot show: nobody played them in ranked lately, so they have no numbers.
+ * They still belong to a market, and a new one must be movable before its first match.
+ */
+export function QuietCategories({ categories, market = 'all' }: { categories: CategoryOption[]; market?: HarnessMarket }) {
+  const [open, setOpen] = useState(false);
+  if (categories.length === 0) return null;
+  const sorted = [...categories].sort((a, b) => a.name.localeCompare(b.name));
+  return (
+    <Section
+      title={market === 'all' ? 'Not played in ranked lately' : `Not played in ranked lately, made for ${marketName(market)}`}
+      count={categories.length}
+      description="No ranked matches in the last 30 days, so there are no numbers to steer by. You can still say who each one is made for."
+    >
+      {open ? (
+        <Panel className="divide-y divide-slate-100">
+          {sorted.map((c) => (
+            <div key={c.id} className="flex items-center justify-between gap-3 px-4 py-2 text-sm">
+              <span className="min-w-0 truncate font-medium text-slate-900">{c.name}</span>
+              <MarketPicker c={{ categoryId: c.id, name: c.name, market: c.market }} />
+            </div>
+          ))}
+        </Panel>
+      ) : null}
+      <button type="button" className="text-sm font-medium text-slate-700 underline-offset-2 hover:underline" onClick={() => setOpen((v) => !v)}>
+        {open ? 'Hide them' : `Show ${categories.length === 1 ? 'it' : `all ${categories.length}`}`}
+      </button>
     </Section>
   );
 }

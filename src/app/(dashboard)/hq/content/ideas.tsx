@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
-import { useAcceptHarnessIdea, useRefuseHarnessIdea, useScoutHarnessIdeas } from '@/hooks';
+import { useAcceptHarnessIdea, useHqClock, useRefuseHarnessIdea, useScoutHarnessIdeas } from '@/hooks';
 import { formatRelative } from '@/lib/hq-time';
 import { cn } from '@/lib/utils';
 import type { HarnessIdea, HarnessIdeaKind, HarnessMarket } from '@/types';
@@ -46,9 +46,12 @@ export function waitingByMarket(ideas: HarnessIdea[] | undefined): Partial<Recor
 }
 
 function Steps({ idea }: { idea: HarnessIdea }) {
+  const now = useHqClock().getTime();
   const ok = new Set(idea.applied.filter((r) => r.ok).map((r) => r.index));
   const failed = new Map(idea.applied.filter((r) => !r.ok).map((r) => [r.index, r.error ?? 'failed']));
   const usable = idea.actions.filter((a) => a.valid);
+  // An accept still running records its steps one by one: only call a step "not done" once the accept is long over.
+  const settled = idea.status === 'accepted' && now - Date.parse(idea.updatedAt) > 120_000;
   if (idea.actions.length === 0)
     return idea.status === 'open' ? <p className="text-[13px] text-slate-600">HQ cannot do this one by itself. Accepting keeps it on the list for a person to pick up.</p> : null;
   return (
@@ -61,6 +64,8 @@ function Steps({ idea }: { idea: HarnessIdea }) {
             <span className="text-slate-800">
               {a.summary}
               {failed.has(i) && <span className="ml-1 text-red-700">({failed.get(i)})</span>}
+              {/* Accepted, yet nothing on record for this step: the server stopped before reaching it. */}
+              {settled && a.valid && !ok.has(i) && !failed.has(i) && <span className="ml-1 text-amber-700">(not done: do it by hand)</span>}
             </span>
           </li>
         ))}

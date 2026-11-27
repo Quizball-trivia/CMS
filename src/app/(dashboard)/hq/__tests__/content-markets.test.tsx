@@ -227,7 +227,7 @@ it('refuses with a reason the scout will read', () => {
   expect(screen.getByText(/Done in October/)).toBeTruthy();
 });
 
-it('sends a person\'s own idea for the market being worked on, and shows it while the plan is made', () => {
+it('sends a person\'s own idea for the market being worked on, and only once it is long enough', () => {
   h.query = 'tab=ideas&market=es';
   render(<HqContentPage />);
   const send = screen.getByRole('button', { name: 'Send to the agents' }) as HTMLButtonElement;
@@ -236,8 +236,49 @@ it('sends a person\'s own idea for the market being worked on, and shows it whil
   expect(send.disabled).toBe(false);
   fireEvent.click(send);
   expect(h.ideaMutate.mock.calls[0]![0]).toEqual({ text: 'A week of Copa del Rey classics', market: 'es', kind: 'category' });
-  expect(screen.getByText("Tato's idea")).toBeTruthy();
-  expect(screen.getByText('The HQ Assistant is preparing a plan…')).toBeTruthy();
+});
+
+it('shows a person\'s idea while the HQ Assistant plans it, with a way to drop it', () => {
+  h.query = 'tab=ideas&market=es';
+  render(<HqContentPage />);
+  const card = screen.getByText("Tato's idea").closest('.hq-card') as HTMLElement;
+  expect(within(card).getByText('A Copa del Rey week before the quarter-finals')).toBeTruthy();
+  expect(within(card).getByText('The HQ Assistant is preparing a plan…')).toBeTruthy();
+  expect(within(card).queryByRole('button', { name: 'Accept' })).toBeNull();
+  fireEvent.click(within(card).getByRole('button', { name: /Drop/ }));
+  expect(h.refuseMutate.mock.calls[0]![0]).toEqual({ id: 'i3', reason: '' });
+});
+
+it('says which steps of an accepted idea were never done', () => {
+  const two = [{ valid: true, summary: 'Boost: Real Madrid', action: {} }, { valid: true, summary: 'Order 10 questions', action: {} }];
+  h.data = overview({ ideas: [idea({ id: 'i7', market: 'es', status: 'accepted', decidedBy: 'Tato', actions: two, applied: [{ index: 0, ok: true }], updatedAt: '2026-11-27T09:00:00Z' })] });
+  h.query = 'tab=ideas';
+  render(<HqContentPage />);
+  expect(screen.getByText('Order 10 questions').textContent).toContain('not done: do it by hand');
+  expect(screen.getByText('Boost: Real Madrid').textContent).not.toContain('not done');
+  cleanup();
+  // Accepted seconds ago: the steps may still be running, so nothing is called undone yet.
+  h.data = overview({ ideas: [idea({ id: 'i7', market: 'es', status: 'accepted', actions: two, applied: [{ index: 0, ok: true }], updatedAt: '2026-11-27T09:59:30Z' })] });
+  render(<HqContentPage />);
+  expect(screen.getByText('Order 10 questions').textContent).not.toContain('not done');
+});
+
+it('lets a category nobody has played yet be moved to a market', () => {
+  h.data = overview({ allCategories: [{ id: 'c1', name: 'Real Madrid', market: 'es' }, { id: 'c8', name: 'Kvara', market: 'all' }, { id: 'c9', name: 'Copa del Rey', market: 'es' }] });
+  h.query = 'tab=library';
+  render(<HqContentPage />);
+  // Real Madrid is on the board with its numbers; the other two have none and are listed below it.
+  expect(screen.getByText('Not played in ranked lately').parentElement!.textContent).toContain('2');
+  fireEvent.click(screen.getByRole('button', { name: 'Show all 2' }));
+  expect(screen.getByLabelText('Market for Kvara').textContent).toContain('Everyone');
+  expect(screen.getByLabelText('Market for Copa del Rey').textContent).toContain('Spain');
+  cleanup();
+  // Under a market, only that market's.
+  h.query = 'tab=library&market=es';
+  render(<HqContentPage />);
+  fireEvent.click(screen.getByRole('button', { name: 'Show it' }));
+  expect(screen.getByLabelText('Market for Copa del Rey')).toBeTruthy();
+  expect(screen.queryByLabelText('Market for Kvara')).toBeNull();
 });
 
 it('keeps an idea half written when the person looks at another tab', () => {
