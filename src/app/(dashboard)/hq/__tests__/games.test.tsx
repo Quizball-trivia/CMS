@@ -2,7 +2,7 @@ import { cleanup, fireEvent, render, screen, within } from '@testing-library/rea
 import { afterAll, afterEach, expect, it, vi } from 'vitest';
 import type { HarnessGame, HarnessGameChange, HarnessGames } from '@/types';
 
-const h = vi.hoisted(() => ({ data: undefined as unknown, error: null as unknown, changes: [] as unknown, createMutate: vi.fn(), replanMutate: vi.fn(), cancelMutate: vi.fn() }));
+const h = vi.hoisted(() => ({ data: undefined as unknown, error: null as unknown, changes: [] as unknown, reports: { items: [], agents: [], profile: '' } as unknown, createMutate: vi.fn(), replanMutate: vi.fn(), cancelMutate: vi.fn() }));
 vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 vi.mock('@/hooks', () => ({
   useHarnessGames: () => ({ data: h.data, error: h.error, isLoading: false, refetch: vi.fn() }),
@@ -10,6 +10,11 @@ vi.mock('@/hooks', () => ({
   useCreateGameChange: () => ({ mutate: h.createMutate, isPending: false }),
   useReplanGameChange: () => ({ mutate: h.replanMutate, isPending: false }),
   useCancelGameChange: () => ({ mutate: h.cancelMutate, isPending: false }),
+  useHarnessReports: () => ({ data: h.reports, error: null, isLoading: false, refetch: vi.fn() }),
+  useCreateReport: () => ({ mutate: vi.fn(), isPending: false }),
+  useArchiveReport: () => ({ mutate: vi.fn(), isPending: false }),
+  useSetHarnessPolicy: () => ({ mutate: vi.fn(), isPending: false }),
+  useHqClock: () => new Date('2026-11-27T10:00:00Z'),
 }));
 
 // The preview site is read when games.ts loads: pin it, whatever the shell that runs the tests has set.
@@ -199,4 +204,22 @@ it('sends a failed plan again as it is, and opens the editor on the request as i
   view.rerender(<HqGamesPage />);
   fireEvent.click(screen.getByRole('button', { name: /Rewrite the request/ }));
   expect((screen.getByLabelText('Rewrite the request for change 1') as HTMLTextAreaElement).value).toBe('Five lives, everywhere.');
+});
+
+it('shows what the Game Scout proposed, above the games', () => {
+  h.data = { generatedAt: '2026-11-27T10:00:00Z', games: [] };
+  h.reports = {
+    agents: [{ slug: 'game-scout', department: 'games', every: 'week' }, { slug: 'growth-analyst', department: 'marketing', every: 'week' }],
+    profile: '',
+    items: [
+      { id: 'r1', number: 4, agent: 'game-scout', agentName: 'Game Scout', department: 'games', title: 'Games read', status: 'ready', body: { summary: 'Three games need a change.', sections: [], leads: [], questions: [] }, requestedBy: 'schedule', error: null, createdAt: '2026-11-27T08:00:00Z', updatedAt: '2026-11-27T08:05:00Z' },
+      { id: 'r2', number: 1, agent: 'growth-analyst', agentName: 'Growth Analyst', department: 'marketing', title: 'Growth read', status: 'ready', body: { summary: 's', sections: [], leads: [], questions: [] }, requestedBy: 'schedule', error: null, createdAt: '2026-11-27T08:00:00Z', updatedAt: '2026-11-27T08:05:00Z' },
+    ],
+  };
+  render(<HqGamesPage />);
+  const section = screen.getByRole('heading', { name: /From the agents/ }).closest('section')!;
+  expect(within(section).getAllByRole('article').map((a) => a.getAttribute('aria-label'))).toEqual(['Games read']);
+  expect(within(section).getByText('Three games need a change.')).toBeTruthy();
+  expect(within(section).getByRole('button', { name: 'New games read' })).toBeTruthy();
+  h.reports = { items: [], agents: [], profile: '' };
 });

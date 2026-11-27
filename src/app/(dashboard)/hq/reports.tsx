@@ -17,6 +17,7 @@ import { EmptyState, errorMessage, LoadErrorState, Panel, RefreshErrorBanner, Se
 /** What asking each agent for a report is called on its button. */
 const ASK_LABEL: Record<string, string> = {
   'growth-analyst': 'New growth read',
+  'game-scout': 'New games read',
   'investor-update-writer': 'New investor update draft',
   'investor-scout': 'New investor list',
 };
