@@ -18,7 +18,7 @@ vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 const { DayBuilder, daysReady } = await import('../content/day-builder');
 
 const game = (over: Partial<HarnessDayGame> = {}): HarnessDayGame => ({
-  game: 'pistas', label: 'Football Clues', ahead: 21, daysLeft: 11, storedThrough: '2026-12-09', storing: false,
+  game: 'pistas', label: 'Football Clues', unit: 'footballer', ahead: 21, daysLeft: 11, storedThrough: '2026-12-09', storing: false,
   rounds: { planned: 4, written: 3, checked: 2, localized: 1, ready: 23 }, readyByDifficulty: { easy: 8, medium: 9, hard: 6 }, perDay: { easy: 3, medium: 4, hard: 3 },
   builtLately: [], droppedLately: { count: 0, examples: [] }, planning: false, agent: 'active', ...over,
 });
@@ -143,4 +143,17 @@ it('says when what it shows could not be refreshed', () => {
   h.days = undefined;
   render(<DayBuilder />);
   expect(screen.getByRole('alert').textContent).toContain('offline');
+});
+
+it('speaks of each game in its own terms', () => {
+  h.days = { games: [game({ planning: true }), game({ game: 'ultimo', label: 'Último', unit: 'list', planning: true, perDay: { easy: 2, medium: 2, hard: 1 }, readyByDifficulty: { easy: 4, medium: 5, hard: 1 } })] };
+  render(<DayBuilder />);
+  expect(within(screen.getByRole('article', { name: 'Football Clues days' })).getByText('Choosing footballers')).toBeTruthy();
+  const ultimo = screen.getByRole('article', { name: 'Último days' });
+  expect(within(ultimo).getByText('Choosing lists')).toBeTruthy();
+  // Two easy, two medium and one hard a day: the one hard list decides.
+  expect(within(ultimo).getByText('enough for 1 day')).toBeTruthy();
+  expect(screen.getByText(/Built this way so far: Football Clues, Último\./)).toBeTruthy();
+  fireEvent.click(within(ultimo).getByRole('button', { name: 'Turn storing on' }));
+  expect(h.policy).toHaveBeenCalledWith({ key: 'days.ultimo.store', value: true }, expect.anything());
 });
