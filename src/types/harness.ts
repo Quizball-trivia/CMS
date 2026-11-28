@@ -554,9 +554,11 @@ export interface HarnessFeedbackPastEmails {
 }
 
 export interface HarnessFeedback {
-  /** Newest first. */
+  /** Newest first. Only the newest few hundred: the numbers in `stats` count everything. */
   items: HarnessFeedbackItem[];
   total: number;
+  /** Counted over all the feedback, not only what is listed. */
+  stats: { last7Days: number; last30Days: number; bugs: number; translated: number };
   /** Not read by the Feedback Reader yet. */
   waiting: number;
   /** Arrived since the recap was written. */

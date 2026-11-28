@@ -8,7 +8,7 @@ import { formatRelative, formatTbilisi } from '@/lib/hq-time';
 import { cn } from '@/lib/utils';
 import type { HarnessFeedback, HarnessFeedbackItem } from '@/types';
 import { EmptyState, errorMessage, Hero, HeroStat, HQ_LABEL, HQ_PAGE, LoadErrorState, ON_HERO, Panel, RefreshErrorBanner, Section } from '../hq-ui';
-import { arrivedWithin, countByKind, filterFeedback, KIND_LOOK, KINDS, languageName, safeAttachment, safeEmail, SOURCE_LABEL, type KindFilter, type LanguageFilter } from './feedback';
+import { countByKind, filterFeedback, KIND_LOOK, KINDS, languageName, safeAttachment, safeEmail, SOURCE_LABEL, type KindFilter, type LanguageFilter } from './feedback';
 
 // Everything players write to us, in one place: the contact form, the Season 3
 // idea survey and the comment left after a game. On top, the Feedback Reader's
@@ -246,7 +246,6 @@ export default function FeedbackPage() {
   const counts = useMemo(() => countByKind(items), [items]);
   const filtered = useMemo(() => filterFeedback(items, { kind, language, search }), [items, kind, language, search]);
   const visible = filtered.slice(0, shown);
-  const translated = items.filter((i) => i.english).length;
 
   /** From a theme in the recap to the message itself: clear the filters, show enough of the list, scroll to it. */
   const open = (n: number) => {
@@ -282,9 +281,9 @@ export default function FeedbackPage() {
       >
         <div className="grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-4">
           <HeroStat label="All feedback" value={data ? data.total.toLocaleString() : '…'} note={data && data.total > items.length ? `the newest ${items.length} are below` : undefined} />
-          <HeroStat label="Last 7 days" value={data ? arrivedWithin(items, 7, now) : '…'} note={data ? `${arrivedWithin(items, 30, now)} in 30 days` : undefined} />
-          <HeroStat label="Bugs reported" value={data ? counts.bug : '…'} tone={data && counts.bug > 0 ? 'attention' : undefined} />
-          <HeroStat label="Put into English" value={data ? translated : '…'} note={data?.waiting ? `${data.waiting} not read yet` : 'Georgian stays as written'} />
+          <HeroStat label="Last 7 days" value={data ? data.stats.last7Days.toLocaleString() : '…'} note={data ? `${data.stats.last30Days.toLocaleString()} in 30 days` : undefined} />
+          <HeroStat label="Bugs reported" value={data ? data.stats.bugs.toLocaleString() : '…'} tone={data && data.stats.bugs > 0 ? 'attention' : undefined} />
+          <HeroStat label="Put into English" value={data ? data.stats.translated.toLocaleString() : '…'} note={data?.waiting ? `${data.waiting} not read yet` : 'Georgian stays as written'} />
         </div>
       </Hero>
 
@@ -309,7 +308,11 @@ export default function FeedbackPage() {
             <Recap data={data} onOpen={open} />
           </Section>
 
-          <Section title="Everything players wrote" count={filtered.length} description="Newest first. Georgian is shown as written; other languages have the English next to the original.">
+          <Section
+            title="Everything players wrote"
+            count={filtered.length}
+            description={`Newest first. Georgian is shown as written; other languages have the English next to the original.${data.total > items.length ? ` Only the newest ${items.length.toLocaleString()} of ${data.total.toLocaleString()} are listed, and the filters work on those.` : ''}`}
+          >
             <div className="flex flex-wrap items-center gap-2">
               <div className="flex flex-wrap gap-1.5" role="group" aria-label="Kind of feedback">
                 {KINDS.filter((k) => k.key === 'all' || counts[k.key] > 0).map((k) => (

@@ -19,7 +19,7 @@ const item = (number: number, over: Partial<HarnessFeedbackItem> = {}): HarnessF
   context: null, attachments: [], game: null, rating: null, locale: null, receivedAt: '2026-11-27T10:00:00Z', ...over,
 });
 const feedback = (items: HarnessFeedbackItem[], over: Partial<HarnessFeedback> = {}): HarnessFeedback => ({
-  items, total: items.length, waiting: 0, newSinceRecap: 0, recap: null, reading: false, readError: null,
+  items, total: items.length, stats: { last7Days: items.length, last30Days: items.length, bugs: items.filter((i) => i.category === 'bug').length, translated: items.filter((i) => i.english).length }, waiting: 0, newSinceRecap: 0, recap: null, reading: false, readError: null,
   pastEmails: { running: false, scanned: 0, found: 0, added: 0, error: null, startedBy: null, finishedAt: null, possible: true },
   ...over,
 });
@@ -113,6 +113,17 @@ it('filters by kind, language and words', () => {
   expect(screen.getAllByRole('article').map((a) => a.getAttribute('aria-label'))).toEqual(['Feedback 2']);
   fireEvent.change(screen.getByLabelText('Search the feedback'), { target: { value: 'zzz' } });
   expect(screen.getByText(/Nothing matches/)).toBeTruthy();
+});
+
+it('takes its numbers from the server, and says so when only the newest are listed', () => {
+  h.data = feedback([item(2), item(1)], { total: 950, stats: { last7Days: 460, last30Days: 900, bugs: 77, translated: 120 } });
+  render(<FeedbackPage />);
+  expect(screen.getByText('950')).toBeTruthy();
+  expect(screen.getByText('460')).toBeTruthy();
+  expect(screen.getByText('900 in 30 days')).toBeTruthy();
+  expect(screen.getByText('77')).toBeTruthy();
+  expect(screen.getByText('120')).toBeTruthy();
+  expect(screen.getByText(/Only the newest 2 of 950 are listed, and the filters work on those/)).toBeTruthy();
 });
 
 it('brings in past emails and reports how it went', () => {
