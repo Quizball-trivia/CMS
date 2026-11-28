@@ -220,3 +220,21 @@ export function useReadFeedback() {
 export function useImportFeedbackEmails() {
   return useHarnessMutation(() => harnessApi.importFeedbackEmails());
 }
+
+/** The Day Builder. Refreshes quickly while rounds are on their way. */
+export function useHarnessDays() {
+  return useQuery({
+    queryKey: [...harnessKeys.all, 'days'] as const,
+    queryFn: () => harnessApi.days(),
+    refetchInterval: (q) => (q.state.data?.games.some((g) => g.planning || g.rounds.planned + g.rounds.written + g.rounds.checked + g.rounds.localized > 0) ? 30_000 : 120_000),
+  });
+}
+
+/** The rounds waiting to become a day, fetched only once a person opens them. */
+export function useHarnessDayRounds(game: string, enabled: boolean) {
+  return useQuery({ queryKey: [...harnessKeys.all, 'day-rounds', game] as const, queryFn: async () => (await harnessApi.dayRounds(game)).items, enabled, refetchInterval: 60_000 });
+}
+
+export function useBuildDays() {
+  return useHarnessMutation((game: string) => harnessApi.buildDays(game));
+}

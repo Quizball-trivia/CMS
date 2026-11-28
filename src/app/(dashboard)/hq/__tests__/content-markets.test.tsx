@@ -21,6 +21,10 @@ const idle = (mutate: unknown = vi.fn()) => ({ mutate, isPending: false });
 vi.mock('next/navigation', () => ({ usePathname: () => '/hq/content', useRouter: () => ({ replace: h.replace }), useSearchParams: () => new URLSearchParams(h.query) }));
 vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 vi.mock('@/hooks', () => ({
+  // The Day Builder sits on the Runway tab; these tests are about the rest of the page.
+  useHarnessDays: () => ({ data: { games: [] }, error: null }),
+  useHarnessDayRounds: () => ({ data: [], error: null, isLoading: false }),
+  useBuildDays: () => ({ mutate: vi.fn(), isPending: false }),
   useHarnessOverview: () => ({ data: h.data, error: null, isLoading: false, refetch: vi.fn() }),
   useUpdateHarnessSettings: () => idle(),
   useSetHarnessPolicy: () => idle(),

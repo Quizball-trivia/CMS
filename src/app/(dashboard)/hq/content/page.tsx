@@ -18,6 +18,7 @@ import { EMPTY_IDEA, Ideas, IdeasSummary, waitingByMarket, waitingIdeas, type Id
 import { inScope, isMarket, MarketNote, marketName, MarketSwitcher, type MarketScope } from './markets';
 import { agentsNow, flow, plainEvent, stuckCount } from './plain';
 import { JustLive, NeedsYou } from './questions';
+import { DayBuilder } from './day-builder';
 import { Runway } from './runway';
 import { Seats } from './seats';
 import { Show, ShowSummary } from './show';
@@ -382,7 +383,12 @@ export default function HqContentPage() {
               <Activity data={data} />
             </>
           )}
-          {tab === 'runway' && <Runway rows={data.runway} expanded />}
+          {tab === 'runway' && (
+            <>
+              <Runway rows={data.runway} expanded />
+              <DayBuilder allPaused={data.settings.paused} />
+            </>
+          )}
           {tab === 'show' && (data.show ? <Show show={data.show} paused={data.settings.paused} /> : <p className="text-sm text-slate-600">The Monday show is not available yet.</p>)}
           {tab === 'library' && (
             <>

@@ -1,6 +1,6 @@
 // Data layer for the HQ Content tab (`/admin/harness`), through the shared apiClient like hq-api.ts.
 import { apiClient } from '@/services';
-import type { HarnessFeedback, HarnessFeedbackPastEmails, HarnessFeedbackRead, HarnessIdeaKind, HarnessMarket, HarnessGameChange, HarnessGameChanges, HarnessGames, HarnessReport, HarnessReports, HarnessCreateEvent, HarnessCreateRequest, HarnessItemAction, HarnessOverview, HarnessPriority, HarnessSettings, HarnessUpdateSettingsRequest } from '@/types';
+import type { HarnessDayRound, HarnessDays, HarnessFeedback, HarnessFeedbackPastEmails, HarnessFeedbackRead, HarnessIdeaKind, HarnessMarket, HarnessGameChange, HarnessGameChanges, HarnessGames, HarnessReport, HarnessReports, HarnessCreateEvent, HarnessCreateRequest, HarnessItemAction, HarnessOverview, HarnessPriority, HarnessSettings, HarnessUpdateSettingsRequest } from '@/types';
 
 const BASE = '/admin/harness';
 
@@ -19,6 +19,16 @@ export const harnessApi = {
   },
   cancelGameChange(id: string) {
     return apiClient.post<HarnessGameChange>(`${BASE}/games/changes/${encodeURIComponent(id)}/cancel`, {});
+  },
+  /** The Day Builder: days ahead and rounds on their way, per daily game. */
+  days(): Promise<HarnessDays> {
+    return apiClient.get<HarnessDays>(`${BASE}/days`);
+  },
+  dayRounds(game: string): Promise<{ items: HarnessDayRound[] }> {
+    return apiClient.get<{ items: HarnessDayRound[] }>(`${BASE}/days/${encodeURIComponent(game)}/rounds`);
+  },
+  buildDays(game: string) {
+    return apiClient.post<{ built: string[]; ordered: number }>(`${BASE}/days/${encodeURIComponent(game)}/build`, {});
   },
   /** What players wrote to us, with the Feedback Reader's recap. */
   feedback(): Promise<HarnessFeedback> {

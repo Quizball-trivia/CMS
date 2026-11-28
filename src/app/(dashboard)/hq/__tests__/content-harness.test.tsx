@@ -28,6 +28,10 @@ const h = vi.hoisted(() => ({
 vi.mock('next/navigation', () => ({ usePathname: () => '/hq/content', useRouter: () => ({ replace: vi.fn() }), useSearchParams: () => new URLSearchParams() }));
 vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 vi.mock('@/hooks', () => ({
+  // The Day Builder sits on the Runway tab; these tests are about the rest of the page.
+  useHarnessDays: () => ({ data: { games: [] }, error: null }),
+  useHarnessDayRounds: () => ({ data: [], error: null, isLoading: false }),
+  useBuildDays: () => ({ mutate: vi.fn(), isPending: false }),
   useHarnessOverview: () => ({ data: h.data, error: h.error, isLoading: false, refetch: vi.fn() }),
   useUpdateHarnessSettings: () => ({ mutate: h.settingsMutate, isPending: false }),
   useSetHarnessPolicy: () => ({ mutate: h.policyMutate, isPending: false }),
