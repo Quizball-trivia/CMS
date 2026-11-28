@@ -487,3 +487,84 @@ export interface HarnessReports {
   /** What the agents are told about the company. */
   profile: string;
 }
+
+// ── Feedback from players ──────────────────────────────────────────────────
+
+export interface HarnessFeedbackItem {
+  id: string;
+  /** A short number people can say ("feedback 12"); the recap points at these. */
+  number: number;
+  /** form: the contact form · season3: an idea from the Season 3 survey · game: a comment left after a game. */
+  source: 'form' | 'season3' | 'game';
+  category: 'bug' | 'feedback' | 'other' | 'idea' | 'rating';
+  /** What the player wrote, as they wrote it. */
+  message: string;
+  /** The language it is written in ('ka', 'en', another code, 'unknown'); null until the Feedback Reader got to it. */
+  language: string | null;
+  /** English, only for a message that is neither Georgian nor English. */
+  english: string | null;
+  nickname: string | null;
+  email: string | null;
+  hasAccount: boolean;
+  /** Where in the game it was sent from, when the form said. */
+  context: string | null;
+  attachments: string[];
+  game: string | null;
+  rating: number | null;
+  /** The language the player's game was in, when known. */
+  locale: string | null;
+  receivedAt: string;
+}
+
+export interface HarnessFeedbackRecap {
+  summary: string;
+  /** What players ask for or complain about, most common first. `refs` are feedback numbers. */
+  themes: Array<{ title: string; count: number; points: string[]; refs: number[] }>;
+  praise: string[];
+  urgent: string[];
+}
+
+export interface HarnessFeedbackRead {
+  id: string;
+  number: number;
+  status: 'writing' | 'ready' | 'failed';
+  recap: HarnessFeedbackRecap | null;
+  /** How many pieces of feedback the recap was written from, and how many this round translated. */
+  items: number;
+  translated: number;
+  /** When the newest feedback it covers arrived. */
+  newestAt: string | null;
+  requestedBy: string | null;
+  error: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** Bringing in the contact-form emails the email service still holds (about 30 days). */
+export interface HarnessFeedbackPastEmails {
+  running: boolean;
+  scanned: number;
+  found: number;
+  added: number;
+  error: string | null;
+  startedBy: string | null;
+  finishedAt: string | null;
+  /** Whether the server has an email service key at all. */
+  possible?: boolean;
+}
+
+export interface HarnessFeedback {
+  /** Newest first. */
+  items: HarnessFeedbackItem[];
+  total: number;
+  /** Not read by the Feedback Reader yet. */
+  waiting: number;
+  /** Arrived since the recap was written. */
+  newSinceRecap: number;
+  recap: HarnessFeedbackRead | null;
+  /** The reader is working right now. */
+  reading: boolean;
+  /** Why the last round did not finish, when nothing finished since. */
+  readError: string | null;
+  pastEmails: HarnessFeedbackPastEmails;
+}

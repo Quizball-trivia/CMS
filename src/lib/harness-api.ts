@@ -1,6 +1,6 @@
 // Data layer for the HQ Content tab (`/admin/harness`), through the shared apiClient like hq-api.ts.
 import { apiClient } from '@/services';
-import type { HarnessIdeaKind, HarnessMarket, HarnessGameChange, HarnessGameChanges, HarnessGames, HarnessReport, HarnessReports, HarnessCreateEvent, HarnessCreateRequest, HarnessItemAction, HarnessOverview, HarnessPriority, HarnessSettings, HarnessUpdateSettingsRequest } from '@/types';
+import type { HarnessFeedback, HarnessFeedbackPastEmails, HarnessFeedbackRead, HarnessIdeaKind, HarnessMarket, HarnessGameChange, HarnessGameChanges, HarnessGames, HarnessReport, HarnessReports, HarnessCreateEvent, HarnessCreateRequest, HarnessItemAction, HarnessOverview, HarnessPriority, HarnessSettings, HarnessUpdateSettingsRequest } from '@/types';
 
 const BASE = '/admin/harness';
 
@@ -19,6 +19,16 @@ export const harnessApi = {
   },
   cancelGameChange(id: string) {
     return apiClient.post<HarnessGameChange>(`${BASE}/games/changes/${encodeURIComponent(id)}/cancel`, {});
+  },
+  /** What players wrote to us, with the Feedback Reader's recap. */
+  feedback(): Promise<HarnessFeedback> {
+    return apiClient.get<HarnessFeedback>(`${BASE}/feedback`);
+  },
+  readFeedback() {
+    return apiClient.post<HarnessFeedbackRead>(`${BASE}/feedback/read`, {});
+  },
+  importFeedbackEmails() {
+    return apiClient.post<HarnessFeedbackPastEmails>(`${BASE}/feedback/past-emails`, {});
   },
   reports(): Promise<HarnessReports> {
     return apiClient.get<HarnessReports>(`${BASE}/reports`);

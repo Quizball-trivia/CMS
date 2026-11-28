@@ -36,12 +36,12 @@ it('shows partner staff the Partners department with Freecroco only — no HQ, S
   expect(within(nav()).queryByText('Content')).toBeNull();
 });
 
-it('shows admins Home, Analytics and Agents, then one group per department, and nothing of the old HQ', () => {
+it('shows admins Home, Analytics, Feedback and Agents, then one group per department, and nothing of the old HQ', () => {
   h.role = 'admin';
   h.pathname = '/hq';
   render(<Sidebar />);
   const hrefs = links();
-  expect(hrefs.slice(0, 3)).toEqual(['/hq', '/hq/analytics', '/hq/agents']);
+  expect(hrefs.slice(0, 4)).toEqual(['/hq', '/hq/analytics', '/hq/feedback', '/hq/agents']);
   expect(within(nav()).getByText('Departments')).toBeTruthy();
   // Every department opens on its own HQ page.
   for (const [name, href] of [['Content', '/hq/content'], ['Games', '/hq/games'], ['Competitions', '/hq/competitions'], ['Marketing', '/hq/marketing'], ['Partners', '/hq/partners'], ['Investors', '/hq/investors']]) {

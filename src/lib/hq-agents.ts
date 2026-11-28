@@ -23,6 +23,8 @@ export interface SuggestedAgent {
 /** Running agents that were never a suggestion, by department. Agents listed nowhere work for Content. */
 const DEPARTMENT_OF: Record<string, HqDepartmentKey> = {
   'game-planner': 'games',
+  // Reads what players write to us (the Feedback page).
+  'feedback-reader': 'marketing',
 };
 
 export const SUGGESTED_AGENTS: SuggestedAgent[] = [
