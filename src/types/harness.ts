@@ -408,6 +408,29 @@ export interface HarnessGamePlan {
   questions: string[];
 }
 
+/** One part of a change being built: the website or the server, each built by an agent on GitHub. */
+export interface HarnessGameBuild {
+  repo: 'web' | 'backend';
+  part: 'website' | 'server';
+  state: 'starting' | 'running' | 'ready' | 'failed';
+  /** The agent's run on GitHub. */
+  runUrl: string | null;
+  /** The commit that was built; an approval names it, so it is for the code the person looked at. */
+  headSha: string | null;
+  prNumber: number | null;
+  prUrl: string | null;
+  /** Where the built website can be played before it is merged. Null for the server, and until it is deployed. */
+  previewUrl: string | null;
+  error: string | null;
+  merged: boolean;
+}
+
+export interface HarnessGameChanges {
+  items: HarnessGameChange[];
+  /** Whether HQ can build at all (it needs access to GitHub). Absent from a backend that predates building. */
+  building?: { connected: boolean };
+}
+
 export interface HarnessGameChange {
   id: string;
   /** A short number people can say ("change 12"). */
@@ -422,6 +445,8 @@ export interface HarnessGameChange {
   plan: HarnessGamePlan | null;
   error: string | null;
   decidedBy: string | null;
+  /** Empty until someone presses Build. */
+  builds?: HarnessGameBuild[];
   createdAt: string;
   updatedAt: string;
 }

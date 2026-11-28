@@ -152,9 +152,27 @@ export function useApproveShowPack() {
 export function useHarnessGameChanges() {
   return useQuery({
     queryKey: [...harnessKeys.all, 'game-changes'] as const,
-    queryFn: async () => (await harnessApi.gameChanges()).items,
-    refetchInterval: (q) => (q.state.data?.some((c) => c.status === 'planning' || c.status === 'building') ? HARNESS_REFETCH_MS : 60_000),
+    queryFn: () => harnessApi.gameChanges(),
+    select: (d) => d.items,
+    refetchInterval: (q) => (q.state.data?.items.some((c) => c.status === 'planning' || c.status === 'building' || (c.status === 'ready' && c.builds?.some((b) => b.part === 'website' && !b.previewUrl))) ? HARNESS_REFETCH_MS : 60_000),
   });
+}
+
+/** Whether HQ can build a planned change: true, false, or undefined while unknown (loading, or a backend that predates building). */
+export function useGameBuildingConnected(): boolean | undefined {
+  return useQuery({ queryKey: [...harnessKeys.all, 'game-changes'] as const, queryFn: () => harnessApi.gameChanges(), select: (d) => d.building?.connected }).data;
+}
+
+export function useBuildGameChange() {
+  return useHarnessMutation((id: string) => harnessApi.buildGameChange(id));
+}
+
+export function useMergeGameChange() {
+  return useHarnessMutation((v: { id: string; seen: Partial<Record<'web' | 'backend', string>> }) => harnessApi.mergeGameChange(v.id, v.seen));
+}
+
+export function useDiscardGameChange() {
+  return useHarnessMutation((id: string) => harnessApi.discardGameChange(id));
 }
 
 export function useCreateGameChange() {

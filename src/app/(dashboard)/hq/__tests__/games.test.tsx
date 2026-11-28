@@ -2,7 +2,7 @@ import { cleanup, fireEvent, render, screen, within } from '@testing-library/rea
 import { afterAll, afterEach, expect, it, vi } from 'vitest';
 import type { HarnessGame, HarnessGameChange, HarnessGames } from '@/types';
 
-const h = vi.hoisted(() => ({ data: undefined as unknown, error: null as unknown, changes: [] as unknown, reports: { items: [], agents: [], profile: '' } as unknown, createMutate: vi.fn(), replanMutate: vi.fn(), cancelMutate: vi.fn() }));
+const h = vi.hoisted(() => ({ data: undefined as unknown, error: null as unknown, changes: [] as unknown, reports: { items: [], agents: [], profile: '' } as unknown, createMutate: vi.fn(), replanMutate: vi.fn(), cancelMutate: vi.fn(), buildMutate: vi.fn(), mergeMutate: vi.fn(), discardMutate: vi.fn(), connected: undefined as boolean | undefined }));
 vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 vi.mock('@/hooks', () => ({
   useHarnessGames: () => ({ data: h.data, error: h.error, isLoading: false, refetch: vi.fn() }),
@@ -15,6 +15,10 @@ vi.mock('@/hooks', () => ({
   useArchiveReport: () => ({ mutate: vi.fn(), isPending: false }),
   useSetHarnessPolicy: () => ({ mutate: vi.fn(), isPending: false }),
   useHqClock: () => new Date('2026-11-27T10:00:00Z'),
+  useBuildGameChange: () => ({ mutate: h.buildMutate, isPending: false }),
+  useMergeGameChange: () => ({ mutate: h.mergeMutate, isPending: false }),
+  useDiscardGameChange: () => ({ mutate: h.discardMutate, isPending: false }),
+  useGameBuildingConnected: () => h.connected,
 }));
 
 // The preview site is read when games.ts loads: pin it, whatever the shell that runs the tests has set.
@@ -33,6 +37,7 @@ afterEach(() => {
   cleanup();
   h.error = null;
   h.changes = [];
+  h.connected = undefined;
   vi.clearAllMocks();
 });
 afterAll(() => vi.unstubAllEnvs());
@@ -169,7 +174,9 @@ it('shows each change with how far along it is, its plan in plain words, and wha
   expect(within(planned).getByText('Small change')).toBeTruthy();
   expect(within(planned).getByText('Lives go from 3 to 4.')).toBeTruthy();
   expect(within(planned).getByText('Practice lists too?')).toBeTruthy();
-  expect(within(planned).getByText(/not connected yet/)).toBeTruthy();
+  // A backend that cannot say whether building is connected: no Build button, and the card says why.
+  expect(within(planned).getByText(/not available on this server yet/)).toBeTruthy();
+  expect(within(planned).queryByRole('button', { name: 'Build change 1' })).toBeNull();
   // The game's card says work is in progress on it.
   expect(screen.getByText('2 changes in progress')).toBeTruthy();
   fireEvent.click(within(list).getByRole('button', { name: 'Show 1 finished' }));
@@ -222,4 +229,119 @@ it('shows what the Game Scout proposed, above the games', () => {
   expect(within(section).getByText('Three games need a change.')).toBeTruthy();
   expect(within(section).getByRole('button', { name: 'New games read' })).toBeTruthy();
   h.reports = { items: [], agents: [], profile: '' };
+});
+
+const plan = { summary: 'Daily players get four wrong guesses.', size: 'small' as const, changes: [{ area: 'both' as const, what: 'Lives go from 3 to 4.' }], risks: [], test: [], questions: [] };
+const SHA_W = 'a'.repeat(40);
+const SHA_S = 'b'.repeat(40);
+
+it('builds a planned change only when HQ is connected to GitHub, and says so when it is not', () => {
+  h.data = hub([game('tenable')]);
+  h.changes = [aChange(1, { status: 'planned', plan })];
+  h.connected = false;
+  const view = render(<HqGamesPage />);
+  expect(screen.getByText(/Building is not connected yet: HQ has no access to GitHub/)).toBeTruthy();
+  expect(screen.queryByRole('button', { name: 'Build change 1' })).toBeNull();
+  h.connected = true;
+  view.rerender(<HqGamesPage />);
+  expect(screen.queryByText(/not connected yet/)).toBeNull();
+  fireEvent.click(screen.getByRole('button', { name: 'Build change 1' }));
+  expect(h.buildMutate).toHaveBeenCalledWith('c1', expect.anything());
+});
+
+it('shows each part while it is built, and lets a person stop it', () => {
+  h.data = hub([game('tenable')]);
+  h.connected = true;
+  h.changes = [
+    aChange(1, {
+      status: 'building', plan,
+      builds: [
+        { repo: 'web', part: 'website', state: 'running', runUrl: 'https://github.com/o/web/actions/runs/7', headSha: null, prNumber: null, prUrl: null, previewUrl: null, error: null, merged: false },
+        { repo: 'backend', part: 'server', state: 'starting', runUrl: null, headSha: null, prNumber: null, prUrl: null, previewUrl: null, error: null, merged: false },
+      ],
+    }),
+  ];
+  render(<HqGamesPage />);
+  const card = screen.getByRole('article', { name: 'Change 1' });
+  expect(within(card).getAllByText('Being built').length).toBeGreaterThan(0);
+  expect(within(card).getByText(/An agent is writing and checking it/)).toBeTruthy();
+  expect(within(card).getByText('Waiting for the agent to start.')).toBeTruthy();
+  expect((within(card).getByRole('link', { name: /The agent's run/ }) as HTMLAnchorElement).href).toBe('https://github.com/o/web/actions/runs/7');
+  // No rewriting or approving a change mid-build.
+  expect(within(card).queryByRole('button', { name: /Rewrite the request/ })).toBeNull();
+  expect(within(card).queryByRole('button', { name: /Approve/ })).toBeNull();
+  fireEvent.click(within(card).getByRole('button', { name: 'Drop change 1' }));
+  expect(h.discardMutate).toHaveBeenCalledWith('c1', expect.anything());
+});
+
+it('offers the preview and the code of a built change, and merges exactly what was shown after a second yes', () => {
+  h.data = hub([game('tenable')]);
+  h.connected = true;
+  h.changes = [
+    aChange(1, {
+      status: 'ready', plan,
+      builds: [
+        { repo: 'web', part: 'website', state: 'ready', runUrl: 'https://github.com/r/1', headSha: SHA_W, prNumber: 900, prUrl: 'https://github.com/o/web/pull/900', previewUrl: 'https://web-git-hq-change-1.vercel.app', error: null, merged: false },
+        { repo: 'backend', part: 'server', state: 'ready', runUrl: 'https://github.com/r/2', headSha: SHA_S, prNumber: 41, prUrl: 'https://github.com/o/api/pull/41', previewUrl: 'javascript:alert(1)', error: null, merged: false },
+      ],
+    }),
+  ];
+  render(<HqGamesPage />);
+  const card = screen.getByRole('article', { name: 'Change 1' });
+  expect(within(card).getByText('Ready to play')).toBeTruthy();
+  // One preview: the website's. A link that is not https is never drawn.
+  const previews = within(card).getAllByRole('link', { name: /Play the preview/ }) as HTMLAnchorElement[];
+  expect(previews.map((a) => a.href)).toEqual(['https://web-git-hq-change-1.vercel.app/']);
+  expect(within(card).getByRole('link', { name: /The code \(#900\)/ })).toBeTruthy();
+  expect(within(card).getByText(/can be played on staging once it is merged/)).toBeTruthy();
+  fireEvent.click(within(card).getByRole('button', { name: 'Approve and merge' }));
+  expect(h.mergeMutate).not.toHaveBeenCalled();
+  fireEvent.click(within(card).getByRole('button', { name: /Yes, merge it/ }));
+  expect(h.mergeMutate).toHaveBeenCalledWith({ id: 'c1', seen: { web: SHA_W, backend: SHA_S } }, expect.anything());
+});
+
+it('tells a failed build from a failed plan, and offers to build again', () => {
+  h.data = hub([game('tenable')]);
+  h.connected = true;
+  h.changes = [
+    aChange(1, {
+      status: 'failed', plan, error: 'The website part: The build stopped at "Check the code (tests)".',
+      builds: [{ repo: 'web', part: 'website', state: 'failed', runUrl: 'https://github.com/r/1', headSha: null, prNumber: null, prUrl: null, previewUrl: null, error: 'The build stopped at "Check the code (tests)".', merged: false }],
+    }),
+  ];
+  render(<HqGamesPage />);
+  const card = screen.getByRole('article', { name: 'Change 1' });
+  expect(within(card).getByText('Build failed')).toBeTruthy();
+  expect(within(card).getByText(/The build did not finish/)).toBeTruthy();
+  expect(within(card).queryByRole('button', { name: /to the planner again/ })).toBeNull();
+  fireEvent.click(within(card).getByRole('button', { name: 'Build change 1' }));
+  expect(h.buildMutate).toHaveBeenCalledWith('c1', expect.anything());
+});
+
+it('closes an open approval when the change is rebuilt under it, and offers only approval once a part is merged', () => {
+  h.data = hub([game('tenable')]);
+  h.connected = true;
+  const built = (web: string, merged = false): HarnessGameChange =>
+    aChange(1, {
+      status: 'ready', plan,
+      builds: [
+        { repo: 'web', part: 'website', state: 'ready', runUrl: null, headSha: web, prNumber: 900, prUrl: 'https://github.com/o/web/pull/900', previewUrl: null, error: null, merged: false },
+        { repo: 'backend', part: 'server', state: 'ready', runUrl: null, headSha: SHA_S, prNumber: 41, prUrl: 'https://github.com/o/api/pull/41', previewUrl: null, error: null, merged },
+      ],
+    });
+  h.changes = [built(SHA_W)];
+  const view = render(<HqGamesPage />);
+  fireEvent.click(screen.getByRole('button', { name: 'Approve and merge' }));
+  expect(screen.getByRole('button', { name: /Yes, merge it/ })).toBeTruthy();
+  // Someone rebuilds it: the website now has another commit.
+  h.changes = [built('c'.repeat(40))];
+  view.rerender(<HqGamesPage />);
+  expect(screen.queryByRole('button', { name: /Yes, merge it/ })).toBeNull();
+  expect(h.mergeMutate).not.toHaveBeenCalled();
+  // The server part merged, the website did not: finish by approving, no rebuild, no drop.
+  h.changes = [built(SHA_W, true)];
+  view.rerender(<HqGamesPage />);
+  expect(screen.getByRole('button', { name: 'Approve and merge' })).toBeTruthy();
+  expect(screen.queryByRole('button', { name: 'Build change 1 again' })).toBeNull();
+  expect(screen.queryByRole('button', { name: 'Drop change 1' })).toBeNull();
 });
