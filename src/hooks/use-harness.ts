@@ -203,3 +203,20 @@ export function useCreateReport() {
 export function useArchiveReport() {
   return useHarnessMutation((id: string) => harnessApi.archiveReport(id));
 }
+
+/** What players wrote to us. Refreshes quickly while the reader is working or past emails are being brought in. */
+export function useHarnessFeedback() {
+  return useQuery({
+    queryKey: [...harnessKeys.all, 'feedback'] as const,
+    queryFn: () => harnessApi.feedback(),
+    refetchInterval: (q) => (q.state.data?.reading || q.state.data?.pastEmails.running ? HARNESS_REFETCH_MS : 60_000),
+  });
+}
+
+export function useReadFeedback() {
+  return useHarnessMutation(() => harnessApi.readFeedback());
+}
+
+export function useImportFeedbackEmails() {
+  return useHarnessMutation(() => harnessApi.importFeedbackEmails());
+}

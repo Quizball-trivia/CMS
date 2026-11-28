@@ -10,7 +10,7 @@ import { cmsRole, FREECROCO_ROOT, navGroupsForRole, navItemsForRole } from '@/li
 import { fcLangForRole, fcText } from '@/lib/freecroco/i18n';
 import { DEPARTMENT_LOOK, HQ_ANALYTICS_TOOLS, HQ_DEPARTMENTS, canSeeTool, toolsForUser } from '@/lib/hq-departments';
 import type { HqDepartmentKey } from '@/types';
-import { BarChart3, Bot, ChevronRight, LayoutDashboard, LogOut, type LucideIcon } from 'lucide-react';
+import { BarChart3, Bot, ChevronRight, LayoutDashboard, LogOut, MessagesSquare, type LucideIcon } from 'lucide-react';
 
 type NavItem = {
   title: string;
@@ -39,6 +39,7 @@ type DepartmentGroup = {
 const hqItems: NavItem[] = [
   { title: 'Home', href: '/hq', icon: LayoutDashboard, exact: true, hint: 'How we are doing, what the agents are doing, what needs a person' },
   { title: 'Analytics', href: '/hq/analytics', icon: BarChart3, hint: 'Players, growth, retention and games' },
+  { title: 'Feedback', href: '/hq/feedback', icon: MessagesSquare, hint: 'What players write to us, with a recap and translations' },
   { title: 'Agents', href: '/hq/agents', icon: Bot, hint: 'Every agent in the company, running and suggested, and the subscriptions they run on' },
 ];
 

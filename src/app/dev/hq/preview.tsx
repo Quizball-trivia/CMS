@@ -8,6 +8,7 @@ import HqAgentsPage from '@/app/(dashboard)/hq/agents/page';
 import HqAnalyticsPage from '@/app/(dashboard)/hq/analytics/page';
 import HqContentGapsPage from '@/app/(dashboard)/hq/content-gaps/page';
 import HqContentPage from '@/app/(dashboard)/hq/content/page';
+import HqFeedbackPage from '@/app/(dashboard)/hq/feedback/page';
 import HqGamesPage from '@/app/(dashboard)/hq/games/page';
 import HqHomePage from '@/app/(dashboard)/hq/page';
 import { Header, Sidebar } from '@/components/layout';
@@ -15,7 +16,7 @@ import { contentGapsApi } from '@/lib/content-gaps-api';
 import { harnessApi } from '@/lib/harness-api';
 import { hqApi } from '@/lib/hq-api';
 import { AuthContext } from '@/providers/auth-provider';
-import type { HarnessGameChange, HarnessGames, HarnessOverview, HarnessReports, HqAnalytics } from '@/types';
+import type { HarnessFeedback, HarnessGameChange, HarnessGames, HarnessOverview, HarnessReports, HqAnalytics } from '@/types';
 
 export interface HqSnapshot {
   takenAt: string;
@@ -26,6 +27,8 @@ export interface HqSnapshot {
   gameChanges?: HarnessGameChange[];
   /** Optional: GET /admin/harness/reports. */
   reports?: HarnessReports;
+  /** Optional: GET /admin/harness/feedback. */
+  feedback?: HarnessFeedback;
 }
 
 type Api = Record<string, (...args: unknown[]) => Promise<unknown>>;
@@ -46,6 +49,8 @@ function installSnapshot(snapshot: HqSnapshot): () => void {
     games: async () => structuredClone(snapshot.games),
     gameChanges: async () => ({ items: structuredClone(snapshot.gameChanges ?? []) }),
     reports: async () => structuredClone(snapshot.reports ?? { items: [], agents: [], profile: '' }),
+    feedback: async () =>
+      structuredClone(snapshot.feedback ?? { items: [], total: 0, stats: { last7Days: 0, last30Days: 0, bugs: 0, translated: 0 }, waiting: 0, newSinceRecap: 0, recap: null, reading: false, readError: null, pastEmails: { running: false, scanned: 0, found: 0, added: 0, error: null, startedBy: null, finishedAt: null, possible: false } }),
   });
   patch(hqApi, { analytics: async () => structuredClone(snapshot.analytics), posthog: async () => ({ connected: false }) });
   patch(contentGapsApi, { list: async () => ({ items: [] }), summary: async () => ({ items: [] }), listFixes: async () => ({ items: [] }) });
@@ -71,7 +76,7 @@ function scheduleUninstall(): void {
 }
 
 /** HQ pages the preview can show, by the path they have in the real dashboard. */
-const PREVIEW_PATH = /^\/hq(?:\/(content-gaps|content|games|analytics|agents|competitions|marketing|partners|investors))?\/?(\?.*)?$/;
+const PREVIEW_PATH = /^\/hq(?:\/(content-gaps|content|games|analytics|agents|feedback|competitions|marketing|partners|investors))?\/?(\?.*)?$/;
 
 /**
  * Every link out of a preview page is a full page load: an HQ page opens as its preview (/hq/games → /dev/hq/games),
@@ -93,6 +98,7 @@ const PAGES = {
   analytics: HqAnalyticsPage,
   'content-gaps': HqContentGapsPage,
   agents: HqAgentsPage,
+  feedback: HqFeedbackPage,
   competitions: HqDepartmentPage,
   marketing: HqDepartmentPage,
   partners: HqDepartmentPage,
