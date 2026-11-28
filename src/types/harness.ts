@@ -572,3 +572,56 @@ export interface HarnessFeedback {
   readError: string | null;
   pastEmails: HarnessFeedbackPastEmails;
 }
+
+// ── Day Builder (new days for the daily games) ─────────────────────────────
+
+type DayDifficulty = 'easy' | 'medium' | 'hard';
+
+export interface HarnessDayGame {
+  /** The game's key in the harness ('pistas'). */
+  game: string;
+  label: string;
+  /** How many days after today should already be stored, and how many are. */
+  ahead: number;
+  daysLeft: number;
+  storedThrough: string | null;
+  /** Off: rounds are made and wait, and no day is stored from them. */
+  storing: boolean;
+  /** Rounds on their way, step by step. */
+  rounds: { planned: number; written: number; checked: number; ready: number };
+  readyByDifficulty: Record<DayDifficulty, number>;
+  /** How many rounds of each difficulty one day takes. */
+  perDay: Record<DayDifficulty, number>;
+  builtLately: Array<{ day: string; at: string }>;
+  /** The last seven days. */
+  droppedLately: { count: number; examples: Array<{ number: number; note: string; at: string }> };
+  /** The builder is choosing footballers right now. */
+  planning: boolean;
+  agent: 'active' | 'paused' | 'missing';
+}
+
+export interface HarnessDays {
+  games: HarnessDayGame[];
+}
+
+/** One round that is not in a day yet. Holds the answer: HQ only. */
+export interface HarnessDayRound {
+  id: string;
+  number: number;
+  status: 'planned' | 'written' | 'checked' | 'ready' | 'dropped';
+  difficulty: DayDifficulty;
+  /** Who the round is about (the answer). */
+  subject: string;
+  /** What the checker changed, or why the round was dropped. */
+  note: string | null;
+  profile: { confed: string; position: string; foot: string | null; born: number } | null;
+  /** The clues in English: what stands after the check, or what the writer wrote before it. */
+  facts: string[];
+  /** The pages the writer read. */
+  sources: string[];
+  /** The name in every language, once translated. */
+  names: Record<string, string> | null;
+  /** The clues in Georgian, as a sample of the translation. */
+  georgian: string[];
+  updatedAt: string;
+}

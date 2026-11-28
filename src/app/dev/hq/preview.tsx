@@ -49,6 +49,8 @@ function installSnapshot(snapshot: HqSnapshot): () => void {
     games: async () => structuredClone(snapshot.games),
     gameChanges: async () => ({ items: structuredClone(snapshot.gameChanges ?? []) }),
     reports: async () => structuredClone(snapshot.reports ?? { items: [], agents: [], profile: '' }),
+    days: async () => ({ games: [] }),
+    dayRounds: async () => ({ items: [] }),
     feedback: async () =>
       structuredClone(snapshot.feedback ?? { items: [], total: 0, stats: { last7Days: 0, last30Days: 0, bugs: 0, translated: 0 }, waiting: 0, newSinceRecap: 0, recap: null, reading: false, readError: null, pastEmails: { running: false, scanned: 0, found: 0, added: 0, error: null, startedBy: null, finishedAt: null, possible: false } }),
   });
