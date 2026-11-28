@@ -19,7 +19,7 @@ const { DayBuilder, daysReady } = await import('../content/day-builder');
 
 const game = (over: Partial<HarnessDayGame> = {}): HarnessDayGame => ({
   game: 'pistas', label: 'Football Clues', ahead: 21, daysLeft: 11, storedThrough: '2026-12-09', storing: false,
-  rounds: { planned: 4, written: 3, checked: 2, ready: 23 }, readyByDifficulty: { easy: 8, medium: 9, hard: 6 }, perDay: { easy: 3, medium: 4, hard: 3 },
+  rounds: { planned: 4, written: 3, checked: 2, localized: 1, ready: 23 }, readyByDifficulty: { easy: 8, medium: 9, hard: 6 }, perDay: { easy: 3, medium: 4, hard: 3 },
   builtLately: [], droppedLately: { count: 0, examples: [] }, planning: false, agent: 'active', ...over,
 });
 const round = (over: Partial<HarnessDayRound> = {}): HarnessDayRound => ({
@@ -55,12 +55,14 @@ it('shows where a game stands and says plainly that nothing reaches players whil
   expect(within(card).getByText('Storing days is off.')).toBeTruthy();
   expect(within(card).getByText(/Nothing reaches players/)).toBeTruthy();
   expect(within(card).getByText('Working')).toBeTruthy();
+  // Five steps, each with its count.
+  expect(['Named', 'Written', 'Checked', 'Translated', 'Ready'].map((label) => within(card).getByText(label).nextElementSibling?.textContent)).toEqual(['4', '3', '2', '1', '23']);
   fireEvent.click(within(card).getByRole('button', { name: 'Turn storing on' }));
   expect(h.policy).toHaveBeenCalledWith({ key: 'days.pistas.store', value: true }, expect.anything());
 });
 
 it('offers to turn storing off again, and reports what was built and dropped', () => {
-  h.days = { games: [game({ storing: true, daysLeft: 21, rounds: { planned: 0, written: 0, checked: 0, ready: 0 }, readyByDifficulty: { easy: 0, medium: 0, hard: 0 }, builtLately: [{ day: '2026-12-10', at: '2026-11-28T09:30:00Z' }], droppedLately: { count: 2, examples: [{ number: 7, note: 'only 5 of 9 facts could be confirmed', at: '2026-11-28T09:00:00Z' }] } })] };
+  h.days = { games: [game({ storing: true, daysLeft: 21, rounds: { planned: 0, written: 0, checked: 0, localized: 0, ready: 0 }, readyByDifficulty: { easy: 0, medium: 0, hard: 0 }, builtLately: [{ day: '2026-12-10', at: '2026-11-28T09:30:00Z' }], droppedLately: { count: 2, examples: [{ number: 7, note: 'only 5 of 9 facts could be confirmed', at: '2026-11-28T09:00:00Z' }] } })] };
   render(<DayBuilder />);
   expect(screen.getByText(/Nothing is missing/)).toBeTruthy();
   expect(screen.getByText('Idle')).toBeTruthy();

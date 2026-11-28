@@ -226,7 +226,7 @@ export function useHarnessDays() {
   return useQuery({
     queryKey: [...harnessKeys.all, 'days'] as const,
     queryFn: () => harnessApi.days(),
-    refetchInterval: (q) => (q.state.data?.games.some((g) => g.planning || g.rounds.planned + g.rounds.written + g.rounds.checked > 0) ? 30_000 : 120_000),
+    refetchInterval: (q) => (q.state.data?.games.some((g) => g.planning || g.rounds.planned + g.rounds.written + g.rounds.checked + g.rounds.localized > 0) ? 30_000 : 120_000),
   });
 }
 

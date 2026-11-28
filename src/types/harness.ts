@@ -588,7 +588,7 @@ export interface HarnessDayGame {
   /** Off: rounds are made and wait, and no day is stored from them. */
   storing: boolean;
   /** Rounds on their way, step by step. */
-  rounds: { planned: number; written: number; checked: number; ready: number };
+  rounds: { planned: number; written: number; checked: number; localized: number; ready: number };
   readyByDifficulty: Record<DayDifficulty, number>;
   /** How many rounds of each difficulty one day takes. */
   perDay: Record<DayDifficulty, number>;
@@ -608,7 +608,7 @@ export interface HarnessDays {
 export interface HarnessDayRound {
   id: string;
   number: number;
-  status: 'planned' | 'written' | 'checked' | 'ready' | 'dropped';
+  status: 'planned' | 'written' | 'checked' | 'localized' | 'ready' | 'dropped';
   difficulty: DayDifficulty;
   /** Who the round is about (the answer). */
   subject: string;

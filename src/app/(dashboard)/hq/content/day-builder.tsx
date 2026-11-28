@@ -12,7 +12,7 @@ import { EmptyState, errorMessage, HQ_LABEL, LoadErrorState, Panel, RefreshError
 // The Day Builder: agents write the next days of a daily game before its
 // calendar runs out. A footballer is named, their clues are written with the
 // pages behind them, another model checks every clue against the web, a third
-// translates. Finished rounds wait as "ready"; code puts ten of them together
+// translates and the translations are checked. Finished rounds wait as "ready"; code puts ten of them together
 // into a day. Storing days can be switched off, so a person can read the first
 // rounds before players ever see one.
 
@@ -20,13 +20,15 @@ const STEPS: Array<{ key: keyof HarnessDayGame['rounds']; label: string; hint: s
   { key: 'planned', label: 'Named', hint: 'A footballer was chosen; the clues are not written yet' },
   { key: 'written', label: 'Written', hint: 'Clues written, waiting for the fact check' },
   { key: 'checked', label: 'Checked', hint: 'Every clue confirmed, waiting for translation' },
-  { key: 'ready', label: 'Ready', hint: 'In every language, waiting to go into a day' },
+  { key: 'localized', label: 'Translated', hint: 'In every language, waiting for the translations to be checked' },
+  { key: 'ready', label: 'Ready', hint: 'Translations checked, waiting to go into a day' },
 ];
 
 const STATUS: Record<HarnessDayRound['status'], { label: string; tone: string }> = {
   planned: { label: 'Named', tone: 'bg-slate-100 text-slate-700' },
   written: { label: 'Written, not checked yet', tone: 'bg-sky-50 text-sky-700' },
   checked: { label: 'Checked, not translated yet', tone: 'bg-sky-50 text-sky-700' },
+  localized: { label: 'Translated, translations not checked yet', tone: 'bg-sky-50 text-sky-700' },
   ready: { label: 'Ready', tone: 'bg-brand-soft text-brand-deep' },
   dropped: { label: 'Dropped', tone: 'bg-red-50 text-red-700' },
 };
@@ -124,7 +126,7 @@ function GameCard({ g, allPaused }: { g: HarnessDayGame; allPaused: boolean }) {
   const [open, setOpen] = useState(false);
   const short = Math.max(0, g.ahead - g.daysLeft);
   const waitingDays = daysReady(g);
-  const busy = g.rounds.planned + g.rounds.written + g.rounds.checked;
+  const busy = g.rounds.planned + g.rounds.written + g.rounds.checked + g.rounds.localized;
   // The switch that pauses every agent stops this one too, whatever its own switch says.
   const working = g.agent === 'active' && !allPaused;
   return (
@@ -143,7 +145,7 @@ function GameCard({ g, allPaused }: { g: HarnessDayGame; allPaused: boolean }) {
         </span>
       </div>
 
-      <div className="grid grid-cols-2 gap-px border-y border-slate-100 bg-slate-100 sm:grid-cols-4">
+      <div className="grid grid-cols-2 gap-px border-y border-slate-100 bg-slate-100 sm:grid-cols-5">
         {STEPS.map((s) => (
           <div key={s.key} className="bg-white px-4 py-2.5" title={s.hint}>
             <div className={HQ_LABEL}>{s.label}</div>
@@ -234,7 +236,7 @@ export function DayBuilder({ allPaused = false }: { allPaused?: boolean }) {
   return (
     <Section
       title="Day Builder"
-      description="An agent names footballers, writes their clues with the pages they come from, another model checks every clue against the web, a third translates. Ten finished rounds make a day. A clue that cannot be confirmed is removed; a round left too thin is dropped."
+      description="An agent names footballers and writes their clues with the pages they come from. A second model checks every clue against the web. A third translates, and the second reads every translation against the English. Ten finished rounds make a day. A clue that cannot be confirmed is removed; a round left too thin is dropped."
     >
       <div className="space-y-3">
         {/* The numbers below are the last ones that loaded, the storing switch included. */}
