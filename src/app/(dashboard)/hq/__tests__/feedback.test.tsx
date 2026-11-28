@@ -135,6 +135,9 @@ it('brings in past emails and reports how it went', () => {
   view.rerender(<FeedbackPage />);
   expect(screen.getByText(/300 looked at, 4 from the contact form so far/)).toBeTruthy();
   expect((screen.getByRole('button', { name: /Bring in the last 30 days/ }) as HTMLButtonElement).disabled).toBe(true);
+  h.data = feedback([], { pastEmails: { running: false, scanned: 8000, found: 12, added: 9, error: null, partial: true, startedBy: 'Nika', finishedAt: '2026-11-28T09:59:00Z', possible: true } });
+  view.rerender(<FeedbackPage />);
+  expect(screen.getByText(/Not finished: 8,000 emails looked at so far, 12 from the contact form, 9 of them new here\. Press again to carry on/)).toBeTruthy();
   h.data = feedback([], { pastEmails: { running: false, scanned: 900, found: 0, added: 0, error: 'The email service key on the server may only send emails.', startedBy: 'Nika', finishedAt: '2026-11-28T09:59:00Z', possible: true } });
   view.rerender(<FeedbackPage />);
   expect(screen.getByText(/It stopped: The email service key on the server may only send emails/)).toBeTruthy();

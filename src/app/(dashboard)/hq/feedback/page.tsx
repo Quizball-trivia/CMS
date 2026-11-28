@@ -223,8 +223,10 @@ function PastEmails({ data }: { data: HarnessFeedback }) {
               ? `Looking through sent emails: ${p.scanned.toLocaleString()} looked at, ${p.found} from the contact form so far.`
               : p.error
                 ? `It stopped: ${p.error}${p.added ? ` ${p.added} were brought in before that.` : ''}`
-                : p.finishedAt
-                  ? `Done ${formatRelative(p.finishedAt, now)}: ${p.found} contact-form ${p.found === 1 ? 'email' : 'emails'} found, ${p.added} of them new here.`
+                : p.finishedAt && p.partial
+                  ? `Not finished: ${p.scanned.toLocaleString()} emails looked at so far, ${p.found} from the contact form, ${p.added} of them new here. Press again to carry on with the older ones.`
+                  : p.finishedAt
+                    ? `Done ${formatRelative(p.finishedAt, now)}: ${p.found} contact-form ${p.found === 1 ? 'email' : 'emails'} found, ${p.added} of them new here.`
                   : 'Not done yet. Bringing the same email in twice keeps one copy.'}
         </p>
       </Panel>

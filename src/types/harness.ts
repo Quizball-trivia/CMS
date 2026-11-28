@@ -547,6 +547,8 @@ export interface HarnessFeedbackPastEmails {
   found: number;
   added: number;
   error: string | null;
+  /** It stopped at its limit with more emails to look at; asking again carries on from there. */
+  partial?: boolean;
   startedBy: string | null;
   finishedAt: string | null;
   /** Whether the server has an email service key at all. */
