@@ -105,7 +105,15 @@ function Rounds({ game }: { game: string }) {
       </div>
     );
   }
-  if (data.length === 0) return <EmptyState className="m-4">No rounds yet. The first ones appear a few minutes after the builder starts.</EmptyState>;
+  if (data.length === 0) {
+    return (
+      <>
+        {/* "No rounds" is the last answer that loaded: say so when it could not be refreshed. */}
+        {error && <RefreshErrorBanner className="mx-4 mt-3" />}
+        <EmptyState className="m-4">No rounds yet. The first ones appear a few minutes after the builder starts.</EmptyState>
+      </>
+    );
+  }
   return (
     <>
       {error && <RefreshErrorBanner className="mx-4 mb-2" />}
@@ -232,7 +240,9 @@ function GameCard({ g, allPaused }: { g: HarnessDayGame; allPaused: boolean }) {
 export function DayBuilder({ allPaused = false }: { allPaused?: boolean }) {
   const { data, error } = useHarnessDays();
   if (error && !data) return <LoadErrorState error={error} fallback="Could not load the Day Builder" />;
-  if (!data || data.games.length === 0) return null;
+  if (!data) return null;
+  // No game is built this way: nothing to show, unless that answer is stale.
+  if (data.games.length === 0) return error ? <RefreshErrorBanner /> : null;
   return (
     <Section
       title="Day Builder"

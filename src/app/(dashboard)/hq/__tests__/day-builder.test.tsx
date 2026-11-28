@@ -127,6 +127,17 @@ it('says when what it shows could not be refreshed', () => {
   expect(screen.getAllByText(/Couldn.t refresh/)).toHaveLength(1);
   fireEvent.click(screen.getByRole('button', { name: /Read the rounds/ }));
   expect(screen.getAllByText(/Couldn.t refresh/)).toHaveLength(2);
+  // An empty answer that could not be refreshed says so too: for the rounds, and for the section itself.
+  h.rounds = [];
+  cleanup();
+  render(<DayBuilder />);
+  fireEvent.click(screen.getByRole('button', { name: /Read the rounds/ }));
+  expect(screen.getByText(/No rounds yet/)).toBeTruthy();
+  expect(screen.getAllByText(/Couldn.t refresh/)).toHaveLength(2);
+  cleanup();
+  h.days = { games: [] };
+  render(<DayBuilder />);
+  expect(screen.getAllByText(/Couldn.t refresh/)).toHaveLength(1);
   // Nothing loaded at all is an error, not an empty section.
   cleanup();
   h.days = undefined;
