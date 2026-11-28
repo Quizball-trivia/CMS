@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { ArrowRight, Loader2 } from 'lucide-react';
-import { useContentFixes, useHarnessGames, useHarnessOverview, useHarnessReports, useHqAnalytics, useHqClock } from '@/hooks';
+import { useContentFixes, useHarnessDays, useHarnessFeedback, useHarnessGames, useHarnessOverview, useHarnessReports, useHqAnalytics, useHqClock } from '@/hooks';
 import { formatRelative } from '@/lib/hq-time';
 import { agentsOf, atWork, readyToStart } from '@/lib/hq-agents';
 import { DEPARTMENT_LOOK, HQ_DEPARTMENTS, type HqDepartmentInfo } from '@/lib/hq-departments';
@@ -19,7 +19,8 @@ import { Delta, EmptyState, Hero, HeroStat, HQ_PAGE, Panel, Section, Stat } from
 // blanks the page.
 
 const SEAT_DOT: Record<string, string> = { working: 'bg-brand', free: 'bg-white/30', 'used-up': 'bg-amber-400', login: 'bg-red-400', off: 'bg-white/10' };
-const AREA_KEY = { Content: 'content', Games: 'games', Agents: 'content' } as const;
+// Feedback is nobody's department: it borrows Marketing's look, with its own colour on the bar below.
+const AREA_KEY = { Content: 'content', Games: 'games', Agents: 'content', Feedback: 'marketing' } as const;
 
 /** "20 Nov" from a YYYY-MM-DD day. */
 const shortDay = (d: string) => new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' }).format(new Date(`${d}T00:00:00Z`));
@@ -130,7 +131,11 @@ export default function HqHomePage() {
   const fixes = useContentFixes({ status: 'held', limit: 50 });
   // The newest things the desk agents finished, whichever department they are for.
   const fresh = (useHarnessReports().data?.items ?? []).filter((r) => r.status === 'ready').slice(0, 4);
-  const items = needsYou(o, games.data, clock, fixes.data?.length);
+  // Two more places a person may be needed: days the builder has ready, and what players report as broken. They are
+  // extra lines, not part of the all-clear below (a home page that cannot load them still shows the rest).
+  const days = useHarnessDays();
+  const feedback = useHarnessFeedback();
+  const items = needsYou(o, games.data, clock, fixes.data?.length, { days: days.data, feedback: feedback.data });
   // What the "Needs you" list could not look at, or could not refresh: the all-clear needs every source, up to date.
   const sources = [
     { name: 'the agents and content', q: overview },
@@ -205,7 +210,7 @@ export default function HqHomePage() {
               const look = DEPARTMENT_LOOK[AREA_KEY[i.area]];
               return (
                 <div key={i.key} className="relative flex flex-wrap items-center gap-x-3 gap-y-1 py-3.5 pl-5 pr-4 text-sm">
-                  <span className="absolute inset-y-0 left-0 w-1" style={{ background: i.area === 'Agents' ? '#f59e0b' : look.hex }} aria-hidden />
+                  <span className="absolute inset-y-0 left-0 w-1" style={{ background: i.area === 'Agents' ? '#f59e0b' : i.area === 'Feedback' ? '#f97316' : look.hex }} aria-hidden />
                   <span className={cn('rounded-full px-2 py-0.5 text-[12px] font-medium', i.area === 'Agents' ? 'bg-amber-50 text-amber-800' : look.tint)}>{i.area}</span>
                   {/* On a phone the sentence takes the full row and the link sits under it. */}
                   <span className="min-w-0 flex-1 basis-full text-slate-800 sm:basis-0">{i.text}</span>

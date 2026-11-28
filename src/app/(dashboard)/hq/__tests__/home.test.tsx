@@ -2,7 +2,7 @@ import { cleanup, render, screen, within } from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
 import type { HarnessGame, HarnessGames, HarnessOverview, HqAnalytics } from '@/types';
 
-const h = vi.hoisted(() => ({ overview: undefined as unknown, games: undefined as unknown, analytics: undefined as unknown, overviewError: null as unknown, gamesError: null as unknown, fixes: [] as unknown, fixesError: null as unknown, reports: undefined as unknown }));
+const h = vi.hoisted(() => ({ days: undefined as unknown, feedback: undefined as unknown, overview: undefined as unknown, games: undefined as unknown, analytics: undefined as unknown, overviewError: null as unknown, gamesError: null as unknown, fixes: [] as unknown, fixesError: null as unknown, reports: undefined as unknown }));
 vi.mock('@/providers', () => ({ useAuth: () => ({ user: { role: 'admin', email: 'a@quizball.io' } }) }));
 vi.mock('@/hooks', () => ({
   useHarnessOverview: () => ({ data: h.overview, error: h.overviewError }),
@@ -11,6 +11,8 @@ vi.mock('@/hooks', () => ({
   useHqClock: () => new Date('2026-11-27T10:00:00Z'),
   useContentFixes: () => ({ data: h.fixes, error: h.fixesError }),
   useHarnessReports: () => ({ data: h.reports, error: null }),
+  useHarnessDays: () => ({ data: h.days, error: null }),
+  useHarnessFeedback: () => ({ data: h.feedback, error: null }),
 }));
 
 const { default: HqHomePage } = await import('../page');
@@ -185,4 +187,16 @@ it('shows the newest finished reports from the agents, each opening in its depar
   h.reports = { items: [], agents: [], profile: '' };
   render(<HqHomePage />);
   expect(screen.queryByRole('heading', { name: 'Fresh from the agents' })).toBeNull();
+});
+
+it('tells a person when built days wait for them, and what players report as broken', () => {
+  const dayGame = (over: Record<string, unknown> = {}) => ({ game: 'pistas', label: 'Football Clues', unit: 'footballer', ahead: 21, daysLeft: 11, storedThrough: '2026-12-09', storing: false, rounds: { planned: 0, written: 0, checked: 0, localized: 0, ready: 60 }, readyByDifficulty: { easy: 17, medium: 25, hard: 18 }, perDay: { easy: 3, medium: 4, hard: 3 }, builtLately: [], droppedLately: { count: 0, examples: [] }, planning: false, agent: 'active', ...over });
+  const recap = (urgent: string[]) => ({ recap: { recap: { summary: 's', themes: [], praise: [], urgent } } });
+  const items = needsYou(undefined, undefined, 0, undefined, { days: { games: [dayGame(), dayGame({ game: 'ultimo', label: 'Último', storing: true }), dayGame({ game: 'x', label: 'Empty', readyByDifficulty: { easy: 2, medium: 9, hard: 9 } })] } as never, feedback: recap(['Tenable does not accept Georgian typing (77).', 'Lag in penalties (21).']) as never });
+  expect(items.map((i) => [i.key, i.area, i.href])).toEqual([['days-pistas', 'Content', '/hq/content?tab=runway'], ['feedback', 'Feedback', '/hq/feedback']]);
+  // 17 easy at 3 a day is 5 days, whatever the other difficulties could make.
+  expect(items[0]!.text).toBe('Football Clues: the Day Builder has rounds ready for 5 new days, and 11 days are left in the game. Nothing is stored until you have read some of them and turned storing on.');
+  expect(items[1]!.text).toBe('Players report 2 things that may be broken: Tenable does not accept Georgian typing (77). (and 1 more)');
+  expect(needsYou(undefined, undefined, 0, undefined, { feedback: recap([]) as never })).toEqual([]);
+  expect(needsYou(undefined, undefined, 0)).toEqual([]);
 });
