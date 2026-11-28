@@ -386,7 +386,7 @@ export default function HqContentPage() {
           {tab === 'runway' && (
             <>
               <Runway rows={data.runway} expanded />
-              <DayBuilder />
+              <DayBuilder allPaused={data.settings.paused} />
             </>
           )}
           {tab === 'show' && (data.show ? <Show show={data.show} paused={data.settings.paused} /> : <p className="text-sm text-slate-600">The Monday show is not available yet.</p>)}

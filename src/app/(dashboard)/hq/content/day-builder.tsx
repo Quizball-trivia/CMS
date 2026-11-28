@@ -7,7 +7,7 @@ import { useBuildDays, useHarnessDayRounds, useHarnessDays, useHqClock, useSetHa
 import { formatRelative } from '@/lib/hq-time';
 import { cn } from '@/lib/utils';
 import type { HarnessDayGame, HarnessDayRound } from '@/types';
-import { EmptyState, errorMessage, HQ_LABEL, LoadErrorState, Panel, Section } from '../hq-ui';
+import { EmptyState, errorMessage, HQ_LABEL, LoadErrorState, Panel, RefreshErrorBanner, Section } from '../hq-ui';
 
 // The Day Builder: agents write the next days of a daily game before its
 // calendar runs out. A footballer is named, their clues are written with the
@@ -106,6 +106,7 @@ function Rounds({ game }: { game: string }) {
   if (data.length === 0) return <EmptyState className="m-4">No rounds yet. The first ones appear a few minutes after the builder starts.</EmptyState>;
   return (
     <>
+      {error && <RefreshErrorBanner className="mx-4 mb-2" />}
       <p className="border-t border-slate-100 bg-amber-50 px-4 py-2 text-[12.5px] text-amber-900">These are the answers and clues of days players have not seen yet. Keep them inside the team.</p>
       <ul className="divide-y divide-slate-100 border-t border-slate-100">
         {data.map((r) => (
@@ -116,7 +117,7 @@ function Rounds({ game }: { game: string }) {
   );
 }
 
-function GameCard({ g }: { g: HarnessDayGame }) {
+function GameCard({ g, allPaused }: { g: HarnessDayGame; allPaused: boolean }) {
   const build = useBuildDays();
   const setPolicy = useSetHarnessPolicy();
   const now = useHqClock().getTime();
@@ -124,6 +125,8 @@ function GameCard({ g }: { g: HarnessDayGame }) {
   const short = Math.max(0, g.ahead - g.daysLeft);
   const waitingDays = daysReady(g);
   const busy = g.rounds.planned + g.rounds.written + g.rounds.checked;
+  // The switch that pauses every agent stops this one too, whatever its own switch says.
+  const working = g.agent === 'active' && !allPaused;
   return (
     <Panel as="article" aria-label={`${g.label} days`} className="overflow-hidden">
       <div className="flex flex-wrap items-start gap-x-4 gap-y-2 px-4 py-3.5 sm:px-5">
@@ -134,9 +137,9 @@ function GameCard({ g }: { g: HarnessDayGame }) {
             {short === 0 ? 'Nothing is missing.' : `${short} ${short === 1 ? 'day is' : 'days are'} missing.`}
           </p>
         </div>
-        <span className={cn('inline-flex shrink-0 items-center gap-1.5 rounded-full px-2 py-0.5 text-[12px] font-medium', g.agent !== 'active' ? 'bg-amber-50 text-amber-800' : busy || g.planning ? 'bg-sky-50 text-sky-700' : 'bg-slate-100 text-slate-600')}>
-          {(busy > 0 || g.planning) && g.agent === 'active' && <Loader2 className="size-3 animate-spin" aria-hidden />}
-          {g.agent === 'missing' ? 'Not set up' : g.agent === 'paused' ? 'Paused' : g.planning ? 'Choosing footballers' : busy ? 'Working' : 'Idle'}
+        <span className={cn('inline-flex shrink-0 items-center gap-1.5 rounded-full px-2 py-0.5 text-[12px] font-medium', !working ? 'bg-amber-50 text-amber-800' : busy || g.planning ? 'bg-sky-50 text-sky-700' : 'bg-slate-100 text-slate-600')}>
+          {(busy > 0 || g.planning) && working && <Loader2 className="size-3 animate-spin" aria-hidden />}
+          {g.agent === 'missing' ? 'Not set up' : g.agent === 'paused' ? 'Paused' : allPaused ? 'All agents are paused' : g.planning ? 'Choosing footballers' : busy ? 'Working' : 'Idle'}
         </span>
       </div>
 
@@ -224,7 +227,7 @@ function GameCard({ g }: { g: HarnessDayGame }) {
 }
 
 /** Under the runway: the games an agent builds days for, and how that is going. */
-export function DayBuilder() {
+export function DayBuilder({ allPaused = false }: { allPaused?: boolean }) {
   const { data, error } = useHarnessDays();
   if (error && !data) return <LoadErrorState error={error} fallback="Could not load the Day Builder" />;
   if (!data || data.games.length === 0) return null;
@@ -234,8 +237,10 @@ export function DayBuilder() {
       description="An agent names footballers, writes their clues with the pages they come from, another model checks every clue against the web, a third translates. Ten finished rounds make a day. A clue that cannot be confirmed is removed; a round left too thin is dropped."
     >
       <div className="space-y-3">
+        {/* The numbers below are the last ones that loaded, the storing switch included. */}
+        {error && <RefreshErrorBanner />}
         {data.games.map((g) => (
-          <GameCard key={g.game} g={g} />
+          <GameCard key={g.game} g={g} allPaused={allPaused} />
         ))}
       </div>
       <p className="text-[12.5px] text-slate-500">Only Football Clues is built this way so far. The other daily games still need their days made by hand.</p>

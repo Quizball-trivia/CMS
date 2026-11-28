@@ -2,12 +2,12 @@ import { cleanup, fireEvent, render, screen, within } from '@testing-library/rea
 import { afterEach, expect, it, vi } from 'vitest';
 import type { HarnessDayGame, HarnessDayRound } from '@/types';
 
-const h = vi.hoisted(() => ({ days: undefined as unknown, rounds: [] as unknown, roundsAsked: [] as Array<[string, boolean]>, build: vi.fn(), policy: vi.fn() }));
+const h = vi.hoisted(() => ({ days: undefined as unknown, daysError: null as unknown, roundsError: null as unknown, rounds: [] as unknown, roundsAsked: [] as Array<[string, boolean]>, build: vi.fn(), policy: vi.fn() }));
 vi.mock('@/hooks', () => ({
-  useHarnessDays: () => ({ data: h.days, error: null }),
+  useHarnessDays: () => ({ data: h.days, error: h.daysError }),
   useHarnessDayRounds: (game: string, enabled: boolean) => {
     h.roundsAsked.push([game, enabled]);
-    return { data: h.rounds, error: null, isLoading: false };
+    return { data: h.rounds, error: h.roundsError, isLoading: false };
   },
   useBuildDays: () => ({ mutate: h.build, isPending: false }),
   useSetHarnessPolicy: () => ({ mutate: h.policy, isPending: false }),
@@ -32,6 +32,8 @@ const round = (over: Partial<HarnessDayRound> = {}): HarnessDayRound => ({
 afterEach(() => {
   cleanup();
   h.days = undefined;
+  h.daysError = null;
+  h.roundsError = null;
   h.rounds = [];
   h.roundsAsked = [];
   h.build.mockClear();
@@ -105,4 +107,27 @@ it('runs the builder now, unless it is paused, and shows nothing when no game is
   h.days = { games: [] };
   view.rerender(<DayBuilder />);
   expect(screen.queryByRole('heading', { name: 'Day Builder' })).toBeNull();
+});
+
+it('shows the pause for all agents, whatever the builder\'s own switch says', () => {
+  h.days = { games: [game({ planning: true })] };
+  render(<DayBuilder allPaused />);
+  expect(screen.getByText('All agents are paused')).toBeTruthy();
+  expect(screen.queryByText('Choosing footballers')).toBeNull();
+});
+
+it('says when what it shows could not be refreshed', () => {
+  h.days = { games: [game()] };
+  h.daysError = new Error('offline');
+  h.rounds = [round()];
+  h.roundsError = new Error('offline');
+  render(<DayBuilder />);
+  expect(screen.getAllByText(/Couldn.t refresh/)).toHaveLength(1);
+  fireEvent.click(screen.getByRole('button', { name: /Read the rounds/ }));
+  expect(screen.getAllByText(/Couldn.t refresh/)).toHaveLength(2);
+  // Nothing loaded at all is an error, not an empty section.
+  cleanup();
+  h.days = undefined;
+  render(<DayBuilder />);
+  expect(screen.getByRole('alert').textContent).toContain('offline');
 });
