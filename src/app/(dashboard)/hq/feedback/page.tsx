@@ -138,7 +138,8 @@ function FeedbackCard({ f, now, highlighted }: { f: HarnessFeedbackItem; now: nu
   const who = [f.nickname, f.hasAccount ? 'has an account' : null].filter(Boolean).join(' · ');
   return (
     <Panel as="article" aria-label={`Feedback ${f.number}`} className={cn('scroll-mt-24 px-4 py-3.5 transition sm:px-5', highlighted && 'ring-2 ring-orange-400')}>
-      <div id={`feedback-${f.number}`} className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[12px] text-slate-500">
+      {/* Focusable from code only: a recap link moves the keyboard here, so reading goes on from the message. */}
+      <div id={`feedback-${f.number}`} tabIndex={-1} className="flex flex-wrap items-center gap-x-2.5 gap-y-1 rounded text-[12px] text-slate-500 outline-none focus-visible:ring-2 focus-visible:ring-orange-400">
         <span className="font-medium tabular-nums text-slate-700">#{f.number}</span>
         <span className={cn('rounded-full px-2 py-0.5 font-medium', kind.tone)}>{kind.label}</span>
         <span>{SOURCE_LABEL[f.source]}</span>
@@ -258,8 +259,12 @@ export default function FeedbackPage() {
     setSearch('');
     setShown((s) => Math.max(s, index + 1));
     setHighlight(n);
-    // After the list has grown to include it.
-    setTimeout(() => document.getElementById(`feedback-${n}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 60);
+    // After the list has grown to include it: bring it into view, and move the keyboard there too.
+    setTimeout(() => {
+      const target = document.getElementById(`feedback-${n}`);
+      target?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      target?.focus({ preventScroll: true });
+    }, 60);
   };
 
   return (

@@ -33,6 +33,7 @@ beforeAll(() => {
   Element.prototype.scrollIntoView = vi.fn();
 });
 afterEach(() => {
+  vi.useRealTimers();
   cleanup();
   h.data = undefined;
   h.error = null;
@@ -70,6 +71,7 @@ it('says when a message has not been read yet, or came back without English', ()
 });
 
 it('shows the recap, says what it does not cover, and leads from a theme to the message', () => {
+  vi.useFakeTimers();
   h.data = feedback([item(3), item(2, { category: 'bug' }), item(1)], { recap: recap(), newSinceRecap: 2 });
   render(<FeedbackPage />);
   expect(screen.getByText('Players mostly report freezes in ranked.')).toBeTruthy();
@@ -85,6 +87,9 @@ it('shows the recap, says what it does not cover, and leads from a theme to the 
   // The filter is cleared so the message is there to scroll to.
   expect(screen.getByRole('article', { name: 'Feedback 3' })).toBeTruthy();
   expect(screen.getByRole('article', { name: 'Feedback 2' }).className).toContain('ring-2');
+  // The keyboard follows: focus lands on the message, not on the link that was pressed.
+  vi.runAllTimers();
+  expect(document.activeElement?.id).toBe('feedback-2');
 });
 
 it('asks for a new recap, and not while one is being written', () => {
