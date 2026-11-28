@@ -16,10 +16,11 @@ import { EmptyState, errorMessage, HQ_LABEL, LoadErrorState, Panel, RefreshError
 // into a day. Storing days can be switched off, so a person can read the first
 // rounds before players ever see one.
 
-const STEPS: Array<{ key: keyof HarnessDayGame['rounds']; label: string; hint: string }> = [
-  { key: 'planned', label: 'Named', hint: 'A footballer was chosen; the clues are not written yet' },
-  { key: 'written', label: 'Written', hint: 'Clues written, waiting for the fact check' },
-  { key: 'checked', label: 'Checked', hint: 'Every clue confirmed, waiting for translation' },
+/** What each step means, in the game's own terms: `unit` is what a round is about (a footballer, a list). */
+const STEPS: Array<{ key: keyof HarnessDayGame['rounds']; label: string; hint: string | ((unit: string) => string) }> = [
+  { key: 'planned', label: 'Named', hint: (unit) => `A ${unit} was chosen; nothing is written yet` },
+  { key: 'written', label: 'Written', hint: 'Written with the pages it comes from, waiting for the fact check' },
+  { key: 'checked', label: 'Checked', hint: 'Confirmed against the web, waiting for translation' },
   { key: 'localized', label: 'Translated', hint: 'In every language, waiting for the translations to be checked' },
   { key: 'ready', label: 'Ready', hint: 'Translations checked, waiting to go into a day' },
 ];
@@ -149,13 +150,13 @@ function GameCard({ g, allPaused }: { g: HarnessDayGame; allPaused: boolean }) {
         </div>
         <span className={cn('inline-flex shrink-0 items-center gap-1.5 rounded-full px-2 py-0.5 text-[12px] font-medium', !working ? 'bg-amber-50 text-amber-800' : busy || g.planning ? 'bg-sky-50 text-sky-700' : 'bg-slate-100 text-slate-600')}>
           {(busy > 0 || g.planning) && working && <Loader2 className="size-3 animate-spin" aria-hidden />}
-          {g.agent === 'missing' ? 'Not set up' : g.agent === 'paused' ? 'Paused' : allPaused ? 'All agents are paused' : g.planning ? 'Choosing footballers' : busy ? 'Working' : 'Idle'}
+          {g.agent === 'missing' ? 'Not set up' : g.agent === 'paused' ? 'Paused' : allPaused ? 'All agents are paused' : g.planning ? `Choosing ${g.unit ?? 'round'}s` : busy ? 'Working' : 'Idle'}
         </span>
       </div>
 
       <div className="grid grid-cols-2 gap-px border-y border-slate-100 bg-slate-100 sm:grid-cols-5">
         {STEPS.map((s) => (
-          <div key={s.key} className="bg-white px-4 py-2.5" title={s.hint}>
+          <div key={s.key} className="bg-white px-4 py-2.5" title={typeof s.hint === 'string' ? s.hint : s.hint(g.unit ?? 'round')}>
             <div className={HQ_LABEL}>{s.label}</div>
             <div className="font-display text-xl font-semibold tabular-nums text-slate-950">{g.rounds[s.key]}</div>
           </div>
@@ -174,7 +175,7 @@ function GameCard({ g, allPaused }: { g: HarnessDayGame; allPaused: boolean }) {
           <p className={cn('font-medium', g.storing ? 'text-emerald-900' : 'text-amber-900')}>{g.storing ? 'Storing days is on.' : 'Storing days is off.'}</p>
           <p className={g.storing ? 'text-emerald-900' : 'text-amber-900'}>
             {g.storing
-              ? 'Whenever ten rounds of the right mix are ready, they become the next day, with no person in between. The game\'s own checks still refuse a day that is not whole.'
+              ? `Whenever ${g.perDay.easy + g.perDay.medium + g.perDay.hard} rounds of the right mix are ready, they become the next day, with no person in between. The game's own checks still refuse a day that is not whole.`
               : 'The agents make rounds and they wait here. Nothing reaches players. Read some of the ready rounds below; when you trust them, turn storing on.'}
           </p>
           <button
@@ -222,7 +223,7 @@ function GameCard({ g, allPaused }: { g: HarnessDayGame; allPaused: boolean }) {
           title="Runs by itself every half hour; this does it now"
           onClick={() =>
             build.mutate(g.game, {
-              onSuccess: (r) => toast.success(r.built.length ? `Built ${r.built.join(', ')}.` : r.ordered ? `Asked for ${r.ordered} more footballers.` : 'Nothing to do right now.'),
+              onSuccess: (r) => toast.success(r.built.length ? `Built ${r.built.join(', ')}.` : r.ordered ? `Asked for ${r.ordered} more ${g.unit ?? 'round'}s.` : 'Nothing to do right now.'),
               onError: (e) => toast.error(errorMessage(e, 'Could not start it')),
             })
           }
@@ -246,7 +247,7 @@ export function DayBuilder({ allPaused = false }: { allPaused?: boolean }) {
   return (
     <Section
       title="Day Builder"
-      description="An agent names footballers and writes their clues with the pages they come from. A second model checks every clue against the web. A third translates, and the second reads every translation against the English. Ten finished rounds make a day. A clue that cannot be confirmed is removed; a round left too thin is dropped."
+      description="An agent chooses what each round is about (a footballer for Football Clues, a list for Último) and writes it with the pages it comes from. A second model checks it against the web. A third translates, and the second reads every translation against the English. Finished rounds are put together into days. What cannot be confirmed is removed; a round left too thin, or a list that may be incomplete, is dropped."
     >
       <div className="space-y-3">
         {/* The numbers below are the last ones that loaded, the storing switch included. */}
@@ -255,7 +256,9 @@ export function DayBuilder({ allPaused = false }: { allPaused?: boolean }) {
           <GameCard key={g.game} g={g} allPaused={allPaused} />
         ))}
       </div>
-      <p className="text-[12.5px] text-slate-500">Only Football Clues is built this way so far. The other daily games still need their days made by hand.</p>
+      <p className="text-[12.5px] text-slate-500">
+        Built this way so far: {data.games.map((g) => g.label).join(', ')}. The other daily games still need their days made by hand.
+      </p>
     </Section>
   );
 }

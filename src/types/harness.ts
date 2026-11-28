@@ -578,9 +578,11 @@ export interface HarnessFeedback {
 type DayDifficulty = 'easy' | 'medium' | 'hard';
 
 export interface HarnessDayGame {
-  /** The game's key in the harness ('pistas'). */
+  /** The game's key in the harness ('pistas', 'ultimo'). */
   game: string;
   label: string;
+  /** What one round of this game is about, in the singular: a footballer, a list. */
+  unit?: string;
   /** How many days after today should already be stored, and how many are. */
   ahead: number;
   daysLeft: number;

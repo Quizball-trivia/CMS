@@ -1,14 +1,14 @@
 // Plain-language helpers for the HQ home: one list of what needs a person
 // across every department, and the product's pulse as two whole weeks compared.
 
-import type { HarnessGames, HarnessOverview, HqAnalytics } from '@/types';
+import type { HarnessDays, HarnessFeedback, HarnessGames, HarnessOverview, HqAnalytics } from '@/types';
 import { seatState } from './content/plain';
 import { worthALook } from './games/games';
 
 export interface NeedsYouItem {
   key: string;
   /** Which department it belongs to, shown as a small label. */
-  area: 'Content' | 'Games' | 'Agents';
+  area: 'Content' | 'Games' | 'Agents' | 'Feedback';
   text: string;
   href: string;
   action: string;
@@ -17,8 +17,32 @@ export interface NeedsYouItem {
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
 
 /** Everything that needs a person right now, most pressing first. Agents handle the rest by themselves. */
-export function needsYou(o: HarnessOverview | undefined, games: HarnessGames | undefined, now: number = Date.now(), heldFixes?: number): NeedsYouItem[] {
+export function needsYou(
+  o: HarnessOverview | undefined,
+  games: HarnessGames | undefined,
+  now: number = Date.now(),
+  heldFixes?: number,
+  more: { days?: HarnessDays; feedback?: HarnessFeedback } = {},
+): NeedsYouItem[] {
   const out: NeedsYouItem[] = [];
+  // Days an agent built that wait for a person: storing is off until someone has read the rounds and turns it on.
+  for (const g of more.days?.games ?? []) {
+    const ready = Math.min(...(['easy', 'medium', 'hard'] as const).map((d) => (g.perDay[d] > 0 ? Math.floor(g.readyByDifficulty[d] / g.perDay[d]) : Infinity)));
+    if (!g.storing && Number.isFinite(ready) && ready > 0) {
+      out.push({
+        key: `days-${g.game}`,
+        area: 'Content',
+        text: `${g.label}: the Day Builder has rounds ready for ${plural(ready, 'new day', 'new days')}, and ${g.daysLeft === 1 ? '1 day is' : `${g.daysLeft} days are`} left in the game. Nothing is stored until you have read some of them and turned storing on.`,
+        href: '/hq/content?tab=runway',
+        action: 'Read the rounds',
+      });
+    }
+  }
+  // What the feedback recap marks as broken for players.
+  const urgent = more.feedback?.recap?.recap?.urgent ?? [];
+  if (urgent.length > 0) {
+    out.push({ key: 'feedback', area: 'Feedback', text: `Players report ${plural(urgent.length, 'thing', 'things')} that may be broken: ${urgent[0]}${urgent.length > 1 ? ` (and ${urgent.length - 1} more)` : ''}`, href: '/hq/feedback', action: 'Read the feedback' });
+  }
   if (o) {
     const logins = o.accounts.filter((a) => seatState(a, now).kind === 'login');
     if (logins.length) {
