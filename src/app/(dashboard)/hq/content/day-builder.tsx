@@ -16,10 +16,11 @@ import { EmptyState, errorMessage, HQ_LABEL, LoadErrorState, Panel, RefreshError
 // into a day. Storing days can be switched off, so a person can read the first
 // rounds before players ever see one.
 
-const STEPS: Array<{ key: keyof HarnessDayGame['rounds']; label: string; hint: string }> = [
-  { key: 'planned', label: 'Named', hint: 'A footballer was chosen; the clues are not written yet' },
-  { key: 'written', label: 'Written', hint: 'Clues written, waiting for the fact check' },
-  { key: 'checked', label: 'Checked', hint: 'Every clue confirmed, waiting for translation' },
+/** What each step means, in the game's own terms: `unit` is what a round is about (a footballer, a list). */
+const STEPS: Array<{ key: keyof HarnessDayGame['rounds']; label: string; hint: string | ((unit: string) => string) }> = [
+  { key: 'planned', label: 'Named', hint: (unit) => `A ${unit} was chosen; nothing is written yet` },
+  { key: 'written', label: 'Written', hint: 'Written with the pages it comes from, waiting for the fact check' },
+  { key: 'checked', label: 'Checked', hint: 'Confirmed against the web, waiting for translation' },
   { key: 'localized', label: 'Translated', hint: 'In every language, waiting for the translations to be checked' },
   { key: 'ready', label: 'Ready', hint: 'Translations checked, waiting to go into a day' },
 ];
@@ -155,7 +156,7 @@ function GameCard({ g, allPaused }: { g: HarnessDayGame; allPaused: boolean }) {
 
       <div className="grid grid-cols-2 gap-px border-y border-slate-100 bg-slate-100 sm:grid-cols-5">
         {STEPS.map((s) => (
-          <div key={s.key} className="bg-white px-4 py-2.5" title={s.hint}>
+          <div key={s.key} className="bg-white px-4 py-2.5" title={typeof s.hint === 'string' ? s.hint : s.hint(g.unit ?? 'round')}>
             <div className={HQ_LABEL}>{s.label}</div>
             <div className="font-display text-xl font-semibold tabular-nums text-slate-950">{g.rounds[s.key]}</div>
           </div>
@@ -174,7 +175,7 @@ function GameCard({ g, allPaused }: { g: HarnessDayGame; allPaused: boolean }) {
           <p className={cn('font-medium', g.storing ? 'text-emerald-900' : 'text-amber-900')}>{g.storing ? 'Storing days is on.' : 'Storing days is off.'}</p>
           <p className={g.storing ? 'text-emerald-900' : 'text-amber-900'}>
             {g.storing
-              ? 'Whenever ten rounds of the right mix are ready, they become the next day, with no person in between. The game\'s own checks still refuse a day that is not whole.'
+              ? `Whenever ${g.perDay.easy + g.perDay.medium + g.perDay.hard} rounds of the right mix are ready, they become the next day, with no person in between. The game's own checks still refuse a day that is not whole.`
               : 'The agents make rounds and they wait here. Nothing reaches players. Read some of the ready rounds below; when you trust them, turn storing on.'}
           </p>
           <button

@@ -156,4 +156,13 @@ it('speaks of each game in its own terms', () => {
   expect(screen.getByText(/Built this way so far: Football Clues, Último\./)).toBeTruthy();
   fireEvent.click(within(ultimo).getByRole('button', { name: 'Turn storing on' }));
   expect(h.policy).toHaveBeenCalledWith({ key: 'days.ultimo.store', value: true }, expect.anything());
+  // Each step is explained in the game's own terms.
+  expect(within(ultimo).getByText('Named').parentElement?.getAttribute('title')).toBe('A list was chosen; nothing is written yet');
+  expect(within(screen.getByRole('article', { name: 'Football Clues days' })).getByText('Named').parentElement?.getAttribute('title')).toBe('A footballer was chosen; nothing is written yet');
+  // And a day is as many rounds as that game takes.
+  cleanup();
+  h.days = { games: [game({ storing: true }), game({ game: 'ultimo', label: 'Último', unit: 'list', storing: true, perDay: { easy: 2, medium: 2, hard: 1 } })] };
+  render(<DayBuilder />);
+  expect(within(screen.getByRole('article', { name: 'Football Clues days' })).getByText(/Whenever 10 rounds of the right mix are ready/)).toBeTruthy();
+  expect(within(screen.getByRole('article', { name: 'Último days' })).getByText(/Whenever 5 rounds of the right mix are ready/)).toBeTruthy();
 });
